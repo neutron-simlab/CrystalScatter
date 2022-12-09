@@ -1,0 +1,4330 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>SC_MainGUI</class>
+ <widget class="QMainWindow" name="SC_MainGUI">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1272</width>
+    <height>863</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>SasScatter2</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="verticalLayout_11">
+    <item>
+     <widget class="QTabWidget" name="tabMain">
+      <property name="tabShape">
+       <enum>QTabWidget::Triangular</enum>
+      </property>
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <widget class="QWidget" name="tabConfig">
+       <attribute name="title">
+        <string>Configuration</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_8" columnstretch="1,1,1">
+        <item row="0" column="0">
+         <widget class="QGroupBox" name="groupBox">
+          <property name="title">
+           <string>Calculation destination</string>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout">
+           <item>
+            <widget class="QRadioButton" name="radNewImageCfg">
+             <property name="toolTip">
+              <string>Same settings as in the Calculation tab</string>
+             </property>
+             <property name="text">
+              <string>New Image window</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="radLastImageCfg">
+             <property name="toolTip">
+              <string>Same settings as in the Calculation tab</string>
+             </property>
+             <property name="text">
+              <string>Last Image window</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="togOnlyNewWindow">
+             <property name="text">
+              <string>Use allways a new window</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="togAutoPosit">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If &lt;span style=&quot; font-weight:600;&quot;&gt;checked&lt;/span&gt;: beginnning in the upper left corner, try to posit all windows side by side.&lt;/p&gt;&lt;p&gt;If&lt;span style=&quot; font-weight:600;&quot;&gt; not checked&lt;/span&gt;: all windows are positioned by the operating system (normally in the screen center).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string>Automatically stack all windows</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QGroupBox" name="groupBox_4">
+          <property name="title">
+           <string>Timing informations</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_5">
+           <item row="0" column="1">
+            <widget class="QSpinBox" name="inpNumCores">
+             <property name="toolTip">
+              <string>More than 1 makes only sense with HKLmax &gt; 5</string>
+             </property>
+             <property name="specialValueText">
+              <string>GPU</string>
+             </property>
+             <property name="minimum">
+              <number>0</number>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0" colspan="2">
+            <widget class="QCheckBox" name="togIgnoreUpdates">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When this is checked, the updates are ignored. This means the calculation with remote operation is faster.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string>No GUI updates at each step</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QCheckBox" name="togLimitRuntime">
+             <property name="toolTip">
+              <string/>
+             </property>
+             <property name="text">
+              <string>Limit running time to</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_21">
+             <property name="text">
+              <string>Time of last calculation:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QSpinBox" name="inpLimitRuntime">
+             <property name="toolTip">
+              <string>After this time the calculation will be aborted</string>
+             </property>
+             <property name="suffix">
+              <string>s</string>
+             </property>
+             <property name="minimum">
+              <number>1</number>
+             </property>
+             <property name="maximum">
+              <number>99999</number>
+             </property>
+             <property name="value">
+              <number>100</number>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QLabel" name="lblTimeUsed">
+             <property name="minimumSize">
+              <size>
+               <width>60</width>
+               <height>0</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>555555 ms</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_12">
+             <property name="text">
+              <string>Number of used cores / threads:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="0" column="2" rowspan="3">
+         <widget class="QGroupBox" name="groupBox_8">
+          <property name="title">
+           <string>Tests</string>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_7">
+           <item>
+            <widget class="QLabel" name="label">
+             <property name="text">
+              <string>Generate simple test images, best used for FFT</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="radTestImg1">
+             <property name="text">
+              <string>Testimage 1 (-)</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="radTestImg2">
+             <property name="text">
+              <string>Testimage 2 (|)</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="radTestImg3">
+             <property name="text">
+              <string>Testimage 3 (x)</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="radTestImg4">
+             <property name="text">
+              <string>Testimage 4 (+)</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="radTestImg5">
+             <property name="text">
+              <string>Testimage 5 (:.)</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="radTestImg6">
+             <property name="text">
+              <string>Testimage 6 (.)</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="radTestCurMethod">
+             <property name="text">
+              <string>Calculate current method</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="radTestAllMethods">
+             <property name="text">
+              <string>Calculate all methods</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="togTestUseFFT">
+             <property name="text">
+              <string>Automatically run FFT</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="butTestGo">
+             <property name="text">
+              <string>Go</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QGroupBox" name="groupBox_9">
+          <property name="title">
+           <string>Default color table</string>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_8">
+           <item>
+            <widget class="QLabel" name="label_32">
+             <property name="text">
+              <string>to be used for all newly generated images</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="cbsDefaultColTbl"/>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="3" column="2">
+         <spacer name="verticalSpacer_3">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>10</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item row="1" column="0" rowspan="3">
+         <widget class="QGroupBox" name="groupBox_11">
+          <property name="title">
+           <string>Last fit actions</string>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_10">
+           <item>
+            <widget class="QLabel" name="label_44">
+             <property name="text">
+              <string>Copy the text with the mouse and insert it into a text file to use as the automatic fit definition.</string>
+             </property>
+             <property name="wordWrap">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPlainTextEdit" name="editAutoFit">
+             <property name="lineWrapMode">
+              <enum>QPlainTextEdit::NoWrap</enum>
+             </property>
+             <property name="readOnly">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="butClearEditAutoFit">
+             <property name="text">
+              <string>Clear read only text field</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="2" column="1" rowspan="2">
+         <widget class="QGroupBox" name="groupBox_13">
+          <property name="title">
+           <string>Scan for files an generate images</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_21">
+           <item row="6" column="0" colspan="2">
+            <widget class="QPushButton" name="butParamSearchGenerate">
+             <property name="text">
+              <string>Generate images for all selected files</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="label_20">
+             <property name="text">
+              <string>Found files:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QLabel" name="lblParamSearchCount">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QPushButton" name="butParamSearchPath">
+             <property name="maximumSize">
+              <size>
+               <width>30</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0" colspan="2">
+            <widget class="QPushButton" name="butParamSearchDoit">
+             <property name="text">
+              <string>Search for parameter files (*.ini)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLineEdit" name="inpParamSearchPath"/>
+           </item>
+           <item row="0" column="0" colspan="2">
+            <widget class="QLabel" name="label_14">
+             <property name="text">
+              <string>Use this path as the basepath and search for all files in and below this path:</string>
+             </property>
+             <property name="wordWrap">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="0" colspan="2">
+            <widget class="QListWidget" name="lisParamSearchResult">
+             <property name="editTriggers">
+              <set>QAbstractItemView::NoEditTriggers</set>
+             </property>
+             <property name="selectionMode">
+              <enum>QAbstractItemView::ExtendedSelection</enum>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0" colspan="2">
+            <widget class="QPushButton" name="butDataSearchDoit">
+             <property name="text">
+              <string>Search for data files (*.*)</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tabData">
+       <attribute name="title">
+        <string>Data</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout">
+        <item row="0" column="0">
+         <layout class="QVBoxLayout" name="verticalLayout_15">
+          <item>
+           <widget class="QGroupBox" name="groupBox_12">
+            <property name="title">
+             <string>q max (calculated from values in table):</string>
+            </property>
+            <layout class="QVBoxLayout" name="verticalLayout_14">
+             <item>
+              <widget class="QLineEdit" name="inpQMax"/>
+             </item>
+             <item>
+              <widget class="QPushButton" name="butUseQMax">
+               <property name="text">
+                <string>Use this qmax in all methods</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="grpLattice3D">
+            <property name="title">
+             <string>Use these informations for the 2d fit</string>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+            <layout class="QVBoxLayout" name="verticalLayout_13">
+             <item>
+              <widget class="QLabel" name="lblUseLattice3D">
+               <property name="text">
+                <string>they are stored for each data set individually
+if no values given, use the calculation settings</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignHCenter|Qt::AlignTop</set>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QTableWidget" name="tblLattice3DValues">
+               <property name="selectionMode">
+                <enum>QAbstractItemView::SingleSelection</enum>
+               </property>
+               <property name="cornerButtonEnabled">
+                <bool>false</bool>
+               </property>
+               <attribute name="horizontalHeaderStretchLastSection">
+                <bool>true</bool>
+               </attribute>
+               <attribute name="verticalHeaderDefaultSectionSize">
+                <number>26</number>
+               </attribute>
+               <row>
+                <property name="text">
+                 <string>Wavelength [nm]</string>
+                </property>
+               </row>
+               <row>
+                <property name="text">
+                 <string>Sample-Det Dist. [m]</string>
+                </property>
+               </row>
+               <row>
+                <property name="text">
+                 <string>Pix Width [mm]</string>
+                </property>
+               </row>
+               <row>
+                <property name="text">
+                 <string>Pix Height [mm]</string>
+                </property>
+               </row>
+               <row>
+                <property name="text">
+                 <string>Pix Rows</string>
+                </property>
+               </row>
+               <row>
+                <property name="text">
+                 <string>Pix Cols</string>
+                </property>
+               </row>
+               <row>
+                <property name="text">
+                 <string>Beam Cent X</string>
+                </property>
+               </row>
+               <row>
+                <property name="text">
+                 <string>Beam Cent Y</string>
+                </property>
+               </row>
+               <column>
+                <property name="text">
+                 <string>Value</string>
+                </property>
+               </column>
+               <item row="0" column="0">
+                <property name="text">
+                 <string>0.5</string>
+                </property>
+               </item>
+               <item row="1" column="0">
+                <property name="text">
+                 <string>4.0</string>
+                </property>
+               </item>
+               <item row="2" column="0">
+                <property name="text">
+                 <string>5.3</string>
+                </property>
+               </item>
+               <item row="3" column="0">
+                <property name="text">
+                 <string>5.3</string>
+                </property>
+               </item>
+               <item row="4" column="0">
+                <property name="text">
+                 <string>200</string>
+                </property>
+               </item>
+               <item row="5" column="0">
+                <property name="text">
+                 <string>200</string>
+                </property>
+               </item>
+               <item row="6" column="0">
+                <property name="text">
+                 <string>100</string>
+                </property>
+               </item>
+               <item row="7" column="0">
+                <property name="text">
+                 <string>100</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="butOpenMeasFile">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>50</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>Open measurement file ...</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="0" column="1">
+         <widget class="QGroupBox" name="groupBox_10">
+          <property name="title">
+           <string>List of data windows:</string>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_9">
+           <item>
+            <widget class="QListWidget" name="lisDataWindows">
+             <property name="toolTip">
+              <string>Select to raise the window</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="butDataFindCenter">
+             <property name="text">
+              <string>Find beam center in image</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="butDataSetMask">
+             <property name="text">
+              <string>Set Mask to all other images</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="butDataCopyScaling">
+             <property name="text">
+              <string>Copy Min/Max to other images as fixed scale</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="butSaveAllImages">
+             <property name="text">
+              <string>Save all windows ...</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="0" column="2">
+         <layout class="QVBoxLayout" name="verticalLayout_16">
+          <item>
+           <widget class="QGroupBox" name="grpExtractImage">
+            <property name="title">
+             <string>Extract image</string>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+            <property name="checked">
+             <bool>false</bool>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_10">
+             <item row="0" column="0">
+              <widget class="QLabel" name="label_5">
+               <property name="text">
+                <string>Center point:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QDoubleSpinBox" name="inpExtractCenterX">
+               <property name="prefix">
+                <string>X=</string>
+               </property>
+               <property name="maximum">
+                <double>9999.989999999999782</double>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="2">
+              <widget class="QPushButton" name="butDoExtract">
+               <property name="text">
+                <string>Extract to new</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="2">
+              <widget class="QDoubleSpinBox" name="inpExtractCenterY">
+               <property name="prefix">
+                <string>Y=</string>
+               </property>
+               <property name="maximum">
+                <double>9999.989999999999782</double>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QSpinBox" name="inpExtractGridSize">
+               <property name="maximum">
+                <number>9999</number>
+               </property>
+               <property name="value">
+                <number>64</number>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1" colspan="2">
+              <widget class="QComboBox" name="cbsExtractScale"/>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="label_6">
+               <property name="text">
+                <string>New Grid points:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="QLabel" name="label_8">
+               <property name="text">
+                <string>Scale factor:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="grpNoFitRegions">
+            <property name="title">
+             <string>Define regions ignored in 2d fit</string>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+            <property name="checked">
+             <bool>false</bool>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_18">
+             <item row="0" column="0">
+              <widget class="QTableWidget" name="tblNoFitRegions">
+               <property name="maximumSize">
+                <size>
+                 <width>330</width>
+                 <height>180</height>
+                </size>
+               </property>
+               <attribute name="horizontalHeaderDefaultSectionSize">
+                <number>70</number>
+               </attribute>
+               <attribute name="verticalHeaderDefaultSectionSize">
+                <number>35</number>
+               </attribute>
+               <row>
+                <property name="text">
+                 <string>1</string>
+                </property>
+               </row>
+               <row>
+                <property name="text">
+                 <string>2</string>
+                </property>
+               </row>
+               <row>
+                <property name="text">
+                 <string>3</string>
+                </property>
+               </row>
+               <row>
+                <property name="text">
+                 <string>4</string>
+                </property>
+               </row>
+               <column>
+                <property name="text">
+                 <string>Xmin</string>
+                </property>
+               </column>
+               <column>
+                <property name="text">
+                 <string>Xmax</string>
+                </property>
+               </column>
+               <column>
+                <property name="text">
+                 <string>Ymin</string>
+                </property>
+               </column>
+               <column>
+                <property name="text">
+                 <string>Ymax</string>
+                </property>
+               </column>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="label_13">
+               <property name="text">
+                <string>The current selected row can be modified with the mouse. Empty rows are ignored.</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignHCenter|Qt::AlignTop</set>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="grpFrameColor">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="title">
+             <string/>
+            </property>
+            <layout class="QVBoxLayout" name="verticalLayout_17">
+             <item>
+              <widget class="QLabel" name="label_7">
+               <property name="text">
+                <string>Color used to draw the rectangles in the image.</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QComboBox" name="cbsExtractFrameCol">
+               <item>
+                <property name="text">
+                 <string>first color table entry</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>last color table entry</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>red</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>white</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_4">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tabCalc">
+       <attribute name="title">
+        <string>Calculations</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_2">
+        <property name="verticalSpacing">
+         <number>1</number>
+        </property>
+        <item row="0" column="1" rowspan="3">
+         <widget class="QGroupBox" name="grpVectors">
+          <property name="title">
+           <string>Common Settings</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_7">
+           <item row="1" column="0">
+            <widget class="QLabel" name="lblParamU">
+             <property name="maximumSize">
+              <size>
+               <width>85</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>U:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="3">
+            <widget class="QDoubleSpinBox" name="inpAy3">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QDoubleSpinBox" name="inpN1">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QLabel" name="label_16">
+             <property name="maximumSize">
+              <size>
+               <width>85</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>1:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="2">
+            <widget class="QDoubleSpinBox" name="inpAx2">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="lblParamAx">
+             <property name="maximumSize">
+              <size>
+               <width>85</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>Ax:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="2">
+            <widget class="QDoubleSpinBox" name="inpV2">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>1.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="10" column="0">
+            <widget class="QLabel" name="label_4">
+             <property name="maximumSize">
+              <size>
+               <width>85</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>Grid points:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="2">
+            <widget class="QLabel" name="label_17">
+             <property name="maximumSize">
+              <size>
+               <width>85</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>2:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="2">
+            <widget class="QDoubleSpinBox" name="inpAy2">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>1.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="0">
+            <widget class="QLabel" name="lblParamAz">
+             <property name="maximumSize">
+              <size>
+               <width>85</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>Az:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QDoubleSpinBox" name="inpU1">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>1.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="3">
+            <widget class="QDoubleSpinBox" name="inpV3">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="9" column="0">
+            <widget class="QLabel" name="label_38">
+             <property name="maximumSize">
+              <size>
+               <width>85</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>HKLmax:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="3">
+            <widget class="QLabel" name="label_18">
+             <property name="maximumSize">
+              <size>
+               <width>85</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>3:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="0">
+            <widget class="QLabel" name="lblParamSig">
+             <property name="maximumSize">
+              <size>
+               <width>85</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="toolTip">
+              <string>domain u1,u2,u3</string>
+             </property>
+             <property name="text">
+              <string>Sig X,Y,Z:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="2">
+            <widget class="QDoubleSpinBox" name="inpSigY">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>40.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="1">
+            <widget class="QDoubleSpinBox" name="inpSigX">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>40.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="3">
+            <widget class="QDoubleSpinBox" name="inpAx3">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="3">
+            <widget class="QDoubleSpinBox" name="inpN3">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>1.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="3">
+            <widget class="QDoubleSpinBox" name="inpAz3">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>1.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QDoubleSpinBox" name="inpV1">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="lblParamN">
+             <property name="maximumSize">
+              <size>
+               <width>85</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>N:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="1">
+            <widget class="QDoubleSpinBox" name="inpAy1">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QDoubleSpinBox" name="inpAx1">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>1.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="2">
+            <widget class="QDoubleSpinBox" name="inpAz2">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="3">
+            <widget class="QDoubleSpinBox" name="inpSigZ">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>40.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="3">
+            <widget class="QDoubleSpinBox" name="inpU3">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="2">
+            <widget class="QDoubleSpinBox" name="inpN2">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="lblParamV">
+             <property name="maximumSize">
+              <size>
+               <width>85</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>V:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="0">
+            <widget class="QLabel" name="lblParamAy">
+             <property name="maximumSize">
+              <size>
+               <width>85</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>Ay:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="1">
+            <widget class="QDoubleSpinBox" name="inpAz1">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="2">
+            <widget class="QDoubleSpinBox" name="inpU2">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-1000.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="8" column="2" rowspan="3" colspan="2">
+            <widget class="QGroupBox" name="grpQuadrants">
+             <property name="title">
+              <string>Quadrants</string>
+             </property>
+             <layout class="QGridLayout" name="gridLayout_15">
+              <property name="topMargin">
+               <number>3</number>
+              </property>
+              <property name="bottomMargin">
+               <number>3</number>
+              </property>
+              <property name="verticalSpacing">
+               <number>3</number>
+              </property>
+              <item row="0" column="1">
+               <widget class="QRadioButton" name="radQ2">
+                <property name="text">
+                 <string>2</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="2">
+               <widget class="QRadioButton" name="radQ4">
+                <property name="text">
+                 <string>4</string>
+                </property>
+                <property name="checked">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="0">
+               <widget class="QRadioButton" name="radQ1">
+                <property name="text">
+                 <string>1</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0" colspan="3">
+               <widget class="QCheckBox" name="togExpandImage">
+                <property name="toolTip">
+                 <string>use point symetry</string>
+                </property>
+                <property name="text">
+                 <string>Expand to full image</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="10" column="1">
+            <widget class="QSpinBox" name="inpGridPoints">
+             <property name="maximum">
+              <number>9999</number>
+             </property>
+             <property name="value">
+              <number>0</number>
+             </property>
+            </widget>
+           </item>
+           <item row="9" column="1">
+            <widget class="QSpinBox" name="inpHKLmax">
+             <property name="value">
+              <number>3</number>
+             </property>
+            </widget>
+           </item>
+           <item row="11" column="0">
+            <widget class="QLabel" name="label_22">
+             <property name="text">
+              <string>Beam center:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="11" column="1">
+            <widget class="QDoubleSpinBox" name="inpBCenterX">
+             <property name="prefix">
+              <string>X=</string>
+             </property>
+             <property name="minimum">
+              <double>-9999.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>9999.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="11" column="2">
+            <widget class="QDoubleSpinBox" name="inpBCenterY">
+             <property name="prefix">
+              <string>Y=</string>
+             </property>
+             <property name="minimum">
+              <double>-9999.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>9999.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="7" column="1">
+         <spacer name="verticalSpacer">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item row="4" column="1">
+         <spacer name="verticalSpacer_7">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item row="0" column="0" rowspan="12">
+         <widget class="QTabWidget" name="tabMethods">
+          <property name="toolTip">
+           <string>Click on a parameter label for a popup menu (to set to default or copy to other methods)</string>
+          </property>
+          <property name="tabShape">
+           <enum>QTabWidget::Triangular</enum>
+          </property>
+          <property name="currentIndex">
+           <number>0</number>
+          </property>
+          <widget class="QWidget" name="tab">
+           <attribute name="title">
+            <string>Tab 1</string>
+           </attribute>
+          </widget>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="QLabel" name="label_34">
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>45</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Bold Lables&lt;/span&gt; are used in the &lt;span style=&quot; font-style:italic;&quot;&gt;Simplex 2D Fit&lt;/span&gt; part.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="1">
+         <widget class="QLabel" name="lblLoadFilename">
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>45</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>?</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="10" column="1">
+         <widget class="QGroupBox" name="groupBox_2">
+          <property name="toolTip">
+           <string>Same settings as in the Configuration tab</string>
+          </property>
+          <property name="title">
+           <string>Calculation destination</string>
+          </property>
+          <layout class="QHBoxLayout" name="horizontalLayout">
+           <item>
+            <widget class="QRadioButton" name="radNewImageCal">
+             <property name="toolTip">
+              <string>Same settings as in the Configuration tab</string>
+             </property>
+             <property name="text">
+              <string>New image window</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="radLastImageCal">
+             <property name="toolTip">
+              <string>Same settings as in the Configuration tab</string>
+             </property>
+             <property name="text">
+              <string>Last image window</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="5" column="1">
+         <widget class="QLabel" name="lblLoadPrompt">
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>45</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>Loaded parameter file:</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignBottom|Qt::AlignLeading|Qt::AlignLeft</set>
+          </property>
+         </widget>
+        </item>
+        <item row="11" column="1">
+         <widget class="QCheckBox" name="togAutoRecalc">
+          <property name="toolTip">
+           <string>If the calculation is more than 1 second, this feature will be deactivated automatically.</string>
+          </property>
+          <property name="text">
+           <string>Recalculate at every value change</string>
+          </property>
+         </widget>
+        </item>
+        <item row="8" column="1">
+         <widget class="QFrame" name="frame">
+          <property name="frameShape">
+           <enum>QFrame::StyledPanel</enum>
+          </property>
+          <property name="frameShadow">
+           <enum>QFrame::Raised</enum>
+          </property>
+          <layout class="QHBoxLayout" name="horizontalLayout_7">
+           <item>
+            <spacer name="horizontalSpacer">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeType">
+              <enum>QSizePolicy::Minimum</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>117</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QPushButton" name="butResetColorMarker">
+             <property name="text">
+              <string>Reset color marker</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="horizontalSpacer_3">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeType">
+              <enum>QSizePolicy::Minimum</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>117</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tabFFT">
+       <attribute name="title">
+        <string>FFT and (r,phi)</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_9">
+        <item row="0" column="3">
+         <widget class="QGroupBox" name="grpFFToutput">
+          <property name="title">
+           <string>iFFT Output</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_27">
+           <item row="2" column="0" colspan="2">
+            <widget class="QGroupBox" name="groupBox_18">
+             <property name="title">
+              <string>Output scaling</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_6">
+              <property name="spacing">
+               <number>2</number>
+              </property>
+              <property name="topMargin">
+               <number>3</number>
+              </property>
+              <property name="bottomMargin">
+               <number>3</number>
+              </property>
+              <item>
+               <widget class="QCheckBox" name="togFFTscaleOut">
+                <property name="text">
+                 <string>Scale to maximum (result 0..1) (linear data)</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="togFFTclipOut">
+                <property name="text">
+                 <string>Clip to the range of [1e-6, 1] (log data)</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="togFFTclip40Out">
+                <property name="text">
+                 <string>Clip to 40% .. 100% (best after clip range)</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="6" column="0" colspan="2">
+            <widget class="QCheckBox" name="togIFFTSwap">
+             <property name="text">
+              <string>Swap output (0° in center instead in each corner)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0" colspan="2">
+            <widget class="QGroupBox" name="groupBox_17">
+             <property name="title">
+              <string>Output data</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_3">
+              <property name="spacing">
+               <number>2</number>
+              </property>
+              <property name="topMargin">
+               <number>3</number>
+              </property>
+              <property name="bottomMargin">
+               <number>3</number>
+              </property>
+              <item>
+               <widget class="QRadioButton" name="radFFToutReal">
+                <property name="text">
+                 <string>Real Part</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QRadioButton" name="radFFToutImag">
+                <property name="text">
+                 <string>Imaginary Part</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QRadioButton" name="radFFToutBetrag">
+                <property name="text">
+                 <string>Abs. Square =sqrt(re²+im²)</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QRadioButton" name="radFFToutSpectrum">
+                <property name="text">
+                 <string>Powerspectrum =(re+im)*(re-im)</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_23">
+             <property name="text">
+              <string>Dimension of output image</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QComboBox" name="cbsFFTsizeOut">
+             <property name="currentIndex">
+              <number>1</number>
+             </property>
+             <item>
+              <property name="text">
+               <string>32 * 32</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>64 * 64</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>128 * 128</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>256 * 256</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>512 * 512</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <spacer name="verticalSpacer_5">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item row="0" column="2">
+         <widget class="QGroupBox" name="grpFFTuseRphi">
+          <property name="title">
+           <string>Use (r,phi)</string>
+          </property>
+          <property name="checkable">
+           <bool>true</bool>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_29">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_46">
+             <property name="text">
+              <string>Dimension of output image</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0" colspan="2">
+            <widget class="QCheckBox" name="togFFTdispRphi">
+             <property name="text">
+              <string>display (r,phi) intermediate image</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0" colspan="2">
+            <widget class="QGroupBox" name="groupBox_19">
+             <property name="title">
+              <string>Output scaling</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_19">
+              <property name="spacing">
+               <number>2</number>
+              </property>
+              <property name="topMargin">
+               <number>3</number>
+              </property>
+              <property name="bottomMargin">
+               <number>3</number>
+              </property>
+              <item>
+               <widget class="QCheckBox" name="togFFTscaleRphi">
+                <property name="text">
+                 <string>Scale to maximum (result 0..1) (linear data)</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="togFFTclipRphi">
+                <property name="text">
+                 <string>Clip to the range of [1e-6, 1] (log data)</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="togFFTclip40Rphi">
+                <property name="text">
+                 <string>Clip to 40% .. 100% (best after clip range)</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="5" column="0">
+            <widget class="QLabel" name="label_47">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QComboBox" name="cbsFFTsizeRphi">
+             <property name="currentIndex">
+              <number>1</number>
+             </property>
+             <item>
+              <property name="text">
+               <string>32 * 32</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>64 * 64</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>128 * 128</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>256 * 256</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>512 * 512</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="4" column="0" colspan="2">
+            <widget class="QPushButton" name="butFFTverifyRphi">
+             <property name="text">
+              <string>Verification</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="2" column="3">
+         <widget class="QPushButton" name="butIFFT">
+          <property name="text">
+           <string>Calculate iFFT</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QGroupBox" name="grpFFTinput">
+          <property name="title">
+           <string>Input preprocessing</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_28">
+           <item row="0" column="1">
+            <widget class="QComboBox" name="cbsFFTWindows"/>
+           </item>
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_25">
+             <property name="text">
+              <string>Imagewindow to use:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0" colspan="2">
+            <widget class="QRadioButton" name="radFFTLinInput">
+             <property name="text">
+              <string>use linear data as input</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0" colspan="2">
+            <widget class="QRadioButton" name="radFFTLogInput">
+             <property name="text">
+              <string>use logarithm as input</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="label_48">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="1" column="3">
+         <widget class="QPushButton" name="butFFT">
+          <property name="text">
+           <string>Calculate FFT</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tabFit">
+       <attribute name="title">
+        <string>Simplex 2D Fit</string>
+       </attribute>
+       <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="1,0,1">
+        <item>
+         <layout class="QGridLayout" name="gridLayout_16">
+          <item row="3" column="1">
+           <widget class="QLabel" name="lblFitConfigFile">
+            <property name="text">
+             <string>TextLabel</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QPushButton" name="butFitConfig">
+            <property name="maximumSize">
+             <size>
+              <width>60</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>Config:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0" colspan="2">
+           <widget class="QTableWidget" name="tblFitValues">
+            <property name="editTriggers">
+             <set>QAbstractItemView::AnyKeyPressed|QAbstractItemView::DoubleClicked|QAbstractItemView::EditKeyPressed|QAbstractItemView::SelectedClicked</set>
+            </property>
+            <property name="alternatingRowColors">
+             <bool>true</bool>
+            </property>
+            <property name="selectionMode">
+             <enum>QAbstractItemView::SingleSelection</enum>
+            </property>
+            <attribute name="verticalHeaderDefaultSectionSize">
+             <number>30</number>
+            </attribute>
+           </widget>
+          </item>
+          <item row="0" column="0" colspan="2">
+           <widget class="QLabel" name="label_24">
+            <property name="font">
+             <font>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>Used calculation method:</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0" colspan="2">
+           <widget class="QLabel" name="label_33">
+            <property name="text">
+             <string>Variables to fit:</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayout_18">
+          <item>
+           <widget class="QLabel" name="lblFitUsedMethod">
+            <property name="font">
+             <font>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="text">
+             <string>TextLabel</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="grpFitParams">
+            <property name="title">
+             <string/>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_17">
+             <property name="leftMargin">
+              <number>1</number>
+             </property>
+             <property name="topMargin">
+              <number>1</number>
+             </property>
+             <property name="rightMargin">
+              <number>1</number>
+             </property>
+             <property name="bottomMargin">
+              <number>1</number>
+             </property>
+             <property name="horizontalSpacing">
+              <number>2</number>
+             </property>
+             <item row="0" column="1">
+              <widget class="QSpinBox" name="inpFitRepetitions">
+               <property name="minimum">
+                <number>1</number>
+               </property>
+               <property name="value">
+                <number>1</number>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="1">
+              <widget class="QLineEdit" name="inpFitTolerance">
+               <property name="maximumSize">
+                <size>
+                 <width>90</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>Enter only numerical values in Exponetial notation</string>
+               </property>
+               <property name="text">
+                <string>1.0e-15</string>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="1">
+              <widget class="QLabel" name="lblFitCurIter">
+               <property name="font">
+                <font>
+                 <italic>true</italic>
+                </font>
+               </property>
+               <property name="text">
+                <string>TextLabel</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QLabel" name="lblFitCurRep">
+               <property name="font">
+                <font>
+                 <italic>true</italic>
+                </font>
+               </property>
+               <property name="text">
+                <string>TextLabel</string>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="0">
+              <widget class="QLabel" name="label_19">
+               <property name="font">
+                <font>
+                 <italic>true</italic>
+                </font>
+               </property>
+               <property name="text">
+                <string>Current iteration:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="0">
+              <widget class="QLabel" name="label_10">
+               <property name="text">
+                <string>Beamstop half-size:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0">
+              <widget class="QLabel" name="label_11">
+               <property name="text">
+                <string>Maximum iterations:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="6" column="1">
+              <widget class="QComboBox" name="cbsFitImageWindows"/>
+             </item>
+             <item row="2" column="0">
+              <widget class="QLabel" name="label_9">
+               <property name="text">
+                <string>Step size:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="0">
+              <widget class="QLabel" name="label_2">
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;This number of pixels is ignored at each border.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+               <property name="text">
+                <string>Border size:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="6" column="0">
+              <widget class="QLabel" name="label_3">
+               <property name="text">
+                <string>Imagewindow to fit:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="0">
+              <widget class="QLabel" name="lblFitRepetitions">
+               <property name="text">
+                <string>Number of repetitions:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="9" column="0" colspan="2">
+              <widget class="QCheckBox" name="togFitUseMask">
+               <property name="layoutDirection">
+                <enum>Qt::RightToLeft</enum>
+               </property>
+               <property name="text">
+                <string>Ignore pixel less equal corner pixel</string>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="0">
+              <widget class="QLabel" name="label_15">
+               <property name="text">
+                <string>Tolerance:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="lblPrmFitCurRep">
+               <property name="font">
+                <font>
+                 <italic>true</italic>
+                </font>
+               </property>
+               <property name="text">
+                <string>Current repetition:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="1">
+              <widget class="QSpinBox" name="inpFitBorder">
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;This number of pixels is ignored at each border.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+               <property name="suffix">
+                <string> px</string>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="1">
+              <widget class="QSpinBox" name="inpFitMaxIter">
+               <property name="minimum">
+                <number>1</number>
+               </property>
+               <property name="maximum">
+                <number>999</number>
+               </property>
+               <property name="value">
+                <number>10</number>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="1">
+              <widget class="QSpinBox" name="inpFitBStop">
+               <property name="suffix">
+                <string> px</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QDoubleSpinBox" name="inpFitStepSize">
+               <property name="suffix">
+                <string> %</string>
+               </property>
+               <property name="decimals">
+                <number>1</number>
+               </property>
+               <property name="minimum">
+                <double>0.100000000000000</double>
+               </property>
+               <property name="value">
+                <double>1.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_2">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="grpFitResult">
+            <property name="title">
+             <string/>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_19">
+             <property name="leftMargin">
+              <number>1</number>
+             </property>
+             <property name="topMargin">
+              <number>1</number>
+             </property>
+             <property name="rightMargin">
+              <number>1</number>
+             </property>
+             <property name="bottomMargin">
+              <number>1</number>
+             </property>
+             <property name="horizontalSpacing">
+              <number>2</number>
+             </property>
+             <item row="0" column="1">
+              <widget class="QPushButton" name="butFitHistoShow">
+               <property name="text">
+                <string>Show</string>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="1">
+              <widget class="QPushButton" name="butFitCurLoad">
+               <property name="toolTip">
+                <string>Loads the fit settings from the temporary file</string>
+               </property>
+               <property name="text">
+                <string>Restore</string>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="1">
+              <widget class="QPushButton" name="butShowResiduen">
+               <property name="text">
+                <string>Show</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QPushButton" name="butFitHistoClear">
+               <property name="text">
+                <string>Clear</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QPushButton" name="butFitCurSave">
+               <property name="toolTip">
+                <string>Save only the current fit settings into a temporary file</string>
+               </property>
+               <property name="text">
+                <string>Save</string>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="1">
+              <widget class="QPushButton" name="butFitUseResult">
+               <property name="text">
+                <string>Use it</string>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="0">
+              <widget class="QLabel" name="label_41">
+               <property name="text">
+                <string>Residuen-Plot:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="0">
+              <widget class="QLabel" name="label_42">
+               <property name="text">
+                <string>Fit Result:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="0" rowspan="2">
+              <widget class="QLabel" name="lblFitHisto">
+               <property name="text">
+                <string>History</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0" rowspan="2">
+              <widget class="QLabel" name="label_40">
+               <property name="text">
+                <string>Current fit settings:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_10">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="grpFitStart">
+            <property name="title">
+             <string/>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_20">
+             <property name="leftMargin">
+              <number>1</number>
+             </property>
+             <property name="topMargin">
+              <number>1</number>
+             </property>
+             <property name="rightMargin">
+              <number>1</number>
+             </property>
+             <property name="bottomMargin">
+              <number>1</number>
+             </property>
+             <property name="horizontalSpacing">
+              <number>2</number>
+             </property>
+             <item row="1" column="0">
+              <widget class="QLabel" name="label_43">
+               <property name="text">
+                <string>Start automatic search
+with file definitions</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QPushButton" name="butFitAutomatic">
+               <property name="text">
+                <string>Automatic</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QPushButton" name="butFitStart">
+               <property name="font">
+                <font>
+                 <weight>75</weight>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>Start 2d-Fit</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="0" colspan="2">
+              <widget class="QLabel" name="lblAutofitInfo">
+               <property name="text">
+                <string>x</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QGridLayout" name="gridLayout_4">
+          <item row="1" column="0">
+           <spacer name="horizontalSpacer_2">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::MinimumExpanding</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item row="1" column="1">
+           <widget class="QPushButton" name="butSaveLog">
+            <property name="text">
+             <string>Save Loggings</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0" colspan="2">
+           <widget class="QListWidget" name="lisFitLog"/>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tabAI">
+       <attribute name="title">
+        <string>AI definitions</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_14">
+        <item row="0" column="0" colspan="2">
+         <layout class="QHBoxLayout" name="horizontalLayout_2">
+          <item>
+           <widget class="QLabel" name="lblAIMethods">
+            <property name="text">
+             <string>Current calculation method:</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QComboBox" name="cbsMethod"/>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="togUseAllMethods">
+            <property name="text">
+             <string>Calculate all methods with the same parameters</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="hspacerMethods">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </item>
+        <item row="1" column="0">
+         <layout class="QVBoxLayout" name="verticalLayout_4" stretch="1,0,0">
+          <item>
+           <widget class="QGroupBox" name="grpVariables">
+            <property name="title">
+             <string>Variables changed durling calculations</string>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_3" rowstretch="0,0,0,0,0,0,0,0,0,0">
+             <item row="5" column="3">
+              <widget class="QPushButton" name="butRemoveVar">
+               <property name="text">
+                <string>Remove variable</string>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="1" colspan="3">
+              <widget class="QLabel" name="label_30">
+               <property name="minimumSize">
+                <size>
+                 <width>0</width>
+                 <height>32</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Step-Column:&lt;br/&gt;&lt;/span&gt;&amp;quot;n&amp;quot; = numerical step size&lt;br/&gt;&amp;quot;Rn&amp;quot; = generate &amp;lt;n&amp;gt; random values&lt;br/&gt;&amp;quot;=&amp;lt;variable&amp;gt; [+-*/] &amp;lt;number&amp;gt;&amp;quot; calculate value from variable&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="3">
+              <widget class="QPushButton" name="butLoadTable">
+               <property name="text">
+                <string>Load</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="3">
+              <widget class="QPushButton" name="butUseForAI">
+               <property name="text">
+                <string>Use this for AI</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="2">
+              <widget class="QComboBox" name="cbsVariables"/>
+             </item>
+             <item row="7" column="3">
+              <widget class="QPushButton" name="butClearTable">
+               <property name="text">
+                <string>Clear List</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="3">
+              <widget class="QPushButton" name="butSaveTable">
+               <property name="text">
+                <string>Save as ...</string>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="3">
+              <spacer name="verticalSpacer_6">
+               <property name="orientation">
+                <enum>Qt::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>40</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item row="6" column="3">
+              <spacer name="verticalSpacer_9">
+               <property name="orientation">
+                <enum>Qt::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>40</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item row="8" column="0">
+              <widget class="QLabel" name="label_27">
+               <property name="text">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;End-Column:&lt;/span&gt;&lt;br/&gt;&amp;quot;n&amp;quot; = end of range&lt;br/&gt;&amp;quot;Vn&amp;quot; = Variation (0..1)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0" rowspan="6" colspan="3">
+              <widget class="QTableWidget" name="tblListe">
+               <attribute name="horizontalHeaderStretchLastSection">
+                <bool>true</bool>
+               </attribute>
+              </widget>
+             </item>
+             <item row="1" column="0" colspan="3">
+              <widget class="QLabel" name="label_29">
+               <property name="text">
+                <string>List of variables to iterate over:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="0" colspan="2">
+              <widget class="QLabel" name="label_28">
+               <property name="text">
+                <string>Variables known:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="9" column="0" colspan="4">
+              <layout class="QGridLayout" name="gridLayout_22">
+               <property name="verticalSpacing">
+                <number>2</number>
+               </property>
+               <item row="1" column="0" colspan="2">
+                <widget class="QRadioButton" name="radLoopsSingle">
+                 <property name="text">
+                  <string>Loop over each variable alone and set it to the current value afterwards for the next loop</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="0" colspan="2">
+                <widget class="QRadioButton" name="radLoopsCascade">
+                 <property name="text">
+                  <string>Use cascading loops for all variables</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="groupBox_6">
+            <property name="title">
+             <string>Options</string>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_11">
+             <property name="verticalSpacing">
+              <number>3</number>
+             </property>
+             <item row="5" column="0">
+              <widget class="QLabel" name="label_26">
+               <property name="text">
+                <string>Output format:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="1">
+              <widget class="QComboBox" name="cbsAIoutputFormat">
+               <item>
+                <property name="text">
+                 <string>Grayscale images (*.png)</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Color images (*.png)</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Spreadsheet (*.spr)</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+             <item row="4" column="0" colspan="2">
+              <widget class="QCheckBox" name="togAIlogfile">
+               <property name="text">
+                <string>Save logfile in output directory</string>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0" colspan="2">
+              <widget class="QCheckBox" name="togAIScaleOutput">
+               <property name="text">
+                <string>Scale the output data to the range of 0 .. 1</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0" colspan="2">
+              <widget class="QRadioButton" name="radAILogOutput">
+               <property name="text">
+                <string>Output the data in logarithm</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0" colspan="2">
+              <widget class="QRadioButton" name="radAILinOutput">
+               <property name="text">
+                <string>Output the data in linear format (same as stored internally)</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="0" colspan="2">
+              <widget class="QCheckBox" name="togAIUseFFTOutput">
+               <property name="text">
+                <string>Use the FFT in the same way as defined in the FFT-Tab</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_4">
+            <item>
+             <widget class="QPushButton" name="butAIcheck">
+              <property name="text">
+               <string>CHECK</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_8">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
+             <widget class="QPushButton" name="butAIsaveBkgOp">
+              <property name="text">
+               <string>Save loops for background operation</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_9">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
+             <widget class="QPushButton" name="butAIstart">
+              <property name="toolTip">
+               <string>Start the current defined calculations in the background</string>
+              </property>
+              <property name="text">
+               <string>Start</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </item>
+        <item row="1" column="1">
+         <layout class="QVBoxLayout" name="verticalLayout_5">
+          <item>
+           <widget class="QGroupBox" name="grpFileInput">
+            <property name="title">
+             <string>Read values from files</string>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_13">
+             <item row="0" column="0" colspan="2">
+              <widget class="QLabel" name="label_36">
+               <property name="text">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Each file *.inp is read for one image set.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0" colspan="2">
+              <widget class="QLabel" name="label_35">
+               <property name="text">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The files must contain in the first line the variables to be set and starting with line 2 the values. All are separated by a TAB. The last column can be the value for the class (title: CLASS) or the value below is used.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="QLineEdit" name="inpFileName"/>
+             </item>
+             <item row="2" column="1">
+              <widget class="QPushButton" name="butFileName">
+               <property name="maximumSize">
+                <size>
+                 <width>30</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>...</string>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0" colspan="2">
+              <widget class="QLabel" name="label_39">
+               <property name="text">
+                <string>For each file the images according to the table definition (left side) are generated and sorted into the class subdirectories. In the calculation loop the images are generated in class name sorted order.</string>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="grpClass">
+            <property name="title">
+             <string>Class definition (used for subdirectory names below the given output directory)</string>
+            </property>
+            <layout class="QVBoxLayout" name="verticalLayout_2">
+             <item>
+              <widget class="QLineEdit" name="inpFileClass">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_37">
+               <property name="text">
+                <string>Use {...} for Values, {.../n} to divide the value (integer arithmetic)</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignCenter</set>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="groupBox_5">
+            <property name="title">
+             <string>Output directory</string>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_12">
+             <item row="0" column="0" colspan="2">
+              <widget class="QLineEdit" name="inpSubDir"/>
+             </item>
+             <item row="0" column="2">
+              <widget class="QPushButton" name="butSelectDir">
+               <property name="maximumSize">
+                <size>
+                 <width>30</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>...</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QCheckBox" name="togRemoveFiles">
+               <property name="text">
+                <string>Remove old files before first run</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1" rowspan="2">
+              <widget class="QPushButton" name="butSaveImagesAI">
+               <property name="toolTip">
+                <string>... in this subdirectory (with 'files' appended)</string>
+               </property>
+               <property name="text">
+                <string>Save all images for AI</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="lblAIbackProc">
+            <property name="text">
+             <string>Output of background calculation process:</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QListWidget" name="lisAIbackProgOut"/>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_2">
+       <attribute name="title">
+        <string>Training Param Variation</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_25">
+        <item row="2" column="2" rowspan="7">
+         <layout class="QVBoxLayout" name="verticalLayout_12">
+          <item>
+           <widget class="QLabel" name="lblTPVbackProc">
+            <property name="text">
+             <string>Output of background process:</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QListWidget" name="lisTPVbackProgOut">
+            <property name="minimumSize">
+             <size>
+              <width>350</width>
+              <height>0</height>
+             </size>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="5" column="1">
+         <widget class="QPushButton" name="butTPVloadOptions">
+          <property name="text">
+           <string>load options</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0" rowspan="3" colspan="2">
+         <widget class="QGroupBox" name="groupBox_14">
+          <property name="title">
+           <string>Training Parameters Variation</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_23">
+           <item row="4" column="2">
+            <widget class="QDoubleSpinBox" name="inpTPVlength">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QCheckBox" name="togTPVsigmar">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QCheckBox" name="togTPVlength">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="4">
+            <widget class="QCheckBox" name="togTPVwidth">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="2">
+            <widget class="QLabel" name="label_49">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="text">
+              <string>[2,88]</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="5">
+            <widget class="QLabel" name="lblTPVa">
+             <property name="text">
+              <string>a:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="2">
+            <widget class="QDoubleSpinBox" name="inpTPVio">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QLabel" name="lblTPVlength">
+             <property name="text">
+              <string>Length:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="0">
+            <widget class="QCheckBox" name="togTPVphi">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="2">
+            <widget class="QDoubleSpinBox" name="inpTPVsigmar">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="3" rowspan="8">
+            <widget class="Line" name="line">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="4">
+            <widget class="QCheckBox" name="togTPVdisplacement">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="0">
+            <widget class="QCheckBox" name="togTPVio">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="5">
+            <widget class="QLabel" name="lblTPVphiwidth">
+             <property name="text">
+              <string>phiwidth:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QLabel" name="lblTPVradius">
+             <property name="text">
+              <string>Radius:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QCheckBox" name="togTPVradius">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="5">
+            <widget class="QLabel" name="lblTPVpsi">
+             <property name="text">
+              <string>psi:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="1">
+            <widget class="QLabel" name="lblTPVsigmal">
+             <property name="text">
+              <string>Sigma(L):</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QLabel" name="lblTPVsigmar">
+             <property name="text">
+              <string>Sigma(R):</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="9">
+            <widget class="QDoubleSpinBox" name="inpTPVbeamx0">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="8">
+            <widget class="QLabel" name="lblTPVbeamx0">
+             <property name="text">
+              <string>beam x0:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="6">
+            <widget class="QDoubleSpinBox" name="inpTPVphiwidth">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="6">
+            <widget class="QDoubleSpinBox" name="inpTPVpsi">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QLabel" name="lblTPVio">
+             <property name="text">
+              <string>I0:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="6">
+            <widget class="QDoubleSpinBox" name="inpTPVdisplacement">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="4">
+            <widget class="QCheckBox" name="togTPVa">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="0">
+            <widget class="QCheckBox" name="togTPVsigmal">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="2">
+            <widget class="QDoubleSpinBox" name="inpTPVsigmal">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="4">
+            <widget class="QCheckBox" name="togTPVphiwidth">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="6">
+            <widget class="QDoubleSpinBox" name="inpTPVwidth">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="1">
+            <widget class="QLabel" name="lblTPVphi">
+             <property name="text">
+              <string>phi:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="5">
+            <widget class="QLabel" name="lblTPVdisplacement">
+             <property name="text">
+              <string>displacement:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="7" rowspan="8">
+            <widget class="Line" name="line_2">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="6">
+            <widget class="QDoubleSpinBox" name="inpTPVa">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="2">
+            <widget class="QDoubleSpinBox" name="inpTPVradius">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="4">
+            <widget class="QCheckBox" name="togTPVpsi">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="5">
+            <widget class="QLabel" name="lblTPVwidth">
+             <property name="text">
+              <string>width:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QCheckBox" name="togTPVbase">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QLabel" name="lblTPVbase">
+             <property name="text">
+              <string>Base:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="2">
+            <widget class="QDoubleSpinBox" name="inpTPVbase">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="4">
+            <widget class="QCheckBox" name="togTPVb">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="5">
+            <widget class="QLabel" name="lblTPVb">
+             <property name="text">
+              <string>b:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="6">
+            <widget class="QDoubleSpinBox" name="inpTPVb">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="4">
+            <widget class="QCheckBox" name="togTPVc">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="5">
+            <widget class="QLabel" name="lblTPVc">
+             <property name="text">
+              <string>c:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="6">
+            <widget class="QDoubleSpinBox" name="inpTPVc">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="4">
+            <widget class="QCheckBox" name="togTPVrho">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="5">
+            <widget class="QLabel" name="lblTPVrho">
+             <property name="text">
+              <string>Rho:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="6">
+            <widget class="QDoubleSpinBox" name="inpTPVrho">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="0">
+            <widget class="QCheckBox" name="togTPVdbeta">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="1">
+            <widget class="QLabel" name="lblTPVdbeta">
+             <property name="text">
+              <string>DBeta:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="2">
+            <widget class="QDoubleSpinBox" name="inpTPVdbeta">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="8">
+            <widget class="QLabel" name="lblTPVbeamy0">
+             <property name="text">
+              <string>beam y0:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="9">
+            <widget class="QDoubleSpinBox" name="inpTPVbeamy0">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="8">
+            <widget class="QLabel" name="lblTPVnbeam">
+             <property name="text">
+              <string>n beam:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="9">
+            <widget class="QDoubleSpinBox" name="inpTPVnbeam">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="8">
+            <widget class="QLabel" name="lblTPVmbeam">
+             <property name="text">
+              <string>m beam:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="9">
+            <widget class="QDoubleSpinBox" name="inpTPVmbeam">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="9" column="0">
+         <spacer name="verticalSpacer_8">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item row="1" column="2">
+         <widget class="QGroupBox" name="grpTPVoutPath">
+          <property name="title">
+           <string>Output path</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_26">
+           <item row="0" column="1">
+            <widget class="QLineEdit" name="inpTPVoutPath"/>
+           </item>
+           <item row="0" column="2">
+            <widget class="QPushButton" name="butTPVoutPath">
+             <property name="maximumSize">
+              <size>
+               <width>30</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1" colspan="2">
+            <widget class="QLabel" name="label_45">
+             <property name="text">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Below this path the subdirectories &lt;span style=&quot; font-weight:600;&quot;&gt;scat&lt;/span&gt;, &lt;span style=&quot; font-weight:600;&quot;&gt;rphi&lt;/span&gt;, &lt;span style=&quot; font-weight:600;&quot;&gt;fft&lt;/span&gt; are created.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="4" column="1">
+         <widget class="QPushButton" name="butTPVsaveOptions">
+          <property name="text">
+           <string>save options</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0" colspan="3">
+         <widget class="QLabel" name="label_31">
+          <property name="font">
+           <font>
+            <weight>75</weight>
+            <bold>true</bold>
+           </font>
+          </property>
+          <property name="text">
+           <string>Definitions for the generation of simulation datasets</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="0" rowspan="5">
+         <widget class="QGroupBox" name="groupBox_15">
+          <property name="title">
+           <string>Other settings</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_24">
+           <item row="5" column="0">
+            <widget class="QCheckBox" name="togTPVcalcFFT">
+             <property name="text">
+              <string>calculate FFT</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QSpinBox" name="inpTPVaddLinesH">
+             <property name="prefix">
+              <string>H=</string>
+             </property>
+             <property name="maximum">
+              <number>10</number>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QCheckBox" name="togTPVconvolute">
+             <property name="text">
+              <string>Convolute</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QCheckBox" name="togTPVcalcRphi">
+             <property name="text">
+              <string>calculate (r,phi)-Plot</string>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="1">
+            <widget class="QSpinBox" name="inpTPVnumimg"/>
+           </item>
+           <item row="0" column="0">
+            <widget class="QCheckBox" name="togTPVaddNoise">
+             <property name="text">
+              <string>Add noise</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QCheckBox" name="togTPVaddLines">
+             <property name="text">
+              <string>Add a number of blind lines</string>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="0">
+            <widget class="QLabel" name="label_50">
+             <property name="text">
+              <string>Number of images to generate:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QCheckBox" name="togTPVaddBS">
+             <property name="text">
+              <string>Add Beam Stop</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="2">
+            <widget class="QSpinBox" name="inpTPVaddLinesV">
+             <property name="prefix">
+              <string>V=</string>
+             </property>
+             <property name="maximum">
+              <number>10</number>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="8" column="1">
+         <widget class="QPushButton" name="butTPVstart">
+          <property name="font">
+           <font>
+            <weight>75</weight>
+            <bold>true</bold>
+           </font>
+          </property>
+          <property name="text">
+           <string>Start</string>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="1">
+         <widget class="QPushButton" name="butReadTrainingTable">
+          <property name="text">
+           <string>Train.table</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tabImages">
+       <attribute name="title">
+        <string>Images</string>
+       </attribute>
+       <layout class="QHBoxLayout" name="horizontalLayout_5">
+        <item>
+         <widget class="QMdiArea" name="mdiArea">
+          <property name="verticalScrollBarPolicy">
+           <enum>Qt::ScrollBarAlwaysOn</enum>
+          </property>
+          <property name="horizontalScrollBarPolicy">
+           <enum>Qt::ScrollBarAlwaysOn</enum>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="horizontalLayout_6">
+      <item>
+       <widget class="QPushButton" name="butCalc">
+        <property name="text">
+         <string>Calculate</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QProgressBar" name="progressBar">
+        <property name="value">
+         <number>0</number>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="butAbbruch">
+        <property name="text">
+         <string>Abort</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1272</width>
+     <height>26</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuSystem">
+    <property name="title">
+     <string>System</string>
+    </property>
+    <addaction name="actionSave_all_Parameters"/>
+    <addaction name="actionLoad_all_Parameters"/>
+    <addaction name="actionLoad_only_current_parameters"/>
+    <addaction name="separator"/>
+    <addaction name="actionExit"/>
+    <addaction name="separator"/>
+    <addaction name="actionTest_read_first_AI_RUN_Line"/>
+    <addaction name="actionTest_10_Calculate"/>
+    <addaction name="actionTest_Compare_data_files"/>
+    <addaction name="actionCompare_current_parameters_with_file"/>
+    <addaction name="actionFind_parameters_changing_image"/>
+   </widget>
+   <addaction name="menuSystem"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionExit">
+   <property name="text">
+    <string>Exit</string>
+   </property>
+  </action>
+  <action name="actionSave_all_Parameters">
+   <property name="text">
+    <string>Save all Parameters</string>
+   </property>
+  </action>
+  <action name="actionLoad_all_Parameters">
+   <property name="text">
+    <string>Load all Parameters</string>
+   </property>
+  </action>
+  <action name="actionTest_read_first_AI_RUN_Line">
+   <property name="text">
+    <string>Test: read first AI_RUN Line</string>
+   </property>
+  </action>
+  <action name="actionTest_10_Calculate">
+   <property name="text">
+    <string>Calculation timing tests</string>
+   </property>
+   <property name="toolTip">
+    <string>Test of repeated calculations with different threads and HKLmax</string>
+   </property>
+  </action>
+  <action name="actionTest_Compare_data_files">
+   <property name="text">
+    <string>Compare binary data files</string>
+   </property>
+  </action>
+  <action name="actionLoad_only_current_parameters">
+   <property name="text">
+    <string>Load only current method parameters</string>
+   </property>
+   <property name="toolTip">
+    <string>Load only parameters of the current selected method</string>
+   </property>
+  </action>
+  <action name="actionCompare_current_parameters_with_file">
+   <property name="text">
+    <string>Compare current parameters with file</string>
+   </property>
+  </action>
+  <action name="actionFind_parameters_changing_image">
+   <property name="text">
+    <string>Find parameters changing image</string>
+   </property>
+  </action>
+ </widget>
+ <tabstops>
+  <tabstop>tabMain</tabstop>
+  <tabstop>tabMethods</tabstop>
+  <tabstop>inpU1</tabstop>
+  <tabstop>inpU2</tabstop>
+  <tabstop>inpU3</tabstop>
+  <tabstop>inpV1</tabstop>
+  <tabstop>inpV2</tabstop>
+  <tabstop>inpV3</tabstop>
+  <tabstop>inpN1</tabstop>
+  <tabstop>inpN2</tabstop>
+  <tabstop>inpN3</tabstop>
+  <tabstop>inpAx1</tabstop>
+  <tabstop>inpAx2</tabstop>
+  <tabstop>inpAx3</tabstop>
+  <tabstop>inpAy1</tabstop>
+  <tabstop>inpAy2</tabstop>
+  <tabstop>inpAy3</tabstop>
+  <tabstop>inpAz1</tabstop>
+  <tabstop>inpAz2</tabstop>
+  <tabstop>inpAz3</tabstop>
+  <tabstop>inpSigX</tabstop>
+  <tabstop>inpSigY</tabstop>
+  <tabstop>inpSigZ</tabstop>
+  <tabstop>inpHKLmax</tabstop>
+  <tabstop>inpGridPoints</tabstop>
+  <tabstop>inpBCenterX</tabstop>
+  <tabstop>inpBCenterY</tabstop>
+  <tabstop>radQ1</tabstop>
+  <tabstop>radQ2</tabstop>
+  <tabstop>radQ4</tabstop>
+  <tabstop>togExpandImage</tabstop>
+  <tabstop>radNewImageCal</tabstop>
+  <tabstop>radLastImageCal</tabstop>
+  <tabstop>togAutoRecalc</tabstop>
+  <tabstop>butCalc</tabstop>
+  <tabstop>butAbbruch</tabstop>
+  <tabstop>radNewImageCfg</tabstop>
+  <tabstop>radLastImageCfg</tabstop>
+  <tabstop>togOnlyNewWindow</tabstop>
+  <tabstop>togAutoPosit</tabstop>
+  <tabstop>inpNumCores</tabstop>
+  <tabstop>togIgnoreUpdates</tabstop>
+  <tabstop>togLimitRuntime</tabstop>
+  <tabstop>inpLimitRuntime</tabstop>
+  <tabstop>radTestImg1</tabstop>
+  <tabstop>radTestImg2</tabstop>
+  <tabstop>radTestImg3</tabstop>
+  <tabstop>radTestImg4</tabstop>
+  <tabstop>radTestImg5</tabstop>
+  <tabstop>radTestImg6</tabstop>
+  <tabstop>radTestCurMethod</tabstop>
+  <tabstop>radTestAllMethods</tabstop>
+  <tabstop>togTestUseFFT</tabstop>
+  <tabstop>butTestGo</tabstop>
+  <tabstop>cbsDefaultColTbl</tabstop>
+  <tabstop>editAutoFit</tabstop>
+  <tabstop>butClearEditAutoFit</tabstop>
+  <tabstop>tblLattice3DValues</tabstop>
+  <tabstop>lisDataWindows</tabstop>
+  <tabstop>butDataFindCenter</tabstop>
+  <tabstop>butDataSetMask</tabstop>
+  <tabstop>butDataCopyScaling</tabstop>
+  <tabstop>butSaveAllImages</tabstop>
+  <tabstop>butOpenMeasFile</tabstop>
+  <tabstop>radFFTLinInput</tabstop>
+  <tabstop>radFFTLogInput</tabstop>
+  <tabstop>togIFFTSwap</tabstop>
+  <tabstop>tblFitValues</tabstop>
+  <tabstop>inpFitRepetitions</tabstop>
+  <tabstop>inpFitStepSize</tabstop>
+  <tabstop>inpFitMaxIter</tabstop>
+  <tabstop>inpFitTolerance</tabstop>
+  <tabstop>cbsFitImageWindows</tabstop>
+  <tabstop>inpFitBorder</tabstop>
+  <tabstop>inpFitBStop</tabstop>
+  <tabstop>butFitCurSave</tabstop>
+  <tabstop>butFitCurLoad</tabstop>
+  <tabstop>butShowResiduen</tabstop>
+  <tabstop>butFitUseResult</tabstop>
+  <tabstop>butFitAutomatic</tabstop>
+  <tabstop>butFitStart</tabstop>
+  <tabstop>butFitConfig</tabstop>
+  <tabstop>butSaveLog</tabstop>
+  <tabstop>lisFitLog</tabstop>
+  <tabstop>cbsMethod</tabstop>
+  <tabstop>togUseAllMethods</tabstop>
+  <tabstop>cbsVariables</tabstop>
+  <tabstop>butUseForAI</tabstop>
+  <tabstop>tblListe</tabstop>
+  <tabstop>butSaveTable</tabstop>
+  <tabstop>butLoadTable</tabstop>
+  <tabstop>butRemoveVar</tabstop>
+  <tabstop>butClearTable</tabstop>
+  <tabstop>grpFileInput</tabstop>
+  <tabstop>inpFileName</tabstop>
+  <tabstop>butFileName</tabstop>
+  <tabstop>inpFileClass</tabstop>
+  <tabstop>inpSubDir</tabstop>
+  <tabstop>butSelectDir</tabstop>
+  <tabstop>togRemoveFiles</tabstop>
+  <tabstop>butSaveImagesAI</tabstop>
+  <tabstop>lisAIbackProgOut</tabstop>
+  <tabstop>radLoopsCascade</tabstop>
+  <tabstop>radLoopsSingle</tabstop>
+  <tabstop>togAIUseFFTOutput</tabstop>
+  <tabstop>radAILogOutput</tabstop>
+  <tabstop>togAIScaleOutput</tabstop>
+  <tabstop>radAILinOutput</tabstop>
+  <tabstop>butAIcheck</tabstop>
+  <tabstop>butAIsaveBkgOp</tabstop>
+  <tabstop>butAIstart</tabstop>
+ </tabstops>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>togTPVio</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>inpTPVio</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>46</x>
+     <y>129</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>141</x>
+     <y>130</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>togTPVradius</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>inpTPVradius</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>58</x>
+     <y>194</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>172</x>
+     <y>197</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>togTPVsigmar</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>inpTPVsigmar</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>58</x>
+     <y>223</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>172</x>
+     <y>226</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>togTPVa</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>inpTPVa</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>217</x>
+     <y>136</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>342</x>
+     <y>139</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>togTPVb</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>inpTPVb</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>217</x>
+     <y>165</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>342</x>
+     <y>168</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>togTPVc</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>inpTPVc</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>217</x>
+     <y>194</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>342</x>
+     <y>197</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>togTPVpsi</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>inpTPVpsi</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>217</x>
+     <y>252</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>342</x>
+     <y>255</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>togTPVlength</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>inpTPVlength</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>58</x>
+     <y>252</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>172</x>
+     <y>255</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>togTPVwidth</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>inpTPVwidth</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>217</x>
+     <y>281</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>342</x>
+     <y>284</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>togTPVsigmal</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>inpTPVsigmal</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>58</x>
+     <y>281</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>172</x>
+     <y>284</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>togTPVphiwidth</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>inpTPVphiwidth</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>217</x>
+     <y>310</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>342</x>
+     <y>313</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>togTPVdisplacement</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>inpTPVdisplacement</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>217</x>
+     <y>339</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>342</x>
+     <y>342</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>togTPVaddLines</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>inpTPVaddLinesH</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>217</x>
+     <y>464</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>285</x>
+     <y>465</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>togTPVaddLines</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>inpTPVaddLinesV</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>67</x>
+     <y>464</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>351</x>
+     <y>465</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>togTPVbase</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>inpTPVbase</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>47</x>
+     <y>157</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>155</x>
+     <y>157</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>togTPVrho</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>inpTPVrho</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>206</x>
+     <y>212</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>324</x>
+     <y>216</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>

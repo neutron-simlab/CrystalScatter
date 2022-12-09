@@ -1,0 +1,493 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>widImage</class>
+ <widget class="QWidget" name="widImage">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>864</width>
+    <height>670</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Image Display</string>
+  </property>
+  <layout class="QHBoxLayout" name="horizontalLayout">
+   <item>
+    <layout class="QVBoxLayout" name="verticalLayout_2">
+     <item>
+      <widget class="QGroupBox" name="grpScaling">
+       <property name="title">
+        <string>Image Scaling</string>
+       </property>
+       <layout class="QGridLayout" name="gridLayout_6" columnstretch="1,0,0,0,0">
+        <item row="8" column="1">
+         <widget class="QComboBox" name="cbsRotation">
+          <item>
+           <property name="text">
+            <string>0°</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>90°</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>180°</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>270°</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="2" column="3" colspan="2">
+         <widget class="QLineEdit" name="inpFixedMax">
+          <property name="toolTip">
+           <string>Maximum of data for scaling (lin)</string>
+          </property>
+          <property name="placeholderText">
+           <string>Maximum</string>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="0" colspan="5">
+         <widget class="QLabel" name="lblFilename">
+          <property name="text">
+           <string>TextLabel</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="1">
+         <widget class="QLabel" name="label_15">
+          <property name="text">
+           <string>Color table:</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="8" column="0">
+         <widget class="QComboBox" name="cbsZoom">
+          <item>
+           <property name="text">
+            <string>No zoom</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Zoom * 2</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Zoom * 4</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Zoom / 2</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Zoom / 4</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QLineEdit" name="inpFixedMin">
+          <property name="maximumSize">
+           <size>
+            <width>90</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="toolTip">
+           <string>Minimum of data for scaling (lin)</string>
+          </property>
+          <property name="placeholderText">
+           <string>Minimum</string>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="1">
+         <widget class="QPushButton" name="butUpdate">
+          <property name="toolTip">
+           <string>Update graphic according to the changed color table settings</string>
+          </property>
+          <property name="text">
+           <string>Update</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="3" colspan="2">
+         <widget class="QComboBox" name="cbsColorTbl"/>
+        </item>
+        <item row="8" column="3">
+         <widget class="QCheckBox" name="togMirrorH">
+          <property name="toolTip">
+           <string>Mirror horizontal</string>
+          </property>
+          <property name="text">
+           <string>Horr.</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="2">
+         <widget class="QLabel" name="label_23">
+          <property name="text">
+           <string>to</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0" rowspan="3">
+         <widget class="QFrame" name="frame">
+          <property name="frameShape">
+           <enum>QFrame::NoFrame</enum>
+          </property>
+          <property name="frameShadow">
+           <enum>QFrame::Raised</enum>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_3">
+           <property name="spacing">
+            <number>2</number>
+           </property>
+           <property name="leftMargin">
+            <number>2</number>
+           </property>
+           <property name="topMargin">
+            <number>2</number>
+           </property>
+           <property name="rightMargin">
+            <number>2</number>
+           </property>
+           <property name="bottomMargin">
+            <number>2</number>
+           </property>
+           <item>
+            <widget class="QRadioButton" name="radScaleAuto">
+             <property name="text">
+              <string>Automatic</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="radScaleFixed">
+             <property name="text">
+              <string>Fixed</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="5" column="3" colspan="2">
+         <widget class="QPushButton" name="butSave">
+          <property name="toolTip">
+           <string>Save this image in binary format, as PNG and Text</string>
+          </property>
+          <property name="text">
+           <string>Save</string>
+          </property>
+         </widget>
+        </item>
+        <item row="8" column="4">
+         <widget class="QCheckBox" name="togMirrorV">
+          <property name="toolTip">
+           <string>Mirror vertical</string>
+          </property>
+          <property name="text">
+           <string>Vert.</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="0" rowspan="2">
+         <widget class="QFrame" name="frame_2">
+          <property name="frameShape">
+           <enum>QFrame::NoFrame</enum>
+          </property>
+          <property name="frameShadow">
+           <enum>QFrame::Raised</enum>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_4">
+           <property name="spacing">
+            <number>2</number>
+           </property>
+           <property name="leftMargin">
+            <number>2</number>
+           </property>
+           <property name="topMargin">
+            <number>2</number>
+           </property>
+           <property name="rightMargin">
+            <number>2</number>
+           </property>
+           <property name="bottomMargin">
+            <number>2</number>
+           </property>
+           <item>
+            <widget class="QRadioButton" name="radShowLin">
+             <property name="text">
+              <string>Linear</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="radShowLog">
+             <property name="text">
+              <string>Logarithmic</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QLabel" name="lblDispMinLin">
+          <property name="toolTip">
+           <string>value = Minimum of data
+(0) value = Minimum &gt; 0</string>
+          </property>
+          <property name="text">
+           <string>min</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QLabel" name="lblDispMinLog">
+          <property name="toolTip">
+           <string>log10( Minimum of data &gt; 0 )</string>
+          </property>
+          <property name="text">
+           <string>TextLabel</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="3">
+         <widget class="QLabel" name="lblDispMaxLog">
+          <property name="toolTip">
+           <string>log10( Maximum of data )</string>
+          </property>
+          <property name="text">
+           <string>TextLabel</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="3">
+         <widget class="QLabel" name="lblDispMaxLin">
+          <property name="toolTip">
+           <string>Maximum value of data</string>
+          </property>
+          <property name="text">
+           <string>max</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="4">
+         <widget class="QLabel" name="label">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="text">
+           <string>(log)</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="4">
+         <widget class="QLabel" name="label_2">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="text">
+           <string>(lin)</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="2" rowspan="2">
+         <widget class="QLabel" name="label_21">
+          <property name="text">
+           <string>to</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="grpImage">
+       <property name="title">
+        <string>Image</string>
+       </property>
+       <layout class="QGridLayout" name="gridLayout" rowstretch="0,0" columnstretch="1,0,0">
+        <property name="leftMargin">
+         <number>3</number>
+        </property>
+        <property name="topMargin">
+         <number>3</number>
+        </property>
+        <property name="rightMargin">
+         <number>3</number>
+        </property>
+        <property name="bottomMargin">
+         <number>3</number>
+        </property>
+        <item row="0" column="1">
+         <widget class="QLabel" name="lblColorTable">
+          <property name="text">
+           <string>Colortable</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="2">
+         <widget class="QPushButton" name="butMetaData">
+          <property name="maximumSize">
+           <size>
+            <width>70</width>
+            <height>20</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>Meta &gt;&gt;&gt;</string>
+          </property>
+          <property name="checkable">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0" colspan="3">
+         <widget class="QScrollArea" name="scrollArea">
+          <property name="widgetResizable">
+           <bool>true</bool>
+          </property>
+          <widget class="QWidget" name="scrollAreaWidgetContents">
+           <property name="geometry">
+            <rect>
+             <x>0</x>
+             <y>0</y>
+             <width>406</width>
+             <height>362</height>
+            </rect>
+           </property>
+           <layout class="QHBoxLayout" name="horizontalLayout_2">
+            <property name="leftMargin">
+             <number>0</number>
+            </property>
+            <property name="topMargin">
+             <number>0</number>
+            </property>
+            <property name="rightMargin">
+             <number>0</number>
+            </property>
+            <property name="bottomMargin">
+             <number>0</number>
+            </property>
+            <item>
+             <widget class="QLabel" name="lblImage">
+              <property name="minimumSize">
+               <size>
+                <width>100</width>
+                <height>100</height>
+               </size>
+              </property>
+              <property name="contextMenuPolicy">
+               <enum>Qt::CustomContextMenu</enum>
+              </property>
+              <property name="text">
+               <string>image</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QVBoxLayout" name="verticalLayout">
+     <item>
+      <widget class="QTableWidget" name="tblMetaData">
+       <property name="minimumSize">
+        <size>
+         <width>350</width>
+         <height>0</height>
+        </size>
+       </property>
+       <attribute name="horizontalHeaderStretchLastSection">
+        <bool>true</bool>
+       </attribute>
+       <attribute name="verticalHeaderMinimumSectionSize">
+        <number>26</number>
+       </attribute>
+       <attribute name="verticalHeaderDefaultSectionSize">
+        <number>30</number>
+       </attribute>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="lblHistogram">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>32</height>
+        </size>
+       </property>
+       <property name="text">
+        <string>Histo</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
