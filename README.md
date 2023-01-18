@@ -14,6 +14,9 @@ Not all implemented features are documented at the moment.
 
 Inline source documentation will be added.
 
+The document HyperSeries_SI_rev.pdf is the Supporting Information for the
+Scientific Report (https://www.nature.com/articles/s41598-023-27558-8).
+
 # Used libraries
 ### mandatory
 - Qt 5.14.x (no Qt6)
