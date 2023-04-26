@@ -1,5 +1,7 @@
-/** 
+/**
   */
+
+//#include "sc_calc_generic_gpu.h"
 
 //#include "sc_memory_gpu.h"
 //#include <stdlib.h>
@@ -16,7 +18,7 @@
 //#include <cuda.h>
 //#endif
 
-void CLASSLIB::initMemory()
+void SasCalc_GENERIC_calculation::initMemory()
 {
     arrXYIntensity = nullptr;
     arrXYsize      = 0;
@@ -45,7 +47,7 @@ void CLASSLIB::initMemory()
     cudaDeviceReset();
     int deviceCount = 0;
     cudaGetDeviceCount(&deviceCount);
-    std::cerr << "CLASSLIB::initMemory(): GPU device count: " << deviceCount << std::endl;
+    std::cerr << "SasCalc_GENERIC_calculation::initMemory(): GPU device count: " << deviceCount << std::endl;
     for (int device = 0; device < deviceCount; ++device)
     {
         cudaDeviceProp deviceProp;
@@ -139,16 +141,17 @@ void CLASSLIB::initMemory()
     noGPUavailable = deviceCount == 0;
 #else
     noGPUavailable = true;
-    std::cerr << "CLASSLIB::initMemory(): no nvcc used" << std::endl;
+    std::cerr << "SasCalc_GENERIC_calculation::initMemory(): no nvcc used" << std::endl;
 #endif
 }
 
 
 
-void CLASSLIB::createMemory( void **ptr, size_t lensoll, size_t &lenist, bool gpuonly, const char *dbgInfo )
+void SasCalc_GENERIC_calculation::createMemory( void **ptr, size_t lensoll, size_t &lenist, bool gpuonly, const char *dbgInfo )
 {
 #ifndef __CUDACC__
     //Q_UNUSED(dbgInfo);
+    Q_UNUSED(gpuonly);
 
 #else
 
@@ -246,7 +249,7 @@ void CLASSLIB::createMemory( void **ptr, size_t lensoll, size_t &lenist, bool gp
  * @param miny - minimal vertical index (incl.)
  * @param maxy - maximal vertical index (incl.)
  */
-void CLASSLIB::checkArrays( int minx, int maxx, int miny, int maxy )
+void SasCalc_GENERIC_calculation::checkArrays( int minx, int maxx, int miny, int maxy )
 {
     _arrCount = (maxx-minx) * (maxy-miny) + 1;
     size_t fullsize = sizeof(double) * (_arrCount + 3); // Es werden die letzten (x,y) Indizes und ein Debugflag mit gespeichert
@@ -269,7 +272,7 @@ void CLASSLIB::checkArrays( int minx, int maxx, int miny, int maxy )
     _ymax = maxy;
 }
 
-void CLASSLIB::memcleanup( void *arr )
+void SasCalc_GENERIC_calculation::memcleanup( void *arr )
 {
     //if ( arr == nullptr )
     //    arr = arrXYIntensity;
@@ -286,7 +289,7 @@ void CLASSLIB::memcleanup( void *arr )
 
 
 #ifdef FITDATA_IN_GPU  // real func prog
-bool CLASSLIB::setFitData( int sx, int sy, const double *data )
+bool SasCalc_GENERIC_calculation::setFitData( int sx, int sy, const double *data )
 {
     _fitWidth  = sx;
     _fitHeight = sy;

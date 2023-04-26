@@ -7,9 +7,21 @@
 #include <QLoggingCategory>
 #endif
 
+#include <QDebug>
+#include <QStyleFactory>
+
 
 int main(int argc, char *argv[])
 {
+/*
+#ifdef Q_OS_LINUX
+    //QStringList styl = QStyleFactory::keys();
+    // ("Adwaita-Dark", "Adwaita", "Windows", "Fusion")
+    //   ^ Dunkel,       ^ Default unter Linux
+    //                                         ^ GroupBox mit Hintergrund u.a.
+    QApplication::setStyle(QStyleFactory::create("Windows"));
+#endif
+*/
     QApplication a(argc, argv);
 
 #ifdef WIN32

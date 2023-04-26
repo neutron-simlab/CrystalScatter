@@ -1,6 +1,9 @@
 #ifndef SC_GLOBALCONFIG_H
 #define SC_GLOBALCONFIG_H
 
+#include <QtGlobal>
+
+
 /* Hier stehen alle Definitionen (kein Code), welche an verschiedenen Stellen des Programms
  * bedingte Kompilationen auslösen.
  */
@@ -10,8 +13,8 @@
 // Wenn definiert, wird das anzufittende Bild beim Start in einen Speicher in die GPU kopiert
 // und dort werden die Vergleiche bzgl. Corner-Pixel-Mask durchgeführt (wird besonders auf dem
 // PC wohl schneller).
-// Die FQS wird dort nicht berechnet, da es recht aufwendig ist, unter CUDA das Thread-Locking zu machen.
-// Vielleicht später, wenn ich den Lehrgang durchgemacht habe.
+// Die FQS wird dort nicht berechnet, da es recht aufwendig ist, unter CUDA das Thread-Locking
+// zu machen.
 
 //#define CALC_FQS_IN_GPU
 // Wenn COPY_FITDATA_TO_GPU definiert ist, wird hiermit gleichzeitig die Fehlerquadratsumme in
@@ -19,16 +22,14 @@
 // ohne weitere Berechnungen schnell bestimmt werden.
 
 
-//#ifndef CONSOLENPROG
 #define FITDATA_IN_GPU  // Neu im Juli 2022
-// Wenn definiert, wird das anzufittende Bild beim Start in einen Speicher in die GPU kopiert
+// Wenn definiert, wird das anzufittende Bild beim Start in einen Speicher in der GPU kopiert
 // und dort wird die FQS berechnet. Dabei kann das anzufittende Bild eine andere Größe haben,
 // der Algorithmus geht pixelweise durch und mittels der Werte in _latticeForFit (in sc_libs.h)
 // werden die passenden qx,qy,qz Werte berechnet und dann der simulierte Intensitätswert, der
 // dann sofort mit dem Datenpixel verarbeitet werden kann. Die jeweiligen FQS-Werte werden
 // in einem weiteren Array gespeichert und später von der CPU addiert. Das ist einfacher, als
 // bei jedem Zugriff das Locking zu machen. (Vielleicht wird es später mal anders probiert)
-//#endif
 
 
 // Vergleich verschiedener Berechnungen für die FQS:
@@ -46,13 +47,45 @@
 
 
 
-// Definition der Breite der Eingabeelemente (cbs,inp) im Calculation-Tab, wird in sc_calcgui.cpp verwendet
+// Definition der Breite der Eingabeelemente (cbs,inp) im Calculation-Tab, wird in myguiparam.cpp verwendet
 // Fehlt der Eintrag, wird der Qt-Default genommen
 #ifdef Q_OS_WIN
 #define CALC_INPUT_MAXWIDTH  85
 #else
-#define CALC_INPUT_MAXWIDTH  180
+#define CALC_INPUT_MAXWIDTH  100
 #endif
 
+
+
+// Da es beim Laden von Parameter-Files u.U. zu unklaren Verzögerungen kommt, können mit dieser
+// Definition zu Beginn jeder Routine die Probleme eventuell erkannt werden...
+// Vor dem Upload nach Github sollte das allerdings wieder raus.
+#define DT(x) //x
+
+
+
+// Syntaxänderungen bei neueren Qt-Versionen
+#if (QT_VERSION <= QT_VERSION_CHECK(5, 12, 11))
+#define SPLIT_SKIP_EMPTY_PARTS QString::SkipEmptyParts
+#define SPLIT_KEEP_EMPTY_PARTS QString::KeepEmptyParts
+#define FONTMETRIC_WIDTH(s) width(s)
+#else
+#define SPLIT_SKIP_EMPTY_PARTS Qt::SkipEmptyParts
+#define SPLIT_KEEP_EMPTY_PARTS Qt::KeepEmptyParts
+#define FONTMETRIC_WIDTH(s) horizontalAdvance(s)
+#endif
+
+
+
+// Da in der Routine ButtonHKLClick() u.U. bestimmte Variablen modifiziert werden, sollten diese auch
+// im Umfeld mit aktualisiert werden. Dazu gibt es diesen Returnwert.
+typedef enum
+{
+    chgNone,    // Nichts geändert
+    // params.* wurden geändert
+    chgB,       // ucb
+    chgBC,      // ucb, ucc
+    chgBCabc    // ucb, ucc, alpha_deg, beta_deg, gamma_deg
+} rvButtonHKLClick;
 
 #endif // SC_GLOBALCONFIG_H

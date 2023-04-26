@@ -407,20 +407,18 @@ bool SC_CalcCons::isCurrentParameterValid( QString m, QString p )
  * @param m       - current method to use ("*" during init)
  * @param getData - if true call the method specific prepare function (not in fit)
  */
-void SC_CalcCons::prepareCalculation( QString m, bool getData )
+void SC_CalcCons::prepareCalculation( bool fromFit )
 {
-    if ( m == "F" )
+    if ( fromFit )
     {   // Special call during 2D-Fit to update the parameters
         curMethod->subCalc->prepareData( &dataGetter );
         return;
     }
-    curMethod = methods.value(m,nullptr);
-    memory = (curMethod!=nullptr) ? curMethod->subCalc : nullptr;
+    memory = curMethod->subCalc;
     if ( curMethod == nullptr )
-        std::cerr << "ERROR " << qPrintable(m) << " " << qPrintable(methods.keys().join(","))
+        std::cerr << "ERROR in prepareCalculation"
                   << "*********************" << std::endl;
-    if ( getData )
-        curMethod->subCalc->prepareData( &dataGetter );
+    curMethod->subCalc->prepareData( &dataGetter );
 }
 
 
@@ -483,10 +481,10 @@ bool SC_CalcCons::dataGetter( QString p, _valueTypes &v )
  * @param pa         - function to show the progress and get the abort flag
  * Starts the calculation of the current method.
  */
-void SC_CalcCons::doCalculation( int numThreads, progressAndAbort pa )
+void SC_CalcCons::doCalculation( int numThreads )
 {
     if ( curMethod == nullptr ) return;
-    curMethod->subCalc->doCalculation( numThreads, pa );
+    curMethod->subCalc->doCalculation( numThreads );
 }
 
 double SC_CalcCons::doFitCalculation( int numThreads, int bstop, int border, long &cnt, long &nancnt )
@@ -526,7 +524,7 @@ double SC_CalcCons::higResTimerElapsed( whichHigResTimer f )
  * @brief calcHelper::calcHelper
  * @param c   - Calculation class pointer
  */
-calcConsHelper::calcConsHelper( SC_Calc *c )
+calcConsHelper::calcConsHelper(SC_Calc_GENERIC *c )
 {
     /* Daten aus dem Config-File zum Überschreiben der Werte aus dem Code:
     # [ <methode> ]

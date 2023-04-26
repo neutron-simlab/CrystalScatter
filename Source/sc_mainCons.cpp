@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
 
     QCommandLineOption imgColorOption( "color",
                                        "Set the used colortable to one of: grey, glow, earth, temp.",
-                                       "color" /*, "grey"*/ );    
+                                       "color" /*, "grey"*/ );
     parser.addOption(imgColorOption);
 
     QCommandLineOption tpvOption( "tpv",
@@ -467,36 +467,53 @@ int main(int argc, char *argv[])
                            .arg(sets.value("val_nbeam",0).toDouble())
                            .arg(sets.value("val_mbeam",0).toDouble());
             if ( sets.value("ena_addLines",false).toBool() )
-                aifile += QString("|LI%1;%2").arg(sets.value("val_addLinesH",1).toInt())
-                           .arg(sets.value("val_addLinesV",1).toInt());
+                aifile += QString("|LI%1;%2;%3;%4").arg(sets.value("val_addLinesH",1).toInt())
+                              .arg(sets.value("val_addLinesV",1).toInt())
+                              .arg(sets.value("val_addLinesHwidth",2).toInt())
+                              .arg(sets.value("val_addLinesVwidth",2).toInt());
             if ( sets.value("ena_addNoise",false).toBool() )
                 aifile += "|NO";
             if ( sets.value("ena_convolute",false).toBool() )
                 aifile += "|CO";
-            if ( sets.value("ena_calcRphi",false).toBool() )
+            bool haveRphi = sets.value("ena_calcRphi",false).toBool();
+            if ( haveRphi )
                 aifile += "|RP";
-
-            if ( sets.value("ena_calcFFT",false).toBool() )
+            if ( sets.value("ena_saveExtra",false).toBool() )
+                aifile += "|IX";
+            if ( sets.value("ena_generatePNG",false).toBool() )
+                aifile += "|GP";
+            if ( sets.value("ena_scaleScat",false).toBool() )
+                aifile += "|SC";
+            bool haveFFT = sets.value("ena_calcFFT",false).toBool();
+            if ( haveFFT || haveRphi )
             {
                 sets.beginGroup("FFT");
                 static const QString fftOutFormat[4] = { "OutRe", "OutIm", "OutAbs", "OutSpec" };
                 static const QString fftSize[5] = { "32", "64", "128", "256", "512" };
                 QString rphiScale = "";
-                if ( sets.value("FFTScaleRphi",false).toBool()  ) rphiScale += "Scale ";
-                if ( sets.value("FFTclipRphi",false).toBool()   ) rphiScale += "Clip1 ";
-                if ( sets.value("FFTclip40Rphi",false).toBool() ) rphiScale += "Clip4 ";
+                if ( haveRphi )
+                {
+                    if ( sets.value("FFTScaleRphi",false).toBool()  ) rphiScale += "Scale ";
+                    if ( sets.value("FFTclipRphi",false).toBool()   ) rphiScale += "Clip1 ";
+                    if ( sets.value("FFTclip40Rphi",false).toBool() ) rphiScale += "Clip4 ";
+                }
                 QString fftScale = "";
-                if ( sets.value("FFTScaleOutput",false).toBool()  ) fftScale += "Scale ";
-                if ( sets.value("FFTclipOutput",false).toBool()   ) fftScale += "Clip1 ";
-                if ( sets.value("FFTclip40Output",false).toBool() ) fftScale += "Clip4 ";
-                aifile += QString("@FFT|%1;%2;%3;%4;%5;%6;%7")
+                if ( haveFFT )
+                {
+                    if ( sets.value("FFTScaleOutput",false).toBool()  ) fftScale += "Scale ";
+                    if ( sets.value("FFTclipOutput",false).toBool()   ) fftScale += "Clip1 ";
+                    if ( sets.value("FFTclip40Output",false).toBool() ) fftScale += "Clip4 ";
+                }
+                aifile += QString("@FFT|%1;%2;%3;%4;%5;%6;%7;%8;%9")
                               .arg(sets.value("FFTLinInput",false).toBool()?"InLin":"InLog")
-                              .arg(fftSize[sets.value("FFTsizeRphi",2).toInt()])
+                              .arg(haveRphi?fftSize[sets.value("FFTsizeRphi",2).toInt()]:0)
                               .arg(rphiScale.trimmed())
-                              .arg(fftSize[sets.value("FFTsizeOut",2).toInt()])
+                              .arg(haveFFT?fftSize[sets.value("FFTsizeOut",2).toInt()]:0)
                               .arg(fftOutFormat[sets.value("FFToutput",0).toInt()])
                               .arg(fftScale.trimmed())
-                              .arg(sets.value("FFTSwapOutput",false).toBool()?"OutSwap":"OutNoSwap");
+                              .arg(sets.value("FFTSwapOutput",false).toBool()?"OutSwap":"OutNoSwap")
+                              .arg(sets.value("FFTcutOutEna",false).toBool()?sets.value("FFTcutOutX",64).toInt():0)
+                              .arg(sets.value("FFTcutOutEna",false).toBool()?sets.value("FFTcutOutY",64).toInt():0);
                 sets.endGroup();
             }
 
@@ -658,6 +675,7 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
 #define fftOutAbs  2
 #define fftOutSpec 3
     int fftOutFormat;
+    int fftOutCutX=0, fftOutCutY=0;
 
     QString fn, fnpng;
     bool isDef;
@@ -665,8 +683,9 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
     // Merker für die "Training Parameter Variation" (TPV)
     bool useTPV = false;
     double tpvBSx0=-1, tpvBSy0=-1, tpvBSxs=-1, tpvBSys=-1;
-    int tpvLinesX=0, tpvLinesY=0;
-    bool tpvAddNoise=false, tpvConvolute=false, tpvAddRphi=false;
+    int tpvLinesX=0, tpvLinesY=0, tpvLinesXwidth=1, tpvLinesYwidth=1;
+    bool tpvAddNoise=false, tpvConvolute=false, tpvAddRphi=false,
+         tpvSaveExtra=false, tpvScaleScat=false, tpvGenPNG=false;
 
     bool factorInLine = false;
     int  factorInLineCount = 0;
@@ -748,9 +767,9 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
                     */
                     static QStringList fftOut = { "OutRe", "OutIm", "OutAbs", "OutSpec" };
                     QStringList fft = sl[1].split(";");
-                    while ( fft.size() < 7 ) fft << "0";
-                    // FFT|InLog;256;Scale;256;OutAbs;Clip1 Clip4;OutSwap
-                    //      0     1   2     3   4      5           6
+                    while ( fft.size() < 9 ) fft << "0";
+                    // FFT|InLog;256;Scale;256;OutAbs;Clip1 Clip4;OutSwap;64;64
+                    //      0     1   2     3   4      5           6       7  8
                     fftInputLin   = fft[0] == "InLin";     // InLog
                     fftRphiSize   = fft[1].toInt();
                     fftRphiScale  = fft[2].contains("Scale");
@@ -762,6 +781,8 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
                     fftOutClip    = fft[5].contains("Clip1");
                     fftOutClip40  = fft[5].contains("Clip4");
                     fftOutputSwap = fft[6] == "OutSwap";   // OutNoSwap
+                    fftOutCutX    = fft[7].toInt();
+                    fftOutCutY    = fft[8].toInt();
                     continue;
                 }
             } // if ( sl.size() == 2 )
@@ -783,9 +804,16 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
                     if ( sl[i].startsWith("LI") )
                     {
                         QStringList val = sl[i].mid(2).split(";");
-                        if ( val.size() != 2 ) continue;
-                        tpvLinesX = val[0].toInt();
-                        tpvLinesY = val[1].toInt();
+                        if ( val.size() >= 2 )
+                        {
+                            tpvLinesX = val[0].toInt();
+                            tpvLinesY = val[1].toInt();
+                        }
+                        if ( val.size() >= 4 )
+                        {
+                            tpvLinesXwidth = val[2].toInt();
+                            tpvLinesYwidth = val[3].toInt();
+                        }
                         continue;
                     }
                     if ( sl[i].startsWith("NO") )
@@ -803,17 +831,40 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
                         tpvAddRphi = true;
                         continue;
                     }
+                    if ( sl[i].startsWith("IX") )
+                    {
+                        tpvSaveExtra = true;
+                        continue;
+                    }
+                    if ( sl[i].startsWith("GP") )
+                    {
+                        tpvGenPNG = true;
+                        continue;
+                    }
+                    if ( sl[i].startsWith("SC") )
+                    {
+                        tpvScaleScat = true;
+                        continue;
+                    }
                 }
                 std::cerr << "TPV params:";
                 if ( tpvBSx0 > 0 ) std::cerr << " BS: " << tpvBSx0 << "/" << tpvBSy0
                               << " (" << tpvBSxs << "x" << tpvBSys << ")";
-                if ( tpvLinesX > 0 ) std::cerr << " Lines: " << tpvLinesX << "/" << tpvLinesY;
+                if ( tpvLinesX > 0 ) std::cerr << " Lines: " << tpvLinesX << " (" << tpvLinesXwidth << "px) / "
+                              << tpvLinesY << " (" << tpvLinesYwidth << "px)";
                 if ( tpvAddNoise ) std::cerr << " Noise";
                 if ( tpvConvolute ) std::cerr << " Convolute";
                 if ( tpvAddRphi ) std::cerr << " Save(r,phi)";
+                if ( tpvSaveExtra ) std::cerr << " SaveExtra";
+                if ( tpvGenPNG ) std::cerr << " GeneratePNG";
+                if ( tpvScaleScat ) std::cerr << " ScaleScat";
                 std::cerr << std::endl;
                 continue;
             } // if ( sl[0] == "TPV" )
+
+            if ( tpvScaleScat ) fftInputLin = true;
+            // If alll output images are scaled to [0..1] then the fft gets this input directly
+            //  and must not rescale the log values.
 
         } // if ( !factorInLine )
 
@@ -886,19 +937,37 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
             if ( isDef ) fn += "_DEF";  // Marker for default orientation
         }
         fnpng = path + category + "/" + fn.mid(1);  // fn startet mit "_"
-        QDir().mkpath( path + category );
-        if ( useTPV )
+        if ( ! QDir().exists(path + category) )
         {
-            // category = "scat" in diesem Fall
-            QDir().mkpath( path + "rphi" );
-            QDir().mkpath( path + "fft"  );
-            QDir().mkpath( path + "scat_png" );
-            QDir().mkpath( path + "rphi_png" );
-            QDir().mkpath( path + "fft_png"  );
+            QDir().mkpath( path + category );
+            if ( useTPV )
+            {
+                // category = "scat" in diesem Fall
+                if ( tpvGenPNG )
+                    QDir().mkpath( path + "scat_png" );
+                if ( tpvAddRphi )
+                {
+                    QDir().mkpath( path + "rphi" );
+                    if ( tpvGenPNG )
+                        QDir().mkpath( path + "rphi_png" );
+                }
+                if ( (fftOutSize > 0 /*|| fftRphiSize > 0*/) && !nofft )
+                {
+                    QDir().mkpath( path + "fft"  );
+                    if ( tpvGenPNG )
+                        QDir().mkpath( path + "fft_png"  );
+                }
+                if ( tpvSaveExtra )
+                {
+                    QDir().mkpath( path + "scat_org" );
+                    if ( tpvGenPNG )
+                        QDir().mkpath( path + "scat_org_png" );
+                }
+            }
         }
 
         // Berechnen
-        calc->prepareCalculation( slCalcArt[iCurCalcArt], true );
+        calc->prepareCalculation( false );
         if ( useTPV )
         {
             if ( (factorInLine && factorInLineCount > 1) || !factorInLine )
@@ -916,7 +985,11 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
                 //std::cerr << "TPVinfo: no random values for this image." << std::endl;
             }
         }
-        calc->doCalculation( nthreads, nullptr );
+        calc->doCalculation( nthreads );
+
+        std::cerr << qPrintable(fn) << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
+        if ( flog )
+            flog->write(qPrintable(QString("Calctime: %1ms").arg(calc->higResTimerElapsed(SC_CalcCons::htimBoth))+EOL));
 
         double *src = calc->data();
         int sx = calc->maxX() - calc->minX();
@@ -930,6 +1003,14 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
         if ( useTPV )
         {   // Nachbearbeitung
             QString str = "";
+            if ( tpvScaleScat )
+            {   // Auch das Orginalbild soll auf [0 .. 1] skaliert werden
+                calc->scaleIntensity(true); // In diesem Fall immer auf LOG skalieren
+            }
+            if ( tpvSaveExtra )
+            {   // Bild auch ohne Nachbearbeitung speichern
+                saveAIfile( fnpng, src, sx, sy, tpvGenPNG?13:3 );    // Orginalbild vor der Manipulation
+            }
             if ( tpvConvolute )
             {   // Convolution
                 // TODO
@@ -943,7 +1024,10 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
                     double z = zuf();
                     if ( z < minz ) minz = z;
                     if ( z > maxz ) maxz = z;
-                    *d = *d + z * sqrt(*d);
+                    if ( tpvScaleScat )                 // if the data values are in the range [0 .. 1]
+                        *d = *d + (z/100.0) * sqrt(*d); // then a random number [-1 .. 1] is too big.
+                    else
+                        *d = *d + z * sqrt(*d);
                 }
                 str += QString("AddNoise [%1,%2]").arg(minz).arg(maxz) + EOL;
             }
@@ -965,23 +1049,47 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
             }
             if ( tpvLinesX > 0 )
             {
-
+                int xc = (calc->maxX() - calc->minX() + 1) / tpvLinesX;
+                // zuf() = -1 .. +1
+                str += "AddLinesX at";
+                for ( int i=0; i<tpvLinesX; i++ )
+                {
+                    int xp = calc->minX() + i * xc + fabs(zuf()) * xc;
+                    str += QString(" %1").arg(xp);
+                    for ( int x=xp; x<xp+tpvLinesXwidth; x++ )
+                        for ( int y=calc->minY(); y<calc->maxY(); y++ )
+                        {
+                            int ii = (-calc->minX() + x) + sx*(-calc->minY() + y);
+                            if ( ii >= 0 && ii < len ) src[ii] = 0; // 1e-20;
+                        }
+                }
+                str += EOL;
             }
             if ( tpvLinesY > 0 )
             {
-
+                int yc = (calc->maxY() - calc->minY() + 1) / tpvLinesY;
+                // zuf() = -1 .. +1
+                str += "AddLinesY at";
+                for ( int i=0; i<tpvLinesY; i++ )
+                {
+                    int yp = calc->minY() + i * yc + fabs(zuf()) * yc;
+                    str += QString(" %1").arg(yp);
+                    for ( int y=yp; y<yp+tpvLinesYwidth; y++ )
+                        for ( int x=calc->minX(); x<calc->maxX(); x++ )
+                        {
+                            int ii = (-calc->minX() + x) + sx*(-calc->minY() + y);
+                            if ( ii >= 0 && ii < len ) src[ii] = 0; // 1e-20;
+                        }
+                }
+                str += EOL;
             }
             if ( flog )
                 flog->write(qPrintable(str));
         }
 
-        std::cerr << qPrintable(fn) << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
-        if ( flog )
-            flog->write(qPrintable(QString("Calctime: %1ms").arg(calc->higResTimerElapsed(SC_CalcCons::htimBoth))+EOL));
+        saveAIfile( fnpng, src, sx, sy, tpvGenPNG?10:0 );    // Berechnetes Bild
 
-        saveAIfile( fnpng, src, sx, sy, 0 );    // Berechnetes Bild
-
-        if ( (fftOutSize > 0 || fftRphiSize > 0) && !nofft )
+        if ( (fftOutSize > 0 && !nofft) || fftRphiSize > 0 )
         {   // noch die FFT berechnen ...
             static double *data = nullptr;
 
@@ -1027,50 +1135,58 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
 
                 SasCalc_PostProc::inst()->scaleAndClipData( rphi, fftRphiSize*fftRphiSize, false, false, false, true/*Log*/ );
 
-                saveAIfile( fnpng, rphi, fftRphiSize, fftRphiSize, 1 ); // r,phi speichern
+                saveAIfile( fnpng, rphi, fftRphiSize, fftRphiSize, tpvGenPNG?11:1 ); // r,phi speichern
             }
 
-            double *fftindata;
-            int x0, x1, y0, y1;
-            if ( rphi != nullptr )
+            if ( fftOutSize > 0 )
             {
-                fftindata = rphi; // r,phi
-                x0 = 0;
-                x1 = fftRphiSize;
-                y0 = 0;
-                y1 = fftRphiSize;
-            }
-            else if ( data != nullptr )
-            {
-                fftindata = data; // Log
-                x0 = calc->minX();
-                x1 = calc->maxX();
-                y0 = calc->minY();
-                y1 = calc->maxY();
-            }
-            else
-            {
-                fftindata = calc->data(); // Lin
-                x0 = calc->minX();
-                x1 = calc->maxX();
-                y0 = calc->minY();
-                y1 = calc->maxY();
-            }
-            src = SasCalc_PostProc::inst()->calculateIFFT(false, // Backward
-                                                          x0, x1, y0, y1,
-                                                          fftindata,
-                                                          fftOutSize,
-                                                          static_cast<SasCalc_PostProc::_outType>(fftOutFormat),
-                                                          fftOutScale,    // scale [0,1]
-                                                          fftOutClip,     // clip [1e-6, 1]
-                                                          fftOutClip40,   // clip40 [40%,100%] -> [0,1]
-                                                          fftOutputSwap );
+                double *fftindata;
+                int x0, x1, y0, y1;
+                if ( rphi != nullptr )
+                {
+                    fftindata = rphi; // r,phi
+                    x0 = 0;
+                    x1 = fftRphiSize;
+                    y0 = 0;
+                    y1 = fftRphiSize;
+                }
+                else if ( data != nullptr )
+                {
+                    fftindata = data; // Log
+                    x0 = calc->minX();
+                    x1 = calc->maxX();
+                    y0 = calc->minY();
+                    y1 = calc->maxY();
+                }
+                else
+                {
+                    fftindata = calc->data(); // Lin
+                    x0 = calc->minX();
+                    x1 = calc->maxX();
+                    y0 = calc->minY();
+                    y1 = calc->maxY();
+                }
+                src = SasCalc_PostProc::inst()->calculateIFFT(false, // Backward
+                                                              x0, x1, y0, y1,
+                                                              fftindata,
+                                                              fftOutSize,
+                                                              static_cast<SasCalc_PostProc::_outType>(fftOutFormat),
+                                                              fftOutScale,    // scale [0,1]
+                                                              fftOutClip,     // clip [1e-6, 1]
+                                                              fftOutClip40,   // clip40 [40%,100%] -> [0,1]
+                                                              fftOutputSwap,
+                                                              fftOutCutX,fftOutCutY);
 
-            if ( src != nullptr )
-                saveAIfile( fnpng, src, fftOutSize, fftOutSize, 2 );
+                if ( src != nullptr )
+                    saveAIfile( fnpng, src, fftOutSize, fftOutSize, tpvGenPNG?12:2 ); // fft speichern
+            }
         } // if ( fftImgSize > 0 && !nofft )
 
-        imgCount++;
+        if ( (++imgCount) % 1000 == 0 )
+        {   // Flush der Logs, damit ich extern etwas sehen kann
+            std::cerr << std::flush;
+            if ( flog ) flog->flush();
+        }
 
         if ( useTPV && factorInLine )
         {
@@ -1086,17 +1202,20 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
 } /* generateAIfiles() */
 
 void saveAIfile( QString fn, double *src, int sx, int sy, int linflg )
-{   // linflg: 0=png, 1=r/phi, 2=fft
+{   // linflg: 0|10=png, 1|11=r/phi, 2|12=fft, 3|13=Scat_Org
+    //         1x=PNG zusätzlich
 
     static widImage *img = nullptr;
     if ( imgColorTbl[0] == '*' )
     {   // Spezielle Kennung zum Speichern in Textformat (AIgen)
         static const int prec = 6;
         //static const int digi = 2;
-        if ( linflg == 1 )
+        if ( linflg == 1 || linflg == 11 )
             fn.replace("scat","rphi");
-        else if ( linflg == 2 )
+        else if ( linflg == 2 || linflg == 12 )
             fn.replace("scat","fft");
+        else if ( linflg == 3 || linflg == 13 )
+            fn.replace("scat/","scat_org/"); // Only directory, not filename!
         QFile fo(fn+".spr");
         if ( fo.open(QIODevice::WriteOnly) )
         {
@@ -1126,14 +1245,23 @@ void saveAIfile( QString fn, double *src, int sx, int sy, int linflg )
         }
         else if ( flog )
             flog->write(qPrintable(QString("ERROR %1 (%2)").arg(fo.errorString()).arg(fo.fileName())+EOL));
+        if ( linflg < 10 ) return;
     }
     //else  Bei TPV auch das farbige Image speichern (macht das Testen einfacher)
     {   // Normale Speicherung als PNG
         if ( img == nullptr ) img = new widImage();
-        img->setConfig(imgColorTbl, imgSwapH, imgSwapV, imgRot, imgZoom, linflg!=0);
+        bool useLin = false;
+        if ( linflg == 1 || linflg == 11 )      // rphi
+            useLin = true;
+        else if ( linflg == 2 || linflg == 12 ) // fft
+            useLin = true;
+        //else if ( linflg == 3 || linflg == 13 ) // orgimg
+        img->setConfig(imgColorTbl, imgSwapH, imgSwapV, imgRot, imgZoom, useLin);
         //img->setData( calc->minX(), calc->maxX(), calc->minY(), calc->maxY(), src );
         img->setData( 0, sx, 0, sy, src );
         img->saveImage( fn+".png" );    // auch in Farbe speichern möglich
+        if ( flog )
+            flog->write(qPrintable(QString("Save %1.png").arg(fn)+EOL));
     }
 
     /*if ( flog )       TODO
@@ -1163,8 +1291,8 @@ void generateSingleImage( SC_CalcCons *calc, QString fnpng, int nthreads, QStrin
     }
 
     // Berechnen
-    calc->prepareCalculation( slCalcArt[iCurCalcArt], true );
-    calc->doCalculation( nthreads, nullptr );
+    calc->prepareCalculation( false );
+    calc->doCalculation( nthreads );
     std::cerr << qPrintable(fnpng) << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
     if ( flog )
         flog->write(qPrintable(QString("%1 -> %2ms").arg(fnpng).arg(calc->higResTimerElapsed(SC_CalcCons::htimBoth))+EOL));
@@ -1217,7 +1345,7 @@ double doFitStart( SC_CalcCons *calc, widImage *img, int nthreads, QString parMe
                             img->getFileInfos()->centerX, img->getFileInfos()->centerY,
                             img->dataPtr() );
 
-    calc->prepareCalculation( parMethod, true );
+    calc->prepareCalculation( true );
 
     QHash<QString,_fitLimits*>::const_iterator it;
 
@@ -1802,8 +1930,8 @@ void automaticFit( SC_CalcCons *calc, QString imgfile, QString autofit, int nthr
              usedImages.size() > 0 )
         {
             QString tmpfn = basePath + QFileInfo(usedImages.first()).baseName() + "_out";
-            calc->prepareCalculation( parMethod, false );
-            calc->doCalculation( nthreads, nullptr );
+            calc->prepareCalculation( true );
+            calc->doCalculation( nthreads );
             widImage *img = new widImage();
             img->setConfig(imgColorTbl, imgSwapH, imgSwapV, imgRot, imgZoom, false);
             img->setData( calc->minX(), calc->maxX(), calc->minY(), calc->maxY(), calc->data() );
@@ -1885,8 +2013,8 @@ void automaticFit( SC_CalcCons *calc, QString imgfile, QString autofit, int nthr
 
     if ( ! imgfile.isEmpty() )
     {   // Einzelfile, also jetzt erst das generierte Bild speichern
-        calc->prepareCalculation( parMethod, false );
-        calc->doCalculation( nthreads, nullptr );
+        calc->prepareCalculation( true );
+        calc->doCalculation( nthreads );
         std::cerr << qPrintable(fnpng) << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
         if ( flog )
         {

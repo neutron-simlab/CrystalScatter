@@ -5,6 +5,7 @@
 #include <QMessageBox>
 #include <QToolTip>
 #include <QPainter>
+#include <QStyleFactory>
 #endif
 #include <QFile>
 #include <QDebug>
@@ -62,6 +63,12 @@ widImage::widImage( QString tit, QString dp, QWidget *parent ) :
     if ( lastSavedFilePath.isEmpty() ) lastSavedFilePath = dp;
     getConfig();
     ui->setupUi(this);
+#ifdef Q_OS_LINUX
+    // Sonst haben die GroupBox keinen Rahmen...
+    QStyle *winstyle = QStyleFactory::create("Windows");
+    ui->grpImage->setStyle(winstyle);
+    ui->grpScaling->setStyle(winstyle);
+#endif
     setWindowTitle( tit );
     QStringList sl;
     sl << "Key" << "Value";
@@ -145,6 +152,7 @@ void widImage::addMetaInfo( QString key, QString val )
     {   // Alles löschen
         ui->tblMetaData->clearContents();
         ui->tblMetaData->setRowCount(0);
+        //fileInfos.isValid = 0; wird bei setData() gemacht
         return;
     }
     if ( key == "@" )
@@ -200,17 +208,35 @@ void widImage::addMetaInfo( QString key, QString val )
     QString val2 = val.left(val.indexOf(' ')).trimmed();
     if ( val2.isEmpty() ) val2 = val.trimmed();
     if ( key == "BeamPosX" )
-        fileInfos.centerX = val2.toInt();
+    {
+        fileInfos.centerX = val2.toDouble();
+        fileInfos.isValid |= fivalidCenX;
+    }
     else if ( key == "BeamPosY" )
-        fileInfos.centerY = val2.toInt();
+    {
+        fileInfos.centerY = val2.toDouble();
+        fileInfos.isValid |= fivalidCenY;
+    }
     else if ( key.contains("wave",Qt::CaseInsensitive) )
+    {
         fileInfos.wavelen = val2.toDouble();
+        fileInfos.isValid |= fivalidWave;
+    }
     else if ( key == "EditDet" || key == "SampleDist" )
+    {
         fileInfos.distance = val2.toDouble();
+        fileInfos.isValid |= fivalidDist;
+    }
     else if ( key == "EditPixelX" || key == "Pixel_X" )
+    {
         fileInfos.pixWidthX = val2.toDouble();
+        fileInfos.isValid |= fivalidWidX;
+    }
     else if ( key == "EditPixelY" || key == "Pixel_Y" )
+    {
         fileInfos.pixWidthY = val2.toDouble();
+        fileInfos.isValid |= fivalidWidY;
+    }
     else if ( key.startsWith("NoFitRect_") )
     {
         QStringList sl = val.simplified().split(" ");
@@ -236,7 +262,35 @@ void widImage::addMetaInfo( QString key, QString val )
         imgNormal = generateImage();
 #endif
     }
-    //qDebug() << "META" << key << val;
+#ifndef CONSOLENPROG
+    if ( fileInfos.isValid == fivalid_All )
+    {
+        fileInfos.isValid |= fivalidDone;
+        /*
+        int minx, miny;
+        double q, qx, qy, qz, qmin;
+        qmin = 1e6;
+        //for ( int x=0; x<fileInfos.pixelX; x++ )
+        //    for ( int y=0; y<fileInfos.pixelY; y++ )
+        for ( int x=minX; x<maxX; x++ )
+            for ( int y=minY; y<maxY; y++ )
+            {
+                q = xy2q( x, y, qx, qy, qz );
+                if ( q < qmin )
+                {
+                    qmin = q;
+                    minx = x;
+                    miny = y;
+                }
+            }
+        qDebug() << "Calc minQ:" << minx << miny << qmin << "pixel" << fileInfos.pixelX << fileInfos.pixelY;
+        qDebug() << "          pixWid" << fileInfos.pixWidthX << fileInfos.pixWidthY
+                 << "center" << fileInfos.centerX << fileInfos.centerY
+                 << "dist" << fileInfos.distance << "wave" << fileInfos.wavelen;
+        qDebug() << "          min,max|x,y" << minX << maxX << minY << maxY;
+        */
+    }
+#endif
 }
 
 QString widImage::metaInfo( QString key, QString def )
@@ -278,6 +332,7 @@ void widImage::setData( int x0, int x1, int y0, int y1, double *d )
     }
 
     // Preset internal structure
+    fileInfos.isValid = fivalidPixX | fivalidPixY; //  | fivalidCenX | fivalidCenY
     fileInfos.filePath = "<calc>";
     fileInfos.pixelX = x1 - x0;
     fileInfos.pixelY = y1 - y0;
@@ -719,41 +774,38 @@ QImage widImage::generateImage()
     if ( useLinOut )
 #endif
     {   // Lin
-        vlogmin = vlogmax = 0;
-        for ( int y=minY; y<maxY; y++ )
-            for ( int x=minX; x<maxX; x++ )
-                if ( x != 0 && y != 0 )
-                {
-                    if ( getData(x,y) > 0 && getData(x,y) < vmin2 )
-                        vmin2 = getData(x,y);
-                    if ( getData(x,y) < vmin )
-                        vmin = getData(x,y);
-                    else if ( getData(x,y) > vmax )
-                        vmax = getData(x,y);
-                }
+        vlogmin = vlogmax = 0;        
+        QVector<double>::const_iterator i;
+        for ( i = data.constBegin(); i != data.constEnd(); ++i )
+        {
+            if ( *i > 0 && *i < vmin2 )
+                vmin2 = *i;
+            if ( *i < vmin )
+                vmin = *i;
+            else if ( *i > vmax )
+                vmax = *i;
+        }
     }
     else
     {   // Log
-        for ( int y=minY; y<maxY; y++ )
-            for ( int x=minX; x<maxX; x++ )
-                if ( ( (minX < 0 && x != 0 && y != 0) ||
-                       (minX == 0 && x != fileInfos.centerX && y != fileInfos.centerY) )
-                     && getData(x,y) > -1.0e10 )
-                {   // Im Mittelpunkt ist i.d.R. ein Extremwert (z.B. -7.4e+25 bei FCC)
-                    if ( getData(x,y) > 0 && getData(x,y) < vmin2 )
-                        vmin2 = getData(x,y);
-                    if ( getData(x,y) < vmin )
-                        vmin = getData(x,y);
-                    else if ( getData(x,y) > vmax )
-                        vmax = getData(x,y);
-                    if ( getData(x,y) > 0 )
-                    {
-                        if ( log10(getData(x,y)) < vlogmin )
-                            vlogmin = log10(getData(x,y));
-                        else if ( log10(getData(x,y)) > vlogmax )
-                            vlogmax = log10(getData(x,y));
-                    }
+        QVector<double>::const_iterator i;
+        for ( i = data.constBegin(); i != data.constEnd(); ++i )
+            if ( *i > -1.0e10 )
+            {
+                if ( *i > 0 && *i < vmin2 )
+                    vmin2 = *i;
+                if ( *i < vmin )
+                    vmin = *i;
+                else if ( *i > vmax )
+                    vmax = *i;
+                if ( *i > 0 )
+                {
+                    if ( log10(*i) < vlogmin )
+                        vlogmin = log10(*i);
+                    else if ( log10(*i) > vlogmax )
+                        vlogmax = log10(*i);
                 }
+            }
     }
     if ( fabs(vmin-vmax) < 1e-6 )
     {   // Bei lin und log ...
@@ -820,25 +872,12 @@ QImage widImage::generateImage()
                 //QColor widImage::data2pixelcol( double val, double min, double max, bool islog )
             }
     }
-    /*
-    int yp=0, xp=0;
-    for ( int c=0; c<farbtabelle.size(); c++ )
-    {
-        img.setPixelColor( xp, yp, farbtabelle.at(c) );
-        if ( ++xp >= img.width() )
-        {
-            xp = 0;
-            yp++;
-        }
-    }
-    */
-    /*
+
     // TEST:
-    for ( int y=minY+1, yp=1; y<minY+21; y++, yp++ )
-        img.setPixelColor( yp, 1, farbtabelle.last() );
-    for ( int x=minX+1, xp=1; x<minX+11; x++, xp++ )
-        img.setPixelColor( 1, xp, farbtabelle.last() );
-    */
+    //for ( int y=minY+1, yp=1; y<minY+21; y++, yp++ )
+    //    img.setPixelColor( 1, yp, farbtabelle.last() );
+    //for ( int x=minX+1, xp=1; x<minX+11; x++, xp++ )
+    //    img.setPixelColor( xp, 1, farbtabelle.last() );
 
     // Perform Mirroring
     if ( swapHor || swapVert )
@@ -1305,15 +1344,8 @@ void widImage::mouseMoveEvent(QMouseEvent *event)
     //int ix = x - minX;
     //int iy = y - minY;
 
-    double xdet = fileInfos.pixWidthX * (x + fileInfos.centerX);
-    double ydet = fileInfos.pixWidthY * (y + fileInfos.centerY);
-    double rdet = sqrt(xdet*xdet+ydet*ydet);
-    double phidet = atan2(ydet,xdet);
-    double thetadet = atan2(rdet,fileInfos.distance);
-    double qx = 2*M_PI*cos(phidet)*sin(thetadet)/fileInfos.wavelen;
-    double qy = 2*M_PI*sin(phidet)*sin(thetadet)/fileInfos.wavelen;
-    double qz = 2*M_PI*(1-cos(thetadet))/fileInfos.wavelen;
-    double q = sqrt(qx*qx+qy*qy+qz*qz)+eps9;
+    double qx, qy, qz;
+    double q = xy2q( x, y, qx, qy, qz );
 /*
     if ( isinf(q) )
         qDebug() << "P" << fileInfos.pixWidthX << fileInfos.pixWidthY
@@ -1324,9 +1356,8 @@ void widImage::mouseMoveEvent(QMouseEvent *event)
     //if ( ui->radShowLin->isChecked() )
     //{   // Lin
     QToolTip::showText( event->globalPos(),
-                        QString("[%1,%2]=%3\nqx=%4,qy=%5,qz=%6)\nq=%7").arg(x).arg(y).arg(data.at(idx)).arg(qx).arg(qy).arg(qz).arg(q) );
-                        //QString("[%1,%2]=%3\n%4,%5=%6").arg(x).arg(y).arg(data.at(idx))
-                        //.arg(ix).arg(iy).arg(imgNormal.pixel(ix,iy),0,16) );
+                        QString("[%1,%2]=%3 (%8,%9)\nqx=%4,qy=%5,qz=%6)\nq=%7").arg(x).arg(y).arg(data.at(idx))
+                           .arg(qx).arg(qy).arg(qz).arg(q).arg(pos.x()).arg(pos.y()) );
     //}
     //else
     //{   // Log
@@ -1350,6 +1381,20 @@ above. Then, to ensure that the tooltip is updated immediately, you
 must call QToolTip::showText() instead of setToolTip() in your
 implementation of mouseMoveEvent().
 */
+}
+
+
+double widImage::xy2q( int x, int y, double &qx, double &qy, double &qz )
+{
+    double xdet = fileInfos.pixWidthX * (x - fileInfos.centerX);
+    double ydet = fileInfos.pixWidthY * (y - fileInfos.centerY);
+    double rdet = sqrt(xdet*xdet+ydet*ydet);
+    double phidet = atan2(ydet,xdet);
+    double thetadet = atan2(rdet,fileInfos.distance);
+    qx = 2*M_PI*cos(phidet)*sin(thetadet)/fileInfos.wavelen;
+    qy = 2*M_PI*sin(phidet)*sin(thetadet)/fileInfos.wavelen;
+    qz = 2*M_PI*(1-cos(thetadet))/fileInfos.wavelen;
+    return sqrt(qx*qx+qy*qy+qz*qz)+eps9;
 }
 
 

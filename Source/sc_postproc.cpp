@@ -25,10 +25,11 @@ SasCalc_PostProc *SasCalc_PostProc::inst()
 SasCalc_PostProc::SasCalc_PostProc()
 {
     _arrFFT    = nullptr;
-    _arrIFFT   = nullptr;
+    _arrFFTcutOut = nullptr;
     _arrPol    = nullptr;
     _arrPolDim = 0; // size = dim*dim
     _arrFFTdim = 0;
+    _arrFFTcutOutDim = 0;
     _len       = 0;
     _doLogOutput = true; // per Call abschaltbar...
 }
@@ -74,17 +75,21 @@ double *SasCalc_PostProc::generateRphi(int x0, int x1, int y0, int y1,
     // Dieser Algorithmus kommt nicht klar, wenn x0 bzw. y0 < 0 sind.
     if ( x0 < 0 )
     {
+        if ( _doLogOutput )
+            qDebug() << "POSTPROC:generateRphi shift X by" << x0 << Xcenter;
         x1      -= x0;
         Xcenter -= x0;
         x0       = 0;
     }
     if ( y0 < 0 )
     {
+        if ( _doLogOutput )
+            qDebug() << "POSTPROC:generateRphi shift Y by" << y0 << Ycenter;
         y1      -= y0;
         Ycenter -= y0;
         y0       = 0;
     }
-    // Parameter in globale Variabln übernehmen
+    // Parameter in globale Variablen übernehmen
     _dataPtr = d;
     _xmin = x0;
     _xmax = x1;
@@ -172,6 +177,10 @@ double *SasCalc_PostProc::generateRphi(int x0, int x1, int y0, int y1,
             //int    anz = 0;        // Anzahl der Punkte (vielleicht nicht n"otig)
 
             umf = qMax(1024-int(1024.-phiber*rad),1);
+            //umf = qMax(int(phiber*rad),1);
+            //if ( umf != qMax(int(phiber*rad),1) )
+            //    qDebug() << phiber*rad << umf << qMax(int(phiber*rad),1);
+            // zu der Frage von Marina (10.03.2023, 15:00)
 
             for ( int j=1; j<=umf; j++ )
             {
@@ -348,6 +357,8 @@ double *SasCalc_PostProc::generateRphi(int x0, int x1, int y0, int y1,
  * @param clip     - flag clipping [1e-10,1] log
  * @param clip40   - flag clipping [40%,100%] -> [0,1]
  * @param swapout  - flag swap output (0° in center)
+ * @param cutOutX  - cutOut horizontal size (ignored if zero)
+ * @param cutOutY  - cutOut vertical size
  * @return pointer to output data
  */
 double *SasCalc_PostProc::calculateIFFT(bool foreward,
@@ -356,7 +367,8 @@ double *SasCalc_PostProc::calculateIFFT(bool foreward,
                                         int s,                          // Dest. size
                                         _outType ot,
                                         bool scaled, bool clip, bool clip40,
-                                        bool swapout )
+                                        bool swapout,
+                                        int cutOutX, int cutOutY )
 {
     // Parameter in globale Variabeln übernehmen
     _dataPtr = d;
@@ -372,7 +384,7 @@ double *SasCalc_PostProc::calculateIFFT(bool foreward,
     if ( _doLogOutput )
         qDebug() << "POSTPROC:calculateIFFT: Input X:" << _xmin << _xmax << sx
                  << "Y:" << _ymin << _ymax << sy
-                 << "Outsize:" << s
+                 << "Outsize:" << s << "cutOut" << cutOutX << cutOutY
                  << "foreward:" << foreward;
 
     // Find Max
@@ -406,12 +418,71 @@ double *SasCalc_PostProc::calculateIFFT(bool foreward,
 
     //TODO: Input-Scaling wie unten
 
-    for ( int y=0; y<sy; y++ )
-        for ( int x=0; x<sx; x++ )
-        {
-            _complex[y][x].real = data(x,y) / maxinput;  // Input skalieren auf 0..1
-            _complex[y][x].imag = 0.0;
-        }
+    // Scale the input to the range of [0..1] - and dimensions
+    if ( sx < s && sy < s )
+    {   // Data smaller than FFT
+        maxinput = 0; // wird neu bestimmt
+        float fx = float(sx) / float(s);
+        float fy = float(sy) / float(s);
+        int no = 0;
+        for ( int dx=0; dx<s; dx++ )
+            for ( int dy=0; dy<s; dy++ )
+            {
+                int i = dx * s + dy;
+                int x = dx * fx;
+                int y = dy * fy;
+                //qDebug() << dx << dy << "=" << i << "/" << x << y;
+                if ( i < 0 || i >= _arrFFTdim*_arrFFTdim ) { no++; continue; }
+                if ( x >= sx || y >= sy ) { no++; continue; }
+                _complex[y][x].real += data(x,y);
+                if ( _complex[y][x].real > maxinput ) maxinput = _complex[y][x].real;
+            }
+        qDebug() << "FFT: src < dst:" << fx << fy << "max:" << maxinput << "IgnIdx:" << no;
+        for ( int x=0; x<_arrFFTdim; x++ )
+            for ( int y=0; y<_arrFFTdim; y++ )
+            {
+                _complex[y][x].real /= maxinput;
+                _complex[y][x].imag = 0.0;
+            }
+    }
+    else if ( sx > s && sy > s )
+    {   // Data larger than FFT
+        maxinput = 0; // wird neu bestimmt
+        float dx = float(s) / float(sx);
+        float dy = float(s) / float(sy);
+        int no = 0;
+        for ( int x=_xmin; x<_xmax; x++ )
+            for ( int y=_ymin; y<_ymax; y++ )
+            {
+                int i = (int((x-_xmin)*dx) * _arrFFTdim) + int((y-_ymin)*dy);
+                //qDebug() << x << y << "/" << x*dx << y*dy << "=" << i << "/" << dx << dy;
+                if ( i < 0 || i >= _arrFFTdim*_arrFFTdim ) { no++; continue; }
+                _complex[y][x].real += data(x,y);
+                if ( _complex[y][x].real > maxinput ) maxinput = _complex[y][x].real;
+            }
+        qDebug() << "FFT: src > dst:" << dx << dy << "max:" << maxinput << "IgnIdx:" << no;
+        for ( int x=0; x<_arrFFTdim; x++ )
+            for ( int y=0; y<_arrFFTdim; y++ )
+            {
+                _complex[y][x].real /= maxinput;
+                _complex[y][x].imag = 0.0;
+            }
+    }
+    else if ( sx != s || sy != s )
+    {   // Data size don't match FFT size - IGNORED
+
+        return nullptr;
+    }
+    else
+    {   // Data same size as FFT
+        for ( int xc=0, x=_xmin; xc<_arrFFTdim; xc++, x++ )
+            for ( int yc=0, y=_ymin; yc<_arrFFTdim; yc++, y++ )
+            {
+                _complex[yc][xc].real = data(x,y) / maxinput;
+                _complex[yc][xc].imag = 0.0;
+            }
+        qDebug() << "FFT: src = dst:" << maxinput;
+    }
 
     int rv = FFT2D( _complex, sx, sy, foreward?1:-1 );
     // The direction dir, 1 for forward, -1 for reverse
@@ -461,26 +532,49 @@ double *SasCalc_PostProc::calculateIFFT(bool foreward,
 
     scaleAndClipData( _arrFFT, _arrFFTdim*_arrFFTdim, scaled, clip, clip40, false );
 
+    if ( cutOutX > 0 && cutOutY > 0 && cutOutX < _arrFFTdim && cutOutY < _arrFFTdim )
+    {
+        int dim = cutOutX * cutOutY;
+        if ( _arrFFTcutOutDim != dim && _arrFFTcutOut != nullptr )
+        {
+            delete _arrFFTcutOut;
+            _arrFFTcutOut = nullptr;
+        }
+        if ( _arrFFTcutOut == nullptr )
+        {
+            _arrFFTcutOutDim = dim;
+            _arrFFTcutOut   = new double[dim];
+        }
+        int x0 = _arrFFTdim / 2 - cutOutX / 2;
+        int x1 = x0 + cutOutX;
+        int y0 = _arrFFTdim / 2 - cutOutY / 2;
+        int y1 = y0 + cutOutY;
+        for ( int yo=0,ys=y0; ys<y1; yo++,ys++ )
+            for ( int xo=0,xs=x0; xs<x1; xo++,xs++ )
+                _arrFFTcutOut[xo+cutOutX*yo] = _arrFFT[xs+_arrFFTdim*ys];
+        return _arrFFTcutOut;
+        // ACHTUNG: es wird ein kleineres Array zurückgegeben!
+    }
     return _arrFFT;
 
 #else
 
     // Das Array wird hier jetzt lokal angelegt
-    if ( _arrFFTdim != s && _arrIFFT != nullptr )
+    if ( _arrFFTdim != s && _arrFFT != nullptr )
     {
-        delete _arrIFFT;
-        _arrIFFT = nullptr;
+        delete _arrFFT;
+        _arrFFT = nullptr;
     }
-    if ( _arrIFFT == nullptr )
+    if ( _arrFFT == nullptr )
     {
         _arrFFTdim = s;
-        _arrIFFT   = new double[s*s];
+        _arrFFT    = new double[s*s];
     }
 
     fftw_complex *in  = fftw_alloc_complex(_arrFFTdim*_arrFFTdim);
     fftw_complex *out = fftw_alloc_complex(_arrFFTdim*_arrFFTdim);        /* double [2] */
 
-    // Create the calculaton pan for the lib (in,out are modified)
+    // Create the calculaton plan for the lib (in,out are modified)
     fftw_plan plan = fftw_plan_dft_2d(_arrFFTdim, _arrFFTdim, in, out,
                                       (foreward?FFTW_FORWARD:FFTW_BACKWARD),
                                       FFTW_ESTIMATE );
@@ -507,7 +601,7 @@ double *SasCalc_PostProc::calculateIFFT(bool foreward,
                 in[i][0] += data(x,y);
                 if ( in[i][0] > maxinput ) maxinput = in[i][0];
             }
-        //qDebug() << "FFT: src < dst:" << fx << fy << "max:" << maxinput << "IgnIdx:" << no;
+        qDebug() << "FFT: src < dst:" << fx << fy << "max:" << maxinput << "IgnIdx:" << no;
         for ( int i=0; i<_arrFFTdim*_arrFFTdim; i++ )
             in[i][0] /= maxinput;
     }
@@ -526,7 +620,7 @@ double *SasCalc_PostProc::calculateIFFT(bool foreward,
                 in[i][0] += data(x,y);
                 if ( in[i][0] > maxinput ) maxinput = in[i][0];
             }
-        //qDebug() << "FFT: src > dst:" << dx << dy << "max:" << maxinput << "IgnIdx:" << no;
+        qDebug() << "FFT: src > dst:" << dx << dy << "max:" << maxinput << "IgnIdx:" << no;
         for ( int i=0; i<_arrFFTdim*_arrFFTdim; i++ )
             in[i][0] /= maxinput;
     }
@@ -545,7 +639,7 @@ double *SasCalc_PostProc::calculateIFFT(bool foreward,
             {
                 in[i][0] = data(x,y) / maxinput;
             }
-        //qDebug() << "FFT: src = dst:" << maxinput;
+        qDebug() << "FFT: src = dst:" << maxinput;
     }
 
     // Calculate the IFFT
@@ -560,7 +654,7 @@ double *SasCalc_PostProc::calculateIFFT(bool foreward,
             for ( int x=0; x<_arrFFTdim; x++, k++ )
             {
                 i = calculateIndex( swapout, x, y, _arrFFTdim );
-                _arrIFFT[i] = out[k][0];
+                _arrFFT[i] = out[k][0];
             }
         break;
     case outImag:
@@ -568,7 +662,7 @@ double *SasCalc_PostProc::calculateIFFT(bool foreward,
             for ( int x=0; x<_arrFFTdim; x++, k++ )
             {
                 i = calculateIndex( swapout, x, y, _arrFFTdim );
-                _arrIFFT[i] = out[k][1];
+                _arrFFT[i] = out[k][1];
             }
         break;
     case outAbs:
@@ -576,7 +670,7 @@ double *SasCalc_PostProc::calculateIFFT(bool foreward,
             for ( int x=0; x<_arrFFTdim; x++, k++ )
             {
                 i = calculateIndex( swapout, x, y, _arrFFTdim );
-                _arrIFFT[i] = sqrt(out[k][0]*out[k][0]+out[k][1]*out[k][1]);
+                _arrFFT[i] = sqrt(out[k][0]*out[k][0]+out[k][1]*out[k][1]);
             }
         break;
     case outSpec:
@@ -584,12 +678,12 @@ double *SasCalc_PostProc::calculateIFFT(bool foreward,
             for ( int x=0; x<_arrFFTdim; x++, k++ )
             {
                 i = calculateIndex( swapout, x, y, _arrFFTdim );
-                _arrIFFT[i] = (out[k][0]+out[k][1]) * (out[k][0]-out[k][1]);
+                _arrFFT[i] = (out[k][0]+out[k][1]) * (out[k][0]-out[k][1]);
             }
         break;
     }
 
-    scaleAndClipData( _arrIFFT, _arrFFTdim*_arrFFTdim, scaled, clip, clip40, false );
+    scaleAndClipData( _arrFFT, _arrFFTdim*_arrFFTdim, scaled, clip, clip40, false );
 
     fftw_destroy_plan(plan);
 
@@ -598,7 +692,30 @@ double *SasCalc_PostProc::calculateIFFT(bool foreward,
 
     fftw_cleanup();
 
-    return _arrIFFT;
+    if ( cutOutX > 0 && cutOutY > 0 && cutOutX < _arrFFTdim && cutOutY < _arrFFTdim )
+    {
+        int dim = cutOutX * cutOutY;
+        if ( _arrFFTcutOutDim != dim && _arrFFTcutOut != nullptr )
+        {
+            delete _arrFFTcutOut;
+            _arrFFTcutOut = nullptr;
+        }
+        if ( _arrFFTcutOut == nullptr )
+        {
+            _arrFFTcutOutDim = dim;
+            _arrFFTcutOut    = new double[dim];
+        }
+        int x0 = _arrFFTdim / 2 - cutOutX / 2;
+        int x1 = x0 + cutOutX;
+        int y0 = _arrFFTdim / 2 - cutOutY / 2;
+        int y1 = y0 + cutOutY;
+        for ( int yo=0,ys=y0; ys<y1; yo++,ys++ )
+            for ( int xo=0,xs=x0; xs<x1; xo++,xs++ )
+                _arrFFTcutOut[xo+cutOutX*yo] = _arrFFT[xs+_arrFFTdim*ys];
+        return _arrFFTcutOut;
+        // ACHTUNG: es wird ein kleineres Array zurückgegeben!
+    }
+    return _arrFFT;
 #endif // !USE_COMPLEX_WEB
 }
 

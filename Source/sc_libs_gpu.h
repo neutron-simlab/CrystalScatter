@@ -29,8 +29,9 @@
 
 
 #ifndef USE_CLASSLIB
+#warning "CLASSLIB not defined"
 #include "sc_math.h"
-class CLASSLIB
+class SasCalc_GENERIC_calculation
 {
 #endif
 
@@ -38,20 +39,21 @@ public:
     void endThread();
 
 #ifndef USE_CLASSLIB
+#warning "CLASSLIB not defined"
 private:
 #endif
 
-    typedef struct
+    /*typedef struct
     {
-        int cols;
-        int rows;
-        double centerx;
-        double centery;
-        double wavelen;
-        double distance;
-        double pixx;
-        double pixy;
-    } _latticeForFit;
+        int cols;        -> ignorieren
+        int rows;        -> ignorieren
+        double centerx;  -> beamX0
+        double centery;  -> beamY0
+        double wavelen;  -> params.wavelength
+        double distance; -> det
+        double pixx;     -> pixx
+        double pixy;     -> pixy
+    } _latticeForFit;*/
 
 #define  coeffarray_len  (150+1)
 #define  imax2d_len  (130+1)
@@ -84,7 +86,7 @@ private:
         double sigmal;
         double length; // cylinder length!
         double wavelength;
-        double shellno;
+        //double shellno;
         double alphash;
         double ceff;        // often equal with "TwRatio" -> TODO
         double reff;        // allways const 10.0 (no input in GUI) -> TODO?
@@ -99,11 +101,15 @@ private:
         // Globale Parameter für ButtonHKLClick()
         int    hklmax;
         double alpha_deg, beta_deg, gamma_deg;
-        double amax, bmax, cmax;
+        //double amax, bmax, cmax;
+
+        double p11,p12,p13,p21,p22,p23,p31,p32,p33;
 
         _carrXX  *CR;
 
-        _latticeForFit latFit;
+        //_latticeForFit latFit;
+
+        Double3 ax1, ax2, ax3, sig;
 
     } _localParams;
 
@@ -162,41 +168,6 @@ __host__ __device__
 
 
 #ifdef __CUDACC__
-    __host__ __device__
-#endif
-    double szave( int c, double a, double x, int n, double z ) const;
-
-#ifdef __CUDACC__
-__host__
-#endif
-    void psphere_init();
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    double psphere( double q ) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    double psphered(double r, double sigma, int dim, double q) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    double pspheredf(double r, double sigma, double d, double q) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    double f2dschulz( int d, double r, double sigma, double q ) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    double f2dhyper(double d, double alf, double r, double sigma, double q) const;
-
-#ifdef __CUDACC__
 __host__ __device__
 #endif
     double gamma(double z) const;
@@ -204,59 +175,7 @@ __host__ __device__
 #ifdef __CUDACC__
 __host__ __device__
 #endif
-    double gammaratio(double a, double b, double x) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    double cosav(double di, double dj, double ei, double ej, double y, double z) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    double pqcoreshell( double alf2, double d, double q ) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    double pqcoreshellf( double rho1, double rho2, double p1, double p2,
-                         double alf1, double alf2, double rn, double d,
-                         double sigma, double q ) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    double f2dcoreshell( double alf, double q ) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
     double polyvesicle(double q) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    double f2dpolyvesicle(double q) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    double polyliposome(int dim, double q) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    double polycube(bool pf, double q) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    double burger(double del, double v, double x2) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    double angleuv(double ux, double uy, double uz, double vx,double vy, double vz) const;
 
 #ifdef __CUDACC__
 __host__ __device__
@@ -282,72 +201,8 @@ __host__ __device__
 #ifdef __CUDACC__
 __host__ __device__
 #endif
-    double cosavm(double d1, double d2, double e1, double e2, double p1, double p2, double y, double z) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    double pgensphere1(double a, double r, double q) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    double hypcoreshellm(double alf1, double alf2, double p1, double p2, double r, double q) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    void trapcube(double ac, double bc, double a, bool pf, double q,
-                  double &sc, int nc, int &trapzditc) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    double cubealf(double a, double alfa, bool pf, double q) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    void trapcubebet(double ac, double bc, double a, double alfa, bool pf, double q,
-                     double &sc, int nc, int &trapzditc) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    double cube(double a, double alfa, double beta, double sigma, bool pf, double q) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    void qrombpq( double l, double r, double p1, double rho, double alfa, double sigmal, double q,
-                  int maxit, int i0, int i1, int i3, int i4,
-                  double &pq ) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    void qrombpi2( double epsi, double r, double p1, double rho, double alfa, double sigmal, double sigma, double q,
-                   int maxit, int i0, int i1, int i3, int i4, double &pq ) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
     void polint( double *xa/*RealArrayNP*/, double *ya/*RealArrayNP*/,
                  int n, double x, double &y, double &dy, const char *dbg ) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    void trapezpqr( double at, double bt, double l, double r, double p1, double rho, double alfa, double sigmal, double q, int,
-                    int i0, int i3, int i4, double &pq, double &nn, int n, int &trapzdit ) const; // in qrombpq()
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    void midpntchi( double a, double b, double l, double r, double p1, double rho, double alfa, double sigmal,
-                    double sigma, double cc0, double cc1, double cc2, double cc3, double cc4, double cc5, double cc6,
-                    double cc7, double cc8, double delta, double phi, double theta, double qxn, double qyn, double qzn,
-                    double q, int i0, int i1, int i3, int i4,  double &sp, double &sf, int n, int &midpntit ) const; // in qrombpq()
 
 #ifdef __CUDACC__
 __host__ __device__
@@ -363,7 +218,7 @@ __host__ __device__
                        double q, int i0, int i1, int i3,  double &pa, double &fa ) const;
 
 
-    void ButtonHKLClick(int ltype , int *latpar1, int *latpar2) const;
+    rvButtonHKLClick ButtonHKLClick(int ltype , int *latpar1, int *latpar2);
 
     void fhkl_c( int lat, int h, int k, int l,
                  double uca, double ucb, double ucc, double ucalpha_deg, double ucbeta_deg, double ucgamma_deg,
@@ -377,62 +232,91 @@ __host__ __device__
 #ifdef __CUDACC__
 __host__ __device__
 #endif
-//    void qrombdeltac(double r, double theta, double phi, double qx, double qy, double qz,
-//                     double qxn, double qyn, double qzn, double qhkl, double ax1n, double ax2n, double ax3n,
-//                     double ax1x, double ax1y, double ax1z, double ax2x, double ax2y, double ax2z,
-//                     double ax3x, double ax3y, double ax3z, double sigx, double sigy, double sigz,
-//                     int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
-//                     double &pq, int threadid ) const;
-void qrombdeltac( double l, double r, /*p1*/ /*sigma*/ /*dbeta*/ double theta, double phi, double qx, double qy, double qz,
-                  double qxn, double qyn, double qzn, double qhkl, double ax1n, double ax2n, double ax3n,
-                  double ax1x, double ax1y, double ax1z, double ax2x, double ax2y, double ax2z,
-                  double ax3x, double ax3y, double ax3z, double sigx, double sigy, double sigz,
-                  int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
-                  double *carr1,
-                  double &pq ) const;
+//void qrombdeltac( double l, double r, /*p1*/ /*sigma*/ /*dbeta*/ double theta, double phi, double qx, double qy, double qz,
+//                  double qxn, double qyn, double qzn, double qhkl, double ax1n, double ax2n, double ax3n,
+//                  double ax1x, double ax1y, double ax1z, double ax2x, double ax2y, double ax2z,
+//                  double ax3x, double ax3y, double ax3z, double sigx, double sigy, double sigz,
+//                  int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
+//                  double *carr1,
+//                  double &pq ) const;
+void qrombdeltac( double l, double r, double p1, double sigma, double alfa, double dbeta,
+                  double theta, double phi, double qx, double qy, double qz,
+                  double qxn, double qyn, double qzn, double qhkl, double ax1n, double ax2n,
+                  double ax3n, double ax1x, double ax1y, double ax1z, double ax2x, double ax2y,
+                  double ax2z, double ax3x, double ax3y, double ax3z, double sigx, double sigy,
+                  double sigz, int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
+                    double *carr1, double &pq ) const;
+
+#ifdef __CUDACC__
+    __host__ __device__
+#endif
+//void trapzddeltac( double a, double b, double l, double r, double dbeta, double theta, double phi,
+//                   double qx, double qy, double qz, double p11, double p12, double p13, double p21,
+//                   double p22, double p23, double p31, double p32, double p33,
+//                   double qxn, double qyn, double qzn, double qhkl, double ax1n, double ax2n, double ax3n,
+//                   double ax1x, double ax1y, double ax1z, double ax2x, double ax2y, double ax2z, double ax3x,
+//                   double ax3y, double ax3z, double sigx, double sigy, double sigz,
+//                   int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
+//                   double *carr1,
+//                   double &pq, int n, int &trapzdit ) const;
+void trapzddeltac( double a, double b, double l, double r, double p1, double sigma, double alfa,
+             double dbeta, double theta, double phi, double qx, double qy, double qz,
+             double p11, double p12, double p13, double p21, double p22, double p23,
+             double p31, double p32, double p33, double qxn, double qyn, double qzn,
+             double qhkl, double ax1n, double ax2n, double ax3n, double ax1x, double ax1y,
+             double ax1z, double ax2x, double ax2y, double ax2z, double ax3x, double ax3y,
+             double ax3z, double sigx, double sigy, double sigz,
+             int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
+             double *carr1, double &pq, int n, int &trapzddeltac_cnt ) const;
 
 #ifdef __CUDACC__
 __host__ __device__
 #endif
-    void trapzddeltac( double a, double b, double l, double r, double dbeta, double theta, double phi,
-                       double qx, double qy, double qz, double p11, double p12, double p13, double p21,
-                       double p22, double p23, double p31, double p32, double p33,
-                       double qxn, double qyn, double qzn, double qhkl, double ax1n, double ax2n, double ax3n,
-                       double ax1x, double ax1y, double ax1z, double ax2x, double ax2y, double ax2z, double ax3x,
-                       double ax3y, double ax3z, double sigx, double sigy, double sigz,
-                       int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
-                       double *carr1,
-                       double &pq, int n, int &trapzdit ) const;
+//    void trapzdchid( double a, double b, double l, double r, double sigma, double dbeta, double delta, double phi, double,
+//                     double qx, double qy, double qz, double p11, double p12, double p13, double p21, double p22, double p23,
+//                     double p31, double, double p33, double qxn, double qyn, double qzn, double qhkl, double ax1n,
+//                     double ax2n, double ax3n, double ax1x, double ax1y, double ax1z, double ax2x, double ax2y, double ax2z,
+//                     double ax3x, double ax3y, double ax3z, double sigx, double sigy, double sigz, int dim, int i0, int, int i1, int, int i3, int i4, double *carr1, double &pq, int n,
+//                     int &trapzdit ) const;
+//void trapzdchid_OLDVERSION( double a, double b, double r, double sigma, double dbeta, double delta, double theta, double phi,
+//                 double qx, double qy, double qz, double p11, double p12, double p13, double p21, double p22, double p23,
+//                 double p31, double p32, double p33, double qxn, double qyn, double qzn, double qhkl, double ax1n,
+//                 double ax2n, double ax3n, double ax1x, double ax1y, double ax1z, double ax2x, double ax2y, double ax2z,
+//                 double ax3x, double ax3y, double ax3z, double sigx, double sigy, double sigz,
+//                 int ordis, int dim, int i0, int i1, int i2, int i3, int i4, double *carr1, double &pq, int n,
+//                 int &trapzdit ) const;
+void trapzdchid( double a, double b, double l, double r, double p1, double sigma, double alfa, double dbeta,
+                   double delta, double theta, double phi, double qx, double qy, double qz, double p11,
+                   double p12, double p13, double p21, double p22, double p23, double p31, double p32,
+                   double p33, double qxn, double qyn, double qzn, double qhkl, double ax1n, double ax2n,
+                   double ax3n, double ax1x, double ax1y, double ax1z, double ax2x, double ax2y, double ax2z,
+                   double ax3x, double ax3y, double ax3z, double sigx, double sigy, double sigz,
+                   int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
+                   double *carr1, double &pq, int n,
+                   int &trapzdchid_cnt ) const;
+
 
 #ifdef __CUDACC__
 __host__ __device__
 #endif
-    void trapzdchid( double a, double b, double l, double r, double sigma, double dbeta, double delta, double phi, double,
-                     double qx, double qy, double qz, double p11, double p12, double p13, double p21, double p22, double p23,
-                     double p31, double, double p33, double qxn, double qyn, double qzn, double qhkl, double ax1n,
-                     double ax2n, double ax3n, double ax1x, double ax1y, double ax1z, double ax2x, double ax2y, double ax2z,
-                     double ax3x, double ax3y, double ax3z, double sigx, double sigy, double sigz, int dim, int i0, int, int i1, int, int i3, int i4, double *carr1, double &pq, int n,
-                     int &trapzdit ) const;
-void trapzdchid_OLDVERSION( double a, double b, double r, double sigma, double dbeta, double delta, double theta, double phi,
-                 double qx, double qy, double qz, double p11, double p12, double p13, double p21, double p22, double p23,
-                 double p31, double p32, double p33, double qxn, double qyn, double qzn, double qhkl, double ax1n,
-                 double ax2n, double ax3n, double ax1x, double ax1y, double ax1z, double ax2x, double ax2y, double ax2z,
-                 double ax3x, double ax3y, double ax3z, double sigx, double sigy, double sigz,
-                 int ordis, int dim, int i0, int i1, int i2, int i3, int i4, double *carr1, double &pq, int n,
-                 int &trapzdit ) const;
+    //void qrombchid( double l, double r, double sigma, double dbeta, double delta, double theta, double phi,
+    //                double qx, double qy, double qz, double p11, double p12, double p13, double p21,
+    //                double p22, double p23, double p31, double p32, double p33,
+    //                double qxn, double qyn, double qzn, double qhkl, double ax1n, double ax2n, double ax3n,
+    //                double ax1x, double ax1y, double ax1z, double ax2x, double ax2y, double ax2z, double ax3x,
+    //                double ax3y, double ax3z, double sigx, double sigy, double sigz,
+    //                int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
+    //                double *carr1,
+    //                double &pq ) const;
+    void qrombchid( double l, double r, double p1, double sigma, double alfa, double dbeta, double delta,
+              double theta, double phi, double qx, double qy, double qz, double p11, double p12, double p13,
+              double p21, double p22, double p23, double p31, double p32, double p33, double qxn, double qyn,
+              double qzn, double qhkl, double ax1n, double ax2n, double ax3n, double ax1x, double ax1y,
+              double ax1z, double ax2x, double ax2y, double ax2z, double ax3x, double ax3y, double ax3z,
+              double sigx, double sigy, double sigz,
+              int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
+              double *carr1, double &pq ) const;
 
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    void qrombchid( double l, double r, double sigma, double dbeta, double delta, double theta, double phi,
-                    double qx, double qy, double qz, double p11, double p12, double p13, double p21,
-                    double p22, double p23, double p31, double p32, double p33,
-                    double qxn, double qyn, double qzn, double qhkl, double ax1n, double ax2n, double ax3n,
-                    double ax1x, double ax1y, double ax1z, double ax2x, double ax2y, double ax2z, double ax3x,
-                    double ax3y, double ax3z, double sigx, double sigy, double sigz,
-                    int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
-                    double *carr1,
-                    double &pq ) const;
 
 #ifdef __CUDACC__
 __host__ __device__
@@ -469,35 +353,6 @@ __host__ __device__
                         double *carr4p, double *carr5p, double *carr6p, // CoeffArrayType
                         double *carr7p, double *carr8p, double *carr9p) const;   /*Z0311=14583*/
 
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    double qrombpi2_funcasy1( double beta, double epsi, double r, double sigma, double d, double q ) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    double qrombpi2_funcasy2( double beta, double epsi, double rn, double p1, double rho2, double sigma,
-                              double d, int i3, double q ) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    void qrombpi2_trapezpqpi2( double at, double bt, double epsi, double r, double p1, double rho, double alfa,
-                               double sigmal, double sigma, double q, int i0, int i1, int i3, int i4,
-                               double &pq, double &nn, int n, int &trapzdit ) const;
-
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-    void qrombpi2_midpntchi( double a, double b, double l, double r, double p1, double rho, double alfa, double sigmal,
-                             double sigma, double cc0, double cc1, double cc2, double cc3, double cc4, double cc5,
-                             double cc6, double cc7, double cc8, double delta, double phi, double theta, double qxn,
-                             double qyn, double qzn, double q, int i0, int i1, int i3, int i4,
-                             double &sp, double &sf, int n, int &midpntit ) const;
-
-
 #ifdef __CUDACC__
     __host__ __device__
 #endif
@@ -511,5 +366,6 @@ __host__ __device__
 
 
 #ifndef USE_CLASSLIB
+#warning "CLASSLIB not defined"
 };
 #endif

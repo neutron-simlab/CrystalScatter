@@ -15,6 +15,7 @@
 #include <QRadioButton>
 #include <QGroupBox>
 #include <QProcess>
+#include <QShowEvent>
 #include "sc_calcgui.h"
 #include "sc_simplexfit2d.h"
 #include "widimage.h"
@@ -78,39 +79,41 @@ public:
     ~SC_MainGUI();
 
     static SC_MainGUI *getInst() { return current; }
+    SC_CalcGUI *getCalcGui() { return calcGui; }
 
     void updateLogList( QString msg );
-
-    static QString configParamsFile;
 
 protected:
     void closeEvent(QCloseEvent *event);
 
 private slots:
+    void initCbsAfterStart();
     void imageWindowClosed(QObject*);
     void on_actionExit_triggered();
-    void on_tabMethods_currentChanged(int index);
     void on_tabMain_currentChanged(int index);
-    void on_butCalc_clicked();
+    void on_butCalc_clicked();      // mit speichern der Parameter im Temp-File
+    void local_butCalc_clicked();   // ohne speichern der Parameter im Temp-File (wg Timer als Slot)
     void on_butAbbruch_clicked();
     void on_radNewImageCfg_toggled(bool checked);
     void on_radLastImageCfg_toggled(bool checked);
     void on_radNewImageCal_toggled(bool checked);
     void on_radLastImageCal_toggled(bool checked);
+
     void on_actionSave_all_Parameters_triggered();
     void on_actionLoad_all_Parameters_triggered();
+    void on_butLoadParams_clicked() { on_actionLoad_all_Parameters_triggered(); }
+    void on_butSaveParams_clicked() { on_actionSave_all_Parameters_triggered(); }
+
     void on_lisDataWindows_currentTextChanged(const QString &currentText);
     void on_togIgnoreUpdates_toggled(bool checked);
     void on_butIFFT_clicked();
     void on_butFFT_clicked();
-    void on_inpGridPoints_valueChanged(int arg1);
+    void on_intGridPoints_valueChanged(int arg1);
     void on_radQ1_toggled(bool checked);
     void on_radQ2_toggled(bool checked);
     void on_radQ4_toggled(bool checked);
-    void on_butUseQMax_clicked();
-    void on_tblLattice3DValues_cellChanged(int /*row*/, int /*column*/);
+    void on_tblHeaderData_cellChanged(int /*row*/, int /*column*/);
     void on_butOpenMeasFile_clicked();
-    void on_butSaveAllImages_clicked();
     void on_butDataSetMask_clicked();
     void on_butDataFindCenter_clicked();
     void on_butTestGo_clicked();
@@ -123,7 +126,6 @@ private slots:
     void tblFitUsed_toggled(bool checked);
 
     // Tab "AI"
-    void on_cbsMethod_currentIndexChanged(const QString &arg1);
     void on_butUseForAI_clicked();
     void on_butSaveTable_clicked();
     void on_butLoadTable_clicked();
@@ -134,7 +136,6 @@ private slots:
     void on_butAIsaveBkgOp_clicked();
     void on_butAIstart_clicked();
     void on_butSaveImagesAI_clicked();
-    void on_actionTest_read_first_AI_RUN_Line_triggered();
     void on_actionTest_10_Calculate_triggered();
     void aiBackProg_error(QProcess::ProcessError);
     void aiBackProg_finished(int,QProcess::ExitStatus);
@@ -143,7 +144,6 @@ private slots:
     void logThreadTimer();
 
     void on_togFitUseMask_toggled(bool checked);
-    void on_butFitConfig_clicked();
     void on_butFitUseResult_clicked();
     void on_butFitAutomatic_clicked();
 
@@ -157,7 +157,6 @@ private slots:
     void on_butFitHistoClear_clicked();
     void on_butDataCopyScaling_clicked();
     void on_actionTest_Compare_data_files_triggered();
-    void on_actionLoad_only_current_parameters_triggered();
 
     void automaticRecalc();
 
@@ -190,6 +189,8 @@ private slots:
     void on_butTPVloadOptions_clicked();
     void on_butTPVstart_clicked();
     void on_togTPVaddBS_toggled(bool checked);
+    void on_butTPVreadTrainingTable_clicked();
+    void on_butTPVupdateAllFiles_clicked();
 
     void on_togFFTscaleRphi_toggled(bool checked);
     void on_togFFTclipRphi_toggled(bool checked);
@@ -197,12 +198,22 @@ private slots:
     void on_togFFTclipOut_toggled(bool checked);
     void on_butFFTverifyRphi_clicked();
 
-    void on_butReadTrainingTable_clicked();
     void on_actionFind_parameters_changing_image_triggered();
-
     void on_butResetColorMarker_clicked();
-
     void on_butDataSearchDoit_clicked();
+    void on_actionLoad_last_calculaition_parameters_triggered();
+
+    void on_cbsLType_currentIndexChanged(int index);
+    void on_cbsComboBoxParticle_currentIndexChanged(int index);
+    void on_cbsOrdis_currentIndexChanged(int index);
+    void on_cbsComboBoxInterior_currentIndexChanged(int index);
+    void on_cbsComboBoxPeak_currentIndexChanged(int index);
+
+    void on_actionHide_unused_values_triggered(bool checked);
+    void on_butCopyHdrdata2Params_clicked();
+
+    void on_actionAbout_triggered();
+    void on_actionAbout_Qt_triggered();
 
 private:
     Ui::SC_MainGUI *ui;
@@ -217,15 +228,13 @@ private:
     QFile *autoProcessingFile;
 
     void fillDataFromInputs();
-    void prepareCalculation( bool getMD, bool progbar );
+    void prepareCalculation( bool progbar );
     void finishCalculation(bool showtime);
 
     void performIFFTcalculations(int curimg, QString tit, bool foreward);
 
     void performOneFitLoop();
     void performFirstFitLoop( widImage *fitImg );
-
-    void disableUnusedElements();
 
     void searchParameterFilesHelper( QString d, int bl, QString msk );
     bool bSearchParamsRunning;
@@ -292,6 +301,7 @@ private:
             }
         }
     }
+    void automaticRecalcDoit(); // Wird von cbsLType aufgerufen
 
     // Tab "AI"
     typedef QMap<QString/*Variable*/, double/*value*/> _loopVariables;
@@ -299,7 +309,7 @@ private:
     _loopDefinition getLoopDefinition();
     _loopDefinition getTPVLoopDefinition();
     bool globFlagTPV;
-    double evaluateFormula( QString m, QString formel );
+    double evaluateFormula(QString formel );
     _loopVariables calcval;  // Speicher für alle Variablen / Werte für einen Rechenschritt
     bool performSaveAIOperation( QString fn, bool doOverwrite, bool interactive, bool useTPV );
     void performStartAI_TPV( bool useTPV );
@@ -313,7 +323,7 @@ private:
     void setCurrentExtractRect();
     void setCurrentNoFitRect();
 
-    QString local_Load_all_Parameters(QString fn, QString onlyMethod);
+    QString local_Load_all_Parameters(QString fn);
     bool local_OpenMeasFile( QString fn, widImage **imgout );
     void copyMetaToLatticeTable( widImage *img );
     bool copyParamsToFitTable();
@@ -339,6 +349,7 @@ private:
     void compInt( QComboBox *inp, QSettings &sets, QString key, QString prmt );
     void compString( QLineEdit *inp, QSettings &sets, QString key, QString prmt="" );
 
+    void showColorMarker( QColor c );
 };
 #endif // CONSOLENPROG
 

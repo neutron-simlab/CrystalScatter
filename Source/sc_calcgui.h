@@ -8,6 +8,7 @@
 #include <QDoubleSpinBox>
 #include <QComboBox>
 #include <QCheckBox>
+#include <QRadioButton>
 #include <QGridLayout>
 #include <QVector>
 #include <QTabWidget>
@@ -15,10 +16,45 @@
 #include <QAction>
 #include <QStatusBar>
 #include <QHash>
+#include <QSettings>
 
-#include "sc_calc.h"
-//#include "sc_libs_gpu.h"
+#include "sc_calc_generic.h"
 
+
+#define SETCOL(w,c) setColHelper::setcol(w,c)
+#define SETCOLMARK_TRAINTBL  Qt::yellow
+#define SETCOLMARK_PARDIFF   Qt::green
+#define SETCOLMARK_CHGIMG    Qt::cyan
+#define SETCOLMARK_IGNORED   Qt::black
+#define SETCOLMARK_CLEARED   Qt::white
+
+class setColHelper
+{
+public:
+    setColHelper() {}
+
+    static void setcol(QWidget *w, QColor c)
+    {
+        QPalette pal=w->palette();
+        if ( w->objectName().startsWith("cbs") )
+        {
+            if ( c == SETCOLMARK_CLEARED )
+                pal.setBrush(QPalette::Text,Qt::black);
+            else
+                pal.setBrush(QPalette::Text,c.darker(150));
+        }
+        else if ( w->objectName().startsWith("tog") )
+        {
+            if ( c == SETCOLMARK_CLEARED )
+                pal.setBrush(QPalette::Button,Qt::white); // QColor(240,240,240)); // aus Designer als Default gelesen
+            else
+                pal.setBrush(QPalette::Button,c.darker(150));
+        }
+        else // inp
+            pal.setBrush(QPalette::Base,c);
+        w->setPalette(pal);
+    }
+};
 
 // Daten zum Vergleich der aktuellen Parameter mit einem File
 typedef struct
@@ -30,56 +66,34 @@ typedef struct
 // Diese Struktur sollte auch alle Daten ohne GUI enthalten können
 typedef struct
 {
-    enum { /*text,*/ number, select, toggle } type;
-    QString key;    // Name des Parameters
-    bool fitparam;  // true=kann gefittet werden
-    bool disabled;  // true=Parameter ist gesperrt (bleibt aber in der Struktur erhalten)
-    QLabel *lbl1;   // in der GUI
+    enum { undef, numdbl, numint, select, toggle } type;
+    QString key;        // Name des Parameters
+    QCheckBox *togFit;  // !=0 wenn ein Fit möglich ist (enabled und checked ==> kommt in die Tabelle)
     union
     {
-        //QLineEdit *inp;         // Text (?)
-        QDoubleSpinBox *num;    // Zahl (double, int)
+        QDoubleSpinBox *numd;   // Zahl (double)
+        QSpinBox  *numi;        // Zahl (int)
         QComboBox *cbs;         // Auswahl (int)
         QCheckBox *tog;         // Bool
+        QRadioButton *rad;      // Bool, nur für die spezielle Auswahl von Qmax intern verwendet
         QWidget *w;             // vereinfacht den Zugriff
-    } gui;      // nur in der GUI-Version gefüllt
+    } gui;              // nur in der GUI-Version gefüllt
 
     struct
     {
-        //QString text;
         double  number; // also for selections
         bool    flag;
     } value;    // immer genutzt
-    //QString str;
 } paramHelper;
 
 
 class calcHelper
 {
 public:
-    calcHelper( SC_Calc *c, bool gui );
-    SC_Calc *subCalc;
+    calcHelper( SC_Calc_GENERIC *c );
+    SC_Calc_GENERIC *subCalc;
     QHash<QString,paramHelper*> params;
-    QGridLayout *subLayout;
-    static QStringList slDisWidgets;
 };
-
-
-#ifdef undef
-// Typedefinitions for 2D-Fit
-typedef enum { fitNone, fitNumeric, fitCbs } _fitTypes;
-typedef struct
-{
-    double min, max,    // Limits for the fit
-           fitstart,    // Startvalue for the fit
-           fitres,      // Resultvalue after fitting
-           orgval;      // Original value before the fit wa started
-    _fitTypes fitType;  // fitCbs has only integer steps
-    bool used;          // true=used for the fit, false=not changed during fit
-    bool fitvalid;      // Flag, if .fitres is valid
-} _fitLimits;
-typedef QHash< QString/*name*/, _fitLimits* > _param2fitval;
-#endif
 
 
 class SC_CalcGUI : public QObject
@@ -88,7 +102,7 @@ class SC_CalcGUI : public QObject
 public:
     explicit SC_CalcGUI();
     QStringList getCalcTypes();
-    void createTabs( QTabWidget *tab, QStatusBar *sb );
+    void createTabs(QStatusBar *sb );
 
     void cleanup() { if ( memory != nullptr ) memory->cleanup(); }
 
@@ -96,44 +110,44 @@ public:
     {
         if ( memory == nullptr )
         {
-            if ( methods.isEmpty() ) return false; // noch keine Methode definiert
-            return methods[ methods.keys().first() ]->subCalc->gpuAvailable();
+            if ( curMethod == nullptr ) return false; // noch keine Methode definiert
+            return curMethod->subCalc->gpuAvailable();
         }
         return memory->gpuAvailable();
     }
 
     void saveParameter( QString fn );
-    QString loadParameter(QString fn, QString onlyMethod);
+    QString loadParameter(QString fn, QString onlyMethod, bool &hkl, bool &grid);
     void compareParameter( QSettings &sets, QHash<QString,_CompValues*> &compWerte );
 
-    bool setParamToAllMethods( QString par, double val );
+    void saveFitFlags( QSettings &sets );
+    void loadFitFlags( QSettings &sets );
 
-    QString index2methodname( int i ) { if ( i<0 || i>=methodNamesSorted.size() ) return "?"; return methodNamesSorted[i]; }
+    QString index2methodname() { return curMethod->subCalc->methodName(); /*methodNamesSorted[0];*/ }
 
-    void prepareCalculation( QString m, bool getData );
+    void prepareCalculation( bool fromFit );
     // Globale Inputs für die Berechnungen
     static QHash<QString,Double3> inpVectors;
     static QHash<QString,double>  inpValues;
     static calcHelper *curMethod;
     static QHash<QString,double>  inpSingleValueVectors;
 
-    QStringList paramsForMethod( int im, bool num, bool glob, bool fit );
-    QStringList paramsForMethod( QString m, bool num, bool glob, bool fit );
+    QStringList paramsForMethod(bool num, bool glob, bool fit );
 
-    QString currentParamValueStr( QString m, QString p, bool text );
-    double  currentParamValueDbl( QString m, QString p );
-    int     currentParamValueInt( QString m, QString p );
-    bool    currentParamValueLog( QString m, QString p );
+    QString currentParamValueStr(QString p, bool text );
+    double  currentParamValueDbl(QString p );
+    int     currentParamValueInt(QString p );
 
-    bool limitsOfParamValue( QString m, QString p, double &min, double &max, bool &countable );
-    bool updateParamValue( QString m, QString p, double v, QColor col, bool dbg=false );
+    bool limitsOfParamValue( QString p, double &min, double &max, bool &countable );
+    bool updateParamValue( QString p, double v, QColor col, bool dbg=false );
     bool updateParamValueForFit( QString p, double v, bool dbg );
+    bool updateParamValueColor( QString p, QColor col );
     typedef QHash<QString,double> _numericalParams;
-    _numericalParams allNumericalParams( QString m );
-    bool isCurrentParameterValid( QString m, QString p, bool forfit );
+    _numericalParams allNumericalParams();
+    bool isCurrentParameterValid( QString p, bool forfit );
     void resetParamColorMarker( QColor col );
 
-    void doCalculation( int numThreads, progressAndAbort pa );
+    void doCalculation( int numThreads );
     double doFitCalculation(int numThreads, int bstop, int border, long &cnt, long &nancnt);
     void endThread() { memory->endThread(); }
 
@@ -145,10 +159,10 @@ public:
     int minY() { return (memory!=nullptr) ? memory->minY() : 0; }
     int maxY() { return (memory!=nullptr) ? memory->maxY() : 0; }
     double *data() { return (memory!=nullptr) ? memory->data() : nullptr; }
-    SC_Calc *getMemPtr() { return memory; }
+    SC_Calc_GENERIC *getMemPtr() { return memory; }
     bool getLastXY( int &x, int &y );
 
-    paramHelper *getParamPtr( QString m, QString p );
+    paramHelper *getParamPtr( QString p );
 
 #ifdef COPY_FITDATA_TO_GPU  // FITDATA_IN_GPU ok, real func außen
     bool setArrDataForFit( const double *data ) { return (memory!=nullptr) ? memory->setArrDataForFit(data) : false; }
@@ -162,23 +176,16 @@ public:
 #endif
     void setNoFitRect( int id, int x0, int y0, int x1, int y1 );
 
-private slots:
-    void customContextMenuRequested(const QPoint &pos);
-
 private:
-    QHash<QString,calcHelper*> methods;
+    //QHash<QString,calcHelper*> methods;
     QStringList methodNamesSorted;
 
-    //SC_GpuMemory *memory;
-    SC_Calc *memory;
-    //SC_Libs *libs;
+    SC_Calc_GENERIC *memory;
 
     static bool dataGetter( QString p, _valueTypes &v );
     static bool dataGetterForFit( QString p, _valueTypes &v );
 
-    QMenu   *popupMenu;
-    QAction *actionSetDefault,
-            *actionCopyToAll;
+    void updateToolTipForCompare( QWidget *w, QString txt );
 
     QStatusBar *mainStatusBar;
 };

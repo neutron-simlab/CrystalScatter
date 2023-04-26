@@ -1,11 +1,26 @@
 #ifndef SC_CALC_GENERIC_H
 #define SC_CALC_GENERIC_H
 
-#include "sc_calc.h"
 #include "sc_calc_generic_gpu.h"
 
 
-class SC_Calc_GENERIC : public SC_Calc
+/**
+ * @brief data transfer helper
+ */
+typedef struct
+{
+    bool    checked;
+    int     select;
+    QString str;
+    double  value;
+    Double3 vec;
+} _valueTypes;
+
+typedef bool (*_dataGetter)( QString, _valueTypes& );
+
+
+
+class SC_Calc_GENERIC
 {
 public:
     SC_Calc_GENERIC();
@@ -16,14 +31,13 @@ public:
 
     void prepareData( _dataGetter );
 
-    void doCalculation( int numThreads, progressAndAbort pa )
-    { calc->doCalculation( numThreads, pa ); }
+    void doCalculation( int numThreads )
+    { calc->doCalculation( numThreads ); }
 
     double doFitCalculation( int numThreads, int bstop, int border, long &cnt, long &nancnt )
     { return calc->doFitCalculation( numThreads, bstop, border, cnt, nancnt ); }
 
-    std::string tpvPerformRandom( std::list<std::string> ids )
-    { return calc->tpvPerformRandom(ids); }
+    std::string tpvPerformRandom(std::list<std::string> ids) { return calc->tpvPerformRandom(ids); }
 
     double higResTimerElapsedPrep() { return calc->higResTimerElapsedPrep; }
 
@@ -38,6 +52,7 @@ public:
     int minY() { return calc->minY(); }
     int maxY() { return calc->maxY(); }
     double *data() { return calc->data(); }
+    void scaleIntensity( bool linlog ) { calc->scaleIntensity(linlog); }
     double xyIntensity( int x, int y ) { return calc->xyIntensity(x,y); }
     int lastX() { return calc->lastX(); }
     int lastY() { return calc->lastY(); }

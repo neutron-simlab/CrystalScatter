@@ -42,6 +42,49 @@ public:
     bool dbgFlag() const { return arrXYIntensity==nullptr ? false : (static_cast<int>(arrXYIntensity[2]) != 0); }
 #endif
 
+    void scaleIntensity( bool linlog )
+    {
+        double vmin=1e20, vmax=1e-20;
+        double *p=(arrXYIntensity+3);
+        if ( linlog )
+        {   // Lin
+            for ( size_t i=0; i<_arrCount; i++,p++ )
+                if ( *p < vmin ) vmin = *p;
+                else if ( *p > vmax ) vmax = *p;
+        }
+        else
+        {   // Log
+            for ( size_t i=0; i<_arrCount; i++,p++ )
+                if ( *p > 0 )
+                {
+                    if ( log10(*p) < vmin )
+                        vmin = log10(*p);
+                    else if ( log10(*p) > vmax )
+                        vmax = log10(*p);
+                }
+        }
+        if ( fabs(vmin-vmax) < 1e-6 )
+        {   // Bei lin und log ...
+            vmin *= 0.998;
+            vmax *= 1.002;
+            if ( vmax == 0 ) vmax = 0.2;
+        }
+        p = (arrXYIntensity+3);
+        if ( linlog )
+        {   // Lin
+            for ( size_t i=0; i<_arrCount; i++,p++ )
+                *p = (*p - vmin) / (vmax-vmin);
+        }
+        else
+        {   // Log
+            for ( size_t i=0; i<_arrCount; i++,p++ )
+                if ( *p > 0 )
+                    *p = (log10(*p) - vmin) / (vmax-vmin);
+                else
+                    *p = 0;
+        }
+    } // scaleIntensity( bool linlog )
+
 #ifdef COPY_FITDATA_TO_GPU
     bool setArrDataForFit( const double *data )
     {

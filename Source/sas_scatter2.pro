@@ -26,6 +26,7 @@ CONFIG += c++11
 SOURCES += \
     dlgconfigautofit.cpp \
     dlgtimetests.cpp \
+    myguiparam.cpp \
     sc_calc_generic.cpp \
     sc_calcgui.cpp \
     sc_main.cpp \
@@ -34,20 +35,16 @@ SOURCES += \
     sc_readdata.cpp \
     sc_simplexfit2d.cpp \
     widimage.cpp
-    #sc_calc_fcc.cpp \
-    #sc_calc_bct.cpp \
-    #sc_calc_bcc.cpp \
-    #sc_calc_fd3m.cpp \
-    #sc_calc_sc.cpp \
-    #sc_calc_hcp.cpp \
 
 HEADERS += \
     debughandler.h \
     dlgconfigautofit.h \
     dlgtimetests.h \
-    sc_calc.h \
+    myguiparam.h \
     sc_calc_generic.h \
     sc_calc_generic_gpu.h \
+    sc_libs_gpu.h \
+    sc_memory_gpu.h \
     sc_calcgui.h \
     sc_globalConfig.h \
     sc_maingui.h \
@@ -56,18 +53,6 @@ HEADERS += \
     sc_readdata.h \
     sc_simplexfit2d.h \
     widimage.h
-    #sc_calc_fcc.h \
-    #sc_calc_fcc_gpu.h \
-    #sc_calc_bct.h \
-    #sc_calc_bct_gpu.h \
-    #sc_calc_bcc.h \
-    #sc_calc_bcc_gpu.h \
-    #sc_calc_fd3m.h \
-    #sc_calc_fd3m_gpu.h \
-    #sc_calc_sc.h \
-    #sc_calc_sc_gpu.h \
-    #sc_calc_hcp.h \
-    #sc_calc_hcp_gpu.h \
 
 FORMS += \
     dlgconfigautofit.ui \
@@ -90,19 +75,16 @@ unix:{
 win32:{
     #CUDA_DIR = "C:/Program\ Files/NVIDIA\ GPU\ Computing\ Toolkit/CUDA/v11.0"
     # -> nvcc fatal   : A single input file is required for a non-link phase when an outputfile is specified
-
+    #                   -> nvcc has problems with spaces in filenames...
     CUDA_DIR = "C:/SimLab/CUDA/v11.0"  # link to above dir
 
     # 'X' hinten zum Ausblenden dieser Funktion.
     CUDA_EXE = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.0/bin/nvcc.exeX"
 }
+# nvcc can work with multiple input files but then they must be linked with a special cuda linker
+#  and this is not so easy to include in this Qt-Project. So only a single input is used and the
+#  other .cu files are included there.
 CUDA_SOURCES += sc_calc_generic_gpu.cu
-                #sc_calc_fcc_gpu.cu
-                #sc_calc_bct_gpu.cu
-                #sc_calc_bcc_gpu.cu \
-                #sc_calc_sc_gpu.cu \
-                #sc_calc_hcp_gpu.cu \
-                #sc_calc_fd3m_gpu.cu
 
 !exists($$CUDA_EXE) {
     # if no cuda support is installed, treat this as a normal c++ file
@@ -112,7 +94,7 @@ CUDA_SOURCES += sc_calc_generic_gpu.cu
     # CUDA settings <-- may change depending on your system
     SYSTEM_NAME = Win64         # Depending on your system either 'Win32', 'x64', or 'Win64'
     SYSTEM_TYPE = 64            # '32' or '64', depending on your system
-    CUDA_ARCH = compute_52          # Type of CUDA architecture, for example 'compute_10', 'compute_11', 'sm_10'
+    CUDA_ARCH = compute_52      # Type of CUDA architecture, for example 'compute_10', 'compute_11', 'sm_10'
     NVCC_OPTIONS = --use_fast_math -std=c++11
     message("Use CUDA")
 
@@ -131,6 +113,7 @@ CUDA_SOURCES += sc_calc_generic_gpu.cu
     } else {
         LIBS += -L$$CUDA_DIR/lib64 -lcuda -lcudart
         CUDA_INC = -I$$CUDA_DIR/include
+        CUDA_INC += -I/usr/include/qt5 -I/usr/include/qt5/QtCore
     }
 
     # Configuration of the Cuda compiler
@@ -154,6 +137,7 @@ CUDA_SOURCES += sc_calc_generic_gpu.cu
 
 win32: {
     CONFIG(static) {
+        message("No FFTW-Lib (static)")
         DEFINES += USE_COMPLEX_WEB
     }
     else {
@@ -163,9 +147,11 @@ win32: {
             LIBS += -L$$FFTW3_PATH -lfftw3-3
             INCLUDEPATH += $$FFTW3_PATH
             HEADERS += $$FFTW3_PATH/fftw3.h
+            message("Use FFTW-Lib in " $$FFTW3_PATH)
         }
         else {
             DEFINES += USE_COMPLEX_WEB
+            message("No FFTW-Lib (not found) " $$FFTW3_PATH)
         }
     }
 
@@ -193,15 +179,24 @@ win32: {
     }
     else {
         DEFINES += NOHDF5
-        message("No HDF5 found in "+$$HDF5_GEN)
+        message("No HDF5 found in " $$HDF5_GEN)
     }
 }
+
 unix: {     # no static !
 
-    # FFTW3 Library (Büro-PC)
-    LIBS += -L/usr/local/lib -lfftw3
-    INCLUDEPATH += /usr/local/include
-    HEADERS += /usr/local/include/fftw3.h
+    # FFTW3 Library
+    FFTW3_PATH = /usr/local/include
+    exists($$FFTW3_PATH/fftw3.h) {
+        LIBS += -L/usr/local/lib -lfftw3
+        INCLUDEPATH += /usr/local/include
+        HEADERS += /usr/local/include/fftw3.h
+        message("Use FFTW-Lib in " $$FFTW3_PATH)
+    }
+    else {
+        DEFINES += USE_COMPLEX_WEB
+        message("No FFTW-Lib (not found) " $$FFTW3_PATH)
+    }
 
     # HDF5 Library
     HDF5_BASE = /usr/local/hdf5
@@ -213,34 +208,25 @@ unix: {     # no static !
     }
     else {
         DEFINES += NOHDF5
-        message("No HDF5 found in "+$$HDF5_BASE)
+        message("No HDF5 found in " $$HDF5_BASE)
     }
 
 }
 
 DISTFILES += \
-    ConfigParams.ini \
-    sc_libs_gpu.h \
-    sc_memory_gpu.h \
+    "../Pascal-Sourcecodes/20221004 - crystal3d1.pas" \
     sc_memory_gpu.cu \
-    sc_libs_gpu.cu \
-    "../20210616 - Neue Routinen/FHKL_routine_full.txt" \
-    "../20210616 - Neue Routinen/HKL_routine_basic.txt" \
-    "../20210616 - Neue Routinen/20210628 - Upq.pas" \
-    "../20210616 - Neue Routinen/20210615 - Upq1.pas" \
-    "../20210616 - Neue Routinen/20220311 - Upq1.pas" \
-    "../20210616 - Neue Routinen/coordinate_rotation_routine_full.txt" \
-    "../20210616 - Neue Routinen/20210616 - crystal3d1.pas" \
-    "../20210616 - Neue Routinen/20210818 - crystal3d1.pas" \
-    "../20210616 - Neue Routinen/20220311 - crystal3d1.pas" \
-    "../20210616 - Neue Routinen/20220730 - crystal3d1.pas" \
-    "../20210616 - Neue Routinen/20220730 - Upq1.pas" \
-    "../20210616 - Neue Routinen/formfactor_coefficient_routine_full.txt" \
-    "../20210616 - Neue Routinen/generic_routine_basic.txt" \
-    "../20210616 - Neue Routinen/generic_routine_full.txt" \
-    "../20210616 - Neue Routinen/main_routine_basic.txt" \
-    "../20210616 - Neue Routinen/main_routine_full.txt" \
-    "../20210616 - Neue Routinen/numerical_integration_routines_full.txt" \
-    "../20210616 - Neue Routinen/cpu_gpu_lattice.txt" \
-    "../20220909 - crystal3d1.pas" \
-    "../20221004/crystal3d1.pas"
+    sc_libs_gpu.cu
+    #sc_libs_gpu.h \
+    #sc_memory_gpu.h \
+
+    #"../20210616 - Neue Routinen/FHKL_routine_full.txt" \
+    #"../20210616 - Neue Routinen/HKL_routine_basic.txt" \
+    #"../20210616 - Neue Routinen/coordinate_rotation_routine_full.txt" \
+    #"../20210616 - Neue Routinen/formfactor_coefficient_routine_full.txt" \
+    #"../20210616 - Neue Routinen/generic_routine_basic.txt" \
+    #"../20210616 - Neue Routinen/generic_routine_full.txt" \
+    #"../20210616 - Neue Routinen/main_routine_basic.txt" \
+    #"../20210616 - Neue Routinen/main_routine_full.txt" \
+    #"../20210616 - Neue Routinen/numerical_integration_routines_full.txt" \
+    #"../20210616 - Neue Routinen/cpu_gpu_lattice.txt" \

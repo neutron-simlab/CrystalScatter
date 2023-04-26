@@ -41,9 +41,12 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
     }
     for ( int j=0; j<mmax && j<indVec.size(); j++ ) // all params
     {
-        calc->updateParamValueForFit( indVec[j], params[j], false/*ohne Ausgaben, wenn Werte geändert werden*/ );
+        calc->updateParamValueForFit(indVec[j]/*Parametername*/,
+                                     params[j]/*Wert dazu*/,
+                                     false/*ohne Ausgaben, wenn Werte geändert werden*/ );
+        // curMethod->params[<indVec[j]>]->value.number = <params[j]>;
     }
-    calc->prepareCalculation( "F", false );     // to transfer parameter values into the calculation class
+    calc->prepareCalculation( true );     // to transfer parameter values into the calculation class
 
     // Berechne das Image...
 #ifdef FITDATA_IN_GPU  // fqs
@@ -58,7 +61,7 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
         return summe;
     }
 #endif
-    calc->doCalculation(numThreads,nullptr);    // calculation without progressBar
+    calc->doCalculation(numThreads);
     numImgCalc++;
     // TODO qApp->processEvents();
 
@@ -278,7 +281,7 @@ void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit,
             values[i]  = fl->fitstart; // it.value()->fitstart;
             minVals[i] = fl->min;      // it.value()->min;
             maxVals[i] = fl->max;      // it.value()->max;
-            //qDebug() << "Var" << i << k << values[i] << minVals[i] << maxVals[i];
+            qDebug() << "Var" << i << k << values[i] << minVals[i] << maxVals[i];
             if ( ++i >= nap ) break;
         }
     }
@@ -296,7 +299,7 @@ void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit,
             values[i]  = fl->fitstart; // it.value()->fitstart;
             minVals[i] = fl->min;      // it.value()->min;
             maxVals[i] = fl->max;      // it.value()->max;
-            //qDebug() << "Fix" << i << k << values[i] << minVals[i] << maxVals[i];
+            qDebug() << "Fix" << i << k << values[i] << minVals[i] << maxVals[i];
             if ( ++i >= nap ) break;
         }
     }
@@ -382,7 +385,9 @@ void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit,
     DBGMODIFY( qDebug() << "Fit: 0 fqs"; )
     y[0] = fehlerquadratsumme(numThreads,values,info);
 
+    //#######
     //return;
+    //#######
 
     if ( progLogging )
     {
@@ -445,6 +450,10 @@ void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit,
             }*/
         }
     }
+
+    //#######
+    //return;
+    //#######
 
     for ( int j=0; j<ndim; j++ ) // (* center *)
     {

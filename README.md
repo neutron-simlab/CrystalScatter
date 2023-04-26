@@ -5,23 +5,19 @@ Development is in local iffgit in Forschungszentrum Jülich.
 - Conversion to C++ with Cuda by Michael Wagener (m.wagener@fz-juelich.de).
 
 # Current state
-The software is still under development but the source here is functional
-but some input parameter settings may not produce the desired output.
+The software is still under development but the source here is functional.
+Some input parameter settings may not produce the desired output.
 
 There is no Cuda Windows library available for the currently used compiler.
 Therefore no GPU support for the windows platform available. The program
 will use only all found CPU-Cores for the maximum number of threads.
 
-**Informations for users from the ECNS2023**
-Currently the GUI is reworked but not finished. And I want to write some
-interfaces for the essential functions. If this is done, I'll upload the
-code here.
-
 # Documentation
-The documentation provided here might have older screenshots.
-Not all implemented features are documented at the moment.
+The documentation provided here might have older screenshots. Except the
+SasScatter2-Internals.tex and .pdf, this document is up to date.
 
-Inline source documentation will be added.
+Not all implemented features are documented in the SasScatter2-Userdoc.tex
+and .pdf at the moment. Inline source documentation will be added.
 
 The document HyperSeries_SI_rev.pdf is the Supporting Information for the
 Scientific Report (https://www.nature.com/articles/s41598-023-27558-8).
@@ -31,7 +27,7 @@ This software is developed under Open Source License.
 © (2023) Forschungszentrum Jülich GmbH, JCNS-1.
 
 # Used libraries
-The giver version numbers are used during the development and are working.
+The given version numbers are used during the development and are working.
 Other library versions may work too.
 
 ### mandatory

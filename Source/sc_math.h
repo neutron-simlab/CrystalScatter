@@ -73,6 +73,16 @@ public:
 #ifdef __CUDACC__
     __host__ __device__
 #endif
+    Double3 ( const Double3 &o )
+    {
+        _x = o.x();
+        _y = o.y();
+        _z = o.z();
+    }
+
+#ifdef __CUDACC__
+    __host__ __device__
+#endif
     inline double x() const { return _x; }
 
 #ifdef __CUDACC__

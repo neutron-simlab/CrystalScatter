@@ -1,3 +1,13 @@
+/**
+ * Program: sas_scatter2
+ *  Author: Michael Wagener, FZJ, JCNS-1
+ *          Stephan Förster, FZJ, JCNS-1 wrote the original Scatter in Pascal.
+ *    Date: March 2023
+ *    File: sc_maingui.cpp
+ *          Contains all routines for the main GUI compnents.
+ */
+
+
 #include "sc_maingui.h"
 #include "ui_sc_maingui.h"
 #include "sc_postproc.h"
@@ -12,6 +22,14 @@
 #include <QDate>
 #include <QPainter>
 #include <thread>
+#include <myguiparam.h>
+#ifdef Q_OS_LINUX
+#include <QStyleFactory>
+#endif
+
+
+// This version information is displayed in the top right corner
+#define MYVERSION "2.0.0  (Apr. 2023)"
 
 
 // Da CUDA nicht unter Windows nutzbar ist, versuche ich mal mit OpenCL
@@ -19,20 +37,22 @@
 // Ist jetzt aber erst nur ein Gedanke (noch nichts programmiert).
 
 
+// Global (static) variables
 SC_MainGUI *SC_MainGUI::current = nullptr;
 bool SC_MainGUI::_bAbbruch = false;
-QString SC_MainGUI::configParamsFile = "";
 
 
 
+/**
+ * @brief SC_MainGUI::SC_MainGUI
+ * @param parent - Qt parent object, normally null
+ * Construktor for the main GUI application.
+ */
 SC_MainGUI::SC_MainGUI(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::SC_MainGUI)
 {
     QSettings sets(SETT_APP,SETT_GUI);
-    int lastTab = sets.value("LastMethod",-1).toInt();
-
-    configParamsFile = sets.value( "ConfigParamFile", "" ).toString();
 
     _logThreadTimer = nullptr;
     _calcThread = nullptr;
@@ -50,17 +70,64 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     ui->setupUi(this);
     current = this;
 
-    ui->actionTest_read_first_AI_RUN_Line->setVisible(false); // speziell für die Doku wegnehmen
-    //ui->actionFind_parameters_changing_image->setEnabled(false);
+#ifdef Q_OS_LINUX
+    // Sonst haben die GroupBox keinen Rahmen...
+    QStyle *winstyle = QStyleFactory::create("Windows");
+    ui->grpAIoptions->setStyle(winstyle);
+    ui->grpAIoutdir->setStyle(winstyle);
+    ui->grpCalcDestCalc->setStyle(winstyle);
+    ui->grpCalcDestConf->setStyle(winstyle);
+    ui->grpCalcTests->setStyle(winstyle);
+    ui->grpCalculation->setStyle(winstyle);
+    ui->grpClass->setStyle(winstyle);
+    ui->grpColorMarker->setStyle(winstyle);
+    ui->grpControl->setStyle(winstyle);
+    ui->grpDataFile->setStyle(winstyle);
+    ui->grpDefColTbl->setStyle(winstyle);
+    ui->grpEditQmaxGroup->setStyle(winstyle);
+    ui->grpExperimant->setStyle(winstyle);
+    ui->grpExtractImage->setStyle(winstyle);
+    ui->grpFFTinput->setStyle(winstyle);
+    ui->grpFFToutput->setStyle(winstyle);
+    ui->grpFFTuseRphi->setStyle(winstyle);
+    ui->grpFileInput->setStyle(winstyle);
+    ui->grpFitParams->setStyle(winstyle);
+    ui->grpFitResult->setStyle(winstyle);
+    ui->grpFitStart->setStyle(winstyle);
+    ui->grpFrameColor->setStyle(winstyle);
+    ui->grpInformations->setStyle(winstyle);
+    ui->grpLattice->setStyle(winstyle);
+    ui->grpLastFitActions->setStyle(winstyle);
+    ui->grpMatrix->setStyle(winstyle);
+    ui->grpNoFitRegions->setStyle(winstyle);
+    ui->grpOrientation->setStyle(winstyle);
+    ui->grpParticle->setStyle(winstyle);
+    ui->grpPeakShape->setStyle(winstyle);
+    ui->grpPixelManipul->setStyle(winstyle);
+    ui->grpQuadrants->setStyle(winstyle);
+    ui->grpScanFiles->setStyle(winstyle);
+    ui->grpTimingInfo->setStyle(winstyle);
+    ui->grpTPVothers->setStyle(winstyle);
+    ui->grpTPVoutPath->setStyle(winstyle);
+    ui->grpTPVvariation->setStyle(winstyle);
+    ui->grpValChg->setStyle(winstyle);
+    ui->grpVariables->setStyle(winstyle);
+    ui->grpWindows->setStyle(winstyle);
+#endif
 
-    /*
-    setWindowTitle( "SasCrystal - Version Juni 2021" );
-    QLabel *lblVersInfo = new QLabel("New Version - Juni 2021");
-    QPalette pal = lblVersInfo->palette();
-    pal.setColor( QPalette::WindowText, Qt::red );
-    lblVersInfo->setPalette(pal);
+    //ui->actionFind_parameters_changing_image->setEnabled(false);
+    ui->actionHide_unused_values->setChecked(true);  // Bei false werden nur die Labels ausgegraut
+    ui->inpRotX->hide();        // Werden nicht übergeben ....
+    ui->inpRotY_RotX->hide();
+    ui->lblRotX->hide();
+
+    // Small text in the upper rigth corner with the current version string
+    QLabel *lblVersInfo = new QLabel("Version " MYVERSION);
+    QPalette palv = lblVersInfo->palette();
+    palv.setColor( QPalette::WindowText, Qt::gray );
+    lblVersInfo->setPalette(palv);
+    lblVersInfo->setToolTip("(C) Michael Wagener, Stephan Förster, JCNS-1\nForschungszentrum Jülich GmbH");
     ui->tabMain->setCornerWidget(lblVersInfo);
-    */
 
     // Get the data directory path
     QDir fileDir( qApp->applicationDirPath() );
@@ -77,9 +144,9 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
 
     restoreGeometry( sets.value("GUIgeometry").toByteArray() );
 
-    // ---------------------------
-    // TAB 0 --- Configuration ---
-    // ---------------------------
+    // --------------------------
+    // --- TAB  Configuration ---
+    // --------------------------
     // Find the number of threads possible
     int nthreads = static_cast<int>(std::thread::hardware_concurrency());
     ui->inpNumCores->setMaximum( nthreads );
@@ -114,44 +181,26 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     ui->butParamSearchGenerate->setEnabled(false);
     bSearchParamsRunning = false;
 
-    // ---------------------------
-    // TAB 1 --- Data ------------
-    // ---------------------------
+    // --------------------------
+    // --- TAB  Data ------------
+    // --------------------------
     ui->butDataSetMask->setEnabled(false);
     ui->butDataCopyScaling->setEnabled(false);
     ui->grpExtractImage->setEnabled(false);
     ui->grpNoFitRegions->setEnabled(false);
     ui->butDataFindCenter->setEnabled(false);
-    ui->butSaveAllImages->hide(); // setEnabled(false); TODO
 
     ui->cbsExtractScale->clear();
     ui->cbsExtractScale->addItem(" * 1 ", 1 );
     ui->cbsExtractScale->addItem(" * 2 ", 2 );
     ui->cbsExtractScale->addItem(" * 4 ", 4 );
 
-    // ---------------------------
-    // TAB 2 --- Calculations ----
-    // ---------------------------
-    ui->cbsMethod->blockSignals(true);  // AI Tab, hier schon geblockt, da tabMethods dort auch anpasst
-    ui->tabMethods->blockSignals(true);
+    // --------------------------
+    // --- TAB  Calculations ----
+    // --------------------------
     ui->radNewImageCal->setChecked(true);
-    ui->tabMethods->clear();
     calcGui = new SC_CalcGUI;
-    calcGui->createTabs( ui->tabMethods, ui->statusbar );   // TabBar versteckt, wenn nur eine Methode
-    disableUnusedElements(); // TODO: Per Flag schaltbar?
-    if ( lastTab >= 0 && ui->tabMethods->count() > 1 )
-    {   // Damit auf jeden Fall das Signal ausgelöst wird, erst auf ein anderes Tab setzen
-        ui->tabMethods->setCurrentIndex( lastTab==0 ? 1 : 0 );
-        ui->tabMethods->blockSignals(false);
-        ui->tabMethods->setCurrentIndex(lastTab);
-    }
-    else
-    {
-        ui->tabMethods->blockSignals(false);
-        on_tabMethods_currentChanged(0);
-    }
-    if ( ui->tabMethods->count() == 1 )
-        ui->radTestAllMethods->hide();
+    calcGui->createTabs( ui->statusbar );
     // Check number of threads
     if ( calcGui->gpuAvailable() )
     {
@@ -163,7 +212,7 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
         ui->inpNumCores->setMinimum(1); // keine GPU möglich
         ui->inpNumCores->setValue( nthreads ); // immer auf Maximum als Default
     }
-    ui->inpGridPoints->setValue( sets.value("GridPoints",64).toInt() );  // Damit BeamCenter gesetzt wird
+    ui->intGridPoints->setValue( sets.value("GridPoints",64).toInt() );  // Damit BeamCenter gesetzt wird
     ui->butCalc->setEnabled(true);
     ui->butAbbruch->setEnabled(false);
     ui->progressBar->setEnabled(false);
@@ -175,56 +224,46 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     ui->lblLoadPrompt->hide();
     ui->lblLoadFilename->hide();
 
-    // Jetzt noch die Parameter für die globalen Werte setzen....
-    foreach ( QString m, calcGui->getCalcTypes() )
-    {
-        foreach ( QString p, calcGui->paramsForMethod(m,true,true,false) ) // numerical, global, no fit
-        {
-            paramHelper *phlp = calcGui->getParamPtr( m, p );
-            if ( phlp != nullptr )
-            {
-                if ( phlp->gui.w == nullptr )
-                {
-                    if ( phlp->key == "Editdom1" ) phlp->gui.num = ui->inpSigX;
-                    if ( phlp->key == "Editdom2" ) phlp->gui.num = ui->inpSigY;
-                    if ( phlp->key == "Editdom3" ) phlp->gui.num = ui->inpSigZ;
-                }
-                if ( phlp->lbl1 == nullptr ) phlp->lbl1 = ui->lblParamSig;
-            }
-        } // p
-    } // m
+    // Initialize the color marker labels
+    QPalette pal=ui->lblColMarkTrainTbl->palette();
+    pal.setBrush(QPalette::Window,SETCOLMARK_TRAINTBL); ui->lblColMarkTrainTbl->setPalette(pal);
+    pal.setBrush(QPalette::Window,SETCOLMARK_PARDIFF);  ui->lblColMarkParDiff->setPalette(pal);
+    pal.setBrush(QPalette::Window,SETCOLMARK_CHGIMG);   ui->lblColMarkChgImg->setPalette(pal);
+    showColorMarker( SETCOLMARK_CLEARED ); // Alles wegnehmen
 
-    // Slot connections for AutomaticRecalulation
-    // In der UI sind leider nur die Slots für die vordefinierten Signale zu setzen.
-    connect( ui->inpGridPoints, SIGNAL(valueChanged(int)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpHKLmax, SIGNAL(valueChanged(int)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpBCenterX, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpBCenterY, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpU1, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpU2, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpU3, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpV1, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpV2, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpV3, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpN1, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpN2, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpN3, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpAx1, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpAy1, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpAz1, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpAx2, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpAy2, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpAz2, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpAx3, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpAy3, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpAz3, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpSigX, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpSigY, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
-    connect( ui->inpSigZ, SIGNAL(valueChanged(double)), this, SLOT(automaticRecalc()) );
+    myGuiParam::setAllGuiParams(ui->tabCalc);
+    //myGuiParam::debugGuiParams();
+    calcGui->loadFitFlags(sets);
 
-    // ---------------------------
-    // TAB 3 --- FFT -------------
-    // ---------------------------
+    QStringList slverthdr;
+    slverthdr << "Wavelength [nm]" << "Sample-Det Dist [m]" << "Pix Width [mm]"
+              << "Pix Height [mm]" << "Pix Rows" << "Pix Cols" << "Beam Cent X"
+              << "Beam Cent Y";
+    ui->tblHeaderData->blockSignals(true);
+    ui->tblHeaderData->setRowCount(slverthdr.size());
+    ui->tblHeaderData->setColumnCount(1);
+    ui->tblHeaderData->setVerticalHeaderLabels(slverthdr);
+    ui->tblHeaderData->setHorizontalHeaderLabels(QStringList()<<"Value");
+    int wv = ui->tblHeaderData->fontMetrics().horizontalAdvance("  Value  ");
+    int wl = ui->tblHeaderData->fontMetrics().horizontalAdvance(slverthdr[1]);
+    ui->tblHeaderData->setColumnWidth(0,wv);
+    ui->tblHeaderData->setMinimumWidth( wl+wv+40 );
+    // Defaultwerte setzen
+    ui->tblHeaderData->setItem(tblLattNbCols,0, new QTableWidgetItem("200") );
+    ui->tblHeaderData->setItem(tblLattNbRows,0, new QTableWidgetItem("200") );
+    ui->tblHeaderData->setItem(tblLattBeamX,0, new QTableWidgetItem("100") );
+    ui->tblHeaderData->setItem(tblLattBeamY,0, new QTableWidgetItem("100") );
+    ui->tblHeaderData->setItem(tblLattWaveLen,0, new QTableWidgetItem("0.5") );
+    ui->tblHeaderData->setItem(tblLattSaDist,0, new QTableWidgetItem("4.0") );
+    ui->tblHeaderData->setItem(tblLattPixelX,0, new QTableWidgetItem("5.3") );
+    ui->tblHeaderData->setItem(tblLattPixelY,0, new QTableWidgetItem("5.3") );
+    ui->tblHeaderData->blockSignals(false);
+    on_tblHeaderData_cellChanged(0,0);  // damit die Qmax Berechnung startet
+    ui->radEditQmaxPreset->setChecked(true);
+
+    // --------------------------
+    // --- TAB  FFT -------------
+    // --------------------------
     // Grp Input Preprocessing
     ui->radFFTLinInput->setChecked(  sets.value("FFTLinInput",true).toBool() );
     ui->radFFTLogInput->setChecked( !sets.value("FFTLinInput",true).toBool() );
@@ -241,6 +280,11 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     ui->togFFTclip40Out->setChecked( sets.value("FFTclip40Output",false).toBool() );
     ui->togIFFTSwap->setChecked( sets.value("FFTSwapOutput",true).toBool() );
     ui->cbsFFTsizeOut->setCurrentIndex( sets.value("FFTsizeOut",2).toInt() );
+    ui->inpFFTcutX->setValue( sets.value("FFTcutOutX",64).toInt() );
+    ui->inpFFTcutY->setValue( sets.value("FFTcutOutY",64).toInt() );
+    ui->togFFTcutEnabled->setChecked( sets.value("FFTcutOutEna",false).toBool() );
+    ui->inpFFTcutX->setEnabled( ui->togFFTcutEnabled->isChecked() );
+    ui->inpFFTcutY->setEnabled( ui->togFFTcutEnabled->isChecked() );
     switch ( sets.value("FFToutput",0).toInt() )
     {
     case 0: // Real
@@ -257,11 +301,12 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
         break;
     }
     ui->butIFFT->setEnabled(false); // Init
+    ui->butFFT->setEnabled(false); // Init
     ui->butFFTverifyRphi->hide();   // war nur für mich zum Testen, daher im Normalbetrieb wegnehmen
 
-    // ---------------------------
-    // TAB 4 --- Fit -------------
-    // ---------------------------
+    // -------------------------------------
+    // --- TAB  Simplex 2D Fit -------------
+    // -------------------------------------
 #ifndef USEREPETITIONS
     ui->inpFitRepetitions->hide();
     ui->lblFitCurRep->hide();
@@ -281,10 +326,6 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     ui->lblFitCurIter->setText("");
     ui->lblAutofitInfo->setText("");
 
-    if ( configParamsFile.size() > 55 )
-        ui->lblFitConfigFile->setText(configParamsFile.left(3) + "..." + configParamsFile.right(49));
-    else
-        ui->lblFitConfigFile->setText(configParamsFile);
     fitClass = nullptr;
     fileFitLog = nullptr;
     fileFitLogName = "";
@@ -297,36 +338,10 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     ui->inpFitRepetitions->setValue( sets.value( "Repetitions", 1).toInt() );
     ui->togFitUseMask->setChecked( sets.value( "UseMask", false).toBool() );
     sets.endGroup();
-    QStringList slAllMethods = calcGui->getCalcTypes();
-    oneFitParamUsed = false;
-    savedFitParams.clear();
-    ui->butFitCurLoad->setEnabled(false);
-    foreach (QString m, slAllMethods)
-    {
-        method2fitparams.insert( m, new _param2fitval );
-        sets.beginGroup( "Fit-"+m );
-        QStringList slKeys = sets.allKeys();
-        //qDebug() << m << slKeys;
-        foreach (QString k, slKeys)
-        {
-            if ( ! calcGui->isCurrentParameterValid(m,k,true) ) continue;   // Hier nur Fitparameter
-            QStringList slVal = sets.value(k,"0:0:0:0").toString().split(":");
-            _fitLimits *fl = new _fitLimits;
-            fl->used = slVal[0].toInt() != 0;
-            fl->min  = slVal[1].toDouble();
-            fl->max  = slVal[2].toDouble();
-            fl->fitType = static_cast<_fitTypes>(slVal[3].toInt());
-            fl->fitvalid = false;  // fitresult not stored!
-            //qDebug() << "Init:" << m << k << slVal;
-            method2fitparams[m]->insert(k,fl);
-            oneFitParamUsed |= fl->used;
-        }
-        sets.endGroup();
-    }
 
-    // ---------------------------
-    // TAB 5 --- AI --------------
-    // ---------------------------
+    // --------------------------
+    // --- TAB  AI --------------
+    // --------------------------
     // Die globalen Daten richtig übernehmen
     fillDataFromInputs();
 
@@ -344,11 +359,6 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     ui->radLoopsCascade->setChecked( true /*   sets.value("Cascading",true).toBool()*/ );
     ui->radLoopsSingle->setChecked( false /* ! sets.value("Cascading",true).toBool()*/ );
     sets.endGroup();
-    QString tabName = ui->tabMethods->tabText(lastTab);
-    ui->cbsMethod->addItems( calcGui->getCalcTypes() );
-    ui->cbsMethod->setCurrentIndex( -1 );
-    ui->cbsMethod->blockSignals(false);
-    ui->cbsMethod->setCurrentIndex( ui->cbsMethod->findText(tabName) );
     QStringList hdr;
     hdr << "Name" << "Start" << "End / Variation" << "Step / Calculation";
     ui->tblListe->setColumnCount( hdr.size() );
@@ -367,17 +377,12 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     ui->lisTPVbackProgOut->setEnabled(false);
     aiBackProg = nullptr;
 
-    if ( calcGui->getCalcTypes().size() == 1 )
-    {   // Bei nur einer Methode die Auswahlen bei AI sperren
-        ui->cbsMethod->hide(); // setEnabled(false);
-        ui->togUseAllMethods->hide(); //setEnabled(false);
-        ui->lblAIMethods->hide();
-        ui->hspacerMethods->changeSize(1,1);
-    }
+    ui->cbsVariables->clear();
+    ui->cbsVariables->addItems( calcGui->paramsForMethod(true,true,false) ); // nur numerische Werte, incl. globales
 
-    // --------------------------------------------
-    // TAB 6 --- Training Parameters Variation ----
-    // --------------------------------------------
+    // -------------------------------------------
+    // --- TAB  Training Parameters Variation ----
+    // -------------------------------------------
     sets.beginGroup("TPV");
     ui->togTPVio->setChecked( sets.value("ena_io",true).toBool() );
     ui->inpTPVio->setValue( sets.value("val_io",0.5).toDouble() );
@@ -408,7 +413,7 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     ui->inpTPVb->setEnabled(ui->togTPVb->isChecked());
     ui->togTPVc->setChecked( sets.value("ena_c",true).toBool() );
     ui->inpTPVc->setValue( sets.value("val_c",0.5).toDouble() );
-    ui->inpTPVc->setEnabled(ui->togTPVc->isChecked());    
+    ui->inpTPVc->setEnabled(ui->togTPVc->isChecked());
     ui->togTPVrho->setChecked( sets.value("ena_rho",true).toBool() );
     ui->inpTPVrho->setValue( sets.value("val_rho",0.5).toDouble() );
     ui->inpTPVrho->setEnabled(ui->togTPVrho->isChecked());
@@ -436,15 +441,17 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     ui->inpTPVnbeam->setEnabled(ui->togTPVaddBS->isChecked());
     ui->inpTPVmbeam->setValue( sets.value("val_mbeam",0.5).toDouble() );
     ui->inpTPVmbeam->setEnabled(ui->togTPVaddBS->isChecked());
-    // TODO: addLines
-    ui->togTPVaddLines->setToolTip("Not yet implemented");
-    ui->togTPVaddLines->setChecked( false /*sets.value("ena_addLines",false).toBool()*/ );
-    ui->togTPVaddLines->setEnabled(false);
+    ui->togTPVaddLines->setChecked( sets.value("ena_addLines",false).toBool() );
     ui->inpTPVaddLinesH->setValue( sets.value("val_addLinesH",1).toInt() );
-    ui->inpTPVaddLinesV->setValue( sets.value("val_addLinesV",5).toInt() );
+    ui->inpTPVaddLinesV->setValue( sets.value("val_addLinesV",1).toInt() );
+    ui->inpTPVaddLinesHwidth->setValue( sets.value("val_addLinesHwidth",2).toInt() );
+    ui->inpTPVaddLinesVwidth->setValue( sets.value("val_addLinesVwidth",2).toInt() );
     ui->inpTPVaddLinesH->setEnabled(ui->togTPVaddLines->isChecked());
     ui->inpTPVaddLinesV->setEnabled(ui->togTPVaddLines->isChecked());
-    //
+    ui->inpTPVaddLinesHwidth->setEnabled(ui->togTPVaddLines->isChecked());
+    ui->inpTPVaddLinesVwidth->setEnabled(ui->togTPVaddLines->isChecked());
+    ui->lblTPVaddLines->setEnabled(ui->togTPVaddLines->isChecked());
+
     ui->togTPVaddNoise->setChecked( sets.value("ena_addNoise",true).toBool() );
     // TODO: Convolute
     ui->togTPVconvolute->setToolTip("Not yet implemented");
@@ -453,53 +460,51 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     //
     ui->togTPVcalcRphi->setChecked( sets.value("ena_calcRphi",true).toBool() );
     ui->togTPVcalcFFT->setChecked( sets.value("ena_calcFFT",true).toBool() );
+    ui->togTPVsaveBaseExtra->setChecked( sets.value("ena_saveExtra",false).toBool() );
+    ui->togTPVgeneratePNG->setChecked( sets.value("ena_generatePNG",true).toBool() );
+    ui->togTPVscaleScat->setChecked( sets.value("ena_scaleScat",false).toBool() );
     ui->inpTPVnumimg->setValue( sets.value("val_numimg",10).toInt() );
     ui->inpTPVoutPath->setText( sets.value("val_outPath",".").toString() );
     sets.endGroup();
 
-    // ---------------------------
-    // TAB 7 --- Imagewindows ----
-    // ---------------------------
+    // --------------------------
+    // --- TAB  Imagewindows ----  Nur unter Android sichtbar und verwendet
+    // --------------------------
 #ifdef IMG_ONE_WINDOW
     qDebug() << "********************* ANDROID *******************************";
 
 
 #else
-    ui->tabMain->removeTab(7);
+    ui->tabMain->removeTab( ui->tabMain->indexOf(ui->tabImages) );
 #endif
 
     // -------------------------
     // Abschluss ---------------
     // -------------------------
     ui->tabMain->setCurrentWidget( ui->tabCalc );
-    adjustSize();
+    //DT( qDebug() << "... adjustSize ..." );
+    //adjustSize();
 
-    if ( qApp->arguments().size() > 1 )     // [0] = Executable file path
-    {
-        autoProcessingFile = new QFile( qApp->arguments().at(1) );
-        if ( autoProcessingFile->open(QIODevice::ReadOnly) )
-        {
-            qDebug() << autoProcessingFile->fileName() << "Starting";
-            QTimer::singleShot( 100, this, SLOT(autoProcessingTimer()) );
-        }
-        else
-        {
-            qDebug() << autoProcessingFile->fileName() << autoProcessingFile->errorString();
-            autoProcessingFile = nullptr;
-            bIgnoreRecalc = false;  // Init done AutoProc-Error
-        }
-    }
-    else
-    {
-        bIgnoreRecalc = false;  // Init done w/o AutoProc
-    }
+    QTimer::singleShot( 300, this, SLOT(initCbsAfterStart()) ); // Konstruktor für cbs Trigger und adjustSize()
 }
 
+
+/**
+ * @brief SC_MainGUI::~SC_MainGUI
+ * Default destructor.
+ */
 SC_MainGUI::~SC_MainGUI()
 {
     delete ui;
 }
 
+
+/**
+ * @brief SC_MainGUI::closeEvent [SLOT]
+ * @param event
+ * Called if the window is about to close, saves all global settings read
+ * in the constructor.
+ */
 void SC_MainGUI::closeEvent(QCloseEvent *event)
 {
     if ( !closeMainActive )
@@ -508,8 +513,9 @@ void SC_MainGUI::closeEvent(QCloseEvent *event)
 
         QSettings sets(SETT_APP,SETT_GUI);
         // Calculation & Configuration Tab (Default group)
-        sets.setValue( "LastMethod", ui->tabMethods->currentIndex() );
-        sets.setValue( "GridPoints", ui->inpGridPoints->value() );
+        calcGui->saveFitFlags(sets);
+        sets.setValue( "LastMethod", "FCC Spheres" /*ui->tabMethods->currentIndex()*/ );
+        sets.setValue( "GridPoints", ui->intGridPoints->value() );
         sets.setValue( "ImgAutoPosit", ui->togAutoPosit->isChecked() );
         sets.setValue( "DefColTbl", ui->cbsDefaultColTbl->currentIndex() );
         sets.setValue( "OnlyNewWindow", ui->togOnlyNewWindow->isChecked() );
@@ -523,6 +529,7 @@ void SC_MainGUI::closeEvent(QCloseEvent *event)
         sets.setValue( "ParamSearchPath", ui->inpParamSearchPath->text() );
 
         // FIT Tab (Subgroups)
+        // Bleibt hier!
         QHash< QString/*method*/, _param2fitval* >::const_iterator im = method2fitparams.constBegin();
         while ( im != method2fitparams.constEnd() )
         {
@@ -562,6 +569,9 @@ void SC_MainGUI::closeEvent(QCloseEvent *event)
         sets.setValue( "FFTclip40Output", ui->togFFTclip40Out->isChecked() );
         sets.setValue( "FFTSwapOutput", ui->togIFFTSwap->isChecked() );
         sets.setValue( "FFTsizeOut", ui->cbsFFTsizeOut->currentIndex() );
+        sets.setValue( "FFTcutOutX", ui->inpFFTcutX->value() );
+        sets.setValue( "FFTcutOutY", ui->inpFFTcutY->value() );
+        sets.setValue( "FFTcutOutEna", ui->togFFTcutEnabled->isChecked() );
         if ( ui->radFFToutReal->isChecked() )
             sets.setValue( "FFToutput", 0 );
         else if ( ui->radFFToutImag->isChecked() )
@@ -587,7 +597,7 @@ void SC_MainGUI::closeEvent(QCloseEvent *event)
         // TAB 6 --- Training Parameters Variation ----
         sets.beginGroup("TPV");
         sets.setValue("ena_io",ui->togTPVio->isChecked());
-        sets.setValue("val_io",ui->inpTPVio->value());        
+        sets.setValue("val_io",ui->inpTPVio->value());
         sets.setValue("ena_base",ui->togTPVbase->isChecked());
         sets.setValue("val_base",ui->inpTPVbase->value());
         sets.setValue("ena_radius",ui->togTPVradius->isChecked());
@@ -605,11 +615,11 @@ void SC_MainGUI::closeEvent(QCloseEvent *event)
         sets.setValue("ena_b",ui->togTPVb->isChecked());
         sets.setValue("val_b",ui->inpTPVb->value());
         sets.setValue("ena_c",ui->togTPVc->isChecked());
-        sets.setValue("val_c",ui->inpTPVc->value());        
+        sets.setValue("val_c",ui->inpTPVc->value());
         sets.setValue("ena_rho",ui->togTPVrho->isChecked());
         sets.setValue("val_rho",ui->inpTPVrho->value());
         sets.setValue("ena_psi",ui->togTPVpsi->isChecked());
-        sets.setValue("val_psi",ui->inpTPVpsi->value());        
+        sets.setValue("val_psi",ui->inpTPVpsi->value());
         sets.setValue("ena_dbeta",ui->togTPVdbeta->isChecked());
         sets.setValue("val_dbeta",ui->inpTPVdbeta->value());
         sets.setValue("ena_width",ui->togTPVwidth->isChecked());
@@ -625,11 +635,16 @@ void SC_MainGUI::closeEvent(QCloseEvent *event)
         sets.setValue("ena_addLines",ui->togTPVaddLines->isChecked());
         sets.setValue("val_addLinesH",ui->inpTPVaddLinesH->value());
         sets.setValue("val_addLinesV",ui->inpTPVaddLinesV->value());
+        sets.setValue("val_addLinesHwidth",ui->inpTPVaddLinesHwidth->value());
+        sets.setValue("val_addLinesVwidth",ui->inpTPVaddLinesVwidth->value());
         sets.setValue("ena_addBS",ui->togTPVaddBS->isChecked());
         sets.setValue("ena_addNoise",ui->togTPVaddNoise->isChecked());
         sets.setValue("ena_convolute",ui->togTPVconvolute->isChecked());
         sets.setValue("ena_calcRphi",ui->togTPVcalcRphi->isChecked());
         sets.setValue("ena_calcFFT",ui->togTPVcalcFFT->isChecked());
+        sets.setValue("ena_saveExtra",ui->togTPVsaveBaseExtra->isChecked());
+        sets.setValue("ena_generatePNG",ui->togTPVgeneratePNG->isChecked());
+        sets.setValue("ena_scaleScat",ui->togTPVscaleScat->isChecked());
         sets.setValue("val_numimg",ui->inpTPVnumimg->value());
         sets.setValue("val_outPath",ui->inpTPVoutPath->text());
         sets.endGroup();
@@ -645,81 +660,51 @@ void SC_MainGUI::closeEvent(QCloseEvent *event)
         event->accept(); // close the main window
 }
 
+
+/**
+ * @brief SC_MainGUI::on_actionExit_triggered [SLOT]
+ * Exit function from the menu bar.
+ */
 void SC_MainGUI::on_actionExit_triggered()
 {
     closeEvent(nullptr);
     qApp->quit();
 }
 
-void SC_MainGUI::on_tabMethods_currentChanged(int index)
-{
-    if ( calcGui->getCalcTypes().size() == 1 )
-    {
-        curMethod = ui->tabMethods->tabText(index);
-        return; // komplett ignorieren, wenn keine Tabs zur Auswahl stehen
-    }
-    // Aktuelle Methode speichern
-    //QSettings data(SETT_APP,SETT_GUI);
-    //data.setValue("LastMethod",index);
-    // Den Button "Calculate" mit dem passenden Methodentext ergänzen, damit diese immer sichtbar ist
-    QString hdr = ui->tabMethods->tabText(index);
-    curMethod = hdr; // calcGui->index2methodname(ui->tabMethods->currentIndex());
-    int pos = hdr.indexOf(" ");
-    if ( pos < 0 ) pos = hdr.length();
-    ui->butCalc->setText( "Calculate "+hdr.left(pos) );
-    // Auf neues Image umschalten
-    ui->radNewImageCal->setChecked(true);
-    // Die aktuelle Methode für AI anpassen
-    ui->cbsMethod->setCurrentIndex( ui->cbsMethod->findText(hdr) );
-}
 
+/**
+ * @brief SC_MainGUI::fillDataFromInputs
+ * Copies the values from the input fields into the internal Hash-Structures.
+ */
 void SC_MainGUI::fillDataFromInputs()
 {
+    DT( qDebug() << "fillDataFromInputs()" );
     // Globale Inputs für die Berechnungen
     //QHash<QString,Double3> SC_CalcGUI::inpVectors;
     //QHash<QString,double>  SC_CalcGUI::inpValues;
     //QHash<QString,double>  SC_CalcGUI::inpSingleValueVectors;
 
-    SC_CalcGUI::inpValues.insert( "EditGridPoints", ui->inpGridPoints->value() );
-    SC_CalcGUI::inpValues.insert( "Edithklmax", ui->inpHKLmax->value() );
+    SC_CalcGUI::inpValues.insert( "GridPoints",    ui->intGridPoints->value() );
+    SC_CalcGUI::inpValues.insert( "HKLmax",        ui->intHKLmax->value() );
     SC_CalcGUI::inpValues.insert( "RadioButtonQ1", ui->radQ1->isChecked() );
     SC_CalcGUI::inpValues.insert( "RadioButtonQ2", ui->radQ2->isChecked() );
     SC_CalcGUI::inpValues.insert( "RadioButtonQ4", ui->radQ4->isChecked() );
-    SC_CalcGUI::inpValues.insert( "ExpandImage", ui->togExpandImage->isChecked() );
-    SC_CalcGUI::inpValues.insert( "BeamPosX", ui->inpBCenterX->value() );
-    SC_CalcGUI::inpValues.insert( "BeamPosY", ui->inpBCenterY->value() );
+    SC_CalcGUI::inpValues.insert( "ExpandImage",   ui->togExpandImage->isChecked() );
+    SC_CalcGUI::inpValues.insert( "BeamPosX",      ui->inpBeamPosX->value() );
+    SC_CalcGUI::inpValues.insert( "BeamPosY",      ui->inpBeamPosY_BeamPosX->value() );
 
-    // Lattice Werte
-    SC_CalcGUI::inpValues.insert( "LATTcols", ui->tblLattice3DValues->item(tblLattNbCols,0)->text().toInt() );
-    SC_CalcGUI::inpValues.insert( "LATTrows", ui->tblLattice3DValues->item(tblLattNbRows,0)->text().toInt() );
-    SC_CalcGUI::inpValues.insert( "LATTcenx", ui->tblLattice3DValues->item(tblLattBeamX,0)->text().toDouble() );
-    SC_CalcGUI::inpValues.insert( "LATTceny", ui->tblLattice3DValues->item(tblLattBeamY,0)->text().toDouble() );
-    SC_CalcGUI::inpValues.insert( "LATTwlen", ui->tblLattice3DValues->item(tblLattWaveLen,0)->text().toDouble() );
-    SC_CalcGUI::inpValues.insert( "LATTdist", ui->tblLattice3DValues->item(tblLattSaDist,0)->text().toDouble() );
-    SC_CalcGUI::inpValues.insert( "LATTpixx", ui->tblLattice3DValues->item(tblLattPixelX,0)->text().toDouble() );
-    SC_CalcGUI::inpValues.insert( "LATTpixy", ui->tblLattice3DValues->item(tblLattPixelY,0)->text().toDouble() );
-
-    SC_CalcGUI::inpVectors.insert( "Uvec", Double3(ui->inpU1->value(),
-                                                   ui->inpU2->value(),
-                                                   ui->inpU3->value()) );
-    SC_CalcGUI::inpVectors.insert( "Vvec", Double3(ui->inpV1->value(),
-                                                   ui->inpV2->value(),
-                                                   ui->inpV3->value()) );
-    SC_CalcGUI::inpVectors.insert( "Nvec", Double3(ui->inpN1->value(),
-                                                   ui->inpN2->value(),
-                                                   ui->inpN3->value()) );
-    SC_CalcGUI::inpVectors.insert( "Ax1", Double3(ui->inpAx1->value(),
+    SC_CalcGUI::inpVectors.insert( "Ax1", Double3(ui->inpVAx1->value(),
                                                   ui->inpAy1->value(),
                                                   ui->inpAz1->value()) );
-    SC_CalcGUI::inpVectors.insert( "Ax2", Double3(ui->inpAx2->value(),
-                                                  ui->inpAy2->value(),
-                                                  ui->inpAz2->value()) );
-    SC_CalcGUI::inpVectors.insert( "Ax3", Double3(ui->inpAx3->value(),
-                                                  ui->inpAy3->value(),
-                                                  ui->inpAz3->value()) );
+    SC_CalcGUI::inpVectors.insert( "Ax2", Double3(ui->inpVAx2_VAx1->value(),
+                                                  ui->inpAy2_Ay1->value(),
+                                                  ui->inpAz2_Az1->value()) );
+    SC_CalcGUI::inpVectors.insert( "Ax3", Double3(ui->inpVAx3_VAx1->value(),
+                                                  ui->inpAy3_Ay1->value(),
+                                                  ui->inpAz3_Az1->value()) );
     SC_CalcGUI::inpVectors.insert( "SigXYZ", Double3(ui->inpSigX->value(),
-                                                     ui->inpSigY->value(),
-                                                     ui->inpSigZ->value()) );
+                                                     ui->inpSigY_SigX->value(),
+                                                     ui->inpSigZ_SigX->value()) );
 
     // In normal calculation modes the vector notation is used, but in the
     // AI mode all the values are accessed as simgle values.
@@ -732,6 +717,7 @@ void SC_MainGUI::fillDataFromInputs()
     SC_CalcGUI::inpSingleValueVectors.insert( "EditAxis3x",  SC_CalcGUI::inpVectors["Ax3"].x() );
     SC_CalcGUI::inpSingleValueVectors.insert( "EditAxis3y",  SC_CalcGUI::inpVectors["Ax3"].y() );
     SC_CalcGUI::inpSingleValueVectors.insert( "EditAxis3z",  SC_CalcGUI::inpVectors["Ax3"].z() );
+    /*
     SC_CalcGUI::inpSingleValueVectors.insert( "Editxrel",    SC_CalcGUI::inpVectors["Nvec"].x() );
     SC_CalcGUI::inpSingleValueVectors.insert( "Edityrel",    SC_CalcGUI::inpVectors["Nvec"].y() );
     SC_CalcGUI::inpSingleValueVectors.insert( "Editzrel",    SC_CalcGUI::inpVectors["Nvec"].z() );
@@ -741,24 +727,39 @@ void SC_MainGUI::fillDataFromInputs()
     SC_CalcGUI::inpSingleValueVectors.insert( "Editx2rel",   SC_CalcGUI::inpVectors["Vvec"].x() );
     SC_CalcGUI::inpSingleValueVectors.insert( "Edity2rel",   SC_CalcGUI::inpVectors["Vvec"].y() );
     SC_CalcGUI::inpSingleValueVectors.insert( "Editz2rel",   SC_CalcGUI::inpVectors["Vvec"].z() );
+    */
     SC_CalcGUI::inpSingleValueVectors.insert( "Editdom1",    SC_CalcGUI::inpVectors["SigXYZ"].x() );
     SC_CalcGUI::inpSingleValueVectors.insert( "Editdom2",    SC_CalcGUI::inpVectors["SigXYZ"].y() );
     SC_CalcGUI::inpSingleValueVectors.insert( "Editdom3",    SC_CalcGUI::inpVectors["SigXYZ"].z() );
 }
 
-void SC_MainGUI::prepareCalculation( bool getMD, bool progbar )
+
+/**
+ * @brief SC_MainGUI::prepareCalculation
+ * @param getMD   - if true, get all values from the input fields into local data
+ * @param progbar - enable state of the progressBar
+ * This procedure disables the gui elements during the calculation and starts it.
+ */
+void SC_MainGUI::prepareCalculation( bool progbar )
 {
     ui->butCalc->setEnabled(false);
     ui->butFitStart->setEnabled(false);
     ui->butIFFT->setEnabled(false); // Prepare Calc
+    ui->butFFT->setEnabled(false); // Prepare Calc
     ui->butAbbruch->setEnabled(true);
     ui->butAbbruch->setText("Abort");
     ui->progressBar->setEnabled(progbar);
     qApp->processEvents();
-    if ( getMD ) fillDataFromInputs();
-    calcGui->prepareCalculation( ui->tabMethods->tabText(ui->tabMethods->currentIndex()), getMD );
+    fillDataFromInputs();
+    calcGui->prepareCalculation( false );
 }
 
+
+/**
+ * @brief SC_MainGUI::finishCalculation
+ * @param showtime - if true, the calculation time was shown in the gui.
+ * This procedure is called to reenable all gui elements.
+ */
 void SC_MainGUI::finishCalculation(bool showtime)
 {
     if ( showtime )
@@ -773,10 +774,16 @@ void SC_MainGUI::finishCalculation(bool showtime)
     ui->progressBar->setEnabled(false);
     ui->butFitStart->setEnabled(oneFitParamUsed);
     ui->butIFFT->setEnabled(true);  // Finish Calc
+    ui->butFFT->setEnabled(true);  // Finish Calc
     calcGui->inpValues.insert( "_CalcTime_", calcGui->higResTimerElapsed(SC_CalcGUI::htimCalc) );
     calcGui->inpValues.insert( "_PrepTime_", calcGui->higResTimerElapsed(SC_CalcGUI::htimPrep) );
 }
 
+
+/**
+ * @brief SC_MainGUI::on_butCalc_clicked
+ * Button "Calculate", save the current values to a temporary parameter file before.
+ */
 void SC_MainGUI::on_butCalc_clicked()
 {
 #ifdef COPY_FITDATA_TO_GPU  // butCalc
@@ -787,16 +794,27 @@ void SC_MainGUI::on_butCalc_clicked()
     if ( sender() != nullptr )
         calcGui->setFitData( 0, 0, nullptr );
 #endif
+
+    // Da es mir schon öfter passiert ist, dass ich Parameter ausgesucht und dann das
+    // Programm einfach geschlossen hatte, ohne die Parameter zu sichern, werden bei
+    // jedem Berechnungsstart alle Parameter in einer temporären Datei gespeichert.
+    performSaveParamOperation( fnTempParamFile );
+
+    local_butCalc_clicked();
+}
+
+
+/**
+ * @brief SC_MainGUI::local_butCalc_clicked
+ * Start the calculation in a thread without saving the current values.
+ */
+void SC_MainGUI::local_butCalc_clicked()
+{
     if ( _calcThread == nullptr )
         _calcThread = new myCalcThread(calcGui);
     _calcThread->setThreads( ui->inpNumCores->value() );
 
-    // Da es mir schon öfter passiert ist, dass ich Parameter ausgesucht und dann das
-    // Programm einfach geschlossen hatte, ohne die Parameter zu sichern. Daher werden
-    // bei jedem Berechnungsstart alle Parameter in einer temporären Datei gespeichert.
-    performSaveParamOperation( fnTempParamFile );
-
-    prepareCalculation( true, true );
+    prepareCalculation( true );
 
     if ( _logThreadTimer == nullptr )
     {
@@ -809,23 +827,23 @@ void SC_MainGUI::on_butCalc_clicked()
     ui->progressBar->setValue(0);
     if ( ui->radQ4->isChecked() )
     {
-        zzmin = - ui->inpGridPoints->value();
-        zzrange = 2 * ui->inpGridPoints->value();
+        zzmin = - ui->intGridPoints->value();
+        zzrange = 2 * ui->intGridPoints->value();
     }
     else
     {
         zzmin = 0;
-        zzrange = ui->inpGridPoints->value();
+        zzrange = ui->intGridPoints->value();
     }
     if ( ui->radQ1->isChecked() )
     {
         iimin = 0;
-        iirange = ui->inpGridPoints->value();
+        iirange = ui->intGridPoints->value();
     }
     else
     {
-        iimin = - ui->inpGridPoints->value();
-        iirange = 2 * ui->inpGridPoints->value();
+        iimin = - ui->intGridPoints->value();
+        iirange = 2 * ui->intGridPoints->value();
     }
     lastTime = 0;
 
@@ -857,6 +875,12 @@ void SC_MainGUI::on_butCalc_clicked()
     //    qDebug() << "butCalc:" << bIgnoreRecalc << ((autoProcessingFile!=nullptr)?autoProcessingFile->isOpen():false);
 }
 
+
+/**
+ * @brief myCalcThread::myCalcThread
+ * @param cg
+ * @param parent
+ */
 myCalcThread::myCalcThread(SC_CalcGUI *cg, QObject *parent ) : QThread(parent)
 {
     _exit = false;
@@ -865,7 +889,7 @@ myCalcThread::myCalcThread(SC_CalcGUI *cg, QObject *parent ) : QThread(parent)
 
 void myCalcThread::run()
 {
-    calcGui->doCalculation( numThreads, nullptr );
+    calcGui->doCalculation( numThreads );
 }
 
 
@@ -876,16 +900,37 @@ void myCalcThread::run()
  */
 void SC_MainGUI::automaticRecalc()
 {
+    DT(QObject *oo = sender();
+       if ( oo != nullptr )
+       qDebug() << "automaticRecalc(), ignore:" << bIgnoreRecalc << (static_cast<QWidget*>(oo))->objectName();
+       else
+        qDebug() << "automaticRecalc(), ignore:" << bIgnoreRecalc;
+       )
+    if ( bIgnoreRecalc ) return; // Werte wurden vom Programm geändert
+    QObject *o = sender();
+    if ( o != nullptr )
+    {
+        QWidget *w = static_cast<QWidget*>(o);
+        if ( w->objectName().contains("LType",Qt::CaseInsensitive) )
+            return;
+        if ( w->objectName().contains("Ordis",Qt::CaseInsensitive) )
+            return;
+    }
+    automaticRecalcDoit();
+}
+void SC_MainGUI::automaticRecalcDoit()
+{
+    DT( qDebug() << "automaticRecalcDoit(), toggle:" << ui->togAutoRecalc->isChecked() );
     if ( bIgnoreRecalc ) return; // Werte wurden vom Programm geändert
     if ( ! ui->togAutoRecalc->isChecked() ) return; // Recalc vom User gesperrt
+    if ( _calcThread != nullptr && _calcThread->isRunning() ) return; // Läuft schon
 
-    on_butCalc_clicked();
+    on_butCalc_clicked(); // hier mit(!) speichern der Parameter im Temp-File
 
-    // Wenn die Rechnung länger als 1 sec dauert, dann diese Funktion abschalten
-    if ( calcRunTime.elapsed() > 1000 )
+    // Wenn die Rechnung länger als 1,5 sec dauert, dann diese Funktion abschalten
+    if ( calcRunTime.elapsed() > 1500 )
         ui->togAutoRecalc->setChecked(false);
 }
-
 
 
 /**
@@ -954,7 +999,7 @@ void SC_MainGUI::on_actionTest_10_Calculate_triggered()
         }
         for ( int h=0; h<hklmax.size(); h++ )
         {
-            ui->inpHKLmax->setValue( hklmax[h] );
+            ui->intHKLmax->setValue( hklmax[h] );
             for ( int t=0; t<threads.size(); t++ )
             {
                 if ( threads[t] == 0 && !calcGui->gpuAvailable() ) continue;
@@ -979,7 +1024,7 @@ void SC_MainGUI::on_actionTest_10_Calculate_triggered()
                     statusBar()->showMessage( QString("TimingTest: Threads=%1, HKLmax=%2, Quadrants=%5, Loop %3/%4")
                                                  .arg(ui->inpNumCores->value()).arg(hklmax[h])
                                                  .arg(i+1).arg(numLoops).arg(quadr) );
-                    on_butCalc_clicked();
+                    local_butCalc_clicked(); // ohne speichern der Parameter im Temp-File
                     if ( _bAbbruch ) break;
                     c = calcGui->higResTimerElapsed(SC_CalcGUI::htimCalc);
                     p = calcGui->higResTimerElapsed(SC_CalcGUI::htimPrep);
@@ -1126,7 +1171,8 @@ void SC_MainGUI::on_actionSave_all_Parameters_triggered()
 {
     QSettings data(SETT_APP,SETT_PAR);
     QString fn = data.value("LastParam",".").toString();
-    fn = QFileDialog::getSaveFileName( this, "Save Parameter", fn, "Parameter (*.ini)", nullptr, QFileDialog::DontUseNativeDialog );
+    fn = QFileDialog::getSaveFileName( this, "Save Parameter", fn, "Parameter (*.ini)" );
+                                      //nullptr, QFileDialog::DontUseNativeDialog );
     if ( fn.isEmpty() ) return;
     if ( !fn.endsWith(".ini",Qt::CaseInsensitive) ) fn += ".ini";
     data.setValue("LastParam",fn);
@@ -1144,34 +1190,34 @@ void SC_MainGUI::performSaveParamOperation( QString fn )
     sets.setValue( "RadioButtonQ2",  ui->radQ2->isChecked() );
     sets.setValue( "RadioButtonQ4",  ui->radQ4->isChecked() );
     sets.setValue( "ExpandImage",    ui->togExpandImage->isChecked() );
-    sets.setValue( "EditAxis1x",     ui->inpAx1->value() );
+    sets.setValue( "EditAxis1x",     ui->inpVAx1->value() );
     sets.setValue( "EditAxis1y",     ui->inpAy1->value() );
     sets.setValue( "EditAxis1z",     ui->inpAz1->value() );
-    sets.setValue( "EditAxis2x",     ui->inpAx2->value() );
-    sets.setValue( "EditAxis2y",     ui->inpAy2->value() );
-    sets.setValue( "EditAxis2z",     ui->inpAz2->value() );
-    sets.setValue( "EditAxis3x",     ui->inpAx3->value() );
-    sets.setValue( "EditAxis3y",     ui->inpAy3->value() );
-    sets.setValue( "EditAxis3z",     ui->inpAz3->value() );
-    sets.setValue( "Editxrel",       ui->inpN1->value() );
-    sets.setValue( "Edityrel",       ui->inpN2->value() );
-    sets.setValue( "Editzrel",       ui->inpN3->value() );
+    sets.setValue( "EditAxis2x",     ui->inpVAx2_VAx1->value() );
+    sets.setValue( "EditAxis2y",     ui->inpAy2_Ay1->value() );
+    sets.setValue( "EditAxis2z",     ui->inpAz2_Az1->value() );
+    sets.setValue( "EditAxis3x",     ui->inpVAx3_VAx1->value() );
+    sets.setValue( "EditAxis3y",     ui->inpAy3_Ay1->value() );
+    sets.setValue( "EditAxis3z",     ui->inpAz3_Az1->value() );
+    //sets.setValue( "Editxrel",       ui->inpN1->value() );
+    //sets.setValue( "Edityrel",       ui->inpN2->value() );
+    //sets.setValue( "Editzrel",       ui->inpN3->value() );
     sets.setValue( "Editdom1",       ui->inpSigX->value() );
-    sets.setValue( "Editdom2",       ui->inpSigY->value() );
-    sets.setValue( "Editdom3",       ui->inpSigZ->value() );
-    sets.setValue( "Editx1rel",      ui->inpU1->value() );
-    sets.setValue( "Edity1rel",      ui->inpU2->value() );
-    sets.setValue( "Editz1rel",      ui->inpU3->value() );
-    sets.setValue( "Editx2rel",      ui->inpV1->value() );
-    sets.setValue( "Edity2rel",      ui->inpV2->value() );
-    sets.setValue( "Editz2rel",      ui->inpV3->value() );
-    sets.setValue( "Edithklmax",     ui->inpHKLmax->value() );
-    sets.setValue( "EditGridPoints", ui->inpGridPoints->value() );
-    sets.setValue( "UseLattice3D",   ui->grpLattice3D->isChecked() );
+    sets.setValue( "Editdom2",       ui->inpSigY_SigX->value() );
+    sets.setValue( "Editdom3",       ui->inpSigZ_SigX->value() );
+    //sets.setValue( "Editx1rel",      ui->inpU1->value() );
+    //sets.setValue( "Edity1rel",      ui->inpU2->value() );
+    //sets.setValue( "Editz1rel",      ui->inpU3->value() );
+    //sets.setValue( "Editx2rel",      ui->inpV1->value() );
+    //sets.setValue( "Edity2rel",      ui->inpV2->value() );
+    //sets.setValue( "Editz2rel",      ui->inpV3->value() );
+    sets.setValue( "HKLmax",     ui->intHKLmax->value() );
+    sets.setValue( "GridPoints", ui->intGridPoints->value() );
     sets.setValue( "Threads",        ui->inpNumCores->value() );
-    sets.setValue( "CurMethod",      ui->tabMethods->tabText( ui->tabMethods->currentIndex() ) );
-    sets.setValue( "EditCenterX",    ui->inpBCenterX->value() );
-    sets.setValue( "EditCenterY",    ui->inpBCenterY->value() );
+    //sets.setValue( "CurMethod",      ui->tabMethods_o->tabText( ui->tabMethods_o->currentIndex() ) );
+    sets.setValue( "EditCenterX",    ui->inpBeamPosX->value() );
+    sets.setValue( "EditCenterY",    ui->inpBeamPosY_BeamPosX->value() );
+    sets.setValue( "Comment", ui->txtComment->text() );
     sets.endGroup();
     sets.beginGroup( "AI" );
     sets.setValue( "LastSubDir", ui->inpSubDir->text() );
@@ -1191,28 +1237,28 @@ void SC_MainGUI::on_actionLoad_all_Parameters_triggered()
     QSettings data(SETT_APP,SETT_PAR);
     QString fn = data.value("LastParam",".").toString();
     fn = QFileDialog::getOpenFileName( this, "Load Parameter", fn,
-                                       "Parameter (*.ini);;Scatter-Parameter (*.par)",
-                                       nullptr, QFileDialog::DontUseNativeDialog | QFileDialog::DontResolveSymlinks );
+                                       "Parameter (*.ini);;Scatter-Parameter (*.par)" //);
+                                      , nullptr, QFileDialog::DontUseNativeDialog | QFileDialog::DontResolveSymlinks );
     if ( fn.isEmpty() ) return;
+    DT( QElapsedTimer et;   et.start() );
     data.setValue("LastParam",fn);
-    local_Load_all_Parameters(fn,"");
+    data.sync();
+    DT( qDebug() << "on_actionLoad_all_Parameters_triggered()" << et.elapsed() );
+    on_butResetColorMarker_clicked();
+    DT( qDebug() << "vor load" << et.elapsed() );
+    local_Load_all_Parameters(fn);
+    DT( qDebug() << "LOAD TIMER" << et.elapsed() );
 }
 
-void SC_MainGUI::on_actionLoad_only_current_parameters_triggered()
+void SC_MainGUI::on_actionLoad_last_calculaition_parameters_triggered()
 {
-    QSettings data(SETT_APP,SETT_PAR);
-    QString fn = data.value("LastParam",".").toString();
-    fn = QFileDialog::getOpenFileName( this, "Load Parameter for "+curMethod, fn,
-                                       "Parameter (*.ini)",
-                                       nullptr, QFileDialog::DontUseNativeDialog | QFileDialog::DontResolveSymlinks );
-    if ( fn.isEmpty() ) return;
-    data.setValue("LastParam",fn);
-    local_Load_all_Parameters(fn,curMethod);
-} /* on_actionLoad_only_current_parameters_triggered() */
+    local_Load_all_Parameters(fnTempParamFile);
+}
 
-QString SC_MainGUI::local_Load_all_Parameters(QString fn, QString onlyMethod)
+QString SC_MainGUI::local_Load_all_Parameters(QString fn)
 {
     bIgnoreRecalc = true;  // Load start
+    DT( qDebug() << "local_Load_all_Parameters()" << fn );
     if ( fn.endsWith(".par",Qt::CaseInsensitive) )
     {
         qDebug() << fn;
@@ -1228,117 +1274,106 @@ QString SC_MainGUI::local_Load_all_Parameters(QString fn, QString onlyMethod)
     // Load all method specific parameters
     bool isloaded = false;
     QString rv="";
-    if ( onlyMethod.isEmpty() )
-    {
-        // Wenn im aktuellen Entwicklungsschritt (nur die Methode "Generic" bekannt) alte Files geladen werden
-        // sollen, die noch mehrere Methoden enthalten, dann gibt es den Schlüssel "CurMethod" in der Gruppe
-        // "Inputs". Dies soll dann die Methode sein, die geladen werden soll, auch wenn dieser Name hier nicht
-        // bekannt ist. Zugleich wird der Wert vom Parameter LType auf die Methode gesetzt. Somit können die
-        // Parameterfiles aus dem alten Format wieder normal gelesen werden.
-        QSettings sets( fn, QSettings::IniFormat );
-        QStringList gr = sets.childGroups();
-        gr.removeOne("Inputs");
-        gr.removeOne("AI");     // TODO: neue feste Gruppen hier ausblenden
-        if ( gr.size() > 1 )
-        {   // Jetzt gibt es mehr als eine Methode
-            sets.beginGroup( "Inputs" );
-            QString m = sets.value("CurMethod","").toString();
-            sets.endGroup();
-            if ( ! m.isEmpty() )
-            {
-                QString mm = m;
-                if ( mm.indexOf(" ") > 0 ) mm.truncate(mm.indexOf(" "));
-                //qDebug() << "Load spec" << m << mm;
-                int val = 0;
-                while ( true )
-                {
-                    calcGui->updateParamValue( "", "LType", val, Qt::black, false );
-                    QString tmp = calcGui->currentParamValueStr( "", "LType", true ); // hier in aktueller Methode suchen...
-                    //qDebug() << "    " << val << tmp;
-                    if ( tmp.isEmpty() || tmp[0] == '?' ) break; // Ende der Liste oder Fehlermeldung
-                    if ( tmp.startsWith(mm,Qt::CaseInsensitive) ) break; // gefunden
-                    val++;
-                }
-                rv = calcGui->loadParameter(fn,"@"+m);
-                isloaded = true;
-            }
-        }
-    } // if ( onlyMethod.isEmpty() )
-    if ( !isloaded )
-        rv = calcGui->loadParameter(fn,onlyMethod);
 
-    if ( onlyMethod.isEmpty() )
-    {
-        // Load all common parameters
-        QSettings sets( fn, QSettings::IniFormat );
+    bool hklloaded, gridloaded;
+
+    // Wenn im aktuellen Entwicklungsschritt (nur die Methode "Generic" bekannt) alte Files geladen werden
+    // sollen, die noch mehrere Methoden enthalten, dann gibt es den Schlüssel "CurMethod" in der Gruppe
+    // "Inputs". Dies soll dann die Methode sein, die geladen werden soll, auch wenn dieser Name hier nicht
+    // bekannt ist. Zugleich wird der Wert vom Parameter LType auf die Methode gesetzt. Somit können die
+    // Parameterfiles aus dem alten Format wieder normal gelesen werden.
+    QSettings sets( fn, QSettings::IniFormat );
+    QStringList gr = sets.childGroups();
+    gr.removeOne("Inputs");
+    gr.removeOne("AI");     // TODO: neue feste Gruppen hier ausblenden
+    if ( gr.size() > 1 )
+    {   // Jetzt gibt es mehr als eine Methode
         sets.beginGroup( "Inputs" );
-        ui->radQ1->setChecked( sets.value( "RadioButtonQ1", false ).toBool() );
-        ui->radQ2->setChecked( sets.value( "RadioButtonQ2", false ).toBool() );
-        ui->radQ4->setChecked( sets.value( "RadioButtonQ4", false ).toBool() );
-        ui->togExpandImage->setChecked( sets.value( "ExpandImage", false ).toBool() );
-        ui->togExpandImage->setEnabled( ! ui->radQ4->isChecked() );
-        ui->inpAx1->setValue( sets.value( "EditAxis1x", 0.0 ).toDouble() );
-        ui->inpAy1->setValue( sets.value( "EditAxis1y", 0.0 ).toDouble() );
-        ui->inpAz1->setValue( sets.value( "EditAxis1z", 0.0 ).toDouble() );
-        ui->inpAx2->setValue( sets.value( "EditAxis2x", 0.0 ).toDouble() );
-        ui->inpAy2->setValue( sets.value( "EditAxis2y", 0.0 ).toDouble() );
-        ui->inpAz2->setValue( sets.value( "EditAxis2z", 0.0 ).toDouble() );
-        ui->inpAx3->setValue( sets.value( "EditAxis3x", 0.0 ).toDouble() );
-        ui->inpAy3->setValue( sets.value( "EditAxis3y", 0.0 ).toDouble() );
-        ui->inpAz3->setValue( sets.value( "EditAxis3z", 0.0 ).toDouble() );
-        ui->inpN1->setValue( sets.value( "Editxrel", 0.0 ).toDouble() );
-        ui->inpN2->setValue( sets.value( "Edityrel", 0.0 ).toDouble() );
-        ui->inpN3->setValue( sets.value( "Editzrel", 0.0 ).toDouble() );
-        ui->inpSigX->setValue( sets.value( "Editdom1", 0.0 ).toDouble() );
-        ui->inpSigY->setValue( sets.value( "Editdom2", 0.0 ).toDouble() );
-        ui->inpSigZ->setValue( sets.value( "Editdom3", 0.0 ).toDouble() );
-        ui->inpU1->setValue( sets.value( "Editx1rel", 0.0 ).toDouble() );
-        ui->inpU2->setValue( sets.value( "Edity1rel", 0.0 ).toDouble() );
-        ui->inpU3->setValue( sets.value( "Editz1rel", 0.0 ).toDouble() );
-        ui->inpV1->setValue( sets.value( "Editx2rel", 0.0 ).toDouble() );
-        ui->inpV2->setValue( sets.value( "Edity2rel", 0.0 ).toDouble() );
-        ui->inpV3->setValue( sets.value( "Editz2rel", 0.0 ).toDouble() );
-        ui->inpHKLmax->setValue( sets.value( "Edithklmax", 3 ).toInt() );
-        ui->inpGridPoints->setValue( sets.value( "EditGridPoints", 100 ).toInt() );
-        ui->grpLattice3D->setChecked( sets.value( "UseLattice3D", false ).toBool() );
-        // Wenn im Parametersatz die GPU aktiviert ist, im aktuellen System diese aber nicht vorhanden ist,
-        // so würde das Eingabefeld auf 1 Thread schalten. Das ist unklug und wird hier auf die maximale
-        // Anzahl von Threads umgebogen. Kommt vor, wenn Parameterfiles vom Linux (mit GPU) zum Laptop
-        // (ohne GPU) kopiert werden.
-        int thr = sets.value( "Threads", 0 ).toInt();
-        if ( thr == 0 /*GPU*/ && ui->inpNumCores->minimum() == 1 /*keine GPU vorhanden*/ )
-            thr = ui->inpNumCores->maximum();
-        ui->inpNumCores->setValue( thr );
-        ui->inpBCenterX->setValue( sets.value( "EditCenterX", 0 ).toDouble() );
-        ui->inpBCenterY->setValue( sets.value( "EditCenterY", 0 ).toDouble() );
-        if ( ui->tabMethods->count() > 1 )
+        QString m = sets.value("CurMethod","").toString();
+        sets.endGroup();
+        if ( ! m.isEmpty() )
         {
-            QString m = sets.value( "CurMethod", "" ).toString();
-            if ( ! m.isEmpty() )
+            QString mm = m;
+            if ( mm.indexOf(" ") > 0 ) mm.truncate(mm.indexOf(" "));
+            //qDebug() << "Load spec" << m << mm;
+            int val = 0;
+            while ( true )
             {
-                for ( int i=0; i<ui->tabMethods->count(); i++ )
-                    if ( ui->tabMethods->tabText(i) == m )
-                    {
-                        ui->tabMethods->setCurrentIndex(i);
-                        //on_tabMethods_currentChanged(i);
-                        break;
-                    }
+                calcGui->updateParamValue( "LType", val, Qt::black, false );
+                QString tmp = calcGui->currentParamValueStr( "LType", true ); // hier in aktueller Methode suchen...
+                //qDebug() << "    " << val << tmp;
+                if ( tmp.isEmpty() || tmp[0] == '?' ) break; // Ende der Liste oder Fehlermeldung
+                if ( tmp.startsWith(mm,Qt::CaseInsensitive) ) break; // gefunden
+                val++;
             }
+            rv = calcGui->loadParameter(fn,"@"+m,hklloaded,gridloaded);
+            isloaded = true;
         }
-        sets.endGroup();
-        sets.beginGroup( "AI" );
-        ui->inpSubDir->setText( sets.value( "LastSubDir", dataPath ).toString() );
-        ui->cbsAIoutputFormat->setCurrentIndex( sets.value( "Grayscale", 1 ).toInt() );
-        ui->grpFileInput->setChecked( sets.value("FileInputEna",false).toBool() );
-        ui->inpFileName->setText( sets.value("FileInputLast","").toString() );
-        ui->inpFileClass->setText( sets.value("FileClass","{M}").toString() );
-        ui->togAIUseFFTOutput->setChecked( sets.value("GenerateIFFT",false).toBool() );
-        ui->radAILinOutput->setChecked(   sets.value("LinOut").toBool() );
-        ui->radAILogOutput->setChecked( ! sets.value("LinOut").toBool() );
-        ui->togAIScaleOutput->setChecked( sets.value("ScaleOut").toBool() );
-        sets.endGroup();
-    } // if ( onlyMethod.isEmpty() )
+    }
+
+    if ( !isloaded )
+        rv = calcGui->loadParameter(fn,"",hklloaded,gridloaded);
+
+    // Load all common parameters
+    sets.beginGroup( "Inputs" );
+    ui->radQ1->setChecked( sets.value( "RadioButtonQ1", false ).toBool() );
+    ui->radQ2->setChecked( sets.value( "RadioButtonQ2", false ).toBool() );
+    ui->radQ4->setChecked( sets.value( "RadioButtonQ4", false ).toBool() );
+    ui->togExpandImage->setChecked( sets.value( "ExpandImage", false ).toBool() );
+    ui->togExpandImage->setEnabled( ! ui->radQ4->isChecked() );
+    ui->inpVAx1->setValue( sets.value( "EditAxis1x", 0.0 ).toDouble() );
+    ui->inpAy1->setValue( sets.value( "EditAxis1y", 0.0 ).toDouble() );
+    ui->inpAz1->setValue( sets.value( "EditAxis1z", 0.0 ).toDouble() );
+    ui->inpVAx2_VAx1->setValue( sets.value( "EditAxis2x", 0.0 ).toDouble() );
+    ui->inpAy2_Ay1->setValue( sets.value( "EditAxis2y", 0.0 ).toDouble() );
+    ui->inpAz2_Az1->setValue( sets.value( "EditAxis2z", 0.0 ).toDouble() );
+    ui->inpVAx3_VAx1->setValue( sets.value( "EditAxis3x", 0.0 ).toDouble() );
+    ui->inpAy3_Ay1->setValue( sets.value( "EditAxis3y", 0.0 ).toDouble() );
+    ui->inpAz3_Az1->setValue( sets.value( "EditAxis3z", 0.0 ).toDouble() );
+    ui->inpSigX->setValue( sets.value( "Editdom1", 0.0 ).toDouble() );
+    ui->inpSigY_SigX->setValue( sets.value( "Editdom2", 0.0 ).toDouble() );
+    ui->inpSigZ_SigX->setValue( sets.value( "Editdom3", 0.0 ).toDouble() );
+    ui->inpBeamPosX->setValue( sets.value( "EditCenterX", 0 ).toDouble() );
+    ui->inpBeamPosY_BeamPosX->setValue( sets.value( "EditCenterY", 0 ).toDouble() );
+
+    // EditHKLmax und EditGridPoints sind jetzt in die normalen Parameter gewandert...
+    if ( !hklloaded )
+        ui->intHKLmax->setValue( sets.value( "HKLmax", 3 ).toInt() );
+    if ( !gridloaded )
+        ui->intGridPoints->setValue( sets.value( "GridPoints", 100 ).toInt() );
+
+    // Wenn im Parametersatz die GPU aktiviert ist, im aktuellen System diese aber nicht vorhanden ist,
+    // so würde das Eingabefeld auf 1 Thread schalten. Das ist unklug und wird hier auf die maximale
+    // Anzahl von Threads umgebogen. Kommt vor, wenn Parameterfiles vom Linux (mit GPU) zum Laptop
+    // (ohne GPU) kopiert werden.
+    int thr = sets.value( "Threads", 0 ).toInt();
+    if ( thr == 0 /*GPU*/ && ui->inpNumCores->minimum() == 1 /*keine GPU vorhanden*/ )
+        thr = ui->inpNumCores->maximum();
+    // Andersherum wird bei einem Thread-Parameter > 1 und vorhandener GPU auf die GPU gestellt.
+    else if ( thr > 0 && ui->inpNumCores->minimum() == 0 /*GPU ist vorhanden*/ )
+        thr = 0;
+    ui->inpNumCores->setValue( thr );
+
+    ui->txtComment->setText( sets.value("Comment","").toString() );
+    if ( ui->txtComment->text().isEmpty() )
+        ui->txtComment->setText( QFileInfo(fn).baseName() );
+
+    sets.endGroup();
+    sets.beginGroup( "AI" );
+    ui->inpSubDir->setText( sets.value( "LastSubDir", dataPath ).toString() );
+    ui->cbsAIoutputFormat->setCurrentIndex( sets.value( "Grayscale", 1 ).toInt() );
+    ui->grpFileInput->setChecked( sets.value("FileInputEna",false).toBool() );
+    ui->inpFileName->setText( sets.value("FileInputLast","").toString() );
+    ui->inpFileClass->setText( sets.value("FileClass","{M}").toString() );
+    ui->togAIUseFFTOutput->setChecked( sets.value("GenerateIFFT",false).toBool() );
+    ui->radAILinOutput->setChecked(   sets.value("LinOut").toBool() );
+    ui->radAILogOutput->setChecked( ! sets.value("LinOut").toBool() );
+    ui->togAIScaleOutput->setChecked( sets.value("ScaleOut").toBool() );
+    sets.endGroup();
+
     bIgnoreRecalc = false;  // Load done
+    DT( qDebug() << "... local load::adjustSize ..." );
+    adjustSize();   // local load
     return rv;
 } /* local_Load_all_Parameters() */
 
@@ -1378,18 +1413,19 @@ widImage* SC_MainGUI::addImage( bool neu, int x0, int x1, int y0, int y1, double
 
     ui->butSaveImagesAI->setEnabled( images.size() > 0 );
     ui->butIFFT->setEnabled( images.size() > 0 );  // Add Img
+    ui->butFFT->setEnabled( images.size() > 0 );  // Add Img
 
     img->setData( x0, x1, y0, y1, d );
     if ( meta )
     {   // Meta-Daten übertragen
+        // Kommentar wird als Info über dem Image verwendet
+        img->addMetaInfo( "_Calculation_", ui->txtComment->text() ); // calcGui->curMethod->subCalc->methodName() );
         // Methodenspezifische Metadaten
-        img->addMetaInfo( "_Calculation_", calcGui->curMethod->subCalc->methodName() );
         QHash<QString,paramHelper*>::iterator ip = calcGui->curMethod->params.begin();
         while ( ip != calcGui->curMethod->params.end() )
         {
             img->addMetaInfo( ip.key(), //ip.value()->str );
-                              calcGui->currentParamValueStr( calcGui->curMethod->subCalc->methodName(),
-                                                             ip.key(), true ) );
+                              calcGui->currentParamValueStr( ip.key(), true ) );
             ++ip;
         }
         // Globale Eingabefelder
@@ -1448,7 +1484,6 @@ widImage* SC_MainGUI::addImage( bool neu, int x0, int x1, int y0, int y1, double
         ui->cbsFFTWindows->addItem( img->windowTitle() );
         ui->cbsFitImageWindows->addItem( img->windowTitle() );
     }
-    //ui->butSaveAllImages->setEnabled( ui->lisDataWindows->count() > 0 );
     return img;
 } /* addImage() */
 
@@ -1475,7 +1510,6 @@ void SC_MainGUI::imageWindowClosed( QObject *o )
             {
                 ui->lisDataWindows->takeItem( ui->lisDataWindows->row(items[0]) );
                 delete items[0];
-                //ui->butSaveAllImages->setEnabled( ui->lisDataWindows->count() > 0 );
                 // and find the index in the selection boxes
                 int id = ui->cbsFitImageWindows->findText( images.at(i)->windowTitle() );
                 ui->cbsFitImageWindows->removeItem( id );
@@ -1485,6 +1519,7 @@ void SC_MainGUI::imageWindowClosed( QObject *o )
                 {
                     ui->butFitStart->setEnabled(false);
                     ui->butIFFT->setEnabled(false); // Img Window Close
+                    ui->butFFT->setEnabled(false); // Img Window Close
                 }
                 // if there was only one image left (or nothing) activate the NewImage radio button
                 if ( ui->cbsFitImageWindows->count() <= 1 )
@@ -1517,6 +1552,7 @@ void SC_MainGUI::imageWindowClosed( QObject *o )
  */
 void SC_MainGUI::on_lisDataWindows_currentTextChanged(const QString &currentText)
 {
+    DT( qDebug() << "on_lisDataWindows_currentTextChanged()" );
     ui->butDataFindCenter->setEnabled( currentText.startsWith("KWS") );
     ui->butDataSetMask->setEnabled( currentText.startsWith("KWS") && ui->lisDataWindows->count() > 1 );
     ui->butDataCopyScaling->setEnabled( ui->lisDataWindows->count() > 1 );
@@ -1611,15 +1647,24 @@ void SC_MainGUI::performIFFTcalculations(int curimg, QString tit, bool foreward)
 {
     QHash<QString,QString> metaData;
 
+    // Größe des Quellbildes
     int sx = images[curimg]->xmax() - images[curimg]->xmin();
     int sy = images[curimg]->ymax() - images[curimg]->ymin();
 
+    // Beamstop
     int bsx = images[curimg]->getFileInfos()->centerX;
     int bsy = images[curimg]->getFileInfos()->centerY;
     if ( bsx == 0 || bsy == 0 )
     {
         bsx = sx / 2;
         bsy = sy / 2;
+    }
+    else if ( images[curimg]->xmin() < 0 || images[curimg]->ymin() < 0 )
+    {   // Falls das Image um den Nullpunkt berechnet wird, so sollte der
+        // Beamstop verschoben werden, da in der weiteren Berechnung das
+        // Image immer im 1. Quadranten betrachtet wird.
+        bsx -= images[curimg]->xmin();
+        bsy -= images[curimg]->ymin();
     }
 
     //qDebug() << "performIFFTcalculations:"
@@ -1655,12 +1700,9 @@ void SC_MainGUI::performIFFTcalculations(int curimg, QString tit, bool foreward)
     }
 
     metaData.insert( "From Image", tit );
-    metaData.insert( "BeamPosX", QString::number(bsx) );
-    metaData.insert( "BeamPosY", QString::number(bsy) );
 
     int srphi = ui->cbsFFTsizeRphi->currentText().left(3).trimmed().toInt();
     int sout  = ui->cbsFFTsizeOut->currentText().left(3).trimmed().toInt();
-    // TODO: was ist bei unterschiedlichen Größen?
 
     double *outr = nullptr;
 
@@ -1677,7 +1719,6 @@ void SC_MainGUI::performIFFTcalculations(int curimg, QString tit, bool foreward)
         auto endr = std::chrono::high_resolution_clock::now();
         auto timr = std::chrono::duration_cast<std::chrono::duration<float>>(endr-anfr);
         //qDebug() << "Timing (r,phi):" << timr.count()*1000.0 << "ms";
-
 
         if ( ui->togFFTdispRphi->isChecked() && outr != nullptr )
         {
@@ -1707,6 +1748,7 @@ void SC_MainGUI::performIFFTcalculations(int curimg, QString tit, bool foreward)
         x1 = srphi;
         y0 = 0;
         y1 = srphi;
+        qDebug() << "FFT: rphi";
     }
     else if ( data != nullptr )
     {
@@ -1715,6 +1757,7 @@ void SC_MainGUI::performIFFTcalculations(int curimg, QString tit, bool foreward)
         x1 = images[curimg]->xmax();
         y0 = images[curimg]->ymin();
         y1 = images[curimg]->ymax();
+        qDebug() << "FFT: data log";
     }
     else
     {
@@ -1723,6 +1766,7 @@ void SC_MainGUI::performIFFTcalculations(int curimg, QString tit, bool foreward)
         x1 = images[curimg]->xmax();
         y0 = images[curimg]->ymin();
         y1 = images[curimg]->ymax();
+        qDebug() << "FFT: data lin";
     }
     double *outi = nullptr;
     SasCalc_PostProc::_outType ot;
@@ -1753,22 +1797,31 @@ void SC_MainGUI::performIFFTcalculations(int curimg, QString tit, bool foreward)
                                                    ui->togFFTscaleOut->isChecked(),
                                                    ui->togFFTclipOut->isChecked(),
                                                    ui->togFFTclip40Out->isChecked(),
-                                                   ui->togIFFTSwap->isChecked() );
+                                                   ui->togIFFTSwap->isChecked(),
+                                                   ui->togFFTcutEnabled->isChecked()?ui->inpFFTcutX->value():0,
+                                                   ui->togFFTcutEnabled->isChecked()?ui->inpFFTcutY->value():0 );
 
     auto endi = std::chrono::high_resolution_clock::now();
     auto timi = std::chrono::duration_cast<std::chrono::duration<float>>(endi-anfi);
     //qDebug() << "Timing (IFFT):" << timi.count()*1000.0 << "ms";
     if ( outi != nullptr )
     {
-        widImage* img = addImage( true, 0, sout, 0, sout, outi, "iFFT-Image", false );
+        // (Jan2023): in der Mitte einen Teil rausschneiden, da dort die Informationen sind ==> calculateIFFT()
+        int soutx=sout, souty=sout;
+        if ( ui->togFFTcutEnabled->isChecked() )
+        {
+            soutx = ui->inpFFTcutX->value();
+            souty = ui->inpFFTcutY->value();
+        }
+        widImage* img = addImage( true, 0, soutx, 0, souty, outi, "iFFT-Image", false );
         QHash<QString,QString>::iterator ii = metaData.begin();
         while ( ii != metaData.end() )
         {
             img->addMetaInfo( ii.key(), ii.value() );
             ++ii;
         }
-        img->addMetaInfo( "NbRows", QString::number(sout) );
-        img->addMetaInfo( "NbCols", QString::number(sout) );
+        img->addMetaInfo( "NbRows", QString::number(souty) );
+        img->addMetaInfo( "NbCols", QString::number(soutx) );
         img->addMetaInfo( "_CalcTime_", QString("%1 ms").arg(timi.count()*1000.0) );
         img->addMetaInfo("@",""); // Sortieren
     }
@@ -1776,7 +1829,7 @@ void SC_MainGUI::performIFFTcalculations(int curimg, QString tit, bool foreward)
     ui->radNewImageCfg->setChecked(true);
 }
 
-void SC_MainGUI::on_inpGridPoints_valueChanged(int arg1)
+void SC_MainGUI::on_intGridPoints_valueChanged(int arg1)
 {
     Q_UNUSED(arg1)
     /* TODO
@@ -1794,30 +1847,28 @@ void SC_MainGUI::on_inpGridPoints_valueChanged(int arg1)
     */
 }
 
-void SC_MainGUI::on_butUseQMax_clicked()
-{
-    double val = ui->inpQMax->text().mid( ui->inpQMax->text().indexOf("=")+1 ).trimmed().toDouble();
-    calcGui->setParamToAllMethods( "EditQmax", val );
-}
 
-void SC_MainGUI::on_tblLattice3DValues_cellChanged(int /*row*/, int /*column*/)
+void SC_MainGUI::on_tblHeaderData_cellChanged(int DT(row), int /*column*/)
 {
+    DT( qDebug() << "on_tblHeaderData_cellChanged()" << row );
     // Berechne qmax (siehe sascalc_fcc_gpu.cu: doIntCalc_FCC_F)
-    int cols = ui->tblLattice3DValues->item(tblLattNbCols,0)->text().toInt();
-    int rows = ui->tblLattice3DValues->item(tblLattNbRows,0)->text().toInt();
-    double posx = ui->tblLattice3DValues->item(tblLattBeamX,0)->text().toDouble();
-    double posy = ui->tblLattice3DValues->item(tblLattBeamY,0)->text().toDouble();
-    double wlen_m = ui->tblLattice3DValues->item(tblLattWaveLen,0)->text().toDouble()*1.0E-9; /*nm->m*/
-    double dist_m = ui->tblLattice3DValues->item(tblLattSaDist,0)->text().toDouble();
-    double pixx_m = ui->tblLattice3DValues->item(tblLattPixelX,0)->text().toDouble()*1.0E-3; /*mm->m*/
-    double pixy_m = ui->tblLattice3DValues->item(tblLattPixelY,0)->text().toDouble()*1.0E-3; /*mm->m*/
+    // tblLattice3DValues --> tblHeaderData
+    int cols = ui->tblHeaderData->item(tblLattNbCols,0)->text().toInt();
+    int rows = ui->tblHeaderData->item(tblLattNbRows,0)->text().toInt();
+    double posx = ui->tblHeaderData->item(tblLattBeamX,0)->text().toDouble();
+    double posy = ui->tblHeaderData->item(tblLattBeamY,0)->text().toDouble();
+    double wlen_m = ui->tblHeaderData->item(tblLattWaveLen,0)->text().toDouble()*1.0E-9; /*nm->m*/
+    double dist_m = ui->tblHeaderData->item(tblLattSaDist,0)->text().toDouble();
+    double pixx_m = ui->tblHeaderData->item(tblLattPixelX,0)->text().toDouble()*1.0E-3; /*mm->m*/
+    double pixy_m = ui->tblHeaderData->item(tblLattPixelY,0)->text().toDouble()*1.0E-3; /*mm->m*/
 
     int ihex_max = qMax( cols - posx, posx );
     int i_max    = qMax( rows - posy, posy );
     double qmax_cols = ( 2. * M_PI / (wlen_m * dist_m) ) * ihex_max * pixx_m * 1.0E-9; /* wieder in nm zurück */
     double qmax_rows = ( 2. * M_PI / (wlen_m * dist_m) ) * i_max    * pixy_m * 1.0E-9; /* wieder in nm zurück */
 
-    ui->inpQMax->setText( QString("Qmax = %1").arg(qMax(qmax_cols,qmax_rows)) );
+    calcGui->updateParamValue( "CalcQmax", qMax(qmax_cols,qmax_rows), SETCOLMARK_IGNORED );
+    // Damit beim LoadParameter auch der Wert erhalten bleibt.
 }
 
 void SC_MainGUI::on_butOpenMeasFile_clicked()
@@ -1849,8 +1900,8 @@ void SC_MainGUI::on_butOpenMeasFile_clicked()
         curFilter = tmp.at(0);
     else
         curFilter = filter.last();
-    fn = QFileDialog::getOpenFileName( this, "Load Data File Image", fn, filter.join(";;"), &curFilter,
-                                       QFileDialog::DontUseNativeDialog );
+    fn = QFileDialog::getOpenFileName( this, "Load Data File Image", fn, filter.join(";;"), &curFilter );
+                                       //QFileDialog::DontUseNativeDialog );
     if ( fn.isEmpty() ) return;
     data.setValue("LastImage",fn);
     if ( ! local_OpenMeasFile(fn,nullptr) )
@@ -1859,6 +1910,8 @@ void SC_MainGUI::on_butOpenMeasFile_clicked()
 
 bool SC_MainGUI::local_OpenMeasFile( QString fn, widImage **imgout )
 {
+    QElapsedTimer tt;
+    tt.start();
     qApp->setOverrideCursor(Qt::WaitCursor);
     widImage *img = nullptr;
     if ( fn.endsWith(".dat",Qt::CaseInsensitive) ||
@@ -1901,6 +1954,7 @@ bool SC_MainGUI::local_OpenMeasFile( QString fn, widImage **imgout )
             img = SC_ReadData::readImage2dSans( myAddImage, fn );
     }
     qApp->restoreOverrideCursor();
+    qDebug() << "ReadData (1)" << tt.elapsed();
     if ( img == nullptr ) return false; // Lesefehler oder unbekannte Dateiendung
 
     if ( imgout != nullptr ) *imgout = img;
@@ -1908,47 +1962,39 @@ bool SC_MainGUI::local_OpenMeasFile( QString fn, widImage **imgout )
     // Jetzt werden noch Meta-Daten in die GUI kopiert. Das mache ich bei allen Datentypen,
     //  da ich nicht wissen kann, ob diese Meta-Infos nicht doch enthalten sind.
     copyMetaToLatticeTable( img );
+    qDebug() << "ReadData (2)" << tt.elapsed();
 
     // Datenfiles werden nie bei neuen Berechnungen automatisch überschrieben!
     ui->radLastImageCfg->setChecked( false );
     ui->radNewImageCfg->setChecked( true );
+    img->show();
     return true;
 }
 
 void SC_MainGUI::copyMetaToLatticeTable( widImage *img )
 {
-    ui->tblLattice3DValues->setItem( tblLattWaveLen, 0, new QTableWidgetItem(img->metaInfo("wavelength",
-                                     calcGui->currentParamValueStr(curMethod,"EditWavelength",true))) );
-    ui->tblLattice3DValues->setItem( tblLattSaDist, 0, new QTableWidgetItem(img->metaInfo("SampleDist",
-                                     calcGui->currentParamValueStr(curMethod,"EditDet",true))) );
-    ui->tblLattice3DValues->setItem( tblLattPixelX, 0, new QTableWidgetItem(img->metaInfo("Pixel_X",
-                                     QString::number(calcGui->currentParamValueDbl(curMethod,"EditPixelX")*1000))) );
-    ui->tblLattice3DValues->setItem( tblLattPixelY, 0, new QTableWidgetItem(img->metaInfo("Pixel_Y",
-                                     QString::number(calcGui->currentParamValueDbl(curMethod,"EditPixelY")*1000))) );
-    ui->tblLattice3DValues->setItem( tblLattNbRows, 0, new QTableWidgetItem(img->metaInfo("NbRows")) );
-    ui->tblLattice3DValues->setItem( tblLattNbCols, 0, new QTableWidgetItem(img->metaInfo("NbCols")) );
+    DT( qDebug() << "copyMetaToLatticeTable()" );
+    // tblLattice3DValues --> tblHeaderData
+    ui->tblHeaderData->setItem( tblLattWaveLen, 0, new QTableWidgetItem(img->metaInfo("wavelength",
+                                     calcGui->currentParamValueStr("EditWavelength",true))) );
+    ui->tblHeaderData->setItem( tblLattSaDist, 0, new QTableWidgetItem(img->metaInfo("SampleDist",
+                                     calcGui->currentParamValueStr("EditDet",true))) );
+    ui->tblHeaderData->setItem( tblLattPixelX, 0, new QTableWidgetItem(img->metaInfo("Pixel_X",
+                                     QString::number(calcGui->currentParamValueDbl("EditPixelX")*1000))) );
+    ui->tblHeaderData->setItem( tblLattPixelY, 0, new QTableWidgetItem(img->metaInfo("Pixel_Y",
+                                     QString::number(calcGui->currentParamValueDbl("EditPixelY")*1000))) );
+    ui->tblHeaderData->setItem( tblLattNbRows, 0, new QTableWidgetItem(img->metaInfo("NbRows")) );
+    ui->tblHeaderData->setItem( tblLattNbCols, 0, new QTableWidgetItem(img->metaInfo("NbCols")) );
     int row = img->metaInfo("NbRows").toInt();
     int col = img->metaInfo("NbCols").toInt();
-    int bsx = col/2 - ui->inpBCenterX->value();
-    int bsy = row/2 - ui->inpBCenterY->value();
-    ui->tblLattice3DValues->setItem( tblLattBeamX, 0, new QTableWidgetItem(img->metaInfo("BeamPosX", QString::number(bsx))) );
-    ui->tblLattice3DValues->setItem( tblLattBeamY, 0, new QTableWidgetItem(img->metaInfo("BeamPosY", QString::number(bsy))) );
-}
-
-void SC_MainGUI::on_butSaveAllImages_clicked()
-{
-    // TODO
+    int bsx = col/2 - ui->inpBeamPosX->value();
+    int bsy = row/2 - ui->inpBeamPosY_BeamPosX->value();
+    ui->tblHeaderData->setItem( tblLattBeamX, 0, new QTableWidgetItem(img->metaInfo("BeamPosX", QString::number(bsx))) );
+    ui->tblHeaderData->setItem( tblLattBeamY, 0, new QTableWidgetItem(img->metaInfo("BeamPosY", QString::number(bsy))) );
 }
 
 
 
-
-
-void SC_MainGUI::on_cbsMethod_currentIndexChanged(const QString &arg1)
-{
-    ui->cbsVariables->clear();
-    ui->cbsVariables->addItems( calcGui->paramsForMethod(arg1,true,true,false) ); // nur numerische Werte, incl. globales
-}
 
 void SC_MainGUI::on_butUseForAI_clicked()
 {
@@ -1962,7 +2008,7 @@ void SC_MainGUI::on_butUseForAI_clicked()
     ui->tblListe->setRowCount( row+1 );
     // and set the values
     ui->tblListe->setItem( row, 0, new QTableWidgetItem(key) );
-    QString val = calcGui->currentParamValueStr( ui->cbsMethod->currentText(), key, true );  // ComboBox als Text
+    QString val = calcGui->currentParamValueStr( key, true );
     ui->tblListe->setItem( row, 1, new QTableWidgetItem(val) );
     ui->tblListe->setItem( row, 2, new QTableWidgetItem(val) );
     ui->tblListe->setItem( row, 3, new QTableWidgetItem("0") );
@@ -2065,7 +2111,8 @@ void SC_MainGUI::on_butRemoveVar_clicked()
 void SC_MainGUI::on_butFileName_clicked()
 {
     QString fn;
-    fn = QFileDialog::getExistingDirectory( this, "Directory for inputfiles", ui->inpFileName->text(), QFileDialog::ShowDirsOnly | QFileDialog::DontUseNativeDialog );
+    fn = QFileDialog::getExistingDirectory( this, "Directory for inputfiles", ui->inpFileName->text(),
+                                           QFileDialog::ShowDirsOnly /*| QFileDialog::DontUseNativeDialog*/ );
     if ( fn.isEmpty() ) return;
     ui->inpFileName->setText( fn );
 }
@@ -2073,7 +2120,7 @@ void SC_MainGUI::on_butFileName_clicked()
 void SC_MainGUI::on_butSelectDir_clicked()
 {
     QString fn = ui->inpSubDir->text();
-    fn = QFileDialog::getExistingDirectory( this, "Save files into", fn, QFileDialog::ShowDirsOnly | QFileDialog::DontUseNativeDialog );
+    fn = QFileDialog::getExistingDirectory( this, "Save files into", fn, QFileDialog::ShowDirsOnly /*| QFileDialog::DontUseNativeDialog*/ );
     if ( fn.isEmpty() ) return;
     ui->inpSubDir->setText( fn );
 }
@@ -2151,13 +2198,20 @@ bool SC_MainGUI::performSaveAIOperation( QString fn, bool doOverwrite, bool inte
             tpv += QString("|BS%1;%2;%3;%4").arg(ui->inpTPVbeamx0->value()).arg(ui->inpTPVbeamy0->value())
                        .arg(ui->inpTPVnbeam->value()).arg(ui->inpTPVmbeam->value());
         if ( ui->togTPVaddLines->isChecked() )
-            tpv += QString("|LI%1;%2").arg(ui->inpTPVaddLinesH->value()).arg(ui->inpTPVaddLinesV->value());
+            tpv += QString("|LI%1;%2;%3;%4").arg(ui->inpTPVaddLinesH->value()).arg(ui->inpTPVaddLinesV->value())
+                       .arg(ui->inpTPVaddLinesHwidth->value()).arg(ui->inpTPVaddLinesVwidth->value());
         if ( ui->togTPVaddNoise->isChecked() )
             tpv += "|NO";
         if ( ui->togTPVconvolute->isChecked() )
             tpv += "|CO";
         if ( ui->togTPVcalcRphi->isChecked() )
             tpv += "|RP";
+        if ( ui->togTPVsaveBaseExtra->isChecked() )
+            tpv += "|IX";
+        if ( ui->togTPVgeneratePNG->isChecked() )
+            tpv += "|GP";
+        if ( ui->togTPVscaleScat->isChecked() )
+            tpv += "|SC";
         f.write( qPrintable(tpv+EOL) );
         // FFT wird weiter unten gesetzt
     }
@@ -2202,6 +2256,8 @@ bool SC_MainGUI::performSaveAIOperation( QString fn, bool doOverwrite, bool inte
                                .arg(fftOutFormat)
                                .arg(fftScale.trimmed())
                                .arg(ui->togIFFTSwap->isChecked()?"OutSwap":"OutNoSwap")
+                           //ui->inpFFTcutX->setValue( sets.value("FFTcutOutX",64).toInt() );
+                           //ui->inpFFTcutY->setValue( sets.value("FFTcutOutY",64).toInt() );
                            +EOL) );
     }
     ui->progressBar->setEnabled(true);
@@ -2519,7 +2575,7 @@ SC_MainGUI::_loopDefinition SC_MainGUI::getLoopDefinition()
             w->start  = ui->tblListe->item(r,1)->text().toDouble();
             if ( ui->tblListe->item(r,2)->text().startsWith("V") )
             {   // V<num> Variation
-                w->var = ui->tblListe->item(r,2)->text().mid(1).toDouble();
+                w->var = ui->tblListe->item(r,2)->text().midRef(1).toDouble();
                 w->end = w->start;
             }
             else
@@ -2529,7 +2585,7 @@ SC_MainGUI::_loopDefinition SC_MainGUI::getLoopDefinition()
             }
             if ( ui->tblListe->item(r,3)->text().startsWith("R") )
             {   // R<num> ist Zufallszahlen
-                w->randcount = ui->tblListe->item(r,3)->text().mid(1).toInt();
+                w->randcount = ui->tblListe->item(r,3)->text().midRef(1).toInt();
                 w->step = 0;
                 w->formel = "";
             }
@@ -2560,23 +2616,13 @@ SC_MainGUI::_loopDefinition SC_MainGUI::getLoopDefinition()
 
     QString curCLASS;
 
-    // Äußerste Schleife über die Methoden
-    QStringList slCalcArt = calcGui->getCalcTypes();
-    for ( int iCurMethod=0; iCurMethod<slCalcArt.size(); iCurMethod++ )
-    {
-        if ( ui->togUseAllMethods->isChecked() )
-        {   // all methods are used, so set the metaData structure
-            //master->getMetaDataFromTbl(iCurMethod);
-            //QString SC_CalcGUI::currentParamValue( QString m, QString p, bool text )
-        }
-        else if ( ui->cbsMethod->currentText() != slCalcArt[iCurMethod] )
-        {   // Skip this method
-            continue;
-        }
-
+    // Äußerste Schleife über die Methoden ==> es gibt nur noch eine ...
+    //QStringList slCalcArt = calcGui->getCalcTypes();
+    //for ( int iCurMethod=0; iCurMethod<slCalcArt.size(); iCurMethod++ )
+    //{
         calcval.clear();
 
-        // Neue Methode, Tabellenwerte auf Start setzen
+        // Tabellenwerte auf Start setzen
         foreach ( QString k, slKeys )
         {
             daten[k]->current = daten[k]->start;
@@ -2624,9 +2670,9 @@ SC_MainGUI::_loopDefinition SC_MainGUI::getLoopDefinition()
                         double v = values.at(k).toDouble(&ok);
                         if ( !ok )
                             qDebug() << k << "invalid double" << values.at(k);
-                        else if ( calcGui->isCurrentParameterValid( slCalcArt[iCurMethod], keys.at(k), false ) )
+                        else if ( calcGui->isCurrentParameterValid( keys.at(k), false ) )
                             calcval.insert( keys.at(k), v );
-                        else if ( calcGui->isCurrentParameterValid( slCalcArt[iCurMethod], "Edit"+keys.at(k), false ) )
+                        else if ( calcGui->isCurrentParameterValid( "Edit"+keys.at(k), false ) )
                             calcval.insert( "Edit"+keys.at(k), v );
                         else
                             qDebug() << k << "not found" << keys.at(k) << values.at(k);
@@ -2645,12 +2691,12 @@ SC_MainGUI::_loopDefinition SC_MainGUI::getLoopDefinition()
             {
                 // Innerste Schleife über die Tabelle
                 foreach ( QString k, slKeys )
-                    if ( daten[k]->formel.isEmpty() && calcGui->isCurrentParameterValid( slCalcArt[iCurMethod], k, false ) )
+                    if ( daten[k]->formel.isEmpty() && calcGui->isCurrentParameterValid( k, false ) )
                         calcval.insert( k, daten[k]->current );
                 foreach ( QString k, slKeys )
-                    if ( ! daten[k]->formel.isEmpty() && calcGui->isCurrentParameterValid( slCalcArt[iCurMethod], k, false ) )
-                        calcval.insert( k, evaluateFormula( slCalcArt[iCurMethod], daten[k]->formel ) );
-                calcval.insert( "#Calculation#", iCurMethod );
+                    if ( ! daten[k]->formel.isEmpty() && calcGui->isCurrentParameterValid( k, false ) )
+                        calcval.insert( k, evaluateFormula( daten[k]->formel ) );
+                calcval.insert( "#Calculation#", 0/*iCurMethod*/ );
 /*
                 // Abfrage, ob ein File mit "default" im Namen gelesen wurde
                 if ( files.size() > 0 )
@@ -2674,7 +2720,7 @@ SC_MainGUI::_loopDefinition SC_MainGUI::getLoopDefinition()
                 // Berechnung der CLASS
                 QString cls;
                 cls = ui->inpFileClass->text();
-                cls.replace( "{M}", slCalcArt[iCurMethod] ); // Historisch...
+                cls.replace( "{M}", calcGui->curMethod->subCalc->methodName() /*slCalcArt[iCurMethod]*/ ); // Historisch...
                 int pos;
                 while ( (pos = cls.indexOf("{")) >= 0 )
                 {
@@ -2699,15 +2745,15 @@ SC_MainGUI::_loopDefinition SC_MainGUI::getLoopDefinition()
                         else
                             cls.replace( "{"+korg+"}", QString::number(calcval[k]) );
                     }
-                    else if ( calcGui->isCurrentParameterValid( slCalcArt[iCurMethod], k, false ) )
+                    else if ( calcGui->isCurrentParameterValid( k, false ) )
                     {
                         if ( div != 1 )
                         {
-                            int tmp = calcGui->currentParamValueInt(slCalcArt[iCurMethod],k) / div;
+                            int tmp = calcGui->currentParamValueInt(k) / div;
                             cls.replace( "{"+korg+"}", QString::number(tmp*div) );
                         }
                         else
-                            cls.replace( "{"+korg+"}", calcGui->currentParamValueStr(slCalcArt[iCurMethod],k,false) );
+                            cls.replace( "{"+korg+"}", calcGui->currentParamValueStr(k,false) );
                     }
                     else
                         cls.replace( "{"+korg+"}", "unknown" );
@@ -2837,19 +2883,19 @@ SC_MainGUI::_loopDefinition SC_MainGUI::getLoopDefinition()
             } // while (true) - Schleife über die Tabelle
             if ( files.size() == 0 ) break; // Keine Files, also hier fertig.
         } // while (true) - Schleife über die Files
-    } // foreach ( QString curMethod, slCalcArt ) - Schleife über die Methoden
+    //} // foreach ( QString curMethod, slCalcArt ) - Schleife über die Methoden
     return retval;
 }
 
-double SC_MainGUI::evaluateFormula( QString m, QString formel )
+double SC_MainGUI::evaluateFormula( QString formel )
 {
     QStringList sl = formel.split(QRegExp("[+-*/ ]"),Qt::SkipEmptyParts);
     //qDebug() << "CALC" << formel << sl;
     double val = 0;
     if ( calcval.contains(sl[0]) )
         val = calcval[ sl[0] ];
-    else if ( calcGui->isCurrentParameterValid(m,sl[0],false) )
-        val = calcGui->currentParamValueDbl(m,sl[0]);
+    else if ( calcGui->isCurrentParameterValid(sl[0],false) )
+        val = calcGui->currentParamValueDbl(sl[0]);
     if ( sl.size() < 2 ) return val;
     double val2 = sl[1].toDouble();
     formel = formel.mid(sl[0].length()).trimmed();
@@ -2872,18 +2918,20 @@ double SC_MainGUI::evaluateFormula( QString m, QString formel )
  */
 void SC_MainGUI::on_butTestGo_clicked()
 {
-    prepareCalculation( true, false );
+    prepareCalculation( true );
 
     // TODO: LogTimer starten (TestGo)
 
-    int mx = ui->inpGridPoints->value();
+    int mx = ui->intGridPoints->value();
     double *data = new double[4*mx*mx]; // mx is one quarter of result image
 
     QString title = "??";
     SasCalc_PostProc::inst()->setLogging( false );
+    double fac;
 
-    if ( ui->radTestImg1->isChecked() )
-    {   // Test Image 1 (-)
+    switch ( ui->cbsTestImgSelect->currentIndex() )
+    {
+    case 0: // Test Image 1 (-)
         title = "Test-Image (-)";
         for ( int x=0, idx=0; x<2*mx; x++ )
             for ( int y=0; y<2*mx; y++, idx++ )
@@ -2893,9 +2941,8 @@ void SC_MainGUI::on_butTestGo_clicked()
                 else
                     data[idx] = 0.1;
             }
-    }
-    else if ( ui->radTestImg2->isChecked() )
-    {   // Test Image 1 (|)
+        break;
+    case 1: // Test Image 2 (|)
         title = "Test-Image (|)";
         for ( int x=0, idx=0; x<2*mx; x++ )
             for ( int y=0; y<2*mx; y++, idx++ )
@@ -2905,9 +2952,8 @@ void SC_MainGUI::on_butTestGo_clicked()
                 else
                     data[idx] = 0.1;
             }
-    }
-    else if ( ui->radTestImg3->isChecked() )
-    {   // Test Image 1 (x)
+        break;
+    case 2: // Test Image 3 (x)
         title = "Test-Image (x)";
         for ( int x=0, idx=0; x<2*mx; x++ )
             for ( int y=0; y<2*mx; y++, idx++ )
@@ -2917,9 +2963,8 @@ void SC_MainGUI::on_butTestGo_clicked()
                 else
                     data[idx] = 0.1;
             }
-    }
-    else if ( ui->radTestImg4->isChecked() )
-    {   // Test Image 4 (+)
+        break;
+    case 3: // Test Image 4 (+)
         title = "Test-Image (+)";
         for ( int x=0, idx=0; x<2*mx; x++ )
             for ( int y=0; y<2*mx; y++, idx++ )
@@ -2929,11 +2974,10 @@ void SC_MainGUI::on_butTestGo_clicked()
                 else
                     data[idx] = 0.1;
             }
-    }
-    else if ( ui->radTestImg5->isChecked() )
-    {   // Test Image 5 (:.)
+        break;
+    case 4: // Test Image 5 (:.)
         title = "Test-Image (:.)";
-        double fac = 2.0*M_PI / (mx*2);
+        fac = 2.0*M_PI / (mx*2);
         for ( int y=0, idx=0; y<2*mx; y++ )
             for ( int x=0; x<2*mx; x++, idx++ )
                 if ( x < mx )
@@ -2942,9 +2986,8 @@ void SC_MainGUI::on_butTestGo_clicked()
                     data[idx] = (1.0 + sin( x * fac ) * sin( y * fac )) * 64.0;  // -> 0..128
                 else
                     data[idx] = 128;    // Quadrant rechts oben (ohne Drehung) konstant
-    }
-    else if ( ui->radTestImg6->isChecked() )
-    {   // Test Image 6 (.)
+        break;
+    case 5: // Test Image 6 (.)
         title = "Test-Image (.)";
         for ( int x=0, idx=0; x<2*mx; x++ )
             for ( int y=0; y<2*mx; y++, idx++ )
@@ -2954,36 +2997,7 @@ void SC_MainGUI::on_butTestGo_clicked()
                 else
                     data[idx] = 0.1;
             }
-    }
-    else if ( ui->radTestCurMethod->isChecked() )
-    {   // Current method
-        title = "Test-" + calcGui->curMethod->subCalc->methodName();
-        calcGui->doCalculation( ui->inpNumCores->value(), static_cast<progressAndAbort>(&this->myProgressAndAbort) );
-        memcpy( data, calcGui->data(), 4*mx*mx*sizeof(double) );
-    }
-    else if ( ui->radTestAllMethods->isChecked() )
-    {   // All methods
-        QStringList slMethods = calcGui->getCalcTypes();
-        foreach( QString m, slMethods )
-        {
-            calcGui->prepareCalculation( m, true );
-            calcGui->doCalculation( ui->inpNumCores->value(), static_cast<progressAndAbort>(&this->myProgressAndAbort) );
-            title = "Test-" + calcGui->curMethod->subCalc->methodName();
-            widImage* img = addImage( true, 0, 2*mx, 0, 2*mx, calcGui->data(), title, false );
-            img->addMetaInfo( "From Image", title );
-            // FFT
-            if ( ui->togTestUseFFT->isChecked() )
-            {
-                performIFFTcalculations( images.size()-1, title, false );  // use the last image
-            }
-        }
-        finishCalculation(false);
-        return;
-    }
-    else
-    {
-        finishCalculation(false);
-        return;
+        break;
     }
 
     widImage* img = addImage( true, 0, 2*mx, 0, 2*mx, data, title, false );
@@ -3007,91 +3021,6 @@ void SC_MainGUI::on_cbsDefaultColTbl_activated(int index)
     // Farbtabelle abgefragt wird.
     widImage::setDefColTbl(index);
 }
-
-
-
-void SC_MainGUI::on_actionTest_read_first_AI_RUN_Line_triggered()
-{
-    QSettings data(SETT_APP,SETT_GUI);
-    data.beginGroup("AI");
-    QString fn = data.value("LastSaveBkgFile",".").toString();
-
-    QFile fcalc(fn);
-    if ( !fcalc.open(QIODevice::ReadOnly) )
-    {
-        qDebug() << fn + " " + fcalc.errorString();
-        return;
-    }
-    QString m = "";
-    while ( !fcalc.atEnd() )
-    {
-        QStringList sl = QString(fcalc.readLine()).trimmed().split("|",Qt::SkipEmptyParts);
-        if ( sl.size() < 3 ) continue;
-        qDebug() << sl;
-
-        for ( int i=1; i<sl.size(); i++ )
-        {
-            QStringList vv = sl[i].split("=");
-            if ( sl[i].startsWith("#Calc") )
-            {
-                m = calcGui->getCalcTypes()[vv[1].toInt()];
-            }
-            else if ( ! sl[i].startsWith("#DEF") )
-            {
-                if ( calcGui->updateParamValue( m, vv[0], vv[1].toDouble(), Qt::black ) ) continue;
-                //bool SC_CalcGUI::updateParamValue( QString m, QString p, double v )
-
-                if ( vv[0] == "EditAxis1x" )
-                    ui->inpAx1->setValue( vv[1].toDouble() );
-                else if ( vv[0] == "EditAxis1y" )
-                    ui->inpAy1->setValue( vv[1].toDouble() );
-                else if ( vv[0] == "EditAxis1z" )
-                    ui->inpAz1->setValue( vv[1].toDouble() );
-                else if ( vv[0] == "EditAxis2x" )
-                    ui->inpAx2->setValue( vv[1].toDouble() );
-                else if ( vv[0] == "EditAxis2y" )
-                    ui->inpAy2->setValue( vv[1].toDouble() );
-                else if ( vv[0] == "EditAxis2z" )
-                    ui->inpAz2->setValue( vv[1].toDouble() );
-                else if ( vv[0] == "EditAxis3x" )
-                    ui->inpAx3->setValue( vv[1].toDouble() );
-                else if ( vv[0] == "EditAxis3y" )
-                    ui->inpAy3->setValue( vv[1].toDouble() );
-                else if ( vv[0] == "EditAxis3z" )
-                    ui->inpAz3->setValue( vv[1].toDouble() );
-                else if ( vv[0] == "Editxrel" )
-                    ui->inpN1->setValue( vv[1].toDouble() );
-                else if ( vv[0] == "Edityrel" )
-                    ui->inpN2->setValue( vv[1].toDouble() );
-                else if ( vv[0] == "Editzrel" )
-                    ui->inpN3->setValue( vv[1].toDouble() );
-                else if ( vv[0] == "Editdom1" )
-                    ui->inpSigX->setValue( vv[1].toDouble() );
-                else if ( vv[0] == "Editdom2" )
-                    ui->inpSigY->setValue( vv[1].toDouble() );
-                else if ( vv[0] == "Editdom3" )
-                    ui->inpSigZ->setValue( vv[1].toDouble() );
-                else if ( vv[0] == "Editx1rel" )
-                    ui->inpU1->setValue( vv[1].toDouble() );
-                else if ( vv[0] == "Edity1rel" )
-                    ui->inpU2->setValue( vv[1].toDouble() );
-                else if ( vv[0] == "Editz1rel" )
-                    ui->inpU3->setValue( vv[1].toDouble() );
-                else if ( vv[0] == "Editx2rel" )
-                    ui->inpV1->setValue( vv[1].toDouble() );
-                else if ( vv[0] == "Edity2rel" )
-                    ui->inpV2->setValue( vv[1].toDouble() );
-                else if ( vv[0] == "Editz2rel" )
-                    ui->inpV3->setValue( vv[1].toDouble() );
-                else
-                    qDebug() << vv[0] << "Falscher Key???";
-            }
-        }
-
-        break;
-    }
-}
-
 
 
 void SC_MainGUI::loadScatterParameter( QString fn )
@@ -3143,7 +3072,7 @@ void SC_MainGUI::loadScatterParameter( QString fn )
     setValue( data[24], "EditTwratio" );
     //outArray[25] = EditAstack.Text;
     //outArray[26] = EditBstack.Text;
-    setValue( data[27], "Edithklmax" );
+    setValue( data[27], "HKLmax" );
     checkData( data[28], "0.1" );         /* qz for GISAXS */
     setValue( data[29], "EditPeakPar" );
     //outArray[30] = EditCeffCyl.Text;
@@ -3295,7 +3224,7 @@ void SC_MainGUI::loadScatterParameter( QString fn )
     //outArray[166] = EditDrehz.Text;
     setValue( data[167], "Rot_Angle" /*"EditRotAlpha"*/ );
     setValue( data[168], "EditDetector" );
-    setValue( data[169], "EditGridPoints" );
+    setValue( data[169], "GridPoints" );
     setValue( data[170], "EditQmax" );
     //outArray[171] = IntToStr(ord(RadioButtonFixU.Checked));
     //outArray[172] = IntToStr(ord(RadioButtonFixV.Checked));
@@ -3370,54 +3299,54 @@ void SC_MainGUI::checkData( QString data, QString soll )
 void SC_MainGUI::setValue( QString data, QString name )
 {
     data.replace(",",".");
-    QString m = ui->tabMethods->tabText(ui->tabMethods->currentIndex());
+    //QString m = ""; // "FCC Spheres"; // ui->tabMethods->tabText(ui->tabMethods->currentIndex());
     //qDebug() << "setScatterValue" << name << data;
-    if ( calcGui->updateParamValue( m, name, data.toDouble(), Qt::black ) ) return;
+    if ( calcGui->updateParamValue( name, data.toDouble(), Qt::black ) ) return;
 
     if ( name == "EditAxis1x" )
-        ui->inpAx1->setValue( data.toDouble() );
+        ui->inpVAx1->setValue( data.toDouble() );
     else if ( name == "EditAxis1y" )
         ui->inpAy1->setValue( data.toDouble() );
     else if ( name == "EditAxis1z" )
         ui->inpAz1->setValue( data.toDouble() );
     else if ( name == "EditAxis2x" )
-        ui->inpAx2->setValue( data.toDouble() );
+        ui->inpVAx2_VAx1->setValue( data.toDouble() );
     else if ( name == "EditAxis2y" )
-        ui->inpAy2->setValue( data.toDouble() );
+        ui->inpAy2_Ay1->setValue( data.toDouble() );
     else if ( name == "EditAxis2z" )
-        ui->inpAz2->setValue( data.toDouble() );
+        ui->inpAz2_Az1->setValue( data.toDouble() );
     else if ( name == "EditAxis3x" )
-        ui->inpAx3->setValue( data.toDouble() );
+        ui->inpVAx3_VAx1->setValue( data.toDouble() );
     else if ( name == "EditAxis3y" )
-        ui->inpAy3->setValue( data.toDouble() );
+        ui->inpAy3_Ay1->setValue( data.toDouble() );
     else if ( name == "EditAxis3z" )
-        ui->inpAz3->setValue( data.toDouble() );
-    else if ( name == "Editxrel" )
-        ui->inpN1->setValue( data.toDouble() );
-    else if ( name == "Edityrel" )
-        ui->inpN2->setValue( data.toDouble() );
-    else if ( name == "Editzrel" )
-        ui->inpN3->setValue( data.toDouble() );
+        ui->inpAz3_Az1->setValue( data.toDouble() );
+    //else if ( name == "Editxrel" )
+    //    ui->inpN1->setValue( data.toDouble() );
+    //else if ( name == "Edityrel" )
+    //    ui->inpN2->setValue( data.toDouble() );
+    //else if ( name == "Editzrel" )
+    //    ui->inpN3->setValue( data.toDouble() );
     else if ( name == "Editdom1" )
         ui->inpSigX->setValue( data.toDouble() );
     else if ( name == "Editdom2" )
-        ui->inpSigY->setValue( data.toDouble() );
+        ui->inpSigY_SigX->setValue( data.toDouble() );
     else if ( name == "Editdom3" )
-        ui->inpSigZ->setValue( data.toDouble() );
-    else if ( name == "Editx1rel" || name == "Editu1" )
-        ui->inpU1->setValue( data.toDouble() );
-    else if ( name == "Edity1rel" || name == "Editu2" )
-        ui->inpU2->setValue( data.toDouble() );
-    else if ( name == "Editz1rel" || name == "Editu3" )
-        ui->inpU3->setValue( data.toDouble() );
-    else if ( name == "Editx2rel" || name == "Editv1" )
-        ui->inpV1->setValue( data.toDouble() );
-    else if ( name == "Edity2rel" || name == "Editv2" )
-        ui->inpV2->setValue( data.toDouble() );
-    else if ( name == "Editz2rel" || name == "Editv3" )
-        ui->inpV3->setValue( data.toDouble() );
+        ui->inpSigZ_SigX->setValue( data.toDouble() );
+    //else if ( name == "Editx1rel" || name == "Editu1" )
+    //    ui->inpU1->setValue( data.toDouble() );
+    //else if ( name == "Edity1rel" || name == "Editu2" )
+    //    ui->inpU2->setValue( data.toDouble() );
+    //else if ( name == "Editz1rel" || name == "Editu3" )
+    //    ui->inpU3->setValue( data.toDouble() );
+    //else if ( name == "Editx2rel" || name == "Editv1" )
+    //    ui->inpV1->setValue( data.toDouble() );
+    //else if ( name == "Edity2rel" || name == "Editv2" )
+    //    ui->inpV2->setValue( data.toDouble() );
+    //else if ( name == "Editz2rel" || name == "Editv3" )
+    //    ui->inpV3->setValue( data.toDouble() );
     else if ( name == "Edithklmax" )
-        ui->inpHKLmax->setValue( data.toInt() );
+        ui->intHKLmax->setValue( data.toInt() );
     else if ( name == "RadioButtonQ1" )
         ui->radQ1->setChecked( data.toInt() != 0 );
     else if ( name == "RadioButtonQ2" )
@@ -3426,18 +3355,18 @@ void SC_MainGUI::setValue( QString data, QString name )
         ui->radQ4->setChecked( data.toInt() != 0 );
     else if ( name == "ExpandImage" )
         ui->togExpandImage->setChecked( data.toInt() != 0 );
-    else if ( name == "EditGridPoints" )
-        ui->inpGridPoints->setValue( data.toInt() );
+    else if ( name == "GridPoints" )
+        ui->intGridPoints->setValue( data.toInt() );
     else if ( name == "EditCenterX" )
-        ui->inpBCenterX->setValue( data.toInt() );
+        ui->inpBeamPosX->setValue( data.toInt() );
     else if ( name == "EditCenterY" )
-        ui->inpBCenterY->setValue( data.toInt() );
+        ui->inpBeamPosY_BeamPosX->setValue( data.toInt() );
     // Falsche / unbekannte Bezeichnungen
     else
     {
         static QStringList tmp;
         if ( tmp.size() == 0 )
-            tmp = calcGui->paramsForMethod(m,false,true,false);
+            tmp = calcGui->paramsForMethod(false,true,false);
         if ( tmp.contains(name,Qt::CaseInsensitive) )
         {
             for ( int i=0; i<tmp.size(); i++ )
@@ -3476,7 +3405,8 @@ void SC_MainGUI::on_togLimitRuntime_toggled(bool checked)
 
 bool SC_MainGUI::copyParamsToFitTable()
 {
-    QStringList slParams = calcGui->paramsForMethod( ui->tabMethods->currentIndex(), false, false, true );
+    DT( qDebug() << "copyParamsToFitTable()" );
+    QStringList slParams = calcGui->paramsForMethod( false, false, true );
     QStringList slHdr;
     slHdr << "Used" << "Min" << "Start" << "Max" << "Result";
 
@@ -3486,8 +3416,7 @@ bool SC_MainGUI::copyParamsToFitTable()
     ui->tblFitValues->setHorizontalHeaderLabels( slHdr );
     ui->tblFitValues->setVerticalHeaderLabels( slParams );
 
-    curMethod = calcGui->index2methodname(ui->tabMethods->currentIndex());
-    ui->lblFitUsedMethod->setText( curMethod );
+    curMethod = calcGui->index2methodname();
     _param2fitval *p2f = method2fitparams.value(curMethod,nullptr);
     if ( p2f == nullptr )
     {
@@ -3496,34 +3425,34 @@ bool SC_MainGUI::copyParamsToFitTable()
     }
     ui->tblFitValues->blockSignals(true);
     oneFitParamUsed = false;
+
+    QSettings sets(SETT_APP,SETT_GUI);
+    sets.beginGroup("Fit-"+curMethod);
+
     foreach (QString p, slParams)
     {
         _fitLimits *fl = p2f->value(p,nullptr);
         if ( fl == nullptr )
         {
+            QStringList slVal = sets.value(p,"0:0:0:0").toString().split(":",SPLIT_KEEP_EMPTY_PARTS);
+            while ( slVal.size() < 4 ) slVal << "0";
             fl = new _fitLimits;
-            fl->orgval = fl->fitstart = calcGui->currentParamValueDbl( curMethod, p );
-            fl->fitType  = _fitTypes::fitNone;
             fl->fitvalid = false;
-            fl->min = 0;
-            fl->max = 1000;
-            fl->used = false;
+            fl->used     = slVal[0].toInt() != 0;
+            fl->min      = slVal[1].toDouble();
+            fl->max      = slVal[2].toDouble();
+            fl->fitType  = static_cast<_fitTypes>(slVal[3].toInt());
             p2f->insert( p, fl );
-            //qDebug() << "FIT: create new" << p << fl->fitstart;
         }
-        else
-        {
-            fl->orgval = fl->fitstart = calcGui->currentParamValueDbl( curMethod, p );
-            //qDebug() << "FIT: use old" << p << fl->fitstart;
-        }
+        fl->orgval = fl->fitstart = calcGui->currentParamValueDbl( p );
 
         bool cnt;
         double min, max;
-        if ( calcGui->limitsOfParamValue( curMethod, p, min, max, cnt ) )
+        if ( calcGui->limitsOfParamValue( p, min, max, cnt ) )
         {
             if ( fl->fitType == _fitTypes::fitNone )
             {   // Nur, wenn die Grenzen nicht definiert sind, diese aus der internen Struktur holen.
-                // Sonst sind diese schon angepasst und beim Start aus der Registry gelesen worden.
+                // Sonst sind diese schon angepasst und oben aus der Registry gelesen worden.
                 if ( cnt )
                     fl->fitType = _fitTypes::fitCbs;
                 else
@@ -3559,6 +3488,7 @@ bool SC_MainGUI::copyParamsToFitTable()
         for ( int c=1; c<=4; c++ )
             ui->tblFitValues->item(currow,c)->setTextAlignment(Qt::AlignCenter);
     }
+    sets.endGroup();
     ui->tblFitValues->blockSignals(false);
     ui->tblFitValues->resizeColumnsToContents();
     //qDebug() << "copyParamsToFitTable() done" << oneFitParamUsed;
@@ -3572,7 +3502,8 @@ bool SC_MainGUI::copyParamsToFitTable()
  */
 void SC_MainGUI::on_tabMain_currentChanged(int index)
 {
-    if ( index != 4 /*fit*/ ) return;
+    DT( qDebug() << "on_tabMain_currentChanged()" );
+    if ( index != ui->tabMain->indexOf(ui->tabFit) ) return;
 
     if ( fitIsRunning ) return;
 
@@ -3583,6 +3514,7 @@ void SC_MainGUI::on_tabMain_currentChanged(int index)
 
 void SC_MainGUI::tblFitUsed_toggled(bool checked)
 {
+    DT( qDebug() << "tblFitUsed_toggled()" );
     QCheckBox *cbs = static_cast<QCheckBox*>(sender());
     oneFitParamUsed = false;
     for ( int r=0; r<ui->tblFitValues->rowCount(); r++ )
@@ -3659,7 +3591,7 @@ void SC_MainGUI::updateLogList( QString msg )
 
 void SC_MainGUI::on_butSaveLog_clicked()
 {
-    QString fn = QFileDialog::getSaveFileName( this, "Save Loggings", dataPath, "Logfiles (*.log)", nullptr, QFileDialog::DontUseNativeDialog );
+    QString fn = QFileDialog::getSaveFileName( this, "Save Loggings", dataPath, "Logfiles (*.log)" ); //, nullptr, QFileDialog::DontUseNativeDialog );
     if ( fn.isEmpty() ) return;
     if ( !fn.endsWith(".log",Qt::CaseInsensitive) ) fn += ".log";
     if ( fileFitLogName.isEmpty() )
@@ -3766,7 +3698,7 @@ void SC_MainGUI::performOneFitLoop()
     curFitImage->getVarScaling( fitOrgMin, fitOrgmax );
 
     _bAbbruch = false;
-    prepareCalculation( true, true );
+    prepareCalculation( true );
 
     _param2fitval *parameter = method2fitparams.value(curMethod);
     QHash<QString,_fitLimits*>::const_iterator it;
@@ -3943,7 +3875,7 @@ void SC_MainGUI::performOneFitLoop()
             ui->tblFitValues->item( r, 4 )->setText(QString::number(p2f->value(p)->fitres));
             p2f->value(p)->fitvalid = true;
             // Restore the old values in the Calculation Tab
-            calcGui->updateParamValue( "", p, p2f->value(p)->orgval, Qt::black, false/*ohne debug*/ );
+            calcGui->updateParamValue( p, p2f->value(p)->orgval, Qt::black, false/*ohne debug*/ );
         }
     }
     ui->tblFitValues->resizeColumnsToContents();
@@ -3959,7 +3891,7 @@ void SC_MainGUI::on_butFitUseResult_clicked()
         QString p = ui->tblFitValues->verticalHeaderItem(r)->text();
         QString val = ui->tblFitValues->item( r, 4 )->text().trimmed();
         if ( val.isEmpty() || val.contains("?") ) continue;
-        calcGui->updateParamValue( "", p, val.toDouble(), Qt::black, false/*ohne debug*/ );
+        calcGui->updateParamValue( p, val.toDouble(), Qt::black, false/*ohne debug*/ );
         ui->tblFitValues->item( r, 2 )->setText( val );
         p2f->value(p)->fitstart = p2f->value(p)->fitres;
         p2f->value(p)->orgval   = p2f->value(p)->fitres;
@@ -4175,8 +4107,8 @@ void SC_MainGUI::on_butDataFindCenter_clicked()
                                      QMessageBox::Yes, QMessageBox::No );
     if ( flg == QMessageBox::Yes )
     {
-        ui->inpBCenterX->setValue(x-ikws->myWidth()/2.);
-        ui->inpBCenterY->setValue(y-ikws->myHeight()/2.);
+        ui->inpBeamPosX->setValue(x-ikws->myWidth()/2.);
+        ui->inpBeamPosY_BeamPosX->setValue(y-ikws->myHeight()/2.);
     }
 }
 
@@ -4191,30 +4123,67 @@ void SC_MainGUI::on_togFitUseMask_toggled(bool checked)
     ui->inpFitBorder->setEnabled( !checked );
 }
 
-void SC_MainGUI::on_butFitConfig_clicked()
+
+/**
+ * @brief SC_MainGUI::initCbsAfterStart
+ * This function is called with a short delay after the Constructor of the GUI is finished
+ * to perform last actions and to make all inputs visible according to the selections of
+ * the ComboBoxes.
+ * After this it will start the AutoProc timer if an argument is given to this program.
+ */
+void SC_MainGUI::initCbsAfterStart()
 {
-    QString fn = QFileDialog::getOpenFileName( this, "Parameter configuration", configParamsFile,
-                                               "Ini-Files (*.ini)", nullptr, QFileDialog::DontUseNativeDialog );
-    if ( fn.isEmpty() ) return;
+    // Jetzt die jeweiligen ComboBoxen triggern, damit die Ena/Dis für die anderen Elemente gemacht werden
+    bIgnoreRecalc = true;  // initCbsAfterStart
+    on_cbsLType_currentIndexChanged( ui->cbsLType->currentIndex() );
+    on_cbsComboBoxParticle_currentIndexChanged( ui->cbsComboBoxParticle->currentIndex() );
+    on_cbsOrdis_currentIndexChanged( ui->cbsOrdis->currentIndex() );
+    on_cbsComboBoxInterior_currentIndexChanged( ui->cbsComboBoxInterior->currentIndex() );
+    on_cbsComboBoxPeak_currentIndexChanged( ui->cbsComboBoxPeak->currentIndex() );
+    bIgnoreRecalc = false;  // initCbsAfterStart
 
-    QSettings sets(SETT_APP,SETT_GUI);
-    sets.setValue( "ConfigParamFile", fn );
-
-    if ( fn.size() > 55 )
-        ui->lblFitConfigFile->setText("("+fn.left(3) + "..." + fn.right(49)+")");
-    else
-        ui->lblFitConfigFile->setText("("+fn+")");
-
-    QMessageBox::information( this, "Parameter configuration",
-                              "The file\n"+fn+"\nis used at the next start of this program.",
-                              QMessageBox::Ok );
+    if ( qApp->arguments().size() > 1 )     // [0] = Executable file path
+    {
+        autoProcessingFile = new QFile( qApp->arguments().at(1) );
+        if ( autoProcessingFile->open(QIODevice::ReadOnly) )
+        {
+            qDebug() << autoProcessingFile->fileName() << "Starting";
+            QTimer::singleShot( 100, this, SLOT(autoProcessingTimer()) );   // Start
+        }
+        else
+        {
+            qDebug() << autoProcessingFile->fileName() << autoProcessingFile->errorString();
+            autoProcessingFile = nullptr;
+            bIgnoreRecalc = false;  // initCbsAfterStart AutoProc-Error
+        }
+    }
 }
 
 
-
+/**
+ * @brief SC_MainGUI::autoProcessingTimer
+ * This will execute all commands from a text file given by the command line or via menu.
+ * The available commands are:
+ *  #                          starts a comment line (also empty lines are ignored)
+ *  TAB <name>                 select the given tab page in the gui
+ *  OPEN MEAS FILE DEFAULT     opens the last used measurement file
+ *  OPEN MEAS FILE <filename>  opens the given measurement file
+ *  LOAD PARAMS DEFAULT        opens the last used parameter set
+ *  LOAD PARAMS <filename>     opens the given parameter set
+ *  USE QMAX FROM DATA         use the qmax value calculated from the data (if possible)
+ *  USE QMAX PRESET            use the qmax value given by the user
+ *  THREADS <n>                sets the number of threads to be used to <n> (0=GPU)
+ *  DOCALC                     starts a normal calculation (after this the processings continues)
+ *  DOFFT                      starts a FFT calculation with the parameters given in the gui
+ *  DOIFFT                     starts a iFFT calculation with the parameters given in the gui
+ *  TEST <n>                   starts a test calculation as shown in the Configuration tab
+ */
 void SC_MainGUI::autoProcessingTimer()
 {
     qDebug() << "AutoProc: autoProcessingTimer()";
+
+    if ( autoProcessingFile == nullptr ) return;
+    if ( ! autoProcessingFile->isOpen() ) return;
 
     while ( true )
     {
@@ -4222,7 +4191,7 @@ void SC_MainGUI::autoProcessingTimer()
         {
             autoProcessingFile->close();
             qDebug() << "AutoProc: finished";
-            bIgnoreRecalc = false;  // Init done AutoProc-Finish
+            bIgnoreRecalc = false;  // AutoProc-Finish
             return;
         }
         QString line = autoProcessingFile->readLine().trimmed();
@@ -4239,14 +4208,14 @@ void SC_MainGUI::autoProcessingTimer()
         {
             bool found = false;
             for ( int i=0; i<ui->tabMain->count(); i++ )
-                if ( ui->tabMain->tabText(i).startsWith(line.mid(4)) )
+                if ( ui->tabMain->tabText(i).startsWith(line.mid(4),Qt::CaseInsensitive) )
                 {
                     ui->tabMain->setCurrentIndex(i);
                     found = true;
                     break;
                 }
             if ( found ) continue;
-            qDebug() << "AutoProc-ERROR: invalid tab name:";
+            qDebug() << "AutoProc-ERROR: invalid tab name:" << line.mid(4);
             for ( int i=0; i<ui->tabMain->count(); i++ )
                 qDebug() << "    :" << ui->tabMain->tabText(i);
             autoProcessingFile->close();
@@ -4266,7 +4235,7 @@ void SC_MainGUI::autoProcessingTimer()
                 fn = line.mid(15);
             //qDebug() << "AutoProc: Load meas file" << fn;
             if ( local_OpenMeasFile(fn,nullptr) ) continue;
-            qDebug() << "AutoProc-ERROR: meas file not found / unknown format";
+            qDebug() << "AutoProc-ERROR: meas file not found / unknown format:" << fn;
             autoProcessingFile->close();
             bIgnoreRecalc = false;  // Init done AutoProc-Error
             return;
@@ -4284,7 +4253,7 @@ void SC_MainGUI::autoProcessingTimer()
                 fn = line.mid(12);
             //qDebug() << "AutoProc: Load params" << fn;
             if ( QFile::exists(fn) )
-                local_Load_all_Parameters(fn,"");
+                local_Load_all_Parameters(fn);
             else
             {
                 qDebug() << "AutoProc-ERROR: parameter file not found" << fn;
@@ -4296,7 +4265,11 @@ void SC_MainGUI::autoProcessingTimer()
 
         else if ( line.startsWith("USE QMAX FROM DATA") )
         {
-            on_butUseQMax_clicked();
+            ui->radEditQmaxData->setChecked(true);
+        }
+        else if ( line.startsWith("USE QMAX PRESET") )
+        {
+            ui->radEditQmaxPreset->setChecked(true);
         }
 
         else if ( line.startsWith("THREADS ") )
@@ -4309,12 +4282,18 @@ void SC_MainGUI::autoProcessingTimer()
 
         else if ( line.startsWith("DOCALC") )
         {
-            QTimer::singleShot( 100, this, SLOT(on_butCalc_clicked()) );
+            QTimer::singleShot( 100, this, SLOT(local_butCalc_clicked()) );  // ohne speichern der Parameter im Temp-File
             // Autoproc is restarted after calculation
             return;
         }
 
         else if ( line.startsWith("DOFFT") )
+        {
+            QTimer::singleShot( 100, this, SLOT(on_butFFT_clicked()) );
+            // Autoproc is restarted after calculation
+            return;
+        }
+        else if ( line.startsWith("DOIFFT") )
         {
             QTimer::singleShot( 100, this, SLOT(on_butIFFT_clicked()) );
             // Autoproc is restarted after calculation
@@ -4323,16 +4302,7 @@ void SC_MainGUI::autoProcessingTimer()
 
         else if ( line.startsWith("TEST ") )
         {
-            switch ( line.mid(5).trimmed().toInt() )
-            {
-            case 1: ui->radTestImg1->setChecked(true); break;
-            case 2: ui->radTestImg2->setChecked(true); break;
-            case 3: ui->radTestImg3->setChecked(true); break;
-            case 4: ui->radTestImg4->setChecked(true); break;
-            case 5: ui->radTestImg5->setChecked(true); break;
-            case 6: ui->radTestImg6->setChecked(true); break;
-            default: continue; // while loop
-            }
+            ui->cbsTestImgSelect->setCurrentIndex( line.mid(5).trimmed().toInt() );
             on_butTestGo_clicked();
             ui->cbsFFTWindows->setCurrentIndex( ui->cbsFFTWindows->count()-1 );
         }
@@ -4533,7 +4503,7 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
                 if ( line.startsWith("Param:") )
                 {   // "Param: <filepath> Datei mit allen Parametern
                     if ( fglobLog ) fglobLog->write(qPrintable("Load Paramfile "+line.mid(6).trimmed()+EOL) );
-                    local_Load_all_Parameters( line.mid(6).trimmed(), "" ); // alle, damit auch die globalen Daten
+                    local_Load_all_Parameters( line.mid(6).trimmed() );
                     //fitIsRunning = false;
                     //on_tabMain_currentChanged(4);   // Noch aus den Eingabefeldern in die Fit-Tabelle übernehmen
                     //fitIsRunning = true;
@@ -4685,7 +4655,7 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
                 if ( sl.size() != 3 ) continue; // Syntaxfehler: Zeile ignorieren
                 if ( ! QFileInfo(usedImages.first()).baseName().startsWith(sl[0].trimmed()) )
                     continue;  // Nicht der passende Filename
-                if ( calcGui->updateParamValue( "", sl[1].trimmed(), sl[2].trimmed().toDouble(), Qt::black, false ) )
+                if ( calcGui->updateParamValue( sl[1].trimmed(), sl[2].trimmed().toDouble(), Qt::black, false ) )
                 {   // Parameter aktualisiert
                     if ( fglobLog ) fglobLog->write(qPrintable("SetVar: "+sl.join(" = ")+EOL) );
                 }
@@ -4707,7 +4677,7 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
                 if ( sl.size() != 3 ) continue; // Syntaxfehler: Zeile ignorieren
                 if ( ! QFileInfo(usedImages.first()).baseName().endsWith(sl[0].trimmed()) )
                     continue;  // Nicht der passende Filename
-                if ( calcGui->updateParamValue( "", sl[1].trimmed(), sl[2].trimmed().toDouble(), Qt::black, false ) )
+                if ( calcGui->updateParamValue( sl[1].trimmed(), sl[2].trimmed().toDouble(), Qt::black, false ) )
                 {   // Parameter aktualisiert
                     if ( fglobLog ) fglobLog->write(qPrintable("SetVar: "+sl.join(" = ")+EOL) );
                 }
@@ -4725,7 +4695,7 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
                 // Damit können z.B. verschiedene Drehungen beim Fit betrachtet werden.
                 QStringList sl = line.mid(7).split("=");
                 if ( sl.size() != 2 ) continue; // Syntaxfehler: Zeile ignorieren
-                if ( calcGui->updateParamValue( "", sl[0].trimmed(), sl[1].trimmed().toDouble(), Qt::black, false ) )
+                if ( calcGui->updateParamValue( sl[0].trimmed(), sl[1].trimmed().toDouble(), Qt::black, false ) )
                 {   // Parameter aktualisiert
                     if ( fglobLog ) fglobLog->write(qPrintable("SetVar: "+sl.join(" = ")+EOL) );
                 }
@@ -4762,13 +4732,13 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
                     else
 #endif
                         if ( slCmd[i].startsWith("Stp=") )
-                            stp = slCmd[i].mid(4).toDouble();
+                            stp = slCmd[i].midRef(4).toDouble();
                         else if ( slCmd[i].startsWith("Iter=") )
-                            iter = slCmd[i].mid(5).toInt();
+                            iter = slCmd[i].midRef(5).toInt();
                         else if ( slCmd[i].startsWith("Tol=") )
-                            tol = slCmd[i].mid(4).toDouble();
+                            tol = slCmd[i].midRef(4).toDouble();
                         else if ( slCmd[i].startsWith("Diff<") )
-                            maxDif = slCmd[i].mid(5).toDouble();
+                            maxDif = slCmd[i].midRef(5).toDouble();
                         else if ( slCmd[i].startsWith("Kenn=") )
                         {
                             kenn = slCmd[i].mid(5);
@@ -4836,6 +4806,16 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
                         if ( useFixedScaling ) lastFitImage->setFixScaling( minFixedScale, maxFixedScale );
                         lastFitImage->saveImage( tmpfn );
                         if ( fglobLog ) fglobLog->write(qPrintable("Data file: "+usedImages.first()+EOL) );
+
+                        // Damit beim butFitStart auch das richtige Image gefunden wird, muss dieses in der
+                        //  ComboBox der FitWindows als Current stehen. Anscheinend ist bei der neueren
+                        //  Qt-Version etwas im Handling anders, sodass ich es hier selber setze.
+                        ui->cbsFitImageWindows->setCurrentText( lastFitImage->windowTitle() );
+
+                        // TODO: Wenn das gerade geladene Bild von den Dimensionen nicht passt,
+                        // könnte der Fit-Lauf abgebrochen werden ...
+
+                        // TODO: Aktivieren der Rechtecke zum Ausblenden des Fits...
                         //for ( int r=0; r<4; r++ )
                         //{
                         //    QRect rc = lastFitImage->getNoFitRect(r);
@@ -4920,7 +4900,7 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
         {
             QString tmpfn = basePath + QFileInfo(usedImages.first()).baseName() + "_out";
             QString resifn = basePath + QFileInfo(usedImages.first()).baseName() + "_resi.png";
-            on_butCalc_clicked();
+            local_butCalc_clicked(); // ohne speichern der Parameter im Temp-File
 
             if ( useFixedScaling )
                 lastUsedImage->setFixScaling( minFixedScale, maxFixedScale );
@@ -5106,14 +5086,14 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
     if ( !_bAbbruch && dlgCfgAuto->isShowResult() )
     {
         // Zum Abschluss nochmal das Bild rechnen
-        if ( ui->togAutoPosit->isChecked() )
+        if ( ui->togAutoPosit->isChecked() && curFitImage != nullptr )
         {   // Vorher aber die Positionen so bestimmen, dass dieses neue Bild direkt
             // neben das bisherige (anzufittende) Bild kommt.
             imgPosX = curFitImage->pos().x() + curFitImage->width();
             imgPosY = curFitImage->pos().y();
             //qDebug() << "Pos vor Calc" << imgPosX << imgPosY << curFitImage->pos() << curFitImage->size();
         }
-        on_butCalc_clicked();
+        local_butCalc_clicked(); // ohne speichern der Parameter im Temp-File
         //qDebug() << "Pos nach Calc" << imgPosX << imgPosY;
         for ( int i=0; i<ui->lisDataWindows->count(); i++ )
         {
@@ -5427,6 +5407,7 @@ void SC_MainGUI::compString( QLineEdit *inp, QSettings &sets, QString key, QStri
     cv->cur = cur;
     cv->par = par;
     compWerte.insert( prmt+key, cv );
+    SETCOL( inp, SETCOLMARK_PARDIFF );
 }
 void SC_MainGUI::compDouble( QDoubleSpinBox *inp, QSettings &sets, QString key )
 {
@@ -5437,6 +5418,7 @@ void SC_MainGUI::compDouble( QDoubleSpinBox *inp, QSettings &sets, QString key )
     cv->cur = QString::number(cur);
     cv->par = QString::number(par);
     compWerte.insert( key, cv );
+    SETCOL( inp, SETCOLMARK_PARDIFF );
 }
 void SC_MainGUI::compInt( QSpinBox *inp, QSettings &sets, QString key )
 {
@@ -5447,6 +5429,7 @@ void SC_MainGUI::compInt( QSpinBox *inp, QSettings &sets, QString key )
     cv->cur = QString::number(cur);
     cv->par = QString::number(par);
     compWerte.insert( key, cv );
+    SETCOL( inp, SETCOLMARK_PARDIFF );
 }
 void SC_MainGUI::compInt( QComboBox *inp, QSettings &sets, QString key, QString prmt )
 {
@@ -5457,6 +5440,7 @@ void SC_MainGUI::compInt( QComboBox *inp, QSettings &sets, QString key, QString 
     cv->cur = QString::number(cur);
     cv->par = QString::number(par);
     compWerte.insert( prmt+key, cv );
+    SETCOL( inp, SETCOLMARK_PARDIFF );
 }
 void SC_MainGUI::compBool( QGroupBox *tog, QSettings &sets, QString key, QString prmt )
 {
@@ -5467,6 +5451,7 @@ void SC_MainGUI::compBool( QGroupBox *tog, QSettings &sets, QString key, QString
     cv->cur = cur ? "True" : "False";
     cv->par = par ? "True" : "False";
     compWerte.insert( prmt+key, cv );
+    SETCOL( tog, SETCOLMARK_PARDIFF );
 }
 void SC_MainGUI::compBool( QCheckBox *tog, QSettings &sets, QString key, QString prmt )
 {
@@ -5477,6 +5462,7 @@ void SC_MainGUI::compBool( QCheckBox *tog, QSettings &sets, QString key, QString
     cv->cur = cur ? "True" : "False";
     cv->par = par ? "True" : "False";
     compWerte.insert( prmt+key, cv );
+    SETCOL( tog, SETCOLMARK_PARDIFF );
 }
 void SC_MainGUI::compBool( QRadioButton *tog, QSettings &sets, QString key, QString prmt )
 {
@@ -5487,62 +5473,53 @@ void SC_MainGUI::compBool( QRadioButton *tog, QSettings &sets, QString key, QStr
     cv->cur = cur ? "True" : "False";
     cv->par = par ? "True" : "False";
     compWerte.insert( prmt+key, cv );
+    SETCOL( tog, SETCOLMARK_PARDIFF );
 }
 
 void SC_MainGUI::on_actionCompare_current_parameters_with_file_triggered()
 {
     QSettings data(SETT_APP,SETT_PAR);
     QString fn = data.value("LastParam",".").toString();
-    fn = QFileDialog::getOpenFileName( this, "Compare Parameter for "+curMethod, fn,
-                                      "Parameter (*.ini)",
-                                      nullptr, QFileDialog::DontUseNativeDialog | QFileDialog::DontResolveSymlinks );
+    fn = QFileDialog::getOpenFileName( this, "Compare current Parameter", fn,
+                                      "Parameter (*.ini *.sas_tpv)" );
+                                      //nullptr, QFileDialog::DontUseNativeDialog | QFileDialog::DontResolveSymlinks );
     if ( fn.isEmpty() ) return;
     //data.setValue("LastParam",fn);
 
+    on_butResetColorMarker_clicked();
+
     QSettings sets( fn, QSettings::IniFormat );
     sets.beginGroup( "Inputs" );
-    QString m = sets.value( "CurMethod", "" ).toString();
-    if ( ! m.isEmpty() )
-    {
-        if ( ui->tabMethods->tabText(ui->tabMethods->currentIndex()) != m )
-        {
-            _CompValues *cv = new _CompValues;
-            cv->cur = ui->tabMethods->tabText(ui->tabMethods->currentIndex());
-            cv->par = m;
-            compWerte.insert( "CurMethod", cv );
-        }
-    }
     compBool( ui->radQ1, sets, "RadioButtonQ1" );
     compBool( ui->radQ2, sets, "RadioButtonQ2" );
     compBool( ui->radQ4, sets, "RadioButtonQ4" );
     compBool( ui->togExpandImage, sets, "ExpandImage" );
-    compDouble( ui->inpAx1, sets, "EditAxis1x" );
+    compDouble( ui->inpVAx1, sets, "EditAxis1x" );
     compDouble( ui->inpAy1, sets, "EditAxis1y" );
     compDouble( ui->inpAz1, sets, "EditAxis1z" );
-    compDouble( ui->inpAx2, sets, "EditAxis2x" );
-    compDouble( ui->inpAy2, sets, "EditAxis2y" );
-    compDouble( ui->inpAz2, sets, "EditAxis2z" );
-    compDouble( ui->inpAx3, sets, "EditAxis3x" );
-    compDouble( ui->inpAy3, sets, "EditAxis3y" );
-    compDouble( ui->inpAz3, sets, "EditAxis3z" );
-    compDouble( ui->inpN1, sets, "Editxrel" );
-    compDouble( ui->inpN2, sets, "Edityrel" );
-    compDouble( ui->inpN3, sets, "Editzrel" );
+    compDouble( ui->inpVAx2_VAx1, sets, "EditAxis2x" );
+    compDouble( ui->inpAy2_Ay1, sets, "EditAxis2y" );
+    compDouble( ui->inpAz2_Az1, sets, "EditAxis2z" );
+    compDouble( ui->inpVAx3_VAx1, sets, "EditAxis3x" );
+    compDouble( ui->inpAy3_Ay1, sets, "EditAxis3y" );
+    compDouble( ui->inpAz3_Az1, sets, "EditAxis3z" );
+    //compDouble( ui->inpN1, sets, "Editxrel" );
+    //compDouble( ui->inpN2, sets, "Edityrel" );
+    //compDouble( ui->inpN3, sets, "Editzrel" );
     compDouble( ui->inpSigX, sets, "Editdom1" );
-    compDouble( ui->inpSigY, sets, "Editdom2" );
-    compDouble( ui->inpSigZ, sets, "Editdom3" );
-    compDouble( ui->inpU1, sets, "Editx1rel" );
-    compDouble( ui->inpU2, sets, "Edity1rel" );
-    compDouble( ui->inpU3, sets, "Editz1rel" );
-    compDouble( ui->inpV1, sets, "Editx2rel" );
-    compDouble( ui->inpV2, sets, "Edity2rel" );
-    compDouble( ui->inpV3, sets, "Editz2rel" );
-    compInt( ui->inpHKLmax, sets, "Edithklmax" );
-    compInt( ui->inpGridPoints, sets, "EditGridPoints" );
-    compBool( ui->grpLattice3D, sets, "UseLattice3D" );
+    compDouble( ui->inpSigY_SigX, sets, "Editdom2" );
+    compDouble( ui->inpSigZ_SigX, sets, "Editdom3" );
+    //compDouble( ui->inpU1, sets, "Editx1rel" );
+    //compDouble( ui->inpU2, sets, "Edity1rel" );
+    //compDouble( ui->inpU3, sets, "Editz1rel" );
+    //compDouble( ui->inpV1, sets, "Editx2rel" );
+    //compDouble( ui->inpV2, sets, "Edity2rel" );
+    //compDouble( ui->inpV3, sets, "Editz2rel" );
+    compInt( ui->intHKLmax, sets, "HKLmax" );
+    compInt( ui->intGridPoints, sets, "GridPoints" );
     compInt( ui->inpNumCores, sets, "Threads" );
-    compDouble( ui->inpBCenterX, sets, "EditCenterX" );
-    compDouble( ui->inpBCenterY, sets, "EditCenterY" );
+    compDouble( ui->inpBeamPosX, sets, "EditCenterX" );
+    compDouble( ui->inpBeamPosY_BeamPosX, sets, "EditCenterY" );
     sets.endGroup();
     sets.beginGroup( "AI" );
     compString( ui->inpSubDir, sets, "LastSubDir", "AI:" );
@@ -5557,72 +5534,31 @@ void SC_MainGUI::on_actionCompare_current_parameters_with_file_triggered()
     sets.endGroup();
 
     calcGui->compareParameter( sets, compWerte );
+    showColorMarker( SETCOLMARK_PARDIFF );
 
-    QFile fout( fn+".diff.csv" );
-    if ( ! fout.open(QIODevice::WriteOnly) )
-        qDebug() << fout.errorString();
-    else
-        fout.write("Key ; Current ; Parameter from file" EOL);
-    qDebug() << "Key" << "Cur" << "Par";
-    QStringList slKeys = compWerte.keys();
-    slKeys.sort();
-    foreach ( QString k, slKeys )
+    if ( compWerte.size() > 0 )
     {
-        qDebug() << k << compWerte[k]->cur << compWerte[k]->par;
-        if ( fout.isOpen() ) fout.write( qPrintable(k+" ; "+compWerte[k]->cur+" ; "+compWerte[k]->par+EOL) );
-    }
-    qDebug() << "Vergleich zu Ende";
-    if ( fout.isOpen() ) fout.close();
-
-    QMessageBox::information( this, "Compare parameters", "The differences are saved to\n"+fout.fileName(), QMessageBox::Ok );
-}
-
-
-void SC_MainGUI::disableUnusedElements()
-{
-#define DISPARAM(x) x->hide()
-//#define DISPARAM(x) x->setEnabled(false)
-    //qDebug() << "DIS anf" << calcHelper::slDisWidgets;
-    if ( calcHelper::slDisWidgets.removeOne("Uvec") )
-    {
-        DISPARAM(ui->inpU1);
-        DISPARAM(ui->inpU2);
-        DISPARAM(ui->inpU3);
-        DISPARAM(ui->lblParamU);
-    }
-    if ( calcHelper::slDisWidgets.removeOne("Vvec") )
-    {
-        DISPARAM(ui->inpV1);
-        DISPARAM(ui->inpV2);
-        DISPARAM(ui->inpV3);
-        DISPARAM(ui->lblParamV);
-    }
-    if ( calcHelper::slDisWidgets.removeOne("Nvec") )
-    {
-        DISPARAM(ui->inpN1);
-        DISPARAM(ui->inpN2);
-        DISPARAM(ui->inpN3);
-        DISPARAM(ui->lblParamN);
-    }
-    while ( calcHelper::slDisWidgets.size() > 0 )
-    {
-        QStringList sl = calcHelper::slDisWidgets.first().split(":");
-        if ( sl.size() == 2 )
+        QFile fout( fn+".diff.csv" );
+        if ( ! fout.open(QIODevice::WriteOnly) )
+            qDebug() << fout.fileName() << fout.errorString();
+        else
+            fout.write(qPrintable("Key ; Current ; Parameter from file "+fn+EOL));
+        // Auch bei einem Fehler beim Öffnen der Datei werden die Ergebnisse auf der Console angezeigt
+        qDebug() << "Key" << "Cur" << fn;
+        QStringList slKeys = compWerte.keys();
+        slKeys.sort();
+        foreach ( QString k, slKeys )
         {
-            paramHelper *phlp = calcGui->getParamPtr( sl[0], sl[1] );
-            if ( phlp != nullptr )
-            {
-                //qDebug() << calcHelper::slDisWidgets.first() << phlp->key;
-                if ( phlp->lbl1 != nullptr )
-                    DISPARAM(phlp->lbl1);
-                if ( phlp->gui.w != nullptr )
-                    DISPARAM(phlp->gui.w);
-            }
+            qDebug() << k << compWerte[k]->cur << compWerte[k]->par;
+            if ( fout.isOpen() ) fout.write( qPrintable(k+" ; "+compWerte[k]->cur+" ; "+compWerte[k]->par+EOL) );
         }
-        calcHelper::slDisWidgets.removeFirst();
+        qDebug() << "Vergleich zu Ende";
+        if ( fout.isOpen() ) fout.close();
+
+        QMessageBox::information( this, "Compare parameters", "The differences are saved to\n"+fout.fileName(), QMessageBox::Ok );
     }
-    //qDebug() << "DIS end" << calcHelper::slDisWidgets;
-#undef DISPARAM//(x)
+    else
+        QMessageBox::information( this, "Compare parameters", "The given file contains no other values.", QMessageBox::Ok );
 }
 
 
@@ -5649,12 +5585,10 @@ void SC_MainGUI::on_inpExtractCenterX_valueChanged(double )
 {
     setCurrentExtractRect();
 }
-
 void SC_MainGUI::on_inpExtractCenterY_valueChanged(double )
 {
     setCurrentExtractRect();
 }
-
 void SC_MainGUI::on_inpExtractGridSize_valueChanged(int )
 {
     setCurrentExtractRect();
@@ -5865,10 +5799,10 @@ void SC_MainGUI::searchParameterFilesHelper( QString d, int bl, QString msk )
             if ( fn.endsWith(".png") ) continue;
             if ( fn.endsWith("ParamSearch.log") ) continue;
             if ( fn.contains("training table") ) continue;
-            if ( fn.endsWith(".spr") )
+            /*if ( fn.endsWith(".spr") )
             {   // Spezielle Abfrage, damit von den vielen *.spr Files nicht alle verwendet werden
-                if ( fn.lastIndexOf('.') - fn.lastIndexOf('_') > 2 ) continue;
-            }
+                if ( fn.lastIndexOf('.') - fn.lastIndexOf('_') > 3 ) continue;
+            }*/
         }
         else
         {
@@ -5947,10 +5881,10 @@ void SC_MainGUI::on_butParamSearchGenerate_clicked()
         {   // Parameterfiles
             if ( fn.endsWith("ConfigParams.ini") ) continue;
             flog.write( qPrintable("Read "+fn+EOL) );
-            QString rv = local_Load_all_Parameters(fn,"");
+            QString rv = local_Load_all_Parameters(fn);
             if ( !rv.isEmpty() ) flog.write( qPrintable("  "+rv) ); // in 'rv' wird immer ein EOL am Ende gesetzt.
             flog.flush();
-            on_butCalc_clicked();
+            local_butCalc_clicked(); // ohne speichern der Parameter im Temp-File
             if ( _bAbbruch )
             {
                 flog.write("Aborted by user" EOL);
@@ -5975,7 +5909,7 @@ void SC_MainGUI::on_butParamSearchGenerate_clicked()
     flog.close();
     bSearchParamsRunning = false;
     // Wiederherstellen der vorherigen Parameterwerte
-    local_Load_all_Parameters(myLocPar,"");
+    local_Load_all_Parameters(myLocPar);
 }
 
 
@@ -6019,7 +5953,7 @@ void SC_MainGUI::on_butTPVsaveOptions_clicked()
     QSettings sets(fn,QSettings::IniFormat);
     // Group [General]
     sets.setValue("ena_io",ui->togTPVio->isChecked());
-    sets.setValue("val_io",ui->inpTPVio->value());    
+    sets.setValue("val_io",ui->inpTPVio->value());
     sets.setValue("ena_base",ui->togTPVbase->isChecked());
     sets.setValue("val_base",ui->inpTPVbase->value());
     sets.setValue("ena_radius",ui->togTPVradius->isChecked());
@@ -6037,7 +5971,7 @@ void SC_MainGUI::on_butTPVsaveOptions_clicked()
     sets.setValue("ena_b",ui->togTPVb->isChecked());
     sets.setValue("val_b",ui->inpTPVb->value());
     sets.setValue("ena_c",ui->togTPVc->isChecked());
-    sets.setValue("val_c",ui->inpTPVc->value());    
+    sets.setValue("val_c",ui->inpTPVc->value());
     sets.setValue("ena_rho",ui->togTPVrho->isChecked());
     sets.setValue("val_rho",ui->inpTPVrho->value());
     sets.setValue("ena_psi",ui->togTPVpsi->isChecked());
@@ -6057,11 +5991,16 @@ void SC_MainGUI::on_butTPVsaveOptions_clicked()
     sets.setValue("ena_addLines",ui->togTPVaddLines->isChecked());
     sets.setValue("val_addLinesH",ui->inpTPVaddLinesH->value());
     sets.setValue("val_addLinesV",ui->inpTPVaddLinesV->value());
+    sets.setValue("val_addLinesHwidth",ui->inpTPVaddLinesHwidth->value());
+    sets.setValue("val_addLinesVwidth",ui->inpTPVaddLinesVwidth->value());
     sets.setValue("ena_addBS",ui->togTPVaddBS->isChecked());
     sets.setValue("ena_addNoise",ui->togTPVaddNoise->isChecked());
     sets.setValue("ena_convolute",ui->togTPVconvolute->isChecked());
     sets.setValue("ena_calcRphi",ui->togTPVcalcRphi->isChecked());
     sets.setValue("ena_calcFFT",ui->togTPVcalcFFT->isChecked());
+    sets.setValue("ena_saveExtra",ui->togTPVsaveBaseExtra->isChecked());
+    sets.setValue("ena_generatePNG",ui->togTPVgeneratePNG->isChecked());
+    sets.setValue("ena_scaleScat",ui->togTPVscaleScat->isChecked());
     sets.setValue("val_numimg",ui->inpTPVnumimg->value());
     sets.setValue("val_outPath",ui->inpTPVoutPath->text());
     sets.sync();
@@ -6082,6 +6021,9 @@ void SC_MainGUI::on_butTPVsaveOptions_clicked()
     sets.setValue( "FFTclip40Output", ui->togFFTclip40Out->isChecked() );
     sets.setValue( "FFTSwapOutput", ui->togIFFTSwap->isChecked() );
     sets.setValue( "FFTsizeOut", ui->cbsFFTsizeOut->currentIndex() );
+    sets.setValue( "FFTcutOutX", ui->inpFFTcutX->value() );
+    sets.setValue( "FFTcutOutY", ui->inpFFTcutY->value() );
+    sets.setValue( "FFTcutOutEna", ui->togFFTcutEnabled->isChecked() );
     if ( ui->radFFToutReal->isChecked() )
         sets.setValue( "FFToutput", 0 );
     else if ( ui->radFFToutImag->isChecked() )
@@ -6103,10 +6045,11 @@ void SC_MainGUI::on_butTPVloadOptions_clicked()
     if ( !fn.endsWith(".sas_tpv") ) fn += ".sas_tpv";
     data.setValue("LastSaveFile",fn);
     data.endGroup();
+    on_butResetColorMarker_clicked();
     QSettings sets(fn,QSettings::IniFormat);
     ui->togTPVio->setChecked( sets.value("ena_io",true).toBool() );
     ui->inpTPVio->setValue( sets.value("val_io",0.5).toDouble() );
-    ui->inpTPVio->setEnabled(ui->togTPVio->isChecked());    
+    ui->inpTPVio->setEnabled(ui->togTPVio->isChecked());
     ui->togTPVbase->setChecked( sets.value("ena_base",true).toBool() );
     ui->inpTPVbase->setValue( sets.value("val_base",0.5).toDouble() );
     ui->inpTPVbase->setEnabled(ui->togTPVbase->isChecked());
@@ -6132,13 +6075,13 @@ void SC_MainGUI::on_butTPVloadOptions_clicked()
     ui->inpTPVb->setEnabled(ui->togTPVb->isChecked());
     ui->togTPVc->setChecked( sets.value("ena_c",true).toBool() );
     ui->inpTPVc->setValue( sets.value("val_c",0.5).toDouble() );
-    ui->inpTPVc->setEnabled(ui->togTPVc->isChecked());    
+    ui->inpTPVc->setEnabled(ui->togTPVc->isChecked());
     ui->togTPVrho->setChecked( sets.value("ena_rho",true).toBool() );
     ui->inpTPVrho->setValue( sets.value("val_rho",0.5).toDouble() );
     ui->inpTPVrho->setEnabled(ui->togTPVrho->isChecked());
     ui->togTPVpsi->setChecked( sets.value("ena_psi",true).toBool() );
     ui->inpTPVpsi->setValue( sets.value("val_psi",0.5).toDouble() );
-    ui->inpTPVpsi->setEnabled(ui->togTPVpsi->isChecked());    
+    ui->inpTPVpsi->setEnabled(ui->togTPVpsi->isChecked());
     ui->togTPVdbeta->setChecked( sets.value("ena_dbeta",true).toBool() );
     ui->inpTPVdbeta->setValue( sets.value("val_dbeta",0.5).toDouble() );
     ui->inpTPVdbeta->setEnabled(ui->togTPVdbeta->isChecked());
@@ -6163,15 +6106,60 @@ void SC_MainGUI::on_butTPVloadOptions_clicked()
     ui->togTPVaddLines->setChecked( sets.value("ena_addLines",false).toBool() );
     ui->inpTPVaddLinesH->setValue( sets.value("val_addLinesH",1).toInt() );
     ui->inpTPVaddLinesV->setValue( sets.value("val_addLinesV",5).toInt() );
+    ui->inpTPVaddLinesHwidth->setValue( sets.value("val_addLinesHwidth",2).toInt() );
+    ui->inpTPVaddLinesVwidth->setValue( sets.value("val_addLinesVwidth",2).toInt() );
     ui->inpTPVaddLinesH->setEnabled(ui->togTPVaddLines->isChecked());
     ui->inpTPVaddLinesV->setEnabled(ui->togTPVaddLines->isChecked());
+    ui->inpTPVaddLinesHwidth->setEnabled(ui->togTPVaddLines->isChecked());
+    ui->inpTPVaddLinesVwidth->setEnabled(ui->togTPVaddLines->isChecked());
+    ui->lblTPVaddLines->setEnabled(ui->togTPVaddLines->isChecked());
     ui->togTPVaddNoise->setChecked( sets.value("ena_addNoise",true).toBool() );
     ui->togTPVconvolute->setChecked( sets.value("ena_convolute",true).toBool() );
     ui->togTPVcalcRphi->setChecked( sets.value("ena_calcRphi",true).toBool() );
     ui->togTPVcalcFFT->setChecked( sets.value("ena_calcFFT",true).toBool() );
+    ui->togTPVsaveBaseExtra->setChecked( sets.value("ena_saveExtra",false).toBool() );
+    ui->togTPVgeneratePNG->setChecked( sets.value("ena_generatePNG",true).toBool() );
+    ui->togTPVscaleScat->setChecked( sets.value("ena_scaleScat",false).toBool() );
     ui->inpTPVnumimg->setValue( sets.value("val_numimg",10).toInt() );
     ui->inpTPVoutPath->setText( sets.value("val_outPath",".").toString() );
-    local_Load_all_Parameters(fn,"");
+    // Alle Berechnungdaten
+    local_Load_all_Parameters(fn);
+    // FFT Tab
+    sets.beginGroup("FFT");
+    ui->radFFTLinInput->setChecked(  sets.value("FFTLinInput",true).toBool() );
+    ui->radFFTLogInput->setChecked( !sets.value("FFTLinInput",true).toBool() );
+    ui->grpFFTuseRphi->setChecked( sets.value("FFTuseRphi",true).toBool() );
+    ui->cbsFFTsizeRphi->setCurrentIndex( sets.value("FFTsizeRphi",2).toInt() );
+    ui->togFFTscaleRphi->setChecked( sets.value("FFTScaleRphi",true).toBool() );
+    ui->togFFTclipRphi->setChecked( sets.value("FFTclipRphi",false).toBool() );
+    ui->togFFTclip40Rphi->setChecked( sets.value("FFTclip40Rphi",false).toBool() );
+    ui->togFFTdispRphi->setChecked( sets.value("DispRphi",true).toBool() );
+    ui->togFFTscaleOut->setChecked( sets.value("FFTScaleOutput",true).toBool() );
+    ui->togFFTclipOut->setChecked( sets.value("FFTclipOutput",false).toBool() );
+    ui->togFFTclip40Out->setChecked( sets.value("FFTclip40Output",false).toBool() );
+    ui->togIFFTSwap->setChecked( sets.value("FFTSwapOutput",true).toBool() );
+    ui->cbsFFTsizeOut->setCurrentIndex( sets.value("FFTsizeOut",2).toInt() );
+    ui->inpFFTcutX->setValue( sets.value("FFTcutOutX",64).toInt() );
+    ui->inpFFTcutY->setValue( sets.value("FFTcutOutY",64).toInt() );
+    ui->togFFTcutEnabled->setChecked( sets.value("FFTcutOutEna",false).toBool() );
+    ui->inpFFTcutX->setEnabled( ui->togFFTcutEnabled->isChecked() );
+    ui->inpFFTcutY->setEnabled( ui->togFFTcutEnabled->isChecked() );
+    switch ( sets.value("FFToutput",0).toInt() )
+    {
+    case 0: // Real
+        ui->radFFToutReal->setChecked(true);
+        break;
+    case 1: // Imag
+        ui->radFFToutImag->setChecked(true);
+        break;
+    case 2: // Abs
+        ui->radFFToutBetrag->setChecked(true);
+        break;
+    case 3: // Spec
+        ui->radFFToutSpectrum->setChecked(true);
+        break;
+    }
+    sets.endGroup();
 }
 
 void SC_MainGUI::on_butTPVstart_clicked()
@@ -6288,17 +6276,12 @@ void SC_MainGUI::on_butFFTverifyRphi_clicked()
 
 
 /*
-"training table.spr":
-    25    10 Start pixel = (       1       1)
-  intensity radius length sigma_r sigma_l rho a_cell psi phi width aziwidth dw base x0 y0 nbeam mbeam linex liney points holder hold.ang. bs.shape det.shape
-  8.01E+03 1.14E+01 1.04E+01 8.50E-02 1.34E-01 1.29E-01 4.33E+01 0.00E+00 2.80E+01 1.03E-02 3.28E-02 8.33E-01 1.72E-10 4.26E+01 4.45E+01 6.00E+00 5.00E+00 -1.46E+02 1.22E+02 6.40E+01 true 2.64E+02 circ sq
-
 "training table.txt":
     28    1000 Start pixel = (       1       1)
   run_no.   intensity radius    radius_m  length    sigma_r   sigma_l   rho       a_cell    b_cell    c_cell   psi      phi      width    aziwidth dw       dbeta    base     x0       y0       nbeam    mbeam    linex    liney    points   holder   hold_ang bs_shape det_shape
   0 1.61E+04 1.57E+01 2.68E+00 2.86E+01 6.39E-02 1.10E-01 8.40E-02 4.77E+01 4.77E+01 2.62E+01 0.00E+00 8.10E+01 1.44E-02 1.11E-02 1.00E+00 4.26E-01 9.34E-03 9.22E+01 5.95E+01 3.00E+00 7.00E+00 1.38E+02 -6.40E+01 6.40E+01 false 1.46E+02 rect sq
 */
-void SC_MainGUI::on_butReadTrainingTable_clicked()
+void SC_MainGUI::on_butTPVreadTrainingTable_clicked()
 {
     QSettings data(SETT_APP,SETT_GUI);
     data.beginGroup("TPV");
@@ -6314,12 +6297,13 @@ void SC_MainGUI::on_butReadTrainingTable_clicked()
         qDebug() << fn << fin.errorString();
         return;
     }
+    on_butResetColorMarker_clicked();
 
     QString line;
     /*line =*/ fin.readLine();  // 1. Zeile, die Werte dort brauche ich nicht
     line = fin.readLine();  // 2. Zeile: Schlüsselworte
     QStringList keys = line.trimmed().split(" ",Qt::SkipEmptyParts);
-    qDebug() << keys << keys.size();
+    //qDebug() << keys << keys.size();
     // Umsetzen der Schlüsselworte in die Kennungen der Variablen, die hier verwendet werden
     // <schlüssel in datei> | <kennung hier>     Normale Datenwerte zum Übernehmen
     // <schlüssel in datei> | -                  Hier nicht verwendet
@@ -6377,80 +6361,130 @@ void SC_MainGUI::on_butReadTrainingTable_clicked()
         if ( !found )
             usedKeys << keys[i];
     }
-    qDebug() << usedKeys;
+    //qDebug() << usedKeys;
     ui->actionFind_parameters_changing_image->setEnabled( tpvParamsKeys.size() > 0 );
+
+    // Jetzt einmal die maximale Run-No bestimmen und den User fragen, welchen Run er laden möchte
+    int maxrun = 0;
+    while ( !fin.atEnd() )
+    {
+        line = fin.readLine();
+        if ( line.isEmpty() ) continue;
+        QStringList svals = line.trimmed().split(" ",Qt::SkipEmptyParts);
+        if ( svals.size() < 2 ) continue;
+        if ( maxrun < svals[0].toInt() ) maxrun = svals[0].toInt();
+    }
+    fin.seek(0);
+    /*line =*/ fin.readLine();  // 1. Zeile (Dimensionen), die Werte dort brauche ich nicht
+    /*line =*/ fin.readLine();  // 2. Zeile (Schlüssel), die Werte dort brauche ich jetzt nicht mehr
+    QDialog *dlg = new QDialog(this);
+    QLabel *lbl = new QLabel(QString("Enter run no to load (0 - %1):").arg(maxrun));
+    QSpinBox *inp = new QSpinBox();
+    inp->setRange( 0, maxrun );
+    QPushButton *but = new QPushButton("Load");
+    QVBoxLayout *lay = new QVBoxLayout();
+    lay->addWidget(lbl);
+    lay->addWidget(inp);
+    lay->addWidget(but);
+    dlg->setLayout(lay);
+    connect( but, SIGNAL(clicked()), dlg, SLOT(accept()) );
+    dlg->exec();
+
+    int usedRun = inp->value();
+    //qDebug() << usedRun;
+
     bool pixelSizeChanged = tpvParamsKeys.contains("EditPixelX");
-    double defPixX = calcGui->currentParamValueDbl("","EditPixelX");
-    double defPixY = calcGui->currentParamValueDbl("","EditPixelY");
-    int zmaxt = ui->inpGridPoints->value();
-#define SETCOL(w,c) {QPalette pal=w->palette(); pal.setBrush(QPalette::Base,c); w->setPalette(pal);}
+    double defPixX = calcGui->currentParamValueDbl("EditPixelX");
+    double defPixY = calcGui->currentParamValueDbl("EditPixelY");
+    int zmaxt = ui->intGridPoints->value();
+    bool updFlag = bIgnoreRecalc;   // Während Parameterupdates macht hier ein Auto-Recalc keinen Sinn
+    bIgnoreRecalc = true;
     while ( !fin.atEnd() )
     {
         line = fin.readLine();
         if ( line.isEmpty() ) continue;
         QStringList svals = line.trimmed().split(" ",Qt::SkipEmptyParts);
         if ( svals.size() < keys.size() ) continue;     // Weniger Werte als Schlüssel werden ignoiert
-        for ( int i=0; i<keys.size(); i++ )
+        if ( usedRun != svals[0].toInt() ) continue;
+        for ( int i=0; i<usedKeys.size(); i++ )
         {
             double d = svals[i].toDouble();
             if ( usedKeys[i][0] == '@' )
             {
                 if ( usedKeys[i] == "@BSX" )
                 {
-                    ui->inpBCenterX->setValue( d );
-                    SETCOL( ui->inpBCenterX, Qt::yellow );
+                    ui->inpBeamPosX->setValue( d );
+                    SETCOL( ui->inpBeamPosX, SETCOLMARK_TRAINTBL );
                 }
                 else if ( usedKeys[i] == "@BSY" )
                 {
-                    ui->inpBCenterY->setValue( d );
-                    SETCOL( ui->inpBCenterY, Qt::yellow );
+                    ui->inpBeamPosY_BeamPosX->setValue( d );
+                    SETCOL( ui->inpBeamPosY_BeamPosX, SETCOLMARK_TRAINTBL );
                 }
                 else if ( usedKeys[i] == "@GP" )
                 {
-                    ui->inpGridPoints->setValue( d );
-                    SETCOL( ui->inpGridPoints, Qt::yellow );
+                    ui->intGridPoints->setValue( d );
+                    SETCOL( ui->intGridPoints, SETCOLMARK_TRAINTBL );
                 }
             }
             else if ( usedKeys[i][0] != '-' )
-                calcGui->updateParamValue( "", usedKeys[i], d, Qt::yellow, false );
+                calcGui->updateParamValue( usedKeys[i], d, SETCOLMARK_TRAINTBL, false );
         }
-        if ( ui->inpBCenterX->value() > 0 || ui->inpBCenterY->value() > 0 )
+        if ( ui->inpBeamPosX->value() > 0 || ui->inpBeamPosY_BeamPosX->value() > 0 )
         {
-            ui->inpBCenterX->setValue( ui->inpBCenterX->value() - ui->inpGridPoints->value() );
-            ui->inpBCenterY->setValue( ui->inpBCenterY->value() - ui->inpGridPoints->value() );
-            SETCOL( ui->inpBCenterX, Qt::yellow );
-            SETCOL( ui->inpBCenterY, Qt::yellow );
+            ui->inpBeamPosX->setValue( ui->inpBeamPosX->value() - ui->intGridPoints->value() );
+            ui->inpBeamPosY_BeamPosX->setValue( ui->inpBeamPosY_BeamPosX->value() - ui->intGridPoints->value() );
+            SETCOL( ui->inpBeamPosX, SETCOLMARK_TRAINTBL );
+            SETCOL( ui->inpBeamPosY_BeamPosX, SETCOLMARK_TRAINTBL );
         }
-        // Es wird nur die erste Zeile mit Datenwerten genutzt.
+        // Es wird nur eine Zeile mit Datenwerten genutzt.
         break;
-#undef SETCOL//(w,c)
     }
     fin.close();
 
     if ( !pixelSizeChanged )
     {
-        int zmax = ui->inpGridPoints->value();
+        int zmax = ui->intGridPoints->value();
 
-        calcGui->updateParamValue( "", "EditPixelNoX", 2*zmax+1, Qt::yellow );
-        calcGui->updateParamValue( "", "EditPixelNoY", 2*zmax+1, Qt::yellow );
+        calcGui->updateParamValue( "EditPixelNoX", 2*zmax+1, SETCOLMARK_TRAINTBL );
+        calcGui->updateParamValue( "EditPixelNoY", 2*zmax+1, SETCOLMARK_TRAINTBL );
 
-        calcGui->updateParamValue( "", "EditPixelX", defPixX*(2*zmaxt+1)/(2*zmax+1), Qt::yellow );
-        calcGui->updateParamValue( "", "EditPixelY", defPixY*(2*zmaxt+1)/(2*zmax+1), Qt::yellow );
+        if ( fabs( (2*zmaxt+1)/(2*zmax+1) - 1.0 ) > 0.001 )
+        {
+            calcGui->updateParamValue( "EditPixelX", defPixX*(2*zmaxt+1)/(2*zmax+1), SETCOLMARK_TRAINTBL );
+            calcGui->updateParamValue( "EditPixelY", defPixY*(2*zmaxt+1)/(2*zmax+1), SETCOLMARK_TRAINTBL );
+        }
     }
+    showColorMarker( SETCOLMARK_TRAINTBL );
 
-    // Jetzt wird noch der erste "scat" Datensatz aus dem verzeichnis mit der tabelle geladen
+    // Jetzt wird noch der gewünschte "scat" Datensatz aus dem verzeichnis mit der Tabelle geladen.
     QDir d(QFileInfo(fn).path());
     qDebug() << fn;
     d.cd("scat");
-    qDebug() << d.absoluteFilePath("scat_0.spr");
-    if ( ! local_OpenMeasFile(d.absoluteFilePath("scat_0.spr"),nullptr) )
+    qDebug() << d.absoluteFilePath(QString("scat_%1.spr").arg(usedRun));
+    widImage *img;
+    if ( ! local_OpenMeasFile(d.absoluteFilePath(QString("scat_%1.spr").arg(usedRun)),&img) )
         qDebug() << "Open failed.";
+    else
+    {
+        img->setLogScaling(false);
+        QHash<QString,paramHelper*>::iterator ip = calcGui->curMethod->params.begin();
+        while ( ip != calcGui->curMethod->params.end() )
+        {
+            if ( usedKeys.contains(ip.key()) )
+                img->addMetaInfo( ip.key(), calcGui->currentParamValueStr( ip.key(), true ) );
+            ++ip;
+        }
+        img->addMetaInfo( QString("from TrainTbl[%1]").arg(usedRun), fn );
+        img->addMetaInfo( "@", "" );    // Sortieren
+    }
+    bIgnoreRecalc = updFlag;
 }
 
 void SC_MainGUI::on_actionFind_parameters_changing_image_triggered()
 {
     //qDebug() << "TPV" << tpvParamsKeys;
-    QStringList all = calcGui->paramsForMethod(0,true,false,false);
+    QStringList all = calcGui->paramsForMethod(true,false,false);
 
     foreach ( QString s, tpvParamsKeys )
         all.removeOne(s);
@@ -6459,34 +6493,43 @@ void SC_MainGUI::on_actionFind_parameters_changing_image_triggered()
     all.removeOne("RadioButtonQ4");
     all.removeOne("ExpandImage");
     all.removeOne("Edithklmax");
-    all.removeOne("EditGridPoints");
+    all.removeOne("HKLmax");
+    all.removeOne("GridPoints");
     all.removeOne("LATTrows");
     all.removeOne("LATTcols");
     all.removeOne("LATTceny");
     all.removeOne("LATTcenx");
     all.removeOne("BeamPosX");
     all.removeOne("BeamPosY");
+    all.removeOne("BeamcenterX");
+    all.removeOne("BeamcenterY");
 
     all.removeOne("EditDet");       // Detektor-Abstand lassen wir hier mal weg
     all.removeOne("EditPixelX");    // Pixelsizes lassen wir hier auch weg
     all.removeOne("EditPixelY");
 
+    all.removeOne("iso");           // Diese Werte ändern auch immer die Daten
+    all.removeOne("I0");
+    all.removeOne("Base");
+
     // Jetzt sind in 'all' nur noch Parameter enthalten, die nicht vom obigen Lesen gesetzt wurden.
     // Diese werden jetzt durchgespielt, ob diese den Datensatz ändern.
 
+    //on_butResetColorMarker_clicked();
+
     // Zum Test schauen, ob der Datensatz nicht zu groß wird, das würde die Rechenzeit bei dem
     //  Durchgehen der Parameter unnötig erhöhen.
-    if ( ui->inpGridPoints->value() > 100 )
+    /*if ( ui->inpGridPoints->value() > 100 )
     {
         ui->inpGridPoints->setValue(64);
         // Dann aber auch den Beamstop mittig setzen
         ui->inpBCenterX->setValue(0);
         ui->inpBCenterY->setValue(0);
-    }
+    }*/
 
     // Erzeugen des aktuellen Datensatzes
-    on_butCalc_clicked();
-    int mx = ui->inpGridPoints->value();
+    local_butCalc_clicked(); // ohne speichern der Parameter im Temp-File
+    int mx = ui->intGridPoints->value();
     if ( ui->radQ1->isChecked() )
         mx = 4*mx*mx;
     else if ( ui->radQ2->isChecked() )
@@ -6500,10 +6543,10 @@ void SC_MainGUI::on_actionFind_parameters_changing_image_triggered()
     QStringList modParams;
     foreach ( QString s, all )
     {
-        double curval = calcGui->currentParamValueDbl("",s);
+        double curval = calcGui->currentParamValueDbl(s);
         double min, max;
         bool count; // uninteressant
-        if ( ! calcGui->limitsOfParamValue( "", s, min, max, count ) )
+        if ( ! calcGui->limitsOfParamValue( s, min, max, count ) )
         {
             qDebug() << "***" << s;
             continue;
@@ -6554,17 +6597,21 @@ void SC_MainGUI::on_actionFind_parameters_changing_image_triggered()
             //break;
             if ( !modParams.contains(s) ) modParams << s;
         }
-        calcGui->updateParamValue( "", s, curval, Qt::black );
+        calcGui->updateParamValue( s, curval, SETCOLMARK_IGNORED );
         if ( _bAbbruch ) break;
     }
+    foreach ( QString s, modParams )
+        calcGui->updateParamValueColor( s, SETCOLMARK_CHGIMG );
+    showColorMarker( SETCOLMARK_CHGIMG );
+
     qDebug() << modParams;
 }
 
 bool SC_MainGUI::vergleicheCheckData( QString par, double val, const double *check, int mx )
 {
-    calcGui->updateParamValue( "", par, val, Qt::black );
+    calcGui->updateParamValue( par, val, Qt::black );
 
-    on_butCalc_clicked();
+    local_butCalc_clicked(); // ohne speichern der Parameter im Temp-File
     if ( _bAbbruch ) return false; // Keine Änderungsmarkierung bei Abbruch
 
     const double *tmp = calcGui->data();
@@ -6579,11 +6626,1294 @@ bool SC_MainGUI::vergleicheCheckData( QString par, double val, const double *che
 
 void SC_MainGUI::on_butResetColorMarker_clicked()
 {
-    calcGui->resetParamColorMarker( Qt::white );
-    QPalette pal;
-#define SETCOL(w,c) pal=w->palette(); pal.setBrush(QPalette::Base,c); w->setPalette(pal);
-    SETCOL( ui->inpBCenterX, Qt::white );
-    SETCOL( ui->inpBCenterY, Qt::white );
-    SETCOL( ui->inpGridPoints, Qt::white );
-#undef SETCOL//(w,c)
+    DT( qDebug() << "on_butResetColorMarker_clicked()" );
+    showColorMarker( SETCOLMARK_CLEARED );
+    calcGui->resetParamColorMarker( SETCOLMARK_CLEARED );
+    SETCOL( ui->radQ1,             SETCOLMARK_CLEARED );
+    SETCOL( ui->radQ2,             SETCOLMARK_CLEARED );
+    SETCOL( ui->radQ4,             SETCOLMARK_CLEARED );
+    SETCOL( ui->togExpandImage,    SETCOLMARK_CLEARED );
+    SETCOL( ui->inpVAx1,            SETCOLMARK_CLEARED );
+    SETCOL( ui->inpAy1,            SETCOLMARK_CLEARED );
+    SETCOL( ui->inpAz1,            SETCOLMARK_CLEARED );
+    SETCOL( ui->inpVAx2_VAx1,            SETCOLMARK_CLEARED );
+    SETCOL( ui->inpAy2_Ay1,            SETCOLMARK_CLEARED );
+    SETCOL( ui->inpAz2_Az1,            SETCOLMARK_CLEARED );
+    SETCOL( ui->inpVAx3_VAx1,            SETCOLMARK_CLEARED );
+    SETCOL( ui->inpAy3_Ay1,            SETCOLMARK_CLEARED );
+    SETCOL( ui->inpAz3_Az1,            SETCOLMARK_CLEARED );
+    //SETCOL( ui->inpN1,             SETCOLMARK_CLEARED );
+    //SETCOL( ui->inpN2,             SETCOLMARK_CLEARED );
+    //SETCOL( ui->inpN3,             SETCOLMARK_CLEARED );
+    SETCOL( ui->inpSigX,           SETCOLMARK_CLEARED );
+    SETCOL( ui->inpSigY_SigX,           SETCOLMARK_CLEARED );
+    SETCOL( ui->inpSigZ_SigX,           SETCOLMARK_CLEARED );
+    //SETCOL( ui->inpU1,             SETCOLMARK_CLEARED );
+    //SETCOL( ui->inpU2,             SETCOLMARK_CLEARED );
+    //SETCOL( ui->inpU3,             SETCOLMARK_CLEARED );
+    //SETCOL( ui->inpV1,             SETCOLMARK_CLEARED );
+    //SETCOL( ui->inpV2,             SETCOLMARK_CLEARED );
+    //SETCOL( ui->inpV3,             SETCOLMARK_CLEARED );
+    SETCOL( ui->intHKLmax,         SETCOLMARK_CLEARED );
+    SETCOL( ui->intGridPoints,     SETCOLMARK_CLEARED );
+    SETCOL( ui->inpNumCores,       SETCOLMARK_CLEARED );
+    SETCOL( ui->inpBeamPosX,       SETCOLMARK_CLEARED );
+    SETCOL( ui->inpBeamPosY_BeamPosX,       SETCOLMARK_CLEARED );
+    SETCOL( ui->inpSubDir,         SETCOLMARK_CLEARED );
+    SETCOL( ui->cbsAIoutputFormat, SETCOLMARK_CLEARED );
+    SETCOL( ui->grpFileInput,      SETCOLMARK_CLEARED );
+    SETCOL( ui->inpFileName,       SETCOLMARK_CLEARED );
+    SETCOL( ui->inpFileClass,      SETCOLMARK_CLEARED );
+    SETCOL( ui->togAIUseFFTOutput, SETCOLMARK_CLEARED );
+    SETCOL( ui->radAILinOutput,    SETCOLMARK_CLEARED );
+    SETCOL( ui->radAILogOutput,    SETCOLMARK_CLEARED );
+    SETCOL( ui->togAIScaleOutput,  SETCOLMARK_CLEARED );
+}
+
+void SC_MainGUI::on_butTPVupdateAllFiles_clicked()
+{
+    QSettings data(SETT_APP,SETT_GUI);
+    data.beginGroup("TPV");
+    QString fn = data.value("LastSaveFile",".").toString();
+    data.endGroup();
+    fn = QFileDialog::getExistingDirectory( this, "Update TPV infos", fn );
+    if ( fn.isEmpty() ) return;
+
+    QDir d(fn);
+    QFileInfoList fil = d.entryInfoList( QStringList()<<"*.sas_tpv" );
+
+    foreach ( QFileInfo fi, fil )
+    {
+        qDebug() << "Update" << fi.absoluteFilePath();
+
+        QSettings sets(fi.absoluteFilePath(),QSettings::IniFormat);
+        // Group [General]
+        sets.setValue("ena_io",ui->togTPVio->isChecked());
+        sets.setValue("val_io",ui->inpTPVio->value());
+        sets.setValue("ena_base",ui->togTPVbase->isChecked());
+        sets.setValue("val_base",ui->inpTPVbase->value());
+        sets.setValue("ena_radius",ui->togTPVradius->isChecked());
+        sets.setValue("val_radius",ui->inpTPVradius->value());
+        sets.setValue("ena_sigmar",ui->togTPVsigmar->isChecked());
+        sets.setValue("val_sigmar",ui->inpTPVsigmar->value());
+        sets.setValue("ena_length",ui->togTPVlength->isChecked());
+        sets.setValue("val_length",ui->inpTPVlength->value());
+        sets.setValue("ena_sigmal",ui->togTPVsigmal->isChecked());
+        sets.setValue("val_sigmal",ui->inpTPVsigmal->value());
+        sets.setValue("ena_phi",ui->togTPVphi->isChecked());
+        //sets.setValue("val_phi",ui->inpTPVphi->value());
+        sets.setValue("ena_a",ui->togTPVa->isChecked());
+        sets.setValue("val_a",ui->inpTPVa->value());
+        sets.setValue("ena_b",ui->togTPVb->isChecked());
+        sets.setValue("val_b",ui->inpTPVb->value());
+        sets.setValue("ena_c",ui->togTPVc->isChecked());
+        sets.setValue("val_c",ui->inpTPVc->value());
+        sets.setValue("ena_rho",ui->togTPVrho->isChecked());
+        sets.setValue("val_rho",ui->inpTPVrho->value());
+        sets.setValue("ena_psi",ui->togTPVpsi->isChecked());
+        sets.setValue("val_psi",ui->inpTPVpsi->value());
+        sets.setValue("ena_dbeta",ui->togTPVdbeta->isChecked());
+        sets.setValue("val_dbeta",ui->inpTPVdbeta->value());
+        sets.setValue("ena_width",ui->togTPVwidth->isChecked());
+        sets.setValue("val_width",ui->inpTPVwidth->value());
+        sets.setValue("ena_phiwidth",ui->togTPVphiwidth->isChecked());
+        sets.setValue("val_phiwidth",ui->inpTPVphiwidth->value());
+        sets.setValue("ena_displacement",ui->togTPVdisplacement->isChecked());
+        sets.setValue("val_displacement",ui->inpTPVdisplacement->value());
+        sets.setValue("val_beamx0",ui->inpTPVbeamx0->value());
+        sets.setValue("val_beamy0",ui->inpTPVbeamy0->value());
+        sets.setValue("val_nbeam",ui->inpTPVnbeam->value());
+        sets.setValue("val_mbeam",ui->inpTPVmbeam->value());
+        sets.setValue("ena_addLines",ui->togTPVaddLines->isChecked());
+        sets.setValue("val_addLinesH",ui->inpTPVaddLinesH->value());
+        sets.setValue("val_addLinesV",ui->inpTPVaddLinesV->value());
+        sets.setValue("val_addLinesHwidth",ui->inpTPVaddLinesHwidth->value());
+        sets.setValue("val_addLinesVwidth",ui->inpTPVaddLinesVwidth->value());
+        sets.setValue("ena_addBS",ui->togTPVaddBS->isChecked());
+        sets.setValue("ena_addNoise",ui->togTPVaddNoise->isChecked());
+        sets.setValue("ena_convolute",ui->togTPVconvolute->isChecked());
+        sets.setValue("ena_calcRphi",ui->togTPVcalcRphi->isChecked());
+        sets.setValue("ena_calcFFT",ui->togTPVcalcFFT->isChecked());
+        sets.setValue("ena_saveExtra",ui->togTPVsaveBaseExtra->isChecked());
+        sets.setValue("ena_generatePNG",ui->togTPVgeneratePNG->isChecked());
+        sets.setValue("ena_scaleScat",ui->togTPVscaleScat->isChecked());
+        sets.setValue("val_numimg",ui->inpTPVnumimg->value());
+        // Nur der Pfad bleibt unberührt !
+        //sets.setValue("val_outPath",ui->inpTPVoutPath->text());
+        sets.sync();
+    }
+}
+
+
+void SC_MainGUI::showColorMarker( QColor c )
+{
+    DT( qDebug() << "showColorMarker()" << c );
+    if ( c == SETCOLMARK_CLEARED )
+    {
+        ui->lblColMarkChgImg->setVisible(false);
+        ui->lblColMarkParDiff->setVisible(false);
+        ui->lblColMarkTrainTbl->setVisible(false);
+        ui->grpColorMarker->setVisible(false);
+        return;
+    }
+    if ( c == SETCOLMARK_CHGIMG   ) ui->lblColMarkChgImg->setVisible(true);
+    if ( c == SETCOLMARK_PARDIFF  ) ui->lblColMarkParDiff->setVisible(true);
+    if ( c == SETCOLMARK_TRAINTBL ) ui->lblColMarkTrainTbl->setVisible(true);
+    ui->grpColorMarker->setVisible(true);
+}
+
+
+// Im Vorgriff auf die komplette Neustrukturierungen (nur noch die GENERAL-Klasse)
+// werden hier mal Signale verwendet.
+
+void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
+{
+    DT( qDebug() << "on_cbsLType_currentIndexChanged()" << index << bIgnoreRecalc );
+    bool updFlag = bIgnoreRecalc;
+    bIgnoreRecalc = true;
+    //Z=36496 = ComboBoxLatticeChange
+    myGuiParam *gp;
+    switch ( index )
+    {
+    case  0:  /*  Lamellae  */  //Z=36497
+        myGuiParam::setEnabled( "uca", true  );
+        myGuiParam::setEnabled( "ucb", false );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", true );
+        myGuiParam::setEnabled( "EditAzi", true );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", false );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(false);
+        //??EditTwRatio.Visible = false;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", false );
+        myGuiParam::setEnabled( "bcpl", false );
+        myGuiParam::setEnabled( "ComboBoxPeak", true );
+        myGuiParam::setEnabled( "EditCeffcyl", false );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 2 );
+        gp=myGuiParam::getGuiParam("Length");
+        if(gp)gp->inp()->setValue( 250 );
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = false;
+        myGuiParam::setEnabled( "iso", true );
+        //??Editacrit.visible = false;
+        //??EditAbsorb.Visible = false;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //ButtonHKLClick(Sender);
+        //-->RadioButtonSys1DClick(Sender);  //Z=43426
+        /*
+            ComboBoxCubic.ItemIndex = -1;  //Z=41593
+            ComboBoxHexagonal.ItemIndex = -1;  //Z=41594
+            ComboBoxTrigonal.ItemIndex = -1;  //Z=41595
+            ComboBoxTetragonal.ItemIndex = -1;  //Z=41596
+            ComboBoxOrthorhombic.ItemIndex = -1;  //Z=41597
+            ComboBoxMonoclinic.ItemIndex = -1;  //Z=41598
+            ComboBoxTriclinic.ItemIndex = -1;  //Z=41599
+            ComboBox2D.ItemIndex = -1;  //Z=41600
+            ComboBox1D.ItemIndex = 0;  //Z=41601
+
+            TrackBarCellA.visible = true;  //Z=41603
+            EditCellA.visible = true;  //Z=41604
+            EditAmax.visible = true;  //Z=41605
+            TrackBarCellB.visible = false;  //Z=41606
+            EditCellB.visible = false;  //Z=41607
+            EditBmax.visible = false;  //Z=41608
+            TrackBarCellC.visible = false;  //Z=41609
+            EditCellC.visible = false;  //Z=41610
+            EditCmax.visible = false;  //Z=41611
+            TrackBarCellAlpha.visible = false;  //Z=41612
+            EditCellAlpha.visible = false;  //Z=41613
+            EditCellAlpha.Text = '90';  //Z=41614
+            TrackBarCellBeta.visible = false;  //Z=41615
+            EditCellBeta.visible = false;  //Z=41616
+            EditCellBeta.Text = '90';  //Z=41617
+            TrackBarCellGamma.visible = true;  //Z=41618
+            EditCellGamma.visible = true;  //Z=41619
+            EditCellGamma.Text = '90';  //Z=41620
+        */
+        break;
+
+    case  1:  /*  hexagonal cylinders  */  //Z=36544
+        myGuiParam::setEnabled( "uca", true  );
+        myGuiParam::setEnabled( "ucb", false );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", true );
+        myGuiParam::setEnabled( "EditAzi", true );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", false );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(false);
+        //??EditTwRatio.Visible = false;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", false );
+        myGuiParam::setEnabled( "bcpl", false );
+        myGuiParam::setEnabled( "ComboBoxPeak", true );
+        myGuiParam::setEnabled( "EditCeffcyl", false );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 1 );
+        gp=myGuiParam::getGuiParam("Length");
+        if(gp)gp->inp()->setValue( 500 );
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true );
+        //??EditAlphai.Visible = false;
+        myGuiParam::setEnabled( "iso", true );
+        //??Editacrit.visible = false;
+        //??EditAbsorb.Visible = false;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //ButtonHKLClick(Sender);
+        //-->RadioButtonSys2DClick(Sender);  //Z=43431
+        break;
+
+    case  2:  /*  square cylinders  */  //Z=36592
+        myGuiParam::setEnabled( "uca", true  );
+        myGuiParam::setEnabled( "ucb", false );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", true );
+        myGuiParam::setEnabled( "EditAzi", true );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", false );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(false);
+        //??EditTwRatio.Visible = false;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", false );
+        myGuiParam::setEnabled( "bcpl", false );
+        myGuiParam::setEnabled( "ComboBoxPeak", true );
+        myGuiParam::setEnabled( "EditCeffcyl", false );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 1 );
+        gp=myGuiParam::getGuiParam("Length");
+        if(gp)gp->inp()->setValue( 500 );
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = false;
+        myGuiParam::setEnabled( "iso", true );
+        //??Editacrit.visible = false;
+        //??EditAbsorb.Visible = false;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //ButtonHKLClick(Sender);
+        //-->RadioButtonSys2DClick(Sender);  //Z=43436
+        break;
+
+    case  3:  /*  rectangular centered cylinders  */  //Z=36640
+        myGuiParam::setEnabled( "uca", true  );
+        myGuiParam::setEnabled( "ucb", true  );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", true );
+        myGuiParam::setEnabled( "EditAzi", true );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", false );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(false);
+        //??EditTwRatio.Visible = false;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", false );
+        myGuiParam::setEnabled( "bcpl", false );
+        myGuiParam::setEnabled( "ComboBoxPeak", true );
+        myGuiParam::setEnabled( "EditCeffcyl", false );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 1 );
+        gp=myGuiParam::getGuiParam("Length");
+        if(gp)gp->inp()->setValue( 500 );
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = false;
+        myGuiParam::setEnabled( "iso", true );
+        //??Editacrit.visible = false;
+        //??EditAbsorb.Visible = false;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //ButtonHKLClick(Sender);
+        //-->RadioButtonSys2DClick(Sender);  //Z=43441
+        break;
+
+    case  4:  /*  bcc  */  //Z=36688
+        myGuiParam::setEnabled( "uca", true  );
+        myGuiParam::setEnabled( "ucb", false );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", true );
+        myGuiParam::setEnabled( "EditAzi", true );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", true );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(true);
+        //??EditTwRatio.Visible = true;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", false );
+        myGuiParam::setEnabled( "bcpl", false );
+        myGuiParam::setEnabled( "ComboBoxPeak", true );
+        myGuiParam::setEnabled( "EditCeffcyl", false );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 0 );
+        //gp=myGuiParam::getGuiParam("Length");
+        //if(gp)gp->inp()->setValue( 250 );
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = false;
+        myGuiParam::setEnabled( "iso", true );
+        //??Editacrit.visible = false;
+        //??EditAbsorb.Visible = false;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //ButtonHKLClick(Sender);
+        //-->RadioButtonSysCubicClick(Sender);  //Z=43446
+        break;
+
+    case  5:  /*  fcc  */  //Z=36735
+        myGuiParam::setEnabled( "uca", true  );
+        myGuiParam::setEnabled( "ucb", false );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", true );
+        myGuiParam::setEnabled( "EditAzi", true );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", true );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(true);
+        //??EditTwRatio.Visible = true;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", false );
+        myGuiParam::setEnabled( "bcpl", false );
+        myGuiParam::setEnabled( "ComboBoxPeak", true );
+        myGuiParam::setEnabled( "EditCeffcyl", false );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 0 );
+        //gp=myGuiParam::getGuiParam("Length");
+        //if(gp)gp->inp()->setValue( 250 );
+        //??ButtonBiCont.Visible = true;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = false;
+        myGuiParam::setEnabled( "iso", true );
+        //??Editacrit.visible = false;
+        //??EditAbsorb.Visible = false;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //ButtonHKLClick(Sender);
+        //-->RadioButtonSysCubicClick(Sender);  //Z=43451
+        break;
+
+    case  6:  /*  hcp  */  //Z=36782
+        myGuiParam::setEnabled( "uca", true  );
+        myGuiParam::setEnabled( "ucb", false );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", true );
+        myGuiParam::setEnabled( "EditAzi", true );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", true );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(true);
+        //??EditTwRatio.Visible = true;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", false );
+        myGuiParam::setEnabled( "bcpl", false );
+        myGuiParam::setEnabled( "ComboBoxPeak", true );
+        myGuiParam::setEnabled( "EditCeffcyl", false );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 0 );
+        //gp=myGuiParam::getGuiParam("Length");
+        //if(gp)gp->inp()->setValue( 250 );
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = false;
+        myGuiParam::setEnabled( "iso", true );
+        //??Editacrit.visible = false;
+        //??EditAbsorb.Visible = false;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //ButtonHKLClick(Sender);
+        //-->RadioButtonSysHexClick(Sender);  //Z=43456
+        break;
+
+    case  7:  /*  sc  */  //Z=36829
+        myGuiParam::setEnabled( "uca", true  );
+        myGuiParam::setEnabled( "ucb", false );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", true );
+        myGuiParam::setEnabled( "EditAzi", true );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", false );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(false);
+        //??EditTwRatio.Visible = false;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", false );
+        myGuiParam::setEnabled( "bcpl", false );
+        myGuiParam::setEnabled( "ComboBoxPeak", true );
+        myGuiParam::setEnabled( "EditCeffcyl", false );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 0 );
+        //gp=myGuiParam::getGuiParam("Length");
+        //if(gp)gp->inp()->setValue( 250 );
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = false;
+        myGuiParam::setEnabled( "iso", true );
+        //??Editacrit.visible = false;
+        //??EditAbsorb.Visible = false;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //ButtonHKLClick(Sender);
+        //-->RadioButtonSysCubicClick(Sender);  //Z=43461
+        break;
+
+    case  8:  /*  tetragonal centered spheres  */  //Z=36876
+        myGuiParam::setEnabled( "uca", true  );
+        myGuiParam::setEnabled( "ucb", true );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", true );
+        myGuiParam::setEnabled( "EditAzi", true );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", false );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(false);
+        //??EditTwRatio.Visible = false;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", false );
+        myGuiParam::setEnabled( "bcpl", false );
+        myGuiParam::setEnabled( "ComboBoxPeak", true );
+        myGuiParam::setEnabled( "EditCeffcyl", false );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 0 );
+        //gp=myGuiParam::getGuiParam("Length");
+        //if(gp)gp->inp()->setValue( 250 );
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = false;
+        myGuiParam::setEnabled( "iso", true );
+        //??Editacrit.visible = false;
+        //??EditAbsorb.Visible = false;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //ButtonHKLClick(Sender);
+        //-->RadioButtonSysTetragonalClick(Sender);  //Z=43466
+        break;
+
+    case 17:  /*  fd3m  */  //Z=36923
+        myGuiParam::setEnabled( "uca", true  );
+        myGuiParam::setEnabled( "ucb", false );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", true );
+        myGuiParam::setEnabled( "EditAzi", true );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", false );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(false);
+        //??EditTwRatio.Visible = false;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", false );
+        myGuiParam::setEnabled( "bcpl", false );
+        myGuiParam::setEnabled( "ComboBoxPeak", true );
+        myGuiParam::setEnabled( "EditCeffcyl", false );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 0 );
+        //gp=myGuiParam::getGuiParam("Length");
+        //if(gp)gp->inp()->setValue( 250 );
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = false;
+        myGuiParam::setEnabled( "iso", true );
+        //??Editacrit.visible = false;
+        //??EditAbsorb.Visible = false;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //ButtonHKLClick(Sender);
+        //-->RadioButtonSysCubicClick(Sender);  //Z=43486
+        break;
+
+    case 22:  /*  Pm3n, A15  */  //Z=36970
+        myGuiParam::setEnabled( "uca", true  );
+        myGuiParam::setEnabled( "ucb", false );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", true );
+        myGuiParam::setEnabled( "EditAzi", true );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", true );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(true);
+        //??EditTwRatio.Visible = true;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", false );
+        myGuiParam::setEnabled( "bcpl", false );
+        myGuiParam::setEnabled( "ComboBoxPeak", true );
+        myGuiParam::setEnabled( "EditCeffcyl", false );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 0 );
+        //gp=myGuiParam::getGuiParam("Length");
+        //if(gp)gp->inp()->setValue( 250 );
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = false;
+        myGuiParam::setEnabled( "iso", true );
+        //??Editacrit.visible = false;
+        //??EditAbsorb.Visible = false;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //ButtonHKLClick(Sender);
+        //-->RadioButtonSysOrthoClick(Sender);  //Z=43497
+        break;
+
+    case  9:  /*  gyroid  */  //Z=37018
+        myGuiParam::setEnabled( "uca", true  );
+        myGuiParam::setEnabled( "ucb", false );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", true );
+        myGuiParam::setEnabled( "EditAzi", true );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", false );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(false);
+        //??EditTwRatio.Visible = false;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", false );
+        myGuiParam::setEnabled( "bcpl", false );
+        myGuiParam::setEnabled( "ComboBoxPeak", true );
+        myGuiParam::setEnabled( "EditCeffcyl", false );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 3 );
+        //gp=myGuiParam::getGuiParam("Length");
+        //if(gp)gp->inp()->setValue( 250 );
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = false;
+        myGuiParam::setEnabled( "iso", true );
+        //??Editacrit.visible = false;
+        //??EditAbsorb.Visible = false;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //ButtonHKLClick(Sender);
+        //-->RadioButtonSysCubicClick(Sender);  //Z=43471
+        break;
+
+    case 10:  /*  OBDD  */  //Z=37066
+        //ButtonPn3mVesClick(Sender);  //Z=37067
+        {/*1*/  //Z=45878
+            const double b = 0.5484;  //Z=45879
+            const double c = 0.6200;  //Z=45880
+            const double n = 2;  //Z=45881
+            double a, Ri, Ro, phi; //, area, lp;  //Z=45883
+            gp=myGuiParam::getGuiParam("uca");  //Z=45886
+            a = gp->inp()->value();
+            Ro = c*a;  //Z=45887
+            Ri = b*Ro;  //Z=45888
+            phi = n*4*M_PI*c*c*c*(1-b*b*b)/3.0;  //Z=45889
+            //area = 8*M_PI*c*c*(1+b*b)/a;  //Z=45890
+            //lp = 4*phi*(1-phi)/area;  //Z=45891
+            //s.u. ComboBoxParticle.ItemIndex = 3;  //Z=45892
+            gp=myGuiParam::getGuiParam("EditRadius");
+            if(gp)gp->inp()->setValue( Ri );  //Z=45893
+            gp=myGuiParam::getGuiParam("EditLength");
+            if(gp)gp->inp()->setValue( Ro );  //Z=45894
+            gp=myGuiParam::getGuiParam("EditPhi");
+            if(gp)gp->inp()->setValue( phi );  //Z=45895
+            //EditArea.Text = FloatToStr(area);  //Z=45896
+            //Editlp.Text = FloatToStr(lp);  //Z=45897
+        }/*1*/  //Z=45898
+        myGuiParam::setEnabled( "uca", true  );
+        myGuiParam::setEnabled( "ucb", false );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", true );
+        myGuiParam::setEnabled( "EditAzi", true );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", false );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(false);
+        //??EditTwRatio.Visible = false;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", false );
+        myGuiParam::setEnabled( "bcpl", false );
+        myGuiParam::setEnabled( "ComboBoxPeak", true );
+        myGuiParam::setEnabled( "EditCeffcyl", false );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 3 );
+        //gp=myGuiParam::getGuiParam("Length");
+        //if(gp)gp->inp()->setValue( 250 );
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = false;
+        myGuiParam::setEnabled( "iso", true );
+        //??Editacrit.visible = false;
+        //??EditAbsorb.Visible = false;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //ButtonHKLClick(Sender);
+        //-->RadioButtonSysCubicClick(Sender);  //Z=43476
+        break;
+
+    case 11:  /*  Im3m  */  //Z=37114
+        //ButtonIm3mVesClick(Sender);  //Z=37115
+        myGuiParam::setEnabled( "uca", true  );
+        myGuiParam::setEnabled( "ucb", false );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", true );
+        myGuiParam::setEnabled( "EditAzi", true );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", false );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(false);
+        //??EditTwRatio.Visible = false;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", false );
+        myGuiParam::setEnabled( "bcpl", false );
+        myGuiParam::setEnabled( "ComboBoxPeak", true );
+        myGuiParam::setEnabled( "EditCeffcyl", false );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 3 );
+        //gp=myGuiParam::getGuiParam("Length");
+        //if(gp)gp->inp()->setValue( 250 );
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = false;
+        myGuiParam::setEnabled( "iso", true );
+        //??Editacrit.visible = false;
+        //??EditAbsorb.Visible = false;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //ButtonHKLClick(Sender);
+        //-->RadioButtonSysCubicClick(Sender);  //Z=43481
+        break;
+
+    case 12:  /*  none  */  //Z=37162
+        myGuiParam::setEnabled( "uca", false );
+        myGuiParam::setEnabled( "ucb", false );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, false );
+        myGuiParam::setEnabled( "EditDomainSize", false );
+        myGuiParam::setEnabled( "EditAzi", false );
+        myGuiParam::setEnabled( "EditDebyeWaller", false );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", false );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(false);
+        //??EditTwRatio.Visible = false;
+        myGuiParam::setEnabled( "HKLmax", false );
+        myGuiParam::setEnabled( "acpl", false );
+        myGuiParam::setEnabled( "bcpl", false );
+        myGuiParam::setEnabled( "ComboBoxPeak", false );
+        myGuiParam::setEnabled( "EditCeffcyl", true );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 0 );
+        //gp=myGuiParam::getGuiParam("Length");
+        //if(gp)gp->inp()->setValue( 250 );
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = true;
+        myGuiParam::setEnabled( "iso", true );
+        //??Editacrit.visible = false;
+        //??EditAbsorb.Visible = true;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //ButtonHKLClick(Sender);
+        //-->nichts
+        break;
+
+    case 13:  /*  cpl  */  //Z=37206
+        myGuiParam::setEnabled( "uca", true  );
+        myGuiParam::setEnabled( "ucb", false );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", false );
+        myGuiParam::setEnabled( "EditAzi", false );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", false );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(false);
+        //??EditTwRatio.Visible = false;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", true );     // Editastack
+        myGuiParam::setEnabled( "bcpl", true );     // Editbstack
+        gp=myGuiParam::setEnabled( "ComboBoxPeak", true );
+        if(gp)gp->cbs()->setCurrentIndex( 7 );   //Z=37242
+        myGuiParam::setEnabled( "EditCeffcyl", false );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 0 );
+        //gp=myGuiParam::getGuiParam("Length");
+        //if(gp)gp->inp()->setValue( 250 );
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = false;
+        myGuiParam::setEnabled( "iso", true );
+        //??Editacrit.visible = false;
+        //??EditAbsorb.Visible = false;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //GroupBoxAniso.Visible = true;  //Z=37238
+        gp=myGuiParam::getGuiParam("SigX");
+        if(gp)gp->inp()->setValue(200);  //Editdom1.Text = '200';  //Z=37239
+        if(gp)gp->inp2()->setValue(200); //Editdom2.Text = '200';  //Z=37240
+        if(gp)gp->inp3()->setValue(200); //Editdom3.Text = '200';  //Z=37241
+        //ButtonHKLClick(Sender);
+        //-->nichts
+        break;
+
+    case 14:  /*  2D-Hex-GiSAXS  */  //Z=37256
+        myGuiParam::setEnabled( "uca", true );
+        myGuiParam::setEnabled( "ucb", false );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", true );
+        myGuiParam::setEnabled( "EditAzi", false );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", false );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(false);
+        //??EditTwRatio.Visible = false;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", false );
+        myGuiParam::setEnabled( "bcpl", false );
+        myGuiParam::setEnabled( "ComboBoxPeak", true );
+        myGuiParam::setEnabled( "EditCeffcyl", false );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 0 );
+        //gp=myGuiParam::getGuiParam("Length");
+        //if(gp)gp->inp()->setValue( 250 );
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = true;
+        myGuiParam::setEnabled( "iso", true );
+        //??Editacrit.visible = true;
+        //??EditAbsorb.Visible = true;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //ButtonHKLClick(Sender);
+        //-->nichts
+        //EditHex2h.Text = '0';  //Z=37292
+        //EditHex2k.Text = '1';  //Z=37293
+        //EditHex2l.Text = '0';  //Z=37294
+        //RadioButtonFixU.checked = true;  //Z=37301
+        //GroupBoxDataInfo.visible = true;  //Z=37306
+        break;
+
+    case 15:  /*  2D-Square-GiSAXS  */  //Z=37314
+        myGuiParam::setEnabled( "uca", true );
+        myGuiParam::setEnabled( "ucb", false );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", true );
+        myGuiParam::setEnabled( "EditAzi", false );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", false );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(false);
+        //??EditTwRatio.Visible = false;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", false );
+        myGuiParam::setEnabled( "bcpl", false );
+        myGuiParam::setEnabled( "ComboBoxPeak", true );
+        myGuiParam::setEnabled( "EditCeffcyl", false );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 0 );
+        //gp=myGuiParam::getGuiParam("Length");
+        //if(gp)gp->inp()->setValue( 250 );
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = true;
+        myGuiParam::setEnabled( "iso", false );
+        //??Editacrit.visible = true;
+        //??EditAbsorb.Visible = true;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //ButtonHKLClick(Sender);
+        //-->nichts
+        //EditHex2h.Text = '0';  //Z=37350
+        //EditHex2k.Text = '1';  //Z=37351
+        //EditHex2l.Text = '0';  //Z=37352
+        //RadioButtonFixU.checked = true;  //Z=37359
+        //GroupBoxDataInfo.visible = true;  //Z=37364
+        break;
+
+    case 16:  /*  1D-Lam-GiSAXS  */  //Z=37372
+        myGuiParam::setEnabled( "uca", true );
+        myGuiParam::setEnabled( "ucb", false );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", true );
+        myGuiParam::setEnabled( "EditAzi", false );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", false );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(false);
+        //??EditTwRatio.Visible = false;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", false );
+        myGuiParam::setEnabled( "bcpl", false );
+        myGuiParam::setEnabled( "ComboBoxPeak", true );
+        myGuiParam::setEnabled( "EditCeffcyl", true );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 2 );
+        //gp=myGuiParam::getGuiParam("Length");
+        //if(gp)gp->inp()->setValue( 250 );
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = true;
+        myGuiParam::setEnabled( "iso", false );
+        //??Editacrit.visible = true;
+        //??EditAbsorb.Visible = true;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //ButtonHKLClick(Sender);
+        //-->nichts
+        //EditHex2h.Text = '0';  //Z=37408
+        //EditHex2k.Text = '1';  //Z=37409
+        //EditHex2l.Text = '0';  //Z=37410
+        //RadioButtonFixU.checked = true;  //Z=37417
+        //GroupBoxDataInfo.visible = true;  //Z=37422
+        break;
+
+    case 18:  /*  orthogonal centered spheres  */  //Z=37430
+        myGuiParam::setEnabled( "uca", true );
+        myGuiParam::setEnabled( "ucb", true );
+        myGuiParam::setEnabled( "ucc", true );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", true );
+        myGuiParam::setEnabled( "EditAzi", true );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", false );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(false);
+        //??EditTwRatio.Visible = false;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", false );
+        myGuiParam::setEnabled( "bcpl", false );
+        myGuiParam::setEnabled( "ComboBoxPeak", true );
+        myGuiParam::setEnabled( "EditCeffcyl", false );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 0 );
+        //gp=myGuiParam::getGuiParam("Length");
+        //if(gp)gp->inp()->setValue( 250 );
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = true;
+        myGuiParam::setEnabled( "iso", true );
+        //??Editacrit.visible = false;
+        //??EditAbsorb.Visible = false;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //ButtonHKLClick(Sender);
+        //-->RadioButtonSysOrthoClick(Sender);  //Z=43491
+        break;
+
+    case 19:  /*  quasicrystal  */  //Z=37477
+        myGuiParam::setEnabled( "uca", true );
+        myGuiParam::setEnabled( "ucb", false );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", false );
+        myGuiParam::setEnabled( "EditAzi", false );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", false );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(false);
+        //??EditTwRatio.Visible = false;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", true );     // Editastack
+        myGuiParam::setEnabled( "bcpl", true );     // Editbstack
+        gp=myGuiParam::setEnabled( "ComboBoxPeak", true );
+        if(gp)gp->cbs()->setCurrentIndex( 7 );   //Z=37513
+        myGuiParam::setEnabled( "EditCeffcyl", false );
+        gp=myGuiParam::getGuiParam("ComboboxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 0 );
+        //gp=myGuiParam::getGuiParam("Length");
+        //if(gp)gp->inp()->setValue( 250 );
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = false;
+        myGuiParam::setEnabled( "iso", true );
+        //??Editacrit.visible = false;
+        //??EditAbsorb.Visible = true;
+        myGuiParam::setEnabled( "phi", true );
+        myGuiParam::setEnabled( "theta", true );
+        //??GroupBoxAniso.Visible = true;  //Z=37509
+        gp=myGuiParam::getGuiParam("SigX");
+        if(gp)gp->inp()->setValue(200);  //Editdom1.Text = '200';  //Z=37510
+        if(gp)gp->inp2()->setValue(200); //Editdom2.Text = '200';  //Z=37511
+        if(gp)gp->inp3()->setValue(200); //Editdom3.Text = '200';  //Z=37512
+        //ButtonHKLClick(Sender);
+        //-->nichts
+        break;
+
+    } // switch index
+
+    if ( !updFlag && sender() != nullptr )
+    {
+        DT( qDebug() << "... cbsLType::adjustSize ..." );
+        adjustSize();   // cbs LType
+    }
+    bIgnoreRecalc = updFlag;
+    if ( !updFlag && ui->togAutoRecalc->isChecked() ) automaticRecalcDoit();
+} /* on_cbsLType_currentIndexChanged() */
+
+
+
+void SC_MainGUI::on_cbsComboBoxParticle_currentIndexChanged(int index)
+{
+    DT( qDebug() << "on_cbsComboBoxParticle_currentIndexChanged()" << index << bIgnoreRecalc );
+    bool updFlag = bIgnoreRecalc;
+    bIgnoreRecalc = true;
+    switch ( index )
+    {
+    case 0:   /*  sphere  */  //Z=37531
+        myGuiParam::setEnabled( "EditRadius",  true,  "Rc [nm]:"       );   /*  radius  */  //Z=37532
+        myGuiParam::setEnabled( "EditSigma",   true,  "sigma(R):"      );   /*  sigma R  */
+        myGuiParam::setEnabled( "Length",      false, "L [nm]:"        );   /*  length  */
+        myGuiParam::setEnabled( "SigmaL",      false, "sigma(L):"      );   /*  sigma L  */
+        //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
+        myGuiParam::setEnabled( "EditRadiusi", false, "EditRadiusi:"   );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "Alfa",        false, "Alfa:"          );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "ComboBoxInterior", true );
+        //myGuiParam::setEnabled( ui->grpOrientation, true );
+        break;
+    case 1:   /*  cylinder  */  //Z=37552
+        myGuiParam::setEnabled( "EditRadius",  true,  "Rc [nm]:"       );   /*  radius  */  //Z=37553
+        myGuiParam::setEnabled( "EditSigma",   true,  "sigma(R):"      );   /*  sigma R  */
+        myGuiParam::setEnabled( "Length",      true,  "L [nm]:"        );   /*  length  */
+        myGuiParam::setEnabled( "SigmaL",      true,  "sigma(L):"      );   /*  sigma L  */
+        //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
+        myGuiParam::setEnabled( "EditRadiusi", false, "EditRadiusi:"   );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "Alfa",        false, "Alfa:"          );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "ComboBoxInterior", true );
+        //myGuiParam::setEnabled( ui->grpOrientation, true );
+        break;
+    case 2:    /*  disk  */  //Z=37573
+        myGuiParam::setEnabled( "EditRadius",  true,  "d/2 [nm]:"      );   /*  radius  */  //Z=37574
+        myGuiParam::setEnabled( "EditSigma",   true,  "sigma(d):"      );   /*  sigma R  */
+        myGuiParam::setEnabled( "Length",      true,  "R [nm]:"        );   /*  length  */
+        myGuiParam::setEnabled( "SigmaL",      true,  "sigma(R):"      );   /*  sigma L  */
+        //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
+        myGuiParam::setEnabled( "EditRadiusi", false, "EditRadiusi:"   );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "Alfa",        false, "Alfa:"          );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "ComboBoxInterior", true );
+        //myGuiParam::setEnabled( ui->grpOrientation, true );
+        break;
+    case 3:   /*  vesicle  */  //Z=37594
+        myGuiParam::setEnabled( "EditRadius",  true,  "Ri [nm]:"       );   /*  radius  */
+        myGuiParam::setEnabled( "EditSigma",   true,  "sigma(R):"      );   /*  sigma R  */
+        myGuiParam::setEnabled( "Length",      true,  "Ro [nm]:"       );   /*  length  */
+        myGuiParam::setEnabled( "SigmaL",      true,  "sigma(d):"      );   /*  sigma L  */
+        //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
+        myGuiParam::setEnabled( "EditRadiusi", false, "EditRadiusi:"   );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "Alfa",        false, "Alfa:"          );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "ComboBoxInterior", false, "@0" );
+        //myGuiParam::setEnabled( ui->grpOrientation, true );
+        break;
+    case 4:  /*  cube  */  //Z=37617
+        myGuiParam::setEnabled( "EditRadius",  true,  "a [nm]:"        );   /*  radius  */  //Z=37618
+        myGuiParam::setEnabled( "EditSigma",   true,  "sigma(a):"      );   /*  sigma R  */
+        myGuiParam::setEnabled( "Length",      false, "L [nm]:"        );   /*  length  */
+        myGuiParam::setEnabled( "SigmaL",      false, "sigma(L):"      );   /*  sigma L  */
+        //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
+        myGuiParam::setEnabled( "EditRadiusi", false, "EditRadiusi:"   );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "Alfa",        false, "Alfa:"          );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "ComboBoxInterior", false, "@0" );
+        //myGuiParam::setEnabled( ui->grpOrientation, true );
+        break;
+    case 5:   /*  ellipsoid  */  //Z=37640
+        myGuiParam::setEnabled( "EditRadius",  true,  "a [nm]:"        );   /*  radius  */  //Z=37641
+        myGuiParam::setEnabled( "EditSigma",   true,  "sigma(a):"      );   /*  sigma R  */
+        myGuiParam::setEnabled( "Length",      true,  "c [nm]:"        );   /*  length  */
+        myGuiParam::setEnabled( "SigmaL",      true,  "sigma(c):"      );   /*  sigma L  */
+        //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
+        myGuiParam::setEnabled( "EditRadiusi", false, "EditRadiusi:"   );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "Alfa",        false, "Alfa:"          );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "ComboBoxInterior", true );
+        //myGuiParam::setEnabled( ui->grpOrientation, true );
+        break;
+    case 6:   /*  triaxial ellipsoid  */  //Z=37661
+        myGuiParam::setEnabled( "EditRadius",  true,  "a [nm]:"        );   /*  radius  */  //Z=37662
+        myGuiParam::setEnabled( "EditSigma",   true,  "sigma(a):"      );   /*  sigma R  */
+        myGuiParam::setEnabled( "Length",      true,  "b [nm]:"        );   /*  length, semiaxis b  */
+        myGuiParam::setEnabled( "SigmaL",      true,  "sigma(c):"      );   /*  sigma L  */
+        myGuiParam::setEnabled( "EditRadiusi", true,  "c [nm]:"        );   /*  semiaxis c  */  //Z=37675 <<< NEU <<<<<<<<<<<<<<<<<<<<
+        //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
+        myGuiParam::setEnabled( "Alfa",        false, "Alfa:"          );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "ComboBoxInterior", true );
+        //myGuiParam::setEnabled( ui->grpOrientation, true );
+        break;
+    case 7:   /*  super ellipsoid  */  //Z=37685
+        myGuiParam::setEnabled( "EditRadius",  true,  "R [nm]:"        );   /*  radius  */  //Z=37686
+        myGuiParam::setEnabled( "EditSigma",   true,  "sigma(R):"      );   /*  sigma R  */
+        myGuiParam::setEnabled( "Length",      true,  "L [nm]:"        );   /*  length  */
+        myGuiParam::setEnabled( "SigmaL",      true,  "sigma(L):"      );   /*  sigma L  */
+        myGuiParam::setEnabled( "EditRadiusi", true,  "c [nm]:"        );   /*  semiaxis c  */  // <<< NEU <<<<<<<<<<<<<<<<<<<<
+        //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
+        myGuiParam::setEnabled( "Alfa",        true,  "k:"             );   /*  k-parameter  */  //Z=37704 <<< NEU <<<<<<<<<<<<<<<<<<<<
+        myGuiParam::setEnabled( "ComboBoxInterior", true );
+        //myGuiParam::setEnabled( ui->grpOrientation, true );
+        break;
+    case 8:   /*  superball  */  //Z=37712
+        myGuiParam::setEnabled( "EditRadius",  true,  "R [nm]:"        );   /*  radius  */  //Z=37713
+        myGuiParam::setEnabled( "EditSigma",   true,  "sigma(R):"      );   /*  sigma R  */
+        myGuiParam::setEnabled( "Length",      true,  "L [nm]:"        );   /*  length  */
+        myGuiParam::setEnabled( "SigmaL",      true,  "sigma(L):"      );   /*  sigma L  */
+        myGuiParam::setEnabled( "EditRadiusi", true,  "c [nm]:"        );   /*  semiaxis c  */  // <<< NEU <<<<<<<<<<<<<<<<<<<<
+        //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
+        myGuiParam::setEnabled( "Alfa",        true,  "k:"             );   /*  k-parameter  */  //Z=37704 <<< NEU <<<<<<<<<<<<<<<<<<<<
+        myGuiParam::setEnabled( "ComboBoxInterior", true );
+        //myGuiParam::setEnabled( ui->grpOrientation, true );
+        break;
+    case 9:   /*  excluded volume chain  */  //Z=37739
+        myGuiParam::setEnabled( "EditRadius",  true,  "Rc [nm]:"       );   /*  radius  */  //Z=37740
+        myGuiParam::setEnabled( "EditSigma",   true,  "sigma(R):"      );   /*  sigma R  */
+        myGuiParam::setEnabled( "Length",      true,  "L [nm]:"        );   /*  length  */
+        myGuiParam::setEnabled( "SigmaL",      true,  "sigma(L):"      );   /*  sigma L  */
+        //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
+        myGuiParam::setEnabled( "EditRadiusi", false, "EditRadiusi:"   );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "Alfa",        false, "Alfa:"          );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "ComboBoxInterior", true );
+        //myGuiParam::setEnabled( ui->grpOrientation, true );
+        break;
+    case 10:   /*  Kratky Porod chain  */  //Z=37760
+        myGuiParam::setEnabled( "EditRadius",  true,  "Rc [nm]:"       );   /*  radius  */  //Z=37761
+        myGuiParam::setEnabled( "EditSigma",   true,  "sigma(R):"      );   /*  sigma R  */
+        myGuiParam::setEnabled( "Length",      true,  "L [nm]:"        );   /*  length  */
+        myGuiParam::setEnabled( "SigmaL",      true,  "Lp:"            );   /*  sigma L  */
+        //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
+        myGuiParam::setEnabled( "EditRadiusi", false, "EditRadiusi:"   );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "Alfa",        false, "Alfa:"          );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "ComboBoxInterior", true );
+        //myGuiParam::setEnabled( ui->grpOrientation, true );
+        break;
+    } // switch index
+    if ( !updFlag && sender() != nullptr )
+    {
+        DT( qDebug() << "... cbsParticle::adjustSize ..." );
+        adjustSize();   // cbs Particle
+    }
+    bIgnoreRecalc = updFlag;
+    if ( !updFlag && ui->togAutoRecalc->isChecked() ) automaticRecalcDoit();
+}
+
+
+void SC_MainGUI::on_cbsOrdis_currentIndexChanged(int index)
+{
+    DT( qDebug() << "on_cbsOrdis_currentIndexChanged()" << index << bIgnoreRecalc );
+    bool updFlag = bIgnoreRecalc;
+    bIgnoreRecalc = true;
+    myGuiParam::setEnabled( "ifluc", index==6/*z-dir*/  );
+    myGuiParam::setEnabled( "rfluc", index==6/*z-dir*/ );
+    if ( !updFlag && sender() != nullptr )
+    {
+        DT( qDebug() << "... cbsOrdis::adjustSize ..." );
+        adjustSize();   // cbs Ordis
+    }
+    bIgnoreRecalc = updFlag;
+    if ( !updFlag && ui->togAutoRecalc->isChecked() ) automaticRecalcDoit();
+}
+
+
+void SC_MainGUI::on_cbsComboBoxInterior_currentIndexChanged(int index)
+{
+    DT( qDebug() << "on_cbsComboBoxInterior_currentIndexChanged()" << index << bIgnoreRecalc );
+    bool updFlag = bIgnoreRecalc;
+    bIgnoreRecalc = true;
+    switch ( index )
+    {
+    case 0:   /*  homogeneous core */  //Z=41005
+        myGuiParam::setEnabled( "EditRadius",  true  );   /*  Rm     */  //Z=41006
+        myGuiParam::setEnabled( "EditRadiusi", false );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "Alfa",        false );   /*  alpha  */  //Z=41008 - unklar, ob es der richtige Parameter ist (EditAlpha)
+        myGuiParam::setEnabled( "EditRho",     false );   /*  rho    */  //Z=41010
+        break;
+
+    case 1:   /*  homogeneous core/shell */  //Z=41014
+        myGuiParam::setEnabled( "EditRadius",  true  );   /*  Rm     */  //Z=41015
+        myGuiParam::setEnabled( "EditRadiusi", true  );   //Z=41017  <<<NEU<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+        myGuiParam::setEnabled( "Alfa",        false );   /*  alpha  */  //Z=41018 - unklar, ob es der richtige Parameter ist (EditAlpha)
+        myGuiParam::setEnabled( "EditRho",     true  );   /*  rho    */  //Z=41020
+        break;
+
+    case 2:   /*  inhomogeneous core/shell */  //Z=41024
+        myGuiParam::setEnabled( "EditRadius",  true  );   /*  Rm     */  //Z=41025
+        myGuiParam::setEnabled( "EditRadiusi", true  );   //Z=41027  <<<NEU<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+        myGuiParam::setEnabled( "Alfa",        true  );   /*  alpha  */  //Z=41028 - unklar, ob es der richtige Parameter ist (EditAlpha)
+        myGuiParam::setEnabled( "EditRho",     true  );   /*  rho    */  //Z=41030
+        break;
+
+    case 3:   // if ( (ComboBoxInterior.ItemIndex == 3) || (ComboBoxInterior.ItemIndex == 4) )
+    case 4:   /*  myelin  */  //Z=41034
+#ifdef undef
+        EditRadiusi.Visible = true;  //Z=41035
+        EditRadiusi.Text = '1';  //Z=41036
+        label19.visible = true;             /*  Rm  */  //Z=41037
+        label19.caption = 'n:';  //Z=41038
+        EditRadius.Visible = true;  //Z=41039
+        EditRadius.Text = '200';  //Z=41040
+        EditLength.Text = '5000';  //Z=41041
+        label20.caption = 'l_ex(nm):';  //Z=41042
+        label20.visible = true;             /*  alpha  */  //Z=41043
+        EditAlpha.Visible = true;  //Z=41044
+        EditAlpha.Text = '3.5';  //Z=41045
+        label21.caption = 'l_in(nm):';  //Z=41046
+        label21.visible = true;             /*  rho  */  //Z=41047
+        Editrho.visible = true;  //Z=41048
+        Editrho.Text = '3.5';  //Z=41049
+        label2.Visible = true;  //Z=41050
+        label2.Caption = 'head';  //Z=41051
+        label88.Visible = true;  //Z=41052
+        label88.Caption = 'tail';  //Z=41053
+        label22.Visible = true;  //Z=41054
+        label22.Caption = 'axon';  //Z=41055
+        label50.Visible = true;  //Z=41056
+        EditLattice.text = '0.001';  //Z=41057
+        label50.Caption = 'intra';  //Z=41058
+        label52.Visible = true;  //Z=41059
+        EditLatticeb.Text = '0.001';  //Z=41060
+        label52.Caption = 'extra';  //Z=41061
+        EditLatticec.Text = '0.001';  //Z=41062
+        EditDomainSize.visible = true;  //Z=41063
+        EditDomainSize.Text = '-0.55';  //Z=41064
+        EditAzi.Visible = true;  //Z=41065
+        EditAzi.Text = '-0.7';  //Z=41066
+        Label95.Visible = true;  //Z=41067
+        Label95.Caption = 'l_h(nm):';  //Z=41068
+        EditAstack.Visible = true;  //Z=41069
+        EditAstack.Text = '1.0';  //Z=41070
+        Label143.Visible = true;  //Z=41071
+        Label143.Caption = 'l_t(nm):';  //Z=41072
+        EditBstack.Visible = true;  //Z=41073
+        EditBstack.Text = '2.0';  //Z=41074
+
+        Editlattice.visible = true;  //Z=41076
+        Editlatticeb.visible = true;  //Z=41077
+        Editlatticec.visible = true;  //Z=41078
+#endif
+        break;
+    }
+    if ( !updFlag && sender() != nullptr )
+    {
+        DT( qDebug() << "... cbsInterior::adjustSize ..." );
+        adjustSize();   // cbs Interior
+    }
+    bIgnoreRecalc = updFlag;
+    if ( !updFlag && ui->togAutoRecalc->isChecked() ) automaticRecalcDoit();
+}
+
+
+void SC_MainGUI::on_cbsComboBoxPeak_currentIndexChanged(int index)
+{
+    DT( qDebug() << "on_cbsComboBoxPeak_currentIndexChanged()" << index << bIgnoreRecalc );
+    bool updFlag = bIgnoreRecalc;
+    bIgnoreRecalc = true;
+    switch ( index )
+    {
+    case 0:     /*  Gaussian  */  //Z=37787
+        myGuiParam::setEnabled( "EditPeakPar", false );     /*  peak par  */  //Z=37788
+        //GroupBoxAniso.Visible = false;  //Z=37790
+        break;
+    case 1:    /*  Lorentzian  */  //Z=37793
+        myGuiParam::setEnabled( "EditPeakPar", false );     /*  peak par  */  //Z=37794
+        //GroupBoxAniso.Visible = false;  //Z=37796
+        break;
+    case 2:     /*  Lorentzian I  */  //Z=37799
+        myGuiParam::setEnabled( "EditPeakPar", false );     /*  peak par  */  //Z=37800
+        //GroupBoxAniso.Visible = false;  //Z=37802
+        break;
+    case 3:     /*  Lorentzian II  */  //Z=37805
+        myGuiParam::setEnabled( "EditPeakPar", false );     /*  peak par  */  //Z=37806
+        //GroupBoxAniso.Visible = false;  //Z=37808
+        break;
+    case 4:     /*  Pseudo-Voigt  */  //Z=37811
+        myGuiParam::setEnabled( "EditPeakPar", true  );     /*  peak par  */  //Z=37812
+        //GroupBoxAniso.Visible = false;  //Z=37814
+        break;
+    case 5:     /*  Pearson  */  //Z=37817
+        myGuiParam::setEnabled( "EditPeakPar", true  );     /*  peak par  */  //Z=37818
+        //GroupBoxAniso.Visible = false;  //Z=37820
+        break;
+    case 6:    /*  gamma  */  //Z=37823
+        myGuiParam::setEnabled( "EditPeakPar", true  );     /*  peak par  */  //Z=37824
+        //GroupBoxAniso.Visible = false;  //Z=37826
+        break;
+    case 7:     /*  anisotropic  */  //Z=37829
+        myGuiParam::setEnabled( "EditPeakPar", true  );     /*  peak par  */  //Z=37830
+        //GroupBoxAniso.Visible = true;  //Z=37832
+        break;
+    }
+    if ( !updFlag && sender() != nullptr )
+    {
+        DT( qDebug() << "... cbsPeak::adjustSize ..." );
+        adjustSize();   // cbs Peak
+    }
+    bIgnoreRecalc = updFlag;
+    if ( !updFlag && ui->togAutoRecalc->isChecked() ) automaticRecalcDoit();
+}
+
+
+/**
+ * @brief SC_MainGUI::on_actionHide_unused_values_triggered
+ * @param checked - Flag from the checkable menu entry
+ */
+void SC_MainGUI::on_actionHide_unused_values_triggered(bool checked)
+{
+    DT( qDebug() << "on_actionHide_unused_values_triggered()" << bIgnoreRecalc );
+    bool updFlag = bIgnoreRecalc;
+    bIgnoreRecalc = true;
+    myGuiParam::setHideFlag(checked);
+
+    //myGuiParam::setEnabled(ui->grpOrientation, true);   wird nirgend auf false gesetzt...
+    //myGuiParam::setEnabled( "ShellNo", false );   wird nirgends auf true gesetzt und in der Berechnung nicht verwendet
+
+    on_cbsLType_currentIndexChanged( ui->cbsLType->currentIndex() );
+    on_cbsComboBoxParticle_currentIndexChanged( ui->cbsComboBoxParticle->currentIndex() );
+    on_cbsOrdis_currentIndexChanged( ui->cbsOrdis->currentIndex() );
+    on_cbsComboBoxInterior_currentIndexChanged( ui->cbsComboBoxInterior->currentIndex() );
+    on_cbsComboBoxPeak_currentIndexChanged( ui->cbsComboBoxPeak->currentIndex() );
+    if ( !updFlag && sender() != nullptr )
+    {
+        DT( qDebug() << "... actionHide::adjustSize ..." );
+        adjustSize();   // actionHide
+    }
+    bIgnoreRecalc = updFlag;
+    if ( !updFlag && ui->togAutoRecalc->isChecked() ) automaticRecalcDoit();
+}
+
+
+/**
+ * @brief SC_MainGUI::on_butCopyHdrdata2Params_clicked
+ * Copies the data from the headertable into the calculation parameters.
+ */
+void SC_MainGUI::on_butCopyHdrdata2Params_clicked()
+{
+    DT( qDebug() << "on_butCopyHdrdata2Params_clicked()" );
+    int c = ui->tblHeaderData->item(tblLattNbCols,0)->text().toInt();
+    int r = ui->tblHeaderData->item(tblLattNbRows,0)->text().toInt();
+    int gp = qMax(r,c) / 2;
+    calcGui->updateParamValue( "GridPoints", gp, SETCOLMARK_IGNORED );
+
+    double bsx = ui->tblHeaderData->item(tblLattBeamX,  0)->text().toDouble();
+    double bsy = ui->tblHeaderData->item(tblLattBeamY,  0)->text().toDouble();
+    if ( bsx > 0 || bsy > 0 )
+    {
+        bsx = bsx - gp;
+        bsy = bsy - gp;
+    }
+    calcGui->updateParamValue( "BeamPosX",       bsx, SETCOLMARK_IGNORED );
+    calcGui->updateParamValue( "BeamPosY",       bsy, SETCOLMARK_IGNORED );
+    calcGui->updateParamValue( "EditWavelength", ui->tblHeaderData->item(tblLattWaveLen,0)->text().toDouble(), SETCOLMARK_IGNORED );
+    calcGui->updateParamValue( "EditDet",        ui->tblHeaderData->item(tblLattSaDist, 0)->text().toDouble(), SETCOLMARK_IGNORED );
+    calcGui->updateParamValue( "EditPixelX",     ui->tblHeaderData->item(tblLattPixelX, 0)->text().toDouble()/1000., SETCOLMARK_IGNORED );
+    calcGui->updateParamValue( "EditPixelY",     ui->tblHeaderData->item(tblLattPixelY, 0)->text().toDouble()/1000., SETCOLMARK_IGNORED );
+    // In tblHeaderData steht die Pixelsize in [mm], im Eingabefeld in [m] ...
+}
+
+
+/**
+ * @brief SC_MainGUI::on_actionAbout_triggered
+ * Shows the authors and links to the documentation.
+ */
+void SC_MainGUI::on_actionAbout_triggered()
+{
+    QMessageBox::about(this, "Scatter",
+                       "Original <b>Scatter</b> in <i>Pascal</i> from <a href=\"mailto:s.foerster@fz-juelich.de\">Prof. S. Förster</a><br>"
+                       "Adapted to <i>C++</i> with <i>Qt</i> and <i>Cuda</i> from <a href=\"mailto:m.wagener@fz-juelich.de\">M. Wagener</a><br>"
+                       "Forschungszentrum Jülich GmbH, JCNS-1<br><br>"
+                       "The idea behind this is available as a <a href=\"https://www.nature.com/articles/s41598-023-27558-8\">Nature Scientific Report</a><br><br>"
+                       "Software and documentation is available on <a href=\"https://github.com/neutron-simlab/CrystalScatter\">github</a>"
+                       );
+}
+
+
+/**
+ * @brief SC_MainGUI::on_actionAbout_Qt_triggered
+ * Shows the Qt version information
+ */
+void SC_MainGUI::on_actionAbout_Qt_triggered()
+{
+    QMessageBox::aboutQt(this);
 }

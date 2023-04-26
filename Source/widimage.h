@@ -127,6 +127,17 @@ public:
         int     pixelX, pixelY;
         int     centerX, centerY;
         QString filePath;
+        int     isValid;
+#define fivalidWave 0x0001
+#define fivalidDist 0x0002
+#define fivalidWidX 0x0004
+#define fivalidWidY 0x0008
+#define fivalidPixX 0x0010
+#define fivalidPixY 0x0020
+#define fivalidCenX 0x0040
+#define fivalidCenY 0x0080
+#define fivalid_All 0x00FF
+#define fivalidDone 0x0100
     } _fileInfos;
     inline _fileInfos *getFileInfos() { return &fileInfos; }
 
@@ -170,6 +181,7 @@ private slots:
 private:
     Ui::widImage *ui;
     bool mouse2data(QPoint pos, int &x, int &y, QPoint &pnt);
+    double xy2q(int x, int y, double &qx, double &qy, double &qz);
 #else
 private:
     void on_cbsColorTbl_activated(const QString &arg1); // wird für die Farbtabelle gebraucht

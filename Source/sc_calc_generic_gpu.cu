@@ -4,10 +4,6 @@
   * to calculate the image.
   * This was originally written in Pascal and translated into C++ by m.wagener@fz-juelich.de
   * During the translation, the variable and type names are preserved.
-  *
-  * Calculation functions:
-  *     09. Jul. 2020:  Only for FCC Spheres with GPU
-  *     FCC Spheres (Face centered cubic)
   */
 
 #include "sc_calc_generic_gpu.h"
@@ -15,7 +11,7 @@
 #include <string.h>
 
 #ifndef __CUDACC__
-#define DBGFILE(x) //x
+#define DBGFILE(x) x
 #include <QFile>
 #else
 #define DBGFILE(x)
@@ -39,50 +35,6 @@ DBGFILE( static QFile *fdbg; )
 
 /*static*/ long SasCalc_GENERIC_calculation::dbgCount;  // Zum Test...
 
-
-#define CLASSLIB SasCalc_GENERIC_calculation
-//#define USE_szave
-#define USE_psphere // nur init
-//#define USE_psphered
-//#define USE_pspheredf
-//#define USE_f2dschulz
-//#define USE_f2dhyper
-#define USE_gamma
-//#define USE_cosav
-//#define USE_gammaratio
-//#define USE_pqcoreshell
-//#define USE_f2dcoreshell
-//#define USE_polyvesicle
-//#define USE_f2dpolyvesicle
-//#define USE_polyliposome
-//#define USE_polycube
-//#define USE_burger
-//#define USE_angleuv
-#define USE_lorentznorm3
-#define USE_gaussnorm3
-#define USE_pearsonnorm3
-#define USE_pearsonintegral3 // TODO raus?
-//#define USE_cosavm
-//#define USE_pgensphere1
-//#define USE_hypcoreshellm
-//#define USE_trapcube
-//#define USE_cubealf
-//#define USE_trapcubebet
-//#define USE_cube
-//#define USE_trapezpqr
-//#define USE_midpntchi
-//#define USE_qrombpq
-//#define USE_qrombpi2
-//#define USE_bessel10
-#define USE_ButtonHKLClick
-#define USE_fhkl_c
-#define USE_extinction
-#define USE_trapzddeltac
-#define USE_polint
-#define USE_qrombdeltac
-#define USE_qrombchid
-#define USE_trapzdchid
-
 #define USE_CLASSLIB
 #include "sc_libs_gpu.cu"
 #include "sc_memory_gpu.cu"
@@ -94,12 +46,12 @@ DBGFILE( static QFile *fdbg; )
 
 
 SasCalc_GENERIC_calculation *SasCalc_GENERIC_calculation::inst;              //!< class instance pointer for the threads
+pthread_t *SasCalc_GENERIC_calculation::threads;
 
 
 SasCalc_GENERIC_calculation::SasCalc_GENERIC_calculation()
 {
     inst = this;
-    progAndAbort = nullptr;
     params.CR = nullptr;
     latpar1ptr = nullptr;
     latpar2ptr = nullptr;
@@ -112,32 +64,31 @@ SasCalc_GENERIC_calculation::SasCalc_GENERIC_calculation()
 
 
 #ifdef __CUDACC__
-//__launch_bounds_(256, 1)
-__global__ void doIntCalc_GENERIC_kernel( SasCalc_GENERIC_calculation FCC )
+__global__ void doIntCalc_GENERIC_kernel( SasCalc_GENERIC_calculation CALC )
 {
-    int ihex = blockIdx.x * blockDim.x + threadIdx.x + FCC.zzmin;
-    if ( ihex >= FCC.zzmax ) return;
+    int ihex = blockIdx.x * blockDim.x + threadIdx.x + CALC.zzmin;
+    if ( ihex >= CALC.zzmax ) return;
 #ifdef GPU_2D
-    int i    = blockIdx.y * blockDim.y + threadIdx.y + FCC.iimin;
-    if ( i >= FCC.iimax ) return;
-    SasCalc_GENERIC_calculation::doIntCalc_GENERIC_F( FCC, ihex, i );
+    int i    = blockIdx.y * blockDim.y + threadIdx.y + CALC.iimin;
+    if ( i >= CALC.iimax ) return;
+    SasCalc_GENERIC_calculation::doIntCalc_GENERIC_F( CALC, ihex, i );
 #else
-    for ( int i=threadIdx.x+FCC.iimin; i<FCC.iimax; i+=blockDim.x )
-        SasCalc_GENERIC_calculation::doIntCalc_GENERIC_F( FCC, ihex, i );
+    for ( int i=threadIdx.x+CALC.iimin; i<CALC.iimax; i+=blockDim.x )
+        SasCalc_GENERIC_calculation::doIntCalc_GENERIC_F( CALC, ihex, i );
 #endif
 }
 
-__global__ void doIntFitCalc_GENERIC_kernel( SasCalc_GENERIC_calculation FCC )
+__global__ void doIntFitCalc_GENERIC_kernel( SasCalc_GENERIC_calculation CALC )
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
-    if ( x >= FCC._fitWidth ) return;
+    if ( x >= CALC._fitWidth ) return;
 #ifdef GPU_2D
     int y = blockIdx.y * blockDim.y + threadIdx.y;
-    if ( y >= FCC._fitHeight ) return;
-    SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F( FCC, x, y );
+    if ( y >= CALC._fitHeight ) return;
+    SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F( CALC, x, y );
 #else
-    for ( int y=threadIdx.x; y<FCC._fitHeight; i+=blockDim.x )
-        SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F( FCC, x, y );
+    for ( int y=threadIdx.x; y<CALC._fitHeight; i+=blockDim.x )
+        SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F( CALC, x, y );
 #endif
 }
 #endif
@@ -146,387 +97,580 @@ __global__ void doIntFitCalc_GENERIC_kernel( SasCalc_GENERIC_calculation FCC )
 bool SasCalc_GENERIC_calculation::prepareCalculation()
 {
     dbgCount=0;  // Zum Test...
+    retvalHKLClick = chgNone;
 
-    /*Z=19733 (******** main program for calculation *****) */
+    /* ******* main program for calculation **** */  //Z=20012
 
-    if ( ltype == 14 /* GiSAXS-pattern */ ) calcQuadrants = radQ4;  /*Z=21005*/
-    if ( ltype == 15 /* GiSAXS-pattern */ ) calcQuadrants = radQ4;
-    // RadioButtonSlice wird hier noch ignoriert
+    // Clear all internal flags
+    generic = true;  //Z=20055 ==> in der GUI ist kein Toggle dafür, also hier immer setzen
+    twin = CheckBoxTwinned;  //Z=20056
+    debyescherrer = false;  //Z=20057
+    paracrystal = false;  //Z=20058
+    quad1 = false;  //Z=20059
+    quad2 = false;  //Z=20060
+    quad4 = false;  //Z=20061
+    lattice = true;  //Z=20062
+    lat1d = false;  //Z=20063
+    lat2d = false;  //Z=20064
+    lat3d = true;  //Z=20065
 
-    zzmin = calcQuadrants == radQ4 ? -zmax : 0;     /*Z=20987 im Batch-Loop */
+    Lorentzian = false;  //Z=20067
+    Gaussian = false;  //Z=20068
+    Lorentzian1 = false;  //Z=20069
+    Lorentzian2 = false;  //Z=20070
+    Voigt = false;  //Z=20071
+    Pearson = false;  //Z=20072
+    BurgerG = false;  //Z=20073
+
+    partsphere = false;  //Z=20075
+    partcylinder = false;  //Z=20076
+    partdisk = false;  //Z=20077
+    partvesicle = false;  //Z=20078
+    partcube = false;  //Z=20079
+    partellipsoid = false;  //Z=20080
+    parttriellipsoid = false;  //Z=20081
+    partbarrel = false;  //Z=20082
+    partball = false;  //Z=20083
+    partchain = false;  //Z=20084
+    partkpchain = false;  //Z=20085
+
+    homogeneous = false;  //Z=20087
+    coreshell = false;  //Z=20088
+    coreinshell = false;  //Z=20089
+    lipo = false;  //Z=20090
+    myelin = false;  //Z=20091
+
+    if ( ltype == 0 )
+    {/*2*/  //Z=20099
+        lat1d = true;  //Z=20100
+        lat3d = false;  //Z=20101
+    }/*2*/  //Z=20102
+    if ( (ltype==1) || (ltype==2) || (ltype==3) )
+    {/*2*/  //Z=20103
+        lat2d = true;  //Z=20104
+        lat3d = false;  //Z=20105
+    }/*2*/  //Z=20106
+
+    zzmin = calcQuadrants == radQ4 ? -zmax : 0;     /* im Batch-Loop */
     zzmax = zmax;
     iimin = calcQuadrants == radQ1 ? 0 : -zmax;
     iimax = zmax;
 
-    //if ( ! tpvRandomOldValues.empty() )   // prepareCalculation()
-    //{
-    //    std::cerr << "TPV PREPARE CALCULATION init " << params.width_zuf << std::endl;
-    //}
-    //else
-    //    std::cerr << "TPV prepare width = " << params.width_zuf << std::endl;
+    ax1n_sigx = params.ax1.length() * params.sig.x();
+    ax2n_sigy = params.ax2.length() * params.sig.y();
+    ax3n_sigz = params.ax3.length() * params.sig.z();
 
-    //qDebug() << "PrepCalc" << zzmin << zzmax << iimin << iimax;
+    /* ********************** */  //Z=20108
+    /* ** input parameters ** */  //Z=20109
+    /* ********************** */  //Z=20110
+    //? lattice0 = uca;  //Z=20112
+    //? p = radius/radiusi;  //Z=20119
+    //? alphash = StrToFloat(EditAlpha.Text);  //Z=20122
+    //? maxit = StrToInt(EditOrincr.Text);  //Z=20131
+    //? dwfactoriso = ucb;  //Z=20135
+    //? caille = 8*displacement*displacement/(uca*uca);  //Z=20138
+    //? theocaille = 4*(1-2*radius/a)*(1-2*radius/a)/3.0;  //Z=20139
+    //? delta = 2*radius;  //Z=20143
+    //?später width = 4/domainsize;  //Z=20144
+    //? widthiso = 1/a;  //Z=20145
+    phiwidth = 4./aziwidth;  //Z=20147
+    //? sigmad = displacement/(radiusi-radius+eps);  //Z=20148
+    //? bnu = StrToFloat(EditPeakPar.Text);  //Z=20149
+    params.p1 = params.radius/params.radiusi;  //Z=20151
+    //? if ( CheckBoxHighq.Checked==false ) highq = 0  //Z=20154
+    //?         else highq = 1;  //Z=20155
+    //? maxit = highq;        /*  check  */  //Z=20156
+    //? ella = radius;        /*  ellipsoid  */  //Z=20157
+    //? ellb = length;        /*  ellipsoid  */  //Z=20158
+    //? ellc = radiusi;       /*  ellipsoid  */  //Z=20159
 
-    ax1n_sigx = ax1.length() * sig.x();
-    ax2n_sigy = ax2.length() * sig.y();
-    ax3n_sigz = ax3.length() * sig.z();
-
-    lat1d = false;  /*Z=19783*/
-    lat2d = false;
-    lat3d = true;
-    if ( ltype == 0 ) { lat1d=true; lat3d=false; }     /*Z=19819*/
-    if ( ltype == 1 || ltype == 2 || ltype == 3 ) { lat2d=true; lat3d=false; }     /*Z=19823*/
-
-    if ( CheckBoxWAXS )  /*Z=20000  && RadioButtonPreset */
-    {
-        double thetmax = atan2( det, pixnox * pixx / 2.0 );
-        wave = 2. * M_PI * sin(thetmax) / qmax;
-    }
-
-    c0=1;       /*Z=20097*/
-    c1=4;
-    c2=4*(sqrt(2.)-1);
-    c3=4*(exp(2*log(2.)/3.)-1);
-    if ( beta == 0 )
-        c4 = 1; // da bei "case cbpeakPearsonVII /*Pearson*/:" damit multipliziert wird
-    else
-        c4=exp(log(2.)/beta)-1;
-
-    //aziwidth:=StrToFloat(EditAzi.Text);
-    phiwidth=4./aziwidth;   /*Z=19867*/
-    // critdist:=StrToFloat(EditCritDist.Text);
-    //critdist=0.5;  Echter Input      //(* for allowed/non-allowed reflection overview *)
-
-    //(*** this generates reflection tables latpar1, latpar2, latpar1a,latpar2a ***)
-    params.amax = 10; // TODO, noch kein GUI-Element vorhanden
-    params.bmax = 10;
-    params.cmax = 10;
-
-    /*Z=19757*/
+    // --> SetLength(carr11pm^, (130+1));  //Z=20454ff.  die Arrays hier werden anders generiert
     if ( latpar1ptr == nullptr )
     {
         createMemory( (void **)(&latpar1ptr), sizeof(int) * latparlen * 6, latpar1Size, true, "latpar1" );
         createMemory( (void **)(&latpar2ptr), sizeof(int) * latparlen * 6, latpar2Size, true, "latpar2" );
         createMemory( (void **)(&latpar3ptr), sizeof(float) * latparlen * 14, latpar3Size, true, "latpar3" );
-        //memory->createMemory( static_cast<void **>(&latpar4ptr), sizeof(float) * SC_Libs::latparlen * 2 );
     }
     if ( params.CR == nullptr )
     {
-//        carr1p,carr2p,carr3p,carr4p,carr5p,carr6p,carr7p,carr8p,carr9p,
-//        carr1f,carr2f,carr3f,carr4f,carr5f,carr6f,carr7f,carr8f,carr9f: ^CoeffArrayType;
-//        coeffarraytype=array[0..150] of extended;
+        //        carr1p,carr2p,carr3p,carr4p,carr5p,carr6p,carr7p,carr8p,carr9p,
+        //        carr1f,carr2f,carr3f,carr4f,carr5f,carr6f,carr7f,carr8f,carr9f: ^CoeffArrayType;
+        //        coeffarraytype=array[0..150] of extended;
         // besser einen Speicher als Record anlegen
         createMemory( (void **)(&params.CR), sizeof(_carrXX), arrCRSize, true, "CR" );
     }
 
-    ucphi=phi;      /*Z=19904*/
-    uctheta=theta;
-    cosphi=cos(phi*M_PI/180.);  /*Z=19908*/     /*TPV*/
-    sinphi=sin(phi*M_PI/180.);                  /*TPV*/
-    costheta=cos(theta*M_PI/180.);
-    sintheta=sin(theta*M_PI/180.);
+    /*  Parameter array for liposome and myelin  */  //Z=20161
+    params.CR->myarray[ 0] = params.length;     /*  axon length  */  //Z=20162
+    params.CR->myarray[ 1] = params.radius;     /*  axon radius  */  //Z=20163
+    params.CR->myarray[ 2] = params.sigma;      //Z=20164
+    params.CR->myarray[ 3] = params.sigmal;     //Z=20165
+    params.CR->myarray[ 4] = params.radiusi;    /*  no. of layers  */  //Z=20166
+    params.CR->myarray[ 5] = alphash;           /*  l_ex  */  //Z=20167
+    params.CR->myarray[ 6] = params.rho;        /*  l_in  */  //Z=20168
+    params.CR->myarray[ 7] = acpl;              /*  l_lip_head  */  //Z=20169
+    params.CR->myarray[ 8] = bcpl;              /*  l_lip_tail  */  //Z=20170
+    params.CR->myarray[ 9] = params.uca;        /*  phi_axon  */  //Z=20171
+    params.CR->myarray[10] = params.ucb;        /*  phi_intra  */  //Z=20172
+    params.CR->myarray[11] = params.ucc;        /*  phi_extra  */  //Z=20173
+    params.CR->myarray[12] = params.domainsize; /*  phi_head  */  //Z=20174
+    params.CR->myarray[13] = aziwidth;          /*  phi_tail  */  //Z=20175
+    params.CR->myarray[14] = 1;                 /*  inmax  */  //Z=20176
+    params.CR->myarray[15] = 1;                 /*  vv  */  //Z=20177
+    params.CR->myarray[16] = 1;                 /*  rmax  */  //Z=20178
+    params.CR->myarray[17] = iso;               /*  test parameter  */  //Z=20179
 
-    if ( ltype != 12 )
-    {   /*Z=20185 aber auch in Z=20483 ... */
-        ButtonHKLClick( ltype, latpar1ptr, latpar2ptr );    // ltype=0..11 und nicht mehr ....
-        peakmax1 = latpar1(1,0);
-        peakmax2 = latpar2(1,0);    /*Z0311=19753*/
-        //qDebug() << "nach ButtonHKLClick" << peakmax1 << peakmax2;
-    }
-    else
-    {   // Zur Sicherheit, nicht im Pasccal-Programm
-        peakmax1=0;
-        peakmax2=0;
-    }
+    /*  polar angles  */  //Z=20182
+    ucphi = polPhi;  //Z=20185
+    uctheta = polTheta;  //Z=20186
+    cosphi = cos(polPhi*M_PI/180.0);  //Z=20189
+    sinphi = sin(polPhi*M_PI/180.0);  //Z=20190
+    costheta = cos(polTheta*M_PI/180.0);  //Z=20191
+    sintheta = sin(polTheta*M_PI/180.0);  //Z=20192
 
-    //(*** Peak Shapes ***)
-    // Die Werte von <shp> und <shf> werden von der GUI übernommen.
+    /* *************************** */  //Z=20200
+    /* ** unit cell definition *** */  //Z=20201
+    /* *************************** */  //Z=20202
+    cosa = cos(params.alpha_deg*M_PI/180.0);  //Z=20209
+    cosb = cos(params.beta_deg*M_PI/180.0);  //Z=20210
+    cosg = cos(params.gamma_deg*M_PI/180.0);  //Z=20211
+    ucvol = params.alpha_deg*params.beta_deg*params.gamma_deg*sqrt(1.0-cosa*cosa-cosb*cosb-cosg*cosg+2*cosa*cosb*cosg);  //Z=20212
 
-    //(* Particle Interior *)  /*Z0311=19828*/
-    cs = ComboBoxInterior;
-    //if ( ComboBoxInterior == cbintHomogeneous/*0*/ ) cs=0;
-    //if ( ComboBoxInterior == cbintCoreInShell/*2*/ ) cs=2;
-    //if ( ComboBoxInterior == cbintMyelin/*3*/      ) cs=3;  //Neu
-    if ( ComboBoxInterior == cbintCoreShell/*1*/   ) { cs=1; alphash=0.0001; }
+    /*  crystal orientation  */  //Z=20215
+    ucn = sqrt(ucn1*ucn1+ucn2*ucn2+ucn3*ucn3+eps9);  //Z=20219
+    ucn1n = ucn1/ucn;  //Z=20220
+    ucn2n = ucn2/ucn;  //Z=20221
+    ucn3n = ucn3/ucn;  //Z=20222
 
-    //(* Orientational distribution functions *) /*Z0311=19843*/
-    // Der Wert von <ordis> wird von der GUI übernommen.
+    if ( lat1d )
+    {/*2*/ /*  for 1D-lattices  */  //Z=20225
+        polPhi = (180/M_PI)*atan2(ucn2n,(ucn1n+eps9));  //Z=20226
+        polTheta = (180/M_PI)*atan2(sqrt(ucn1n*ucn1n+ucn2n*ucn2n),(ucn3n+eps9));  //Z=20227
+        cosphi = cos(polPhi*M_PI/180.0);  //Z=20230
+        sinphi = sin(polPhi*M_PI/180.0);  //Z=20231
+        costheta = cos(polTheta*M_PI/180.0);  //Z=20232
+        sintheta = sin(polTheta*M_PI/180.0);  //Z=20233
+    }/*2*/  //Z=20234
 
-    /*Z0311=19860*/
-    //rotx:=StrToFloat(EditRotx.Text);     (* rotation axis *)
-    //roty:=StrToFloat(EditRoty.Text);
-    //rotz:=StrToFloat(EditRotz.Text);
-    //xx//rotnorm=sqrt( sqr(rot.x()) + sqr(rot.y()) + sqr(rot.z()) );
-    //rota:=StrToFloat(EditRotAlpha.Text);    (* rotation angle *)
-    //xx//rota0=rota;
-    //adet:=StrToFloat(EditDetector.Text);    (* tilt angle *)
-    //xcur:=StrToFloat(Editx.Text);           (* qx of cursor *)
-    //ycur:=StrToFloat(Edity.Text);           (* qy of cursor *)
-    //xycur=sqrt(xcur*xcur+ycur*ycur); - sofort beim setzen von xcur,ycur
-    //anglecur=2*M_PI*StrToFloat(EditAnglexy.Text)/360;    (* angle of cursor *)
+    if ( lat2d )
+    {/*2*/ /*  for 2D-lattices  */  //Z=20236
+        polPhi = (180/M_PI)*atan2(ucn2n,(ucn1n+eps9));  //Z=20237
+        polTheta = (180/M_PI)*atan2(sqrt(ucn1n*ucn1n+ucn2n*ucn2n),(ucn3n+eps9));  //Z=20238
+        cosphi = cos(polPhi*M_PI/180.0);  //Z=20241
+        sinphi = sin(polPhi*M_PI/180.0);  //Z=20242
+        costheta = cos(polTheta*M_PI/180.0);  //Z=20243
+        sintheta = sin(polTheta*M_PI/180.0);  //Z=20244
+        ucpsi = 90-polPhi;  //Z=20245
+    }/*2*/  //Z=20247
 
+    /* ************************* */  //Z=20249
+    /* ** detector definition ** */  //Z=20250
+    /* ************************* */  //Z=20251
+    //? xrdalf = StrToFloat(EditWAXSangle.Text);    /*  [deg]  */  //Z=20253
+    //? xrdalf = xrdalf*M_PI/180.0;  //Z=20254
+    //? tilt = StrToFloat(EditTilt.Text);  //Z=20263
+    //? tilt = -tilt*M_PI/180.0;  //Z=20264
 
-    /*Z=20221 Particle type */
-    /*Z=20435 für die cdim=?, im Batch-Loop */
-    switch ( ComboBoxParticle )
-    {
-    case cbpartSphere/*0*/:      //(* sphere *)
-        cdim=3;
-        part=0;
-        //partsphere=true;
-        partdim=3;
-        break;
-    case cbpartCylinder/*1*/:    //(* cylinder *)
-        cdim=1;
-        part=1;
-        //partcylinder=true;
-        partdim=2;
-        break;
-    case cbpartDisk/*2*/:        //(* disk *)
-        cdim=2;
-        part=2;
-        //partdisk=true;
-        partdim=1;
-        break;
-    case cbpartVesicle/*3*/:     //(* vesicle *)
-        cdim=3;
-        part=3;
-        //partvesicle:=true;
-        partdim=3;
-        break;
-    case cbpartCube/*4*/:        //(* cube *)
-        cdim=4;
-        part=4;
-        //partcube:=true;
-        partdim=4;
-        break;
-    case cbpartEllipsoide/*5*/:  //(* ellipsoid *)
-        cdim=5;
-        part=5;
-        //partellipsoid:=true;
-        partdim=5;
-        break;
-    case cbpartTriaxEllips/*6*/: //(* triaxial ellipsoid *)
-        cdim=6;
-        part=6;
-        //parttriellipsoid:=true;
-        partdim=6;
-        break;
-    case cbpartSuperEllips/*7*/: //(* super ellipsoid, barrel *)
-        cdim=7;
-        part=7;
-        //partbarrel:=true;
-        partdim=7;
-        break;
-        /*Z=20443 TODO neue Werte bei cdim, sicher auch vorher für die anderen */
-    } // switch ( ComboBoxParticle )
+    /* ********************* */  //Z=20266
+    /* ** beam definition ** */  //Z=20267
+    /* ********************* */  //Z=20268
+    //? lambda = StrToFloat(EditWavelength.Text);  //Z=20271
+    //? beamx0 = StrToFloat(EditCenterX.Text);  //Z=20277
+    //? beamy0 = StrToFloat(EditCenterY.Text);  //Z=20278
+    //? nbeam = StrToInt(EditBeamN.Text);  //Z=20279
+    //? mbeam = StrToInt(EditBeamM.Text);  //Z=20280
+    //? sigbeamx = StrToFloat(EditSigN.Text);  //Z=20281
+    //? sigbeamy = StrToFloat(EditSigM.Text);  //Z=20282
+    //? midn = round((nbeam+1)/2.0);  //Z=20283
+    //? midm = round((mbeam+1)/2.0);  //Z=20284
 
-    /*Z=19880 Parameter array for liposome and myelin */
-    params.CR->myarray[0]=params.length;     /* axon length */
-    params.CR->myarray[1]=params.radius;      /* axon radius */
-    params.CR->myarray[2]=params.sigma;
-    params.CR->myarray[3]=params.sigmal;
-    params.CR->myarray[4]=params.radiusi;     /* no. of layers */
-    params.CR->myarray[5]=alphash;            /* l_ex */
-    params.CR->myarray[6]=params.rho;         /* l_in */
-    params.CR->myarray[7]=0; // TODO: acpl;        /* l_lip_head */
-    params.CR->myarray[8]=0; // TODO: bcpl;        /* l_lip_tail */
-    params.CR->myarray[9]=params.uca;         /* phi_axon */
-    params.CR->myarray[10]=params.ucb;        /* phi_intra */
-    params.CR->myarray[11]=params.ucc;        /* phi_extra */
-    params.CR->myarray[12]=params.domainsize; /* phi_head */
-    params.CR->myarray[13]=aziwidth;          /* phi_tail */
-    params.CR->myarray[14]=1;                 /* inmax */
-    params.CR->myarray[15]=1;                 /* vv */
-    params.CR->myarray[16]=1;                 /* rmax */
-    params.CR->myarray[17]=iso;               /* test parameter */
+    /* *********************** */  //Z=20287
+    /* ** GISAXS-parameters ** */  //Z=20288
+    /* *********************** */  //Z=20289
+    /*  TODO: hierfür gibt es noch keine Eingabefelder ...
+    alphai = StrToFloat(EditAlphai.Text);  //Z=20290
+    betag = StrToFloat(EditAbsorb.Text);  //Z=20291
+    betag2 = StrToFloat(EditAbsorb2.Text);  //Z=20292
+    alphacrit = StrToFloat(EditAcrit.Text);  //Z=20293
+    alphacrit2 = StrToFloat(EditAcrit2.Text);  //Z=20294
+    layerh = StrToFloat(EditLayer.Text);  //Z=20295
+    qhoriz = StrToFloat(EditQhoriz.Text);  //Z=20296
+    amppeak = StrToFloat(EditPeakAmp.Text);  //Z=20297
+    cutoff = StrToFloat(EditCutOff.Text);  //Z=20298
+    alphacrit = alphacrit*M_PI/180.0;  //Z=20299
+    alphacrit2 = alphacrit2*M_PI/180.0;  //Z=20300
+    alphai = alphai*M_PI/180.0;  //Z=20301
+    k00 = qhoriz/sin(alphai);  //Z=20302
 
-    if ( cdim != 9 && cdim != 10 )  // Neue Werte für cdim (s.o.)
-    {   /*Z=20452*/
-        coefficients( params.length, params.radius, params.radiusi, params.sigmal, params.sigma, phi, alphash, params.dbeta,
-                     theta, phi, part, cdim, 120, ordis, cs, params.CR->myarray,
-                     /* ab hier outputs */
-                     orcase, por, order, norm,
-                     limq1,  limq2,  limq3,  limq4,  limq5,  limq6,  limq7,  limq8,  limq9,
-                     limq1f, limq2f, limq3f, limq4f, limq5f, limq6f, limq7f, limq8f, limq9f, // TODO-F
-                     params.CR );  // Für GPU ist ein Zeiger besser als viele!
-    }
+    gisthetamax = 5.0;          //  default maximum angle in °    //Z=20304
+    gisthetamax = gisthetamax*M_PI/180.0;  //Z=20305
+    gisqmax = 2.0;              //  default maximum q    //Z=20306
+    gislambda = 2*M_PI*sin(gisthetamax)/gisqmax;  //Z=20307
+    gisk0 = 2*M_PI/gislambda;     //  default k0    //Z=20308
+    gisn0 = 1.0;  //Z=20309
+    gisn1 = gisn0*cos(alphacrit);  //Z=20310
+    gisn2 = gisn0*cos(alphacrit2);  //Z=20311
+    Editn0.Text = FloatToStr(gisn0);  //Z=20312
+    Editn1.Text = FloatToStr(gisn1);  //Z=20313
+    Editn2.Text = FloatToStr(gisn2);  //Z=20314
+    alphai1 = acos(cos(alphai)/gisn1);  //Z=20315
 
-/*#ifndef __CUDACC__
-    for ( int i=0; i<coeffarray_len; i++ )
-    {
-        //qDebug() << "carr1p[]" << i << params.CR->carr1p[i];
-        if ( isnan(params.CR->carr1p[i]) )
-        {
-            if ( i > 0 )
-                qDebug() << "carr1p["<<i-1<<"] =" << params.CR->carr1p[i-1];
-            qDebug() << "carr1p["<<i<<"] = NaN";
-            break;
-        }
-        if ( isinf(params.CR->carr1p[i]) )
-        {
-            if ( i > 0 )
-                qDebug() << "carr1p["<<i-1<<"] =" << params.CR->carr1p[i-1];
-            qDebug() << "carr1p["<<i<<"] =" << params.CR->carr1p[i];
-            break;
-        }
-        if ( i > 1 && params.CR->carr1p[i] == 1 ) break;
-    }
-#endif*/
-    /* Ändert nichts am Ergebnis ...
-    for ( int i=0; i<coeffarray_len; i++ )
-    {
-        if ( isnan(params.CR->carr1p[i]) || isinf(params.CR->carr1p[i]) ) params.CR->carr1p[i] = 1;
-        if ( isnan(params.CR->carr2p[i]) || isinf(params.CR->carr2p[i]) ) params.CR->carr2p[i] = 1;
-        if ( isnan(params.CR->carr3p[i]) || isinf(params.CR->carr3p[i]) ) params.CR->carr3p[i] = 1;
-        if ( isnan(params.CR->carr4p[i]) || isinf(params.CR->carr4p[i]) ) params.CR->carr4p[i] = 1;
-        if ( isnan(params.CR->carr5p[i]) || isinf(params.CR->carr5p[i]) ) params.CR->carr5p[i] = 1;
-        if ( isnan(params.CR->carr6p[i]) || isinf(params.CR->carr6p[i]) ) params.CR->carr6p[i] = 1;
-        if ( isnan(params.CR->carr7p[i]) || isinf(params.CR->carr7p[i]) ) params.CR->carr7p[i] = 1;
-        if ( isnan(params.CR->carr8p[i]) || isinf(params.CR->carr8p[i]) ) params.CR->carr8p[i] = 1;
-        if ( isnan(params.CR->carr9p[i]) || isinf(params.CR->carr9p[i]) ) params.CR->carr9p[i] = 1;
-
-        if ( isnan(params.CR->carr1f[i]) || isinf(params.CR->carr1f[i]) ) params.CR->carr1f[i] = 1;
-        if ( isnan(params.CR->carr2f[i]) || isinf(params.CR->carr2f[i]) ) params.CR->carr2f[i] = 1;
-        if ( isnan(params.CR->carr3f[i]) || isinf(params.CR->carr3f[i]) ) params.CR->carr3f[i] = 1;
-        if ( isnan(params.CR->carr4f[i]) || isinf(params.CR->carr4f[i]) ) params.CR->carr4f[i] = 1;
-        if ( isnan(params.CR->carr5f[i]) || isinf(params.CR->carr5f[i]) ) params.CR->carr5f[i] = 1;
-        if ( isnan(params.CR->carr6f[i]) || isinf(params.CR->carr6f[i]) ) params.CR->carr6f[i] = 1;
-        if ( isnan(params.CR->carr7f[i]) || isinf(params.CR->carr7f[i]) ) params.CR->carr7f[i] = 1;
-        if ( isnan(params.CR->carr8f[i]) || isinf(params.CR->carr8f[i]) ) params.CR->carr8f[i] = 1;
-        if ( isnan(params.CR->carr9f[i]) || isinf(params.CR->carr9f[i]) ) params.CR->carr9f[i] = 1;
-    }
+    qcrit = qhoriz+k00*sin(alphacrit);  //Z=20317
+    EditQcrit.Text = FloatToStr(qcrit);  //Z=20318
+    rough = StrToFloat(EditVertRough.Text);  //Z=20319
+    arough = StrToFloat(EditRoughAmp.Text);  //Z=20320
+    if ( CheckBoxGISAXS.Checked==true ) gisaxs = true;  //Z=20321
     */
 
-    zz=(1-sqr(params.sigma))/sqr(params.sigma);     /*Z=20464*/
+    /* ******************************* */  //Z=20324
+    /* ** settings for calculations ** */  //Z=20325
+    /* ******************************* */  //Z=20326
+    hmax = params.hklmax;  //Z=20330
+    kmax = params.hklmax;  //Z=20331
+    lmax = params.hklmax;  //Z=20332
+    //? zmax = StrToInt(EditGridPoints.Text);  //Z=20333  sonst zzmax...
+    /*  Color Maps  */  //Z=20334
+    //? ColMap  =  ComboBoxMap.ItemIndex + 1;  //Z=20335
+    /* 1: Color, 2: Color Wheel, 3: Temperature, 4: Geo, 5: DESY, 6: grey, */  //Z=20336
+    /* 7: inverse grey, 8: jet */  //Z=20337
 
-    //for ii:=0 to 100 do MemoTesti.Lines[ii]:=FloatToStr(carr4[ii]);   /*Z=20471*/
-    //for ii:=0 to 100 do MemoTestj.Lines[ii]:=FloatToStr(carr5[ii]);
-    //for ii:=0 to 100 do MemoTestk.Lines[ii]:=FloatToStr(carr6[ii]);
+    /* ******************************** */  //Z=20343
+    /*  training parameters and update  */  //Z=20344
+    /* ******************************** */  //Z=20345
+    // --> werden an anderer Stelle gesetzt, daher hier weglassen
+    // --> if ( CheckBoxTraining.checked==true )  wird auch ausgelassen
 
-    //(***************************************)
-    //(*** calculate unit cell orientation ***)
-    //(***************************************)
-    double ucvol;
-    if ( ltype != 12 )
-    {   /*Z=20483 aber auch in Z=20185 ... */
-        ButtonHKLClick( ltype, latpar1ptr, latpar2ptr );    // ltype=0..11 und nicht mehr ....
-        peakmax1 = latpar1(1,0);
-        peakmax2 = latpar2(1,0);    /*Z0311=19753*/
-//#ifndef __CUDACC__
-//        qDebug() << "nach ButtonHKLClick(2)" << peakmax1 << peakmax2;
-//#endif
+    /* *************************** */  //Z=20517
+    /* ** peak shape parameters ** */  //Z=20518
+    /* *************************** */  //Z=20519
 
-        /*Z=20487*/
-        corotations(params.uca,params.ucb,params.ucc,params.alpha_deg,params.beta_deg,params.gamma_deg,          // in
-                    ucn1,ucn2,ucn3,ucpsi, lat1d,lat2d,lat3d,                 // in
-                    ri11,ri12,ri13,ri21,ri22,ri23,ri31,ri32,ri33,            // out
-                    rt11,rt12,rt13,rt21,rt22,rt23,rt31,rt32,rt33,ucvol,      // out
-                    nuvwx,nuvwy,nuvwz,uuvwx,uuvwy,uuvwz,vuvwx,vuvwy,vuvwz,   // out
-                    nhklx,nhkly,nhklz,uhklx,uhkly,uhklz,vhklx,vhkly,vhklz);  // out
+    // ax1n = sqrt(ax1x*ax1x+ax1y*ax1y+ax1z*ax1z);  //Z=20533 = ax1.length()
+    // ax2n = sqrt(ax2x*ax2x+ax2y*ax2y+ax2z*ax2z);  //Z=20534 = ax2.length()
+    // ax3n = sqrt(ax3x*ax3x+ax3y*ax3y+ax3z*ax3z);  //Z=20535 = ax3.length()
 
-        //        rimp^[1,1]:=ri11;    rimp^[1,2]:=ri12;    rimp^[1,3]:=ri13;  /*Z=20534*/
-        //        rimp^[2,1]:=ri21;    rimp^[2,2]:=ri22;    rimp^[2,3]:=ri23;
-        //        rimp^[3,1]:=ri31;    rimp^[1,2]:=ri32;    rimp^[1,3]:=ri33;
-        //        rtmp^[1,1]:=rt11;    rtmp^[1,2]:=rt12;    rtmp^[1,3]:=rt13;
-        //        rtmp^[2,1]:=rt21;    rtmp^[2,2]:=rt22;    rtmp^[2,3]:=rt23;
-        //        rtmp^[3,1]:=rt31;    rtmp^[1,2]:=rt32;    rtmp^[1,3]:=rt33;
+    //? axmp^[1][1] = ax1x/ax1n;     axmp^[1][2] = ax1y/ax1n;     axmp^[1][3] = ax1z/ax1n;  //Z=20537
+    //? axmp^[2][1] = ax2x/ax2n;     axmp^[2][2] = ax2y/ax2n;     axmp^[2][3] = ax2z/ax2n;  //Z=20538
+    //? axmp^[3][1] = ax3x/ax3n;     axmp^[3][2] = ax3y/ax3n;     axmp^[3][3] = ax3z/ax3n;  //Z=20539
+
+    c0 = 1;  //Z=20545
+    c1 = 4;  //Z=20546
+    c2 = 4*(sqrt(2.0)-1);  //Z=20547
+    c3 = 4*(exp(2*log(2.0)/3.0)-1);  //Z=20548
+    if ( beta == 0 )
+        c4 = 1; // da bei "case cbpeakPearsonVII /*Pearson*/:" damit multipliziert wird
+    else
+        c4=exp(log(2.)/beta)-1;  //Z=20549
+
+    /*  critdist:=StrToFloat(EditCritDist.Text);  //Z=20551 */
+    critdist = 0.5;      /*  for allowed/non-allowed reflection overview  */  //Z=20552
+
+    /* ******************* */  //Z=20554
+    /* ** lattice tpyes ** */  //Z=20555
+    /* ******************* */  //Z=20556
+    /*if ( CheckBoxTest.Checked==true )*/ generic = true; /*  generic  */  //Z=20580 ==> lassen wir jetzt mal fest
+
+    if ( (ltype==4) || (ltype==5) ) twin = true;     /*  twinning  */  //Z=20582
+    if ( (ltype==12) || (ltype==20) || (ltype==21) ) lattice = false;  //Z=20583
+
+    if ( ltype == 14 /* GiSAXS-pattern */ ) calcQuadrants = radQ4;  /*Z=21005*/
+    if ( ltype == 15 /* GiSAXS-pattern */ ) calcQuadrants = radQ4;
+    // RadioButtonSlice wird hier ignoriert
+
+    //? if ( RadioButtonDebyeScherrer.Checked==true ) debyescherrer = true;  //Z=20585
+    //? if ( RadioButtonPara.Checked==true ) paracrystal = true;  //Z=20586
+
+    //? if ( ComboBoxLattice.ItemIndex==9 ) ButtonGyrVesClick(Sender);  //Z=20588
+    //? if ( ComboBoxLattice.ItemIndex==10 ) ButtonPn3mVesClick(Sender);  //Z=20589
+    //? if ( ComboBoxLattice.ItemIndex==11 ) ButtonIm3mVesClick(Sender);  //Z=20590
+
+    /* ** this generates reflection tables latpar1, latpar2, latpar1a,latpar2a ** */  //Z=20634
+    // ==> ebenfalls ab Zeile 21045, daher hier weglassen
+    /*  end of lattice types  */  //Z=20640
+
+    /* ***************** */  //Z=20643
+    /* ** Peak Shapes ** */  //Z=20644
+    /* ***************** */  //Z=20645
+    switch ( shp )
+    {
+    case 1: Lorentzian = true; break;  //Z=20663
+    case 2: Gaussian = true; break;  //Z=20664
+    case 3: Lorentzian1 = true; break;  //Z=20665
+    case 4: Lorentzian2 = true; break;  //Z=20666
+    case 5: Voigt = true; break;  //Z=20667
+    case 6: Pearson = true; break;  //Z=20668
+    case 7: BurgerG = true; break;  //Z=20669
+    case 8: break; // ????
     }
-    peaknorm2=0;
 
-    //(***************************************************)
-    //(*** isotropic peak list for allowed reflections ***)
-    //(***************************************************)
+    /*  Particle type  */  //Z=20672
+    switch ( ComboBoxParticle )
+    {
+    case cbpartSphere/*0*/:      //(* sphere *)  //Z=20673
+        part = 0;      /*  sphere  */  //Z=20674
+        partsphere = true;  //Z=20675
+        partdim = 3;  //Z=20676
+        cdim = 3;    /*  sphere  */  //Z=21000
+        break;
+    case cbpartCylinder/*1*/:    //(* cylinder *)  //Z=20678
+        part = 1;      /*  cylinder  */  //Z=20679
+        partcylinder = true;  //Z=20680
+        partdim = 2;  //Z=20681
+        cdim = 1;    /*  cylinder  */  //Z=21001
+        break;
+    case cbpartDisk/*2*/:        //(* disk *)  //Z=20683
+        part = 2;      /*  disk  */  //Z=20684
+        partdisk = true;  //Z=20685
+        partdim = 1;  //Z=20686
+        cdim = 2;    /*  disk  */  //Z=21002
+        break;
+    case cbpartVesicle/*3*/:     //(* vesicle *)  //Z=20688
+        part = 3;      /*  vesicle  */  //Z=20689
+        partvesicle = true;  //Z=20690
+        partdim = 3;  //Z=20691
+        cdim = 3;    /*  vesicle  */  //Z=21003
+        break;
+    case cbpartCube/*4*/:        //(* cube *)  //Z=20693
+        part = 4;      /*  cube  */  //Z=20694
+        partcube = true;  //Z=20695
+        partdim = 4;  //Z=20696
+        cdim = 4;    /*  cube  */  //Z=21004
+        break;
+    case cbpartEllipsoide/*5*/:  //(* ellipsoid *)  //Z=20698
+        part = 5;      /*  ellipsoid  */  //Z=20699
+        partellipsoid = true;  //Z=20700
+        partdim = 5;  //Z=20701
+        cdim = 5;    /*  ellipsoid  */  //Z=21005
+        break;
+    case cbpartTriaxEllips/*6*/: //(* triaxial ellipsoid *)  //Z=20703
+        part = 6;      /*  triaxial ellipsoid  */  //Z=20704
+        parttriellipsoid = true;  //Z=20705
+        partdim = 6;  //Z=20706
+        cdim = 6;    /*  triaxial ellipsoid  */  //Z=21006
+        break;
+    case cbpartSuperEllips/*7*/: //(* super ellipsoid, barrel *)  //Z=20708
+        part = 7;      /*  super ellipsoid, barrel  */  //Z=20709
+        partbarrel = true;  //Z=20710
+        partdim = 7;  //Z=20711
+        cdim = 7;    /*  super ellipsoid, barrel  */  //Z=21007
+        break;
+    case cbpartSuperball/*8*/: //  //Z=20713
+        part = 8;      /*  superball  */  //Z=20714
+        partball = true;  //Z=20715
+        partdim = 8;  //Z=20716
+        cdim = 8;    /*  superball  */  //Z=21008
+        break;
+    case cbpartChain/*9*/:  //Z=20718
+        part = 9;      /*  excluded volume chain  */  //Z=20719
+        partchain = true;  //Z=20720
+        partdim = 9;  //Z=20721
+        cdim = 9;    /*  excluded volume chain  */  //Z=21009
+        break;
+    case cbpartkpchain/*10*/:  //Z=20724
+        part = 10;      /*  Kratky Porod chain  */  //Z=20725
+        partkpchain = true;  //Z=20726
+        partdim = 10;  //Z=20727
+        cdim = 10;  /*  Kratky Porod chain  */  //Z=21010
+        break;
+    }
 
-    if ( ltype != 12 )
-    {   /*Z=20545*/
-        double sphno;
-        for ( int peakct1=1; peakct1<=peakmax1; peakct1++ )     /*Z=20549*/
+    /*  Particle Interior  */  //Z=20730
+    switch ( ComboBoxInterior )
+    {
+    case cbintHomogeneous/*0*/:
+        cs = 0;        /*  homogeneous  */  //Z=20731
+        homogeneous = true;  //Z=20738
+        break;
+    case cbintCoreShell/*1*/:
+        cs = 1;        /*  core/homogeneous shell  */  //Z=20732
+        alphash = 0.0001;  //Z=20736
+        coreshell = true;  //Z=20739
+        break;
+    case cbintCoreInShell/*2*/:
+        cs = 2;        /*  core/inhomogeneous shell  */  //Z=20733
+        coreinshell = true;  //Z=20740
+        break;
+    case cbintMultiShell/*3*/:
+        cs = 3;        /*  multi-shell  */  //Z=20734
+        lipo = true;  //Z=20741
+        break;
+    case cbintMyelin/*4*/:
+        cs = 4;        /*  myelin  */  //Z=20735
+        myelin = true;  //Z=20742
+        break;
+    }
+
+    //? rotnorm = sqrt(rotx*rotx+roty*roty+rotz*rotz);  //Z=20765
+    //? xycur = sqrt(xcur*xcur+ycur*ycur);  //Z=20771
+    //? anglecur = 2*M_PI*StrToFloat(EditAnglexy.Text)/360.0;    /*  angle of cursor  */  //Z=20772
+
+    if ( (cdim!=9) && (cdim!=10) )
+    {/*4*/  //Z=21015
+        coefficients(params.length, params.radius, params.radiusi, params.sigmal, params.sigma, polPhi, alphash,
+                     params.dbeta, polTheta, polPhi, part, cdim, 120, ordis, cs, params.CR->myarray,
+                     orcase, por, order, norm,  //Z=21016
+                     limq1, limq2, limq3, limq4, limq5, limq6, limq7, limq8, limq9,
+                     limq1f, limq2f, limq3f, limq4f, limq5f, limq6f, limq7, limq8, limq9,  //Z=21017
+                     params.CR );  //Z=21019, für GPU ist ein Zeiger besser als viele!
+                     //carr1p^,carr2p^,carr3p^,carr4p^,carr5p^,carr6p^,carr7p^,carr8p^,carr9p^,
+                     //carr1f^,carr2f^,carr3f^,carr4f^,carr5f^,carr6f^,carr7f^,carr8f^,carr9f^,
+                     //carr11pm^,carr22pm^
+    }/*4*/  //Z=21020
+
+    zz = (1-sqr(params.sigma))/(sqr(params.sigma));  //Z=21028
+
+    //? nnnorm = norm;  //Z=21031
+
+    // }  //Z=21036, ende von if(generic) aus Zeile 20999
+
+    if ( generic && lattice )
+    {/*3*/  //Z=21042
+
+        /* ** this generates reflection tables latpar1, latpar2, latpar1a,latpar2a ** */  //Z=21044
+        retvalHKLClick = ButtonHKLClick( ltype, latpar1ptr, latpar2ptr );  //Z=21045,  ltype=0..11 und nicht mehr ....
+        peakmax1 = latpar1(1,0);  //Z=21046
+        peakmax2 = latpar2(1,0);  //Z=21047
+//#ifndef __CUDACC__
+//        qDebug() << "PrepareCalculation ButtonHKLClick =" << retval;
+//#endif
+        // TODO: wenn retval != chgNone, dann alle Werte auch in der GUI anpassen
+
+        if ( peakmax1 >= latparlen )
         {
-            h=latpar1(peakct1,1);
-            k=latpar1(peakct1,2);
-            l=latpar1(peakct1,3);
-            mhkl=latpar1(peakct1,4);    //(* check *)
-            fhkl_c(ltype,h,k,l,params.uca,params.ucb,params.ucc,params.alpha_deg,params.beta_deg,params.gamma_deg,
-                   sphno,fhkl,qhkl,qhkl0);
-
-            //if ( peakct1 < 5 ) qDebug() << "PEAK1" << peakct1 << sphno << fhkl << qhkl << qhkl0;
-
-            setLatpar1(peakct1,5, round(fhkl) ); // wird danach aber nie wieder gebraucht ...
-            latpar[1]=ucvol;         /*Z=20557*/
-            latpar[2]=sphno;         // Zwischenspeicher für 'die letzten' berechneten Werte ...
-            latpar[3]=dwfactor;
-            // [1] und [2] wurden bei NewCPU anders ausgelesen. Macht zwar nichts aus, da diese beiden Werte
-            // beim Ergebnis miteinander multipliziert und sonst nicht verwendet werden.
+#ifndef __CUDACC__
+            qDebug() << "PrepareCalculation ERROR peakmax1" << peakmax1 << " (max" << latparlen << ")";
+#endif
+            peakmax1 = 0;
         }
+        if ( peakmax2 >= latparlen )
+        {
+#ifndef __CUDACC__
+            qDebug() << "PrepareCalculation ERROR peakmax2" << peakmax2 << " (max" << latparlen << ")";
+#endif
+            peakmax2 = 0;
+        }
+
+        corotations(params.uca,params.ucb,params.ucc,params.alpha_deg,params.beta_deg,params.gamma_deg,
+                    ucn1,ucn2,ucn3,ucpsi,lat1d,lat2d,lat3d,ri11,ri12,ri13,ri21,ri22,ri23,ri31,ri32,ri33,  //Z=21049
+                    rt11,rt12,rt13,rt21,rt22,rt23,rt31,rt32,rt33,ucvol,  //Z=21050
+                    nuvwx,nuvwy,nuvwz,uuvwx,uuvwy,uuvwz,vuvwx,vuvwy,vuvwz,  //Z=21051
+                    nhklx,nhkly,nhklz,uhklx,uhkly,uhklz,vhklx,vhkly,vhklz);  //Z=21052
+
+        //? rimp^[1][1] = ri11;    rimp^[1][2] = ri12;    rimp^[1][3] = ri13;  //Z=21106
+        //? rimp^[2][1] = ri21;    rimp^[2][2] = ri22;    rimp^[2][3] = ri23;  //Z=21107
+        //? rimp^[3][1] = ri31;    rimp^[1][2] = ri32;    rimp^[1][3] = ri33;  //Z=21108
+        //? rtmp^[1][1] = rt11;    rtmp^[1][2] = rt12;    rtmp^[1][3] = rt13;  //Z=21109
+        //? rtmp^[2][1] = rt21;    rtmp^[2][2] = rt22;    rtmp^[2][3] = rt23;  //Z=21110
+        //? rtmp^[3][1] = rt31;    rtmp^[1][2] = rt32;    rtmp^[1][3] = rt33;  //Z=21111
+
+    }/*3*/  //Z=21113
+
+    /* ** reciprocal space vector list ** */  //Z=21115
+    if ( generic && lattice )
+    {/*3*/  //Z=21116
+        /* ************************************************* */  //Z=21117
+        /* ** isotropic peak list for allowed reflections ** */  //Z=21118
+        /* ************************************************* */  //Z=21119
+
+        double sphno;
+        for ( int peakct1=1; peakct1<=peakmax1; peakct1++ )
+        {/*4*/  //Z=21121
+            h = latpar1(peakct1,1);  //Z=21122
+            k = latpar1(peakct1,2);  //Z=21123
+            l = latpar1(peakct1,3);  //Z=21124
+            mhkl = latpar1(peakct1,4);    /*  check  */  //Z=21125
+            fhkl_c(ltype,h,k,l,params.uca,params.ucb,params.ucc,params.alpha_deg,params.beta_deg,params.gamma_deg,
+                   sphno,fhkl,qhkl,qhkl0);  //Z=21126
+
+            setLatpar1(peakct1,5, round(fhkl) ); //Z=21128, wird danach aber nie wieder gebraucht ...
+            latpar[1] = ucvol;  //Z=21129
+            latpar[2] = sphno;  //Z=21130
+            latpar[3] = dwfactor;  //Z=21131
+        }/*4*/  //Z=21140
         if ( peakmax1 == 0 )
         {   // Damit auf jeden Fall gültige Werte in das latpar[] Array geschrieben werden...
             // Sonst wird jeder Pixel zu nan weil durch cubevol geteilt wird ...
-            latpar[1]=1;
-            latpar[2]=ucvol;
+            latpar[1]=ucvol;
+            latpar[2]=1;
+            latpar[3]=dwfactor;
         }
 
-        //(* anisotropic peak list *)
-        //int hkli=0;
-        for ( int peakct2=1; peakct2<=peakmax2; peakct2++ )     /*Z=20572*/
-        {
-            h=latpar2(peakct2,1);
-            k=latpar2(peakct2,2);
-            l=latpar2(peakct2,3);
-            //int mhkl=1;
+        /*  anisotropic peak list  */  //Z=21143
+        //? SetLength(latpar2p^, (peakmax2+1));  //Z=21144
+        //? for ( ii=0; ii<=peakmax2; ii++ ) SetLength(latpar2p^[ii], 10);  //Z=21145
+        //? SetLength(latpar3p^, (peakmax2+1));  //Z=21146
+        //? for ( ii=0; ii<=peakmax2; ii++ ) SetLength(latpar3p^[ii], 16);  //Z=21147
+
+        int hkli = 0;  //Z=21149
+        for ( int peakct2=1; peakct2<=peakmax2; peakct2++ )
+        {/*4*/  //Z=21150
+            h = latpar2(peakct2,1);  //Z=21151
+            k = latpar2(peakct2,2);  //Z=21152
+            l = latpar2(peakct2,3);  //Z=21153
+            mhkl = 1;  //Z=21154
             fhkl_c(ltype,h,k,l,params.uca,params.ucb,params.ucc,params.alpha_deg,params.beta_deg,params.gamma_deg,
-                   sphno,fhkl,qhkl,qhkl0);
+                   sphno,fhkl,qhkl,qhkl0);  //Z=21155
+            setLatpar2(peakct2, 5, round(fhkl) );  //Z=21156
+            //latpar2p^[peakct2][1] = latpar2[peakct2][1];  //Z=21158
+            //latpar2p^[peakct2][2] = latpar2[peakct2][2];  //Z=21159
+            //latpar2p^[peakct2][3] = latpar2[peakct2][3];  //Z=21160
+            setLatpar2(peakct2,4,mhkl);  //Z=21161
+            //latpar2p^[peakct2][5] = latpar2[peakct2][5];  //Z=21162
 
-            //if ( peakct2 < 5 ) qDebug() << "PEAK2" << peakct2 << sphno << fhkl << qhkl << qhkl0;
+            /* latpar3[peakct2,1]:=2*pi/uca;  //Z=21164 */
+            setLatpar3(peakct2,1, 2*M_PI/params.uca);  //Z=21165
+            qxhkl = (2*M_PI)*(ri11*h+ri21*k+ri31*l);  //Z=21166
+            qyhkl = (2*M_PI)*(ri12*h+ri22*k+ri32*l);  //Z=21167
+            qzhkl = (2*M_PI)*(ri13*h+ri23*k+ri33*l);  //Z=21168
+            qxyhkl = (2*M_PI)*sqrt(h*h*(ri11*ri11+ri12*ri12+ri13*ri13)+k*k*(ri21*ri21+ri22*ri22+ri23*ri23));  //Z=21169
+            qhkl = sqrt(qxhkl*qxhkl+qyhkl*qyhkl+qzhkl*qzhkl);  //Z=21170
 
-            setLatpar2(peakct2,5, round(fhkl) );
-            setLatpar2(peakct2,4, 1 );      /*Z=20583  =mhkl welches vorher auf 1 gesetzt wurde*/
+            /* latpar3[peakct2,2]:=qxhkl;  //Z=21172 */
+            setLatpar3(peakct2,2, qxhkl);  //Z=21173
+            /* latpar3[peakct2,3]:=qyhkl;  //Z=21174 */
+            setLatpar3(peakct2,3, qyhkl);  //Z=21175
+            /* latpar3[peakct2,4]:=qzhkl;  //Z=21176 */
+            setLatpar3(peakct2,4, qzhkl);  //Z=21177
+            /* latpar3[peakct2,5]:=qhkl;  //Z=21178 */
+            setLatpar3(peakct2,5, qhkl);  //Z=21179
+            /* latpar3[peakct2,6]:=qhkl/(2*pi);  //Z=21180 */
+            setLatpar3(peakct2,6, qhkl/(2.0*M_PI));  //Z=21181
+            qxhklt = (2*M_PI)*(rt11*h+rt21*k+rt31*l);  //Z=21182
+            qyhklt = (2*M_PI)*(rt12*h+rt22*k+rt32*l);  //Z=21183
+            qzhklt = (2*M_PI)*(rt13*h+rt23*k+rt33*l);  //Z=21184
 
-            setLatpar3(peakct2,1, 2*M_PI/params.uca );
-            qxhkl=(2*M_PI)*(ri11*h+ri21*k+ri31*l);
-            qyhkl=(2*M_PI)*(ri12*h+ri22*k+ri32*l);
-            qzhkl=(2*M_PI)*(ri13*h+ri23*k+ri33*l);
-            qxyhkl=(2*M_PI)*sqrt(h*h*(ri11*ri11+ri12*ri12+ri13*ri13)+k*k*(ri21*ri21+ri22*ri22+ri23*ri23));
-            qhkl=sqrt(qxhkl*qxhkl+qyhkl*qyhkl+qzhkl*qzhkl);
-            setLatpar3(peakct2,2, qxhkl );
-            setLatpar3(peakct2,3, qyhkl );
-            setLatpar3(peakct2,4, qzhkl );
-            setLatpar3(peakct2,5, qhkl );
-            setLatpar3(peakct2,6, qhkl/(2*M_PI) );
-            qxhklt=(2*M_PI)*(rt11*h+rt21*k+rt31*l);
-            qyhklt=(2*M_PI)*(rt12*h+rt22*k+rt32*l);
-            qzhklt=(2*M_PI)*(rt13*h+rt23*k+rt33*l);
-            setLatpar3(peakct2,7, qxhklt );
-            setLatpar3(peakct2,8, qyhklt );
-            setLatpar3(peakct2,9, qzhklt );
-            g3=4*M_PI*M_PI/(2*M_PI*qhkl*qhkl);
-            x2phihkl=4*qhkl*qhkl/(M_PI*phiwidth*phiwidth);
+            /* latpar3[peakct2,7]:=qxhklt;  //Z=21186 */
+            setLatpar3(peakct2,7, qxhklt);  //Z=21187
+            /* latpar3[peakct2,8]:=qyhklt;  //Z=21188 */
+            setLatpar3(peakct2,8, qyhklt);  //Z=21189
+            /* latpar3[peakct2,9]:=qzhklt;  //Z=21190 */
+            setLatpar3(peakct2,9, qzhklt);  //Z=21191
+            g3 = 4*M_PI*M_PI/(2.0*M_PI*qhkl*qhkl);  //Z=21192
+            x2phihkl = 4*qhkl*qhkl/(M_PI*phiwidth*phiwidth);  //Z=21193
+            peaknorm2=0; // zur Sicherheit
+
             switch ( shp )      /*Z=20614*/
             {
             case cbpeakLorentzian: // 1
-                peaknorm1=lorentznorm3(x2phihkl);
+                peaknorm1 = lorentznorm3(x2phihkl);  //Z=21194
                 break;
             case cbpeakGaussian: // 2
-                peaknorm1=gaussnorm3(x2phihkl);
+                peaknorm1 = gaussnorm3(x2phihkl);  //Z=21195
                 break;
             case cbpeakMod1Lorentzian: // 3
-                peaknorm1=pearsonnorm3(x2phihkl,2);
+                peaknorm1 = pearsonnorm3(x2phihkl,2);  //Z=21196
                 break;
             case cbpeakMod2Lorentzian: // 4
-                peaknorm1=pearsonnorm3(x2phihkl,3/2.);
+                peaknorm1 = pearsonnorm3(x2phihkl,3/2.0);  //Z=21197
                 break;
             case cbpeakPseudoVoigt: // 5
-                peaknorm1=lorentznorm3(x2phihkl);
-                // UNKLAR peaknorm2=gaussnorm3(x2psihkl);
-                peaknorm2=gaussnorm3(x2phihkl);
-                // x2psihkl ist auch im Quellcode nicht gesetzt
-                // wird erst bei späteren Berechnungen gesetzt
+                peaknorm1 = lorentznorm3(x2phihkl);  //Z=21199
+                //? peaknorm2 = gaussnorm3(x2psihkl);  //Z=21200 ==> x2psihkl unbekannt
                 break;
             case cbpeakPearsonVII: // 6
-                peaknorm1=pearsonnorm3(x2phihkl,beta);
+                peaknorm1 = pearsonnorm3(x2phihkl,beta);  //Z=21202
                 break;
             case cbpeakGamma: // 7
-                peaknorm1=gaussnorm3(x2phihkl);
+                peaknorm1 = gaussnorm3(x2phihkl);  //Z=21203
                 break;
             case cbpeakAnisotropicGaussian: // 8
                 peaknorm1 = 0;  // wird lt. Prof. Förster hier nicht benötigt
@@ -534,23 +678,38 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
                 D8( if ( peakct2 == 1 ) qDebug() << "prepCalc cbpeakAnisotropicGaussian" );
                 break;
             }
-            setLatpar3(peakct2,10, g3 );
-            setLatpar3(peakct2,11, peaknorm1 );
-            setLatpar3(peakct2,12, peaknorm2 );
-            setLatpar3(peakct2,13, qxyhkl );    /*Z=20631*/
+            /* latpar3[peakct2,10]:=g3;  //Z=21204 */
+            setLatpar3(peakct2,10, g3);  //Z=21205
+            /* latpar3[peakct2,11]:=peaknorm1;  //Z=21206 */
+            setLatpar3(peakct2,11, peaknorm1);  //Z=21207
+            /* latpar3[peakct2,12]:=peaknorm2;  //Z=21208 */
+            setLatpar3(peakct2,12, peaknorm2);  //Z=21209
+            /* latpar3[peakct2,13]:=qxyhkl;  //Z=21210 */
+            setLatpar3(peakct2,13, qxyhkl);  //Z=21211
+/*
+            double qxs = qxhkl;  //Z=21235
+            double qys = qyhkl;  //Z=21236
+            double mildist = qzhkl;  //Z=21237
 
-            //(* Peak reference table entries *)
-            /*Z=20633 Der folgende Code wird nur für Debugausgaben verwendet und sonst nicht. Daher hier weglassen. */
+            double angles = 180*atan2(qxs,qys)/M_PI;  //Z=21239
 
-        } // for ( int peakct2=1; peakct2<=peakmax2; peakct2++ )
-    } /*Z=20694  if ltype != 12  <=>  if generic and lattice */
+            if ( CheckBoxTwinned )
+            {  //Z=21255
+                qxs = qxhklt;  //Z=21275
+                qys = qyhklt;  //Z=21276
+                mildist = qzhklt;  //Z=21277
 
+                angles = 180*atan2(qxs,qys)/M_PI;  //Z=21279
 
-
+            }  //  of twinned    //Z=21291
+            // ** end of table entries **   //Z=21293
+*/
+        }/*4*/  //Z=21294
+    }/*3*/  /*  of test or ltype=30  */  //Z=21295
 
     /*Z=24607 Der folgende Code ist direkt vor den ihex/i Schleifen */
-    sinphic=sin(-phi*M_PI/180.);
-    cosphic=cos(-phi*M_PI/180.);
+    sinphic=sin(-polPhi*M_PI/180.);
+    cosphic=cos(-polPhi*M_PI/180.);
 
     ucl1 = sintheta*cosphi;
     ucl2 = sintheta*sinphi;
@@ -560,14 +719,20 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
 
     if ( shp==8 )
     {
-        D8( qDebug() << "prepCalc start qrombdeltac, theta phi:" << theta << phi );
-        qrombdeltac(params.length, params.radius, /*p1, sigma, dbeta,*/ theta, phi, 1,1,1,
-                    9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,
-                    /*i0=*/2, /*i1=*/0, /*i2=*/0, /*i3=*/0, /*i4=*/0, params.CR->carr1p, /*Erg=*/norm );
+        D8( qDebug() << "prepCalc start qrombdeltac, theta phi:" << polTheta << polPhi );
+        //qrombdeltac(params.length, params.radius, params.p1, params.sigma, params.dbeta, theta, phi, 1,1,1,
+        //            9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,
+        //            /*i0=*/2, /*i1=*/0, /*i2=*/0, /*i3=*/0, /*i4=*/0, params.CR->carr1p, /*Erg=*/norm );
+
+        qrombdeltac( params.length, params.radius, params.p1, params.sigma, params.alpha_deg, params.dbeta, polTheta, polPhi, 1,1,1,
+                     9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,
+                     2, 0, 0, 0, 0, params.CR->carr1p, norm );  //Z=25221
         D8( qDebug() << "prepCalc qrombdeltac fertig" );
     }
 
-    psphere_init();
+    // global init to avoid same calculations every time
+    params.psphere_r = /*(1. + 6.*sqr(params.sigma)) * */ params.radius; // {NV}
+    params.psphere_z = (1. - sqr(params.sigma)) / sqr(params.sigma);
 
     if ( bExpandImage )
     {   // Es wird immer Speicher für das ganze Image angelegt
@@ -603,7 +768,7 @@ void SasCalc_GENERIC_calculation::cleanup()
     {
         memcleanup( arrFitData );   arrFitData = nullptr;   std::cerr << " arrFitData";
     }
-#endif    
+#endif
     memcleanup( arrXYIntensity );   arrXYIntensity = nullptr;   std::cerr << " xyIntensity";
     memcleanup( params.CR );        params.CR = nullptr;        std::cerr << " CR";
     memcleanup( latpar3ptr );       latpar3ptr = nullptr;       std::cerr << " latpar3";
@@ -643,22 +808,22 @@ std::string SasCalc_GENERIC_calculation::tpvPerformRandom(std::list<std::string>
         return "TPV: clear";
     }
 
-//    typedef struct
-//    {
-//        double *ptr;
-//        double oldval;
-//        enum { norm, uca, phi, azi, dw } flag;
-//    } tpvRandomHelper;
-//    QHash< QString/*name*/, tpvRandomHelper* > tpvRandomOldValues;
+    //    typedef struct
+    //    {
+    //        double *ptr;
+    //        double oldval;
+    //        enum { norm, uca, phi, azi, dw } flag;
+    //    } tpvRandomHelper;
+    //    QHash< QString/*name*/, tpvRandomHelper* > tpvRandomOldValues;
     if ( tpvRandomOldValues.empty() ) // tpvPerformRandom()
     {   // Erster Aufruf, füllen der Daten
         //std::cerr << "     ----- tpvPerformRandom ----- INIT" << std::endl;
         tpvRandomHelper *hlp;
 #define TPVINIT(nam,var,flg) hlp = new tpvRandomHelper; \
-                             hlp->ptr = &var; \
-                             hlp->oldval = var; \
-                             hlp->flag = flg; \
-                             tpvRandomOldValues.insert({nam,hlp});
+        hlp->ptr = &var; \
+            hlp->oldval = var; \
+            hlp->flag = flg; \
+            tpvRandomOldValues.insert({nam,hlp});
         TPVINIT( "I0",              izero,             tpvRandomHelper::norm );
         TPVINIT( "EditRadius",      params.radius,     tpvRandomHelper::norm );
         TPVINIT( "EditSigma",       params.sigma,      tpvRandomHelper::norm );
@@ -672,7 +837,7 @@ std::string SasCalc_GENERIC_calculation::tpvPerformRandom(std::list<std::string>
         TPVINIT( "EditDomainSize",  params.width_zuf,  tpvRandomHelper::norm ); // width ist nur lokal
         TPVINIT( "EditAzi",         phiwidth,          tpvRandomHelper::azi  ); hlp->oldval = aziwidth;
         TPVINIT( "EditDebyeWaller", dwfactor,          tpvRandomHelper::dw   ); hlp->oldval = displacement;
-        TPVINIT( "phi",             phi,               tpvRandomHelper::phi  );
+        TPVINIT( "phi",             polPhi,               tpvRandomHelper::phi  );
         // TODO: noch nicht in der GUI
         TPVINIT( "Base",            base,              tpvRandomHelper::norm );
         TPVINIT( "EditRho",         params.rho,        tpvRandomHelper::norm );
@@ -730,7 +895,7 @@ std::string SasCalc_GENERIC_calculation::tpvPerformRandom(std::list<std::string>
     }
     // Sicherheitsprüfungen
     if ( (ComboBoxInterior == cbintCoreShell || ComboBoxParticle == cbpartVesicle) &&
-         (params.length <= params.radius) )
+        (params.length <= params.radius) )
         params.length = params.radius + params.length;
     if ( ComboBoxParticle == cbpartDisk && params.length <= 2.*params.radius )
         params.length = 2.*params.radius + params.length;
@@ -744,9 +909,8 @@ std::string SasCalc_GENERIC_calculation::tpvPerformRandom(std::list<std::string>
  * @param numThreads - number of threads to use
  * All other parameters must be stored in global variables before calling this procedure.
  */
-void SasCalc_GENERIC_calculation::doCalculation( int numThreads, progressAndAbort pa )
+void SasCalc_GENERIC_calculation::doCalculation( int numThreads )
 {
-    if ( pa != nullptr ) progAndAbort = pa;
     numberOfThreads = numThreads;
 
     auto start1 = std::chrono::high_resolution_clock::now();
@@ -821,14 +985,14 @@ void SasCalc_GENERIC_calculation::doCalculation( int numThreads, progressAndAbor
         {   // Without threading it is simple ...
             for ( int ihex=zzmin; ihex<zzmax; /*ihex++*/ )  // (***   z-loop  ***)
             {
-                if ( progAndAbort )
-                {   // --> wird nur noch bei Tests genutzt, im Normalfall nicht mehr!
-                    // Displays the current progess level in percent
-                    // and checks if the cancel button was clicked
-                    if ( progAndAbort( (100*(ihex-zzmin))/(zzmax-zzmin) ) ) break;
-                }
                 if ( _endThread ) break;
-                doIntCalc_GENERIC( ihex++ );
+                for ( int i=iimin; i<iimax; i++ )
+                {
+                    doIntCalc_GENERIC_F( *this, ihex, i );
+                    if ( _endThread ) break;
+                }
+                ihex++;
+                if ( _endThread ) break;
             } // for ihex
         } // numThreads <= 1
 
@@ -840,12 +1004,6 @@ void SasCalc_GENERIC_calculation::doCalculation( int numThreads, progressAndAbor
             int ihex=zzmin;
             while ( ihex<zzmax )  // (***   z-loop  ***)
             {
-                if ( progAndAbort )
-                {   // --> wird nur noch bei Tests genutzt, im Normalfall nicht mehr!
-                    // Displays the current progess level in percent
-                    // and checks if the cancel button was clicked
-                    if ( progAndAbort( (100*(ihex-zzmin))/(zzmax-zzmin) ) ) break; // Wert in %
-                }
                 if ( _endThread ) break;
 
                 // If the number of threads is greater than the number of cores, this loop must be optimized
@@ -969,14 +1127,14 @@ double SasCalc_GENERIC_calculation::doFitCalculation(int numThreads, int bstop, 
         {   // Without threading it is simple ...
             for ( int x=0; x<_fitWidth; /*x++*/ )
             {
-                if ( progAndAbort )
-                {   // --> wird nur noch bei Tests genutzt, im Normalfall nicht mehr!
-                    // Displays the current progess level in percent
-                    // and checks if the cancel button was clicked
-                    if ( progAndAbort( (100*x)/_fitWidth ) ) break;
+                for ( int y=0; y<_fitHeight; y++ )
+                {
+                    doIntFitCalc_GENERIC_F( *this, x, y );
+                    if ( _endThread ) break;
                 }
+                x++;
                 if ( _endThread ) break;
-                doIntFitCalc_GENERIC( x++ );
+
             } // for x
         } // numThreads <= 1
 
@@ -988,12 +1146,6 @@ double SasCalc_GENERIC_calculation::doFitCalculation(int numThreads, int bstop, 
             int x=0;
             while ( x<_fitWidth /*&& x<10/ *TEST*/ )
             {
-                if ( progAndAbort )
-                {   // --> wird nur noch bei Tests genutzt, im Normalfall nicht mehr!
-                    // Displays the current progess level in percent
-                    // and checks if the cancel button was clicked
-                    if ( progAndAbort( (100*x)/_fitWidth ) ) break; // Wert in %
-                }
                 if ( _endThread ) break;
 
                 // If the number of threads is greater than the number of cores, this loop must be optimized
@@ -1069,7 +1221,11 @@ void *SasCalc_GENERIC_calculation::doThreadCalculation(void *arg)
     pthread_setcancelstate( PTHREAD_CANCEL_ENABLE, nullptr );
     pthread_setcanceltype( PTHREAD_CANCEL_ASYNCHRONOUS, nullptr );
     int ihex = *(static_cast<int*>(arg));
-    inst->doIntCalc_GENERIC( ihex );
+    for ( int i=inst->iimin; i<inst->iimax; i++ )
+    {
+        inst->doIntCalc_GENERIC_F( *inst, ihex, i );
+        if ( inst->_endThread ) break;
+    }
     return nullptr;
 }
 
@@ -1084,71 +1240,39 @@ void *SasCalc_GENERIC_calculation::doThreadFitCalculation(void *arg)
     pthread_setcancelstate( PTHREAD_CANCEL_ENABLE, nullptr );
     pthread_setcanceltype( PTHREAD_CANCEL_ASYNCHRONOUS, nullptr );
     int x = *(static_cast<int*>(arg));
-    inst->doIntFitCalc_GENERIC( x );
+    for ( int y=0; y<inst->_fitHeight; y++ )
+    {
+        inst->doIntFitCalc_GENERIC_F( *inst, x, y );
+        if ( inst->_endThread ) break;
+    }
     return nullptr;
 }
 
 
 /**
- * @brief SasCalc_gpu::doIntCalc_GENERIC
- * @param ihex - vertical pixel index
- */
-void SasCalc_GENERIC_calculation::doIntCalc_GENERIC(int ihex)
-{
-    for ( int i=iimin; i<iimax; i++ )
-    {
-        doIntCalc_GENERIC_F( *this, ihex, i );
-        if ( _endThread ) break;
-    }
-}
-
-/**
- * @brief SasCalc_gpu::doIntCalc_GENERIC
- * @param ihex - vertical pixel index
- */
-void SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC(int x)
-{
-//#ifndef __CUDACC__
-//    qDebug() << "Fit-x:" << x << _fitWidth << "y-bis" << _fitHeight;
-//#endif
-    for ( int y=0; y<_fitHeight; y++ )
-    {
-        doIntFitCalc_GENERIC_F( *this, x, y );
-        if ( _endThread ) break;
-    }
-}
-
-
-
-
-/**
  * @brief SasCalc_gpu::doIntCalc_GENERIC_F
- * @param FCC  - reference to class with parameters and subfunctions
+ * @param CALC - reference to class with parameters and subfunctions
  * @param ihex - vertical pixel index
  * @param i    - horizontal pixel index
- * @param lamv - running vertical axis value
  * Calculation from Pascalprogram (20210818-crystal3d1.pas + updates) - only part Generic
  */
 #ifdef __CUDACC__
 __host__ __device__
 #endif
-inline void SasCalc_GENERIC_calculation::doIntCalc_GENERIC_F( const SasCalc_GENERIC_calculation& FCC,
+inline void SasCalc_GENERIC_calculation::doIntCalc_GENERIC_F(const SasCalc_GENERIC_calculation& CALC,
                                                               int ihex, int i )
 {
+
 #ifdef COPY_FITDATA_TO_GPU  // Eckpixeltest
-    if ( FCC.arrDataForFitUsed )
+    if ( CALC.arrDataForFitUsed )
     {   // Spezielle Aktionen (Maskieren und FQS) für das Simplex-2D-Fit
-        if ( FCC.arrDataForFit[1+FCC.IDX(ihex,i)] <= FCC.arrDataForFit[1] )
+        if ( CALC.arrDataForFit[1+CALC.IDX(ihex,i)] <= CALC.arrDataForFit[1] )
         {   // Datenwert <= Eckpixel --> Ergebnis immer 0.
-            FCC.setXYIntensity( ihex, i, 0.0 );
+            CALC.setXYIntensity( ihex, i, 0.0 );
             return;
         }
     }
 #endif
-
-    //lamu   = (FCC.qmax * i) / FCC.iimax;    // (*** running index for x-axis ***)
-    //{NV} alles mit "RadioButtonSlice.Checked=true" lasse ich weg, da ich hier noch keine
-    //     Schnitte behandele.
 
     // Einrechnen des Beamstops (d.h. Verschiebung des Zentrums)
     //int mdet = ihex + BCT.zmax + 1;     // (* mth pixel *)
@@ -1156,23 +1280,28 @@ inline void SasCalc_GENERIC_calculation::doIntCalc_GENERIC_F( const SasCalc_GENE
     /*Z=24635*/
     // Im Pascal-Programm ist der Beamstop für Null in der Ecke.
     // Hier ist der Beamstop für Null in der Mitte gerechnet.
-    double xdet = FCC.pixx * (i   /*+FCC.zmax+1*/ - FCC.beamX0);
-    double ydet = FCC.pixy * (ihex/*+FCC.zmax+1*/ - FCC.beamY0);
+    double xdet = CALC.pixx * (ihex/*+CALC.zmax+1*/ - CALC.beamX0);
+    double ydet = CALC.pixy * (i   /*+CALC.zmax+1*/ - CALC.beamY0);
     double rdet = sqrt(xdet*xdet+ydet*ydet);
     double phidet = atan2(ydet,xdet);
-    double thetadet = atan2(rdet,FCC.det);
-    double qx = 2*M_PI*cos(phidet)*sin(thetadet)/FCC.wave;
-    double qy = 2*M_PI*sin(phidet)*sin(thetadet)/FCC.wave;
-    double qz = 2*M_PI*(1-cos(thetadet))/FCC.wave;
+    double thetadet = atan2(rdet,CALC.det);
+    double qx = 2*M_PI*cos(phidet)*sin(thetadet)/CALC.wave;
+    double qy = 2*M_PI*sin(phidet)*sin(thetadet)/CALC.wave;
+    double qz = 2*M_PI*(1-cos(thetadet))/CALC.wave;
 
     // Call q(x,y,z) Routine (also from 2dFit)
-    double pixval = doIntCalc_GENERIC_q_xyz( FCC, qx, qy, qz );
-    if ( FCC._endThread ) return;
+    double pixval = doIntCalc_GENERIC_q_xyz( CALC, qx, qy, qz,
+#ifndef __CUDACC__
+                                            (ihex==0 && i==0), fabs(ihex-CALC.beamX0)<1 && fabs(i-CALC.beamY0)<1 );
+#else
+                                            false, false );
+#endif
+    if ( CALC._endThread ) return;
 
-    FCC.setXYIntensity( ihex, i, pixval );
+    CALC.setXYIntensity( ihex, i, pixval );
 
 #ifndef __CUDACC__
-    FCC.setDebugIntensity( false );   // Damit nur beim ersten Durchlauf eine Kontrollausgabe kommt.
+    CALC.setDebugIntensity( false );   // Damit nur beim ersten Durchlauf eine Kontrollausgabe kommt.
 #endif
 
     DBGFILE( if ( fdbg ) fdbg->write(qPrintable(QString("%1; %2;   %3; %4; %5;   %6;\n")
@@ -1188,63 +1317,63 @@ inline void SasCalc_GENERIC_calculation::doIntCalc_GENERIC_F( const SasCalc_GENE
 #ifdef __CUDACC__
 __host__ __device__
 #endif
-inline void SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F( const SasCalc_GENERIC_calculation& FCC,
+inline void SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F(const SasCalc_GENERIC_calculation& CALC,
                                                         int x, int y )
 {
     for ( int i=0; i<4; i++ )
     {
-        if ( FCC.noFitX0[i] < 0 ) continue;
-        if ( x < FCC.noFitX0[i] ) continue;
-        if ( FCC.noFitX1[i] < x ) continue;
-        if ( y < FCC.noFitY0[i] ) continue;
-        if ( FCC.noFitY1[i] < y ) continue;
-        size_t idx = x + (FCC._fitWidth * y);
-        FCC.arrFitFqs[idx] = 0.0;
+        if ( CALC.noFitX0[i] < 0 ) continue;
+        if ( x < CALC.noFitX0[i] ) continue;
+        if ( CALC.noFitX1[i] < x ) continue;
+        if ( y < CALC.noFitY0[i] ) continue;
+        if ( CALC.noFitY1[i] < y ) continue;
+        size_t idx = x + (CALC._fitWidth * y);
+        CALC.arrFitFqs[idx] = 0.0;
         DBGFILE( if ( fdbg ) //if ( (x<3 && y<3) || fabs(qy-(-1.28525))<0.001 )
                 fdbg->write(qPrintable(QString("%1; %2;   -/-; -/-;   -/-; -/-; -/-;   -/-; %3; 0; FitRect %4\n")
-                                           .arg(x).arg(y).arg(FCC.arrFitData[idx]).arg(i)
+                                           .arg(x).arg(y).arg(CALC.arrFitData[idx]).arg(i)
                                        )); )
         return;
     }
 
-    int xx = x - FCC.params.latFit.centerx;
-    int yy = y - FCC.params.latFit.centery;
-    if ( FCC.fitBorderPixel > 0 || FCC.fitBStopPixel > 0 )
+    int xx = x - CALC.beamX0; // params.beamcenterx;
+    int yy = y - CALC.beamY0; // params.beamcentery;
+    if ( CALC.fitBorderPixel > 0 || CALC.fitBStopPixel > 0 )
     {   // Ausblendungen über Pixelangaben an Rand und Mitte
-        if ( x < FCC._xmin + FCC.fitBorderPixel || x >= FCC._xmax - FCC.fitBorderPixel ||
-             y < FCC._ymin + FCC.fitBorderPixel || y >= FCC._ymax - FCC.fitBorderPixel )
+        if ( x < CALC._xmin + CALC.fitBorderPixel || x >= CALC._xmax - CALC.fitBorderPixel ||
+             y < CALC._ymin + CALC.fitBorderPixel || y >= CALC._ymax - CALC.fitBorderPixel )
         {
-            size_t idx = x + (FCC._fitWidth * y);
-            FCC.arrFitFqs[idx] = 0.0;
+            size_t idx = x + (CALC._fitWidth * y);
+            CALC.arrFitFqs[idx] = 0.0;
             DBGFILE( if ( fdbg ) //if ( (x<3 && y<3) || fabs(qy-(-1.28525))<0.001 )
                     fdbg->write(qPrintable(QString("%1; %2;   -/-; -/-;   -/-; -/-; -/-;   -/-; %3; 0; BorderPixel\n")
-                                               .arg(x).arg(y).arg(FCC.arrFitData[idx])
+                                               .arg(x).arg(y).arg(CALC.arrFitData[idx])
                                            )); )
             return;
         }
-        if ( x >= FCC.params.latFit.centerx - FCC.fitBStopPixel &&
-             x <  FCC.params.latFit.centerx + FCC.fitBStopPixel &&
-             y >= FCC.params.latFit.centery - FCC.fitBStopPixel &&
-             y <  FCC.params.latFit.centery + FCC.fitBStopPixel )
+        if ( x >= CALC.beamX0 - CALC.fitBStopPixel &&
+             x <  CALC.beamX0 + CALC.fitBStopPixel &&
+             y >= CALC.beamY0 - CALC.fitBStopPixel &&
+             y <  CALC.beamY0 + CALC.fitBStopPixel )
         {
-            size_t idx = x + (FCC._fitWidth * y);
-            FCC.arrFitFqs[idx] = 0.0;
+            size_t idx = x + (CALC._fitWidth * y);
+            CALC.arrFitFqs[idx] = 0.0;
             DBGFILE( if ( fdbg ) //if ( (x<3 && y<3) || fabs(qy-(-1.28525))<0.001 )
                     fdbg->write(qPrintable(QString("%1; %2;   -/-; -/-;   -/-; -/-; -/-;   -/-; %3; 0; BSpixel\n")
-                                               .arg(x).arg(y).arg(FCC.arrFitData[idx])
+                                               .arg(x).arg(y).arg(CALC.arrFitData[idx])
                                            )); )
             return;
         }
     }
-    else if ( FCC.fitBStopPixel == -1 )
+    else if ( CALC.fitBStopPixel == -1 )
     {   // Ausblendungen per Eck-Pixel-Wert
-        size_t idx = x + (FCC._fitWidth * y);
-        if ( FCC.arrFitData[idx] <= FCC.arrFitData[0] )
+        size_t idx = x + (CALC._fitWidth * y);
+        if ( CALC.arrFitData[idx] <= CALC.arrFitData[0] )
         {
-            FCC.arrFitFqs[idx] = 0.0;
-            DBGFILE( if ( fdbg ) //if ( (x<3 && y<3) || fabs(qy-(-1.28525))<0.001 )
+            CALC.arrFitFqs[idx] = 0.0;
+            DBGFILE( if ( fdbg ) if ( x<3 && y<3 )
                     fdbg->write(qPrintable(QString("%1; %2;   -/-; -/-;   -/-; -/-; -/-;   -/-; %3; 0; Ecke %4 <= %5\n")
-                                               .arg(x).arg(y).arg(FCC.arrFitData[idx]).arg(FCC.arrFitData[idx]).arg(FCC.arrFitData[0])
+                                               .arg(x).arg(y).arg(CALC.arrFitData[idx]).arg(CALC.arrFitData[idx]).arg(CALC.arrFitData[0])
                                            )); )
             return;
         }
@@ -1254,39 +1383,39 @@ inline void SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F( const SasCalc_G
     //}
 
     // Einrechnen des Beamstops (d.h. Verschiebung des Zentrums)
-    double xdet = FCC.params.latFit.pixx * xx;
-    double ydet = FCC.params.latFit.pixy * yy;
+    double xdet = CALC.pixx * xx;
+    double ydet = CALC.pixy * yy;
     double rdet = sqrt(xdet*xdet+ydet*ydet);
     double phidet = atan2(ydet,xdet);
-    double thetadet = atan2(rdet,FCC.params.latFit.distance);
-    double qx = 2*M_PI*cos(phidet)*sin(thetadet)/FCC.params.latFit.wavelen;
-    double qy = 2*M_PI*sin(phidet)*sin(thetadet)/FCC.params.latFit.wavelen;
-    double qz = 2*M_PI*(1-cos(thetadet))/FCC.params.latFit.wavelen;
+    double thetadet = atan2(rdet,CALC.det);
+    double qx = 2*M_PI*cos(phidet)*sin(thetadet)/CALC.params.wavelength;
+    double qy = 2*M_PI*sin(phidet)*sin(thetadet)/CALC.params.wavelength;
+    double qz = 2*M_PI*(1-cos(thetadet))/CALC.params.wavelength;
 
     //DBGFILE( if ( !( (x<3 && y<3) || fabs(qy-(-1.28525))<0.001 ) ) return; )
 
     // Call q(x,y,z) Routine (also from 2dFit)
-    double pixval = doIntCalc_GENERIC_q_xyz( FCC, qx, qy, qz );
-    if ( FCC._endThread ) return;
+    double pixval = doIntCalc_GENERIC_q_xyz( CALC, qx, qy, qz,
+#ifndef __CUDACC__
+                                            (x==0 && y==0), xx<1 && yy<1 );
+#else
+                                            false, false );
+#endif
+    if ( CALC._endThread ) return;
 
-    size_t idx = x + (FCC._fitWidth * y);
-    if ( pixval > 0 && FCC.arrFitData[idx] > 0 )
-        FCC.arrFitFqs[idx] = FQSVERGL( pixval, FCC.arrFitData[idx] );
+    size_t idx = x + (CALC._fitWidth * y);
+    if ( pixval > 0 && CALC.arrFitData[idx] > 0 )
+        CALC.arrFitFqs[idx] = FQSVERGL( pixval, CALC.arrFitData[idx] );
     else
-        FCC.arrFitFqs[idx] = 0.0;
+        CALC.arrFitFqs[idx] = 0.0;
 
-    DBGFILE( if ( fdbg ) //if ( (x<3 && y<3) || fabs(qy-(-1.28525))<0.001 )
+    DBGFILE( if ( fdbg ) if ( x<3 && y<3 )
                 fdbg->write(qPrintable(QString("%1; %2;   %3; %4;   %5; %6; %7;   %8; %9; %10\n")
                                            .arg(x).arg(y)
                                            .arg(xdet).arg(ydet)
                                            .arg(qx).arg(qy).arg(qz)
-                                           .arg(pixval).arg(FCC.arrFitData[idx]).arg(FCC.arrFitFqs[idx])
+                                           .arg(pixval).arg(CALC.arrFitData[idx]).arg(CALC.arrFitFqs[idx])
                                        )); )
-
-//    if ( (x < 4 /*&& y < 5*/) || (x >= FCC._fitWidth-5 && y >= FCC._fitHeight) )
-//        qDebug() << "Fit-v:" << x << y << idx
-//                 << "val" << pixval << FCC.arrFitData[idx] << FCC.arrFitFqs[idx]
-//                 << "q" << qx << qy << qz;
 
 } /* doIntFitCalc_GENERIC_F() */
 
@@ -1294,18 +1423,22 @@ inline void SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F( const SasCalc_G
 
 /**
  * @brief SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz
- * @param FCC  - reference to class with parameters and subfunctions
+ * @param CALC - reference to class with parameters and subfunctions
  * @param qx   - Coordinates in the q dimension
  * @param qy   - "
  * @param qz   - "
+ * @param idxCenter  - true if current pixel is in the image center (pixel indices==0)
+ * @param beamCenter - true if current pixel is in the beam center
+ *                     Used specially for some debug or control output if not running in CUDA environment
  * @return     - calculated value for this coordinate
  * Calculation from Pascalprogram (20210818-crystal3d1.pas + updates) - only part Generic
  */
 #ifdef __CUDACC__
 __host__ __device__
 #endif
-inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc_GENERIC_calculation& FCC,
-                                                         double qx, double qy, double qz)
+inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc_GENERIC_calculation& CALC,
+                                                                   double qx, double qy, double qz,
+                                                                   bool idxCenter, bool beamCenter)
 {
     double /*lamu,*/ /*qabs,*/ pq, fq, intensity, radintensity;
     double /*shkl,*/ /*fhkl,*/ x2;
@@ -1313,859 +1446,1171 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
     //Double3 q3hkl; // qxhkl, qyhkl, qzhkl
     //Double3 dq3;   // dqx, dqy, dqz
 
-    double q = sqrt(qx*qx+qy*qy+qz*qz)+eps9;   /*Z=24650*/
+    double q = sqrt(qx*qx+qy*qy+qz*qz)+eps9;  //Z=25254
     //s = q/(2*M_PI);
 
-    /*Z=24654 if gisaxs ... erstmal weglassen und das auch bei allen weiteren Abfragen!!!  */
+    //Z=25257 if gisaxs ... erstmal weglassen und das auch bei allen weiteren Abfragen!!!
 
-    double delta = 2.0 * FCC.params.radius;
+    double delta = 2.0 * CALC.params.radius;
     double pqiso=1;
-    double limql=0;  // Achtung: L statt 1 !!!
+    double limql=0;  // Wird als Parameter bei formpq() verwendet und z.T. kurz vorher berechnet
     double limqlf=0; // Wird nur als Parameter bei formfq() verwendet, sonst nicht
     double szqiso, szq;
 
-#define lattice (FCC.ltype != 12)  // 12=None,  Im Pascalprogramm als globale boolsche Variable in /*Z=20133*/
+    fq = 1; // Verhindern einer Compiler-Warnung
+    // <fq> wird bei der Berechnung von szq und somit für die Intensität verwendet (=fq/pq).
+    // Aber nur dann, wenn lattice gesetzt ist. Und nur dann wird es auch per formfq berechnet.
 
-    fq = 1; //TODO
-    // fq wird bei der Berechnung von szq und somit für die Intensität verwendet und nur bei 'lattice' gesetzt
 
-    if ( FCC.ComboBoxParticle==cbpartSphere /*0*/ )
-    {
-        /*Z=24671*/
-        pq=FCC.formpq( FCC.params.length, FCC.params.radius, FCC.params.sigmal, FCC.params.sigma, FCC.params.p1,
-                       FCC.params.rho, FCC.alphash, FCC.theta, FCC.phi, limql, FCC.limq1, FCC.limq2, FCC.limq3,
-                       FCC.limq4, FCC.limq5, FCC.limq6, FCC.limq7, FCC.limq8, FCC.limq9, qx, qy, qx, qy, q, FCC.norm,
-                       FCC.por, FCC.part, FCC.cs, FCC.ordis, FCC.orcase, FCC.params.CR->myarray, FCC.params.CR->carr1p, FCC.params.CR->carr2p, FCC.params.CR->carr3p,
-                       FCC.params.CR->carr4p, FCC.params.CR->carr5p, FCC.params.CR->carr6p, FCC.params.CR->carr7p, FCC.params.CR->carr8p, FCC.params.CR->carr9p /*, FCC.carr11pm, FCC.carr22pm*/ );
-        //fq:=pq;
-        if ( lattice )  /*Z=24679*/
-            fq=FCC.formfq( FCC.params.length, FCC.params.radius, FCC.params.sigmal, FCC.params.sigma, FCC.params.p1,
-                           FCC.params.rho, FCC.alphash, FCC.theta, FCC.phi, limqlf, FCC.limq1f, FCC.limq2f, FCC.limq3f,
-                           FCC.limq4f, FCC.limq5f, FCC.limq6f, qx, qy, qx, qy, q, FCC.norm,
-                           FCC.part, FCC.cs, FCC.ordis, FCC.orcase, FCC.params.CR->myarray, FCC.params.CR->carr1f, FCC.params.CR->carr2f, FCC.params.CR->carr3f,
-                           FCC.params.CR->carr4f, FCC.params.CR->carr5f, FCC.params.CR->carr6f, FCC.params.CR->carr7f /*, FCC.carr11pm, FCC.carr22pm*/ );
-        pqiso = pq;    /*Z=24693*/
-    } // if sphere
+    /* ************* */  //Z=25269
+    /* ** spheres ** */  //Z=25270
+    /* ************* */  //Z=25271
+    if ( CALC.partsphere )
+    {/*6*/  //Z=25272
 
-    if ( FCC.ComboBoxParticle==cbpartCylinder /*1*/ )     /*Z=24701*/
-    {   /* cylinders */   /*Z0311=24157*/
+        // Hier ist limql noch nicht gesetzt worden !! Es wird aber in formpq nicht verwendet bei 'sphere'
+        pq = CALC.formpq( CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
+                         CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, limql, CALC.limq1, CALC.limq2, CALC.limq3,
+                         CALC.limq4, CALC.limq5, CALC.limq6, CALC.limq7, CALC.limq8, CALC.limq9, qx, qy, qx, qy, q, CALC.norm,
+                         CALC.por, CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1p,
+                         CALC.params.CR->carr2p, CALC.params.CR->carr3p, CALC.params.CR->carr4p, CALC.params.CR->carr5p,
+                         CALC.params.CR->carr6p, CALC.params.CR->carr7p, CALC.params.CR->carr8p, CALC.params.CR->carr9p
+                         /*, CALC.carr11pm, CALC.carr22pm*/ );  //Z=25276
 
-        /* isotropic cases */   /*Z=24703*/
-        if ( FCC.ordis==ordis_Isotropic /*7*/ )
-        {   /*Z=24705*/
-            pq = FCC.formpq(FCC.params.length, FCC.params.radius, FCC.params.sigmal, FCC.params.sigma, FCC.params.p1,
-                            FCC.params.rho, FCC.alphash, FCC.theta, FCC.phi, q, FCC.limq1, FCC.limq2, FCC.limq3,
-                            FCC.limq4, FCC.limq5, FCC.limq6, FCC.limq7, FCC.limq8, FCC.limq9, qx, qy, qx, qy, q,
-                            FCC.norm,
-                            FCC.por, FCC.part, FCC.cs, FCC.ordis, FCC.orcase, FCC.params.CR->myarray, FCC.params.CR->carr1p, FCC.params.CR->carr2p,
-                            FCC.params.CR->carr3p, FCC.params.CR->carr4p, FCC.params.CR->carr5p, FCC.params.CR->carr6p, FCC.params.CR->carr7p, FCC.params.CR->carr8p,
-                            FCC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );
-            /* fq:=pq; */
-            if ( lattice )   /*Z=24708*/
-                fq = FCC.formfq(FCC.params.length, FCC.params.radius, FCC.params.sigmal, FCC.params.sigma, FCC.params.p1,
-                                FCC.params.rho, FCC.alphash, FCC.theta, FCC.phi, q, FCC.limq1f, FCC.limq2f, FCC.limq3f,
-                                FCC.limq4f, FCC.limq5f, FCC.limq6f, qx, qy, qx, qy, q, FCC.norm,
-                                FCC.part, FCC.cs, FCC.ordis, FCC.orcase, FCC.params.CR->myarray, FCC.params.CR->carr1f, FCC.params.CR->carr2f,
-                                FCC.params.CR->carr3f, FCC.params.CR->carr4f, FCC.params.CR->carr5f, FCC.params.CR->carr6f, FCC.params.CR->carr7f
+        /* fq = pq;  //Z=25277 */
+        if ( CALC.lattice )  //Z=25283
+            fq=CALC.formfq( CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
+                            CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, limqlf, CALC.limq1f, CALC.limq2f, CALC.limq3f,
+                            CALC.limq4f, CALC.limq5f, CALC.limq6f, qx, qy, qx, qy, q, CALC.norm,
+                            CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1f, CALC.params.CR->carr2f, CALC.params.CR->carr3f,
+                            CALC.params.CR->carr4f, CALC.params.CR->carr5f, CALC.params.CR->carr6f, CALC.params.CR->carr7f /*, CALC.carr11pm, CALC.carr22pm*/ );  //Z=25285
+        pqiso = pq;  //Z=25297
+
+    }/*6*/  /*  of part=0  */  //Z=25299
+
+
+    /* *************** */  //Z=25302
+    /* ** cylinders ** */  //Z=25303
+    /* *************** */  //Z=25304
+    if ( CALC.partcylinder )
+    {/*6*/     /*  cylinders  */  //Z=25305
+
+        /*  isotropic cases  */  //Z=25307
+        if ( CALC.ordis==7 )
+        {/*7*/  //Z=25308
+            pq = CALC.formpq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
+                            CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, q, CALC.limq1, CALC.limq2, CALC.limq3,
+                            CALC.limq4, CALC.limq5, CALC.limq6, CALC.limq7, CALC.limq8, CALC.limq9, qx, qy, qx, qy, q,
+                            CALC.norm,
+                            CALC.por, CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1p, CALC.params.CR->carr2p,
+                            CALC.params.CR->carr3p, CALC.params.CR->carr4p, CALC.params.CR->carr5p, CALC.params.CR->carr6p, CALC.params.CR->carr7p, CALC.params.CR->carr8p,
+                            CALC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );
+            /* fq = pq;  //Z=25311 */
+            if ( CALC.lattice )  //Z=25312
+                fq = CALC.formfq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
+                                CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, q, CALC.limq1f, CALC.limq2f, CALC.limq3f,
+                                CALC.limq4f, CALC.limq5f, CALC.limq6f, qx, qy, qx, qy, q, CALC.norm,
+                                CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1f, CALC.params.CR->carr2f,
+                                CALC.params.CR->carr3f, CALC.params.CR->carr4f, CALC.params.CR->carr5f, CALC.params.CR->carr6f, CALC.params.CR->carr7f
                                 /*,carr11pm^,carr22pm^*/ );
-        }   /*Z=24711*/
+        }/*7*/  //Z=25315
 
-        /* perfect orientation */   /*Z=24714*/
-        else if ( FCC.ordis==ordis_ZDir /*6*/ )
-        {   /*Z=24716*/
-            switch ( FCC.orcase )
+        /*  perfect orientation  */               /*  abs((cosphi*qx+sinphi*qy)  //Z=25318 */
+        else if ( CALC.ordis==ordis_ZDir /*6*/ )
+        {/*7*/  //Z=25319
+            switch ( CALC.orcase )
             {
             case 1:     // General: phi!=0 && phi!=90 && theta!=0 && theta!=90
-                /*Z=24717*/
-                pq = FCC.formpq(FCC.params.length, FCC.params.radius, FCC.params.sigmal, FCC.params.sigma, FCC.params.p1,
-                                FCC.params.rho, FCC.alphash, FCC.theta, FCC.phi, sqrt(FCC.cosphi*qx*qx+FCC.sinphi*qy*qy+eps9),
-                                FCC.limq1, FCC.limq2, FCC.limq3, FCC.limq4, FCC.limq5, FCC.limq6, FCC.limq7, FCC.limq8,
-                                FCC.limq9, qx, qy, qx*FCC.cosphi*FCC.sintheta, qy*FCC.sinphi*FCC.sintheta, q, FCC.norm,
-                                FCC.por, FCC.part, FCC.cs, FCC.ordis, FCC.orcase, FCC.params.CR->myarray, FCC.params.CR->carr1p,
-                                FCC.params.CR->carr2p, FCC.params.CR->carr3p, FCC.params.CR->carr4p, FCC.params.CR->carr5p, FCC.params.CR->carr6p, FCC.params.CR->carr7p,
-                                FCC.params.CR->carr8p, FCC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );   /*Z0311=24172*/
-                /* fq:=pq; */   /*Z=24719*/
-                if ( lattice )
-                    fq = FCC.formfq(FCC.params.length, FCC.params.radius, FCC.params.sigmal, FCC.params.sigma, FCC.params.p1,
-                                    FCC.params.rho, FCC.alphash, FCC.theta, FCC.phi, sqrt(FCC.cosphi*qx*qx+FCC.sinphi*qy*qy+eps9),
-                                    FCC.limq1f, FCC.limq2f, FCC.limq3f, FCC.limq4f, FCC.limq5f, FCC.limq6f, qx, qy,
-                                    qx*FCC.cosphi*FCC.sintheta, qy*FCC.sinphi*FCC.sintheta, q, FCC.norm,
-                                    FCC.part, FCC.cs, FCC.ordis, FCC.orcase, FCC.params.CR->myarray, FCC.params.CR->carr1p, FCC.params.CR->carr2f,  // TODO: wirklich carr1p und nicht carr1f?
-                                    FCC.params.CR->carr3f, FCC.params.CR->carr4f, FCC.params.CR->carr5f, FCC.params.CR->carr6f, FCC.params.CR->carr7f/*,
-                                    carr11pm^,carr22pm^*/ );   /*Z0311=24176*/
-                break;   /*Z=24723*/
+                //Z=25320
+                limql = sqrt(sqr((qx*CALC.cosphi-qy*CALC.sinphi)*CALC.costheta*CALC.sintheta)
+                             +sqr(qx+CALC.sinphi*(-qx*CALC.sinphi+qy*CALC.cosphi)*CALC.sintheta*CALC.sintheta)
+                             +sqr(qy-CALC.cosphi*(-qx*CALC.sinphi+qy*CALC.cosphi)*CALC.sintheta*CALC.sintheta));  //Z=25321
+                pq = CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,limql,CALC.limq1,CALC.limq2,CALC.limq3,
+                                CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx*CALC.cosphi*CALC.sintheta,
+                                qy*CALC.sinphi*CALC.sintheta,q,CALC.norm,  //Z=25322
+                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
+                                CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
+                                CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,CALC.params.CR->carr9p
+                                /*,carr11pm^,carr22pm^*/ );  //Z=25323
+                /* fq = pq;  //Z=25324 */
+                if ( CALC.lattice )  //Z=25325
+                    fq = CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                    CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,sqrt(CALC.cosphi*qx*qx+CALC.sinphi*qy*qy+eps9),
+                                    CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,CALC.limq5f,CALC.limq6f,qx,qy,qx*CALC.cosphi*CALC.sintheta,
+                                    qy*CALC.sinphi*CALC.sintheta,q,CALC.norm,  //Z=25326
+                                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1f,
+                                    CALC.params.CR->carr2f,CALC.params.CR->carr3f,CALC.params.CR->carr4f,CALC.params.CR->carr5f,
+                                    CALC.params.CR->carr6f,CALC.params.CR->carr7f/*,carr11pm^,carr22pm^*/);  //Z=25327
+                break;   //Z=25328
             case 2:     // X-Axis phi==0 && theta==90
-                /*Z=24725*/
-                pq = FCC.formpq(FCC.params.length, FCC.params.radius, FCC.params.sigmal, FCC.params.sigma, FCC.params.p1,
-                                FCC.params.rho, FCC.alphash, FCC.theta, FCC.phi, fabs(qx), FCC.limq1, FCC.limq2, FCC.limq3,
-                                FCC.limq4, FCC.limq5, FCC.limq6, FCC.limq7, FCC.limq8, FCC.limq9, qx, qy, qx, 0, q,FCC.norm,
-                                FCC.por, FCC.part, FCC.cs, FCC.ordis, FCC.orcase, FCC.params.CR->myarray, FCC.params.CR->carr1p, FCC.params.CR->carr2p,
-                                FCC.params.CR->carr3p, FCC.params.CR->carr4p, FCC.params.CR->carr5p, FCC.params.CR->carr6p, FCC.params.CR->carr7p, FCC.params.CR->carr8p,
-                                FCC.params.CR->carr9p /*, carr11pm^,carr22pm^*/ );   /*Z0311=24180*/
-                /* fq:=pq; */   /*Z=24727*/
-                if ( lattice )
-                    fq = FCC.formfq(FCC.params.length, FCC.params.radius, FCC.params.sigmal, FCC.params.sigma, FCC.params.p1,
-                                    FCC.params.rho, FCC.alphash, FCC.theta, FCC.phi, fabs(qx), FCC.limq1f, FCC.limq2f, FCC.limq3f,
-                                    FCC.limq4f, FCC.limq5f, FCC.limq6f, qx, qy, qx, 0, q,FCC.norm,
-                                    FCC.part, FCC.cs, FCC.ordis, FCC.orcase, FCC.params.CR->myarray, FCC.params.CR->carr1p, FCC.params.CR->carr2f,  // TODO: carr1p?
-                                    FCC.params.CR->carr3f, FCC.params.CR->carr4f, FCC.params.CR->carr5f, FCC.params.CR->carr6f, FCC.params.CR->carr7f
-                                    /*,carr11pm^,carr22pm^*/ );   /*Z0311=24184*/
-                break;   /*Z=24731*/
+                //Z=25329
+                limql = fabs(qx);
+                pq = CALC.formpq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
+                                CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, limql, CALC.limq1, CALC.limq2, CALC.limq3,
+                                CALC.limq4, CALC.limq5, CALC.limq6, CALC.limq7, CALC.limq8, CALC.limq9, qx, qy, qx, 0, q, CALC.norm,
+                                CALC.por, CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1p, CALC.params.CR->carr2p,
+                                CALC.params.CR->carr3p, CALC.params.CR->carr4p, CALC.params.CR->carr5p, CALC.params.CR->carr6p, CALC.params.CR->carr7p, CALC.params.CR->carr8p,
+                                CALC.params.CR->carr9p /*, carr11pm^,carr22pm^*/ );   //Z=25331
+                /* fq = pq;  //Z=25332 */
+                if ( CALC.lattice )
+                    fq = CALC.formfq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
+                                    CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, fabs(qx), CALC.limq1f, CALC.limq2f, CALC.limq3f,
+                                    CALC.limq4f, CALC.limq5f, CALC.limq6f, qx, qy, qx, 0, q, CALC.norm,
+                                    CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1f, CALC.params.CR->carr2f,
+                                    CALC.params.CR->carr3f, CALC.params.CR->carr4f, CALC.params.CR->carr5f, CALC.params.CR->carr6f, CALC.params.CR->carr7f
+                                    /*,carr11pm^,carr22pm^*/ );   //Z=25335
+                break;   //Z=25336
             case 3:     // Y-Axis phi==90 && theta==90
                 /*Z=24733*/
-                pq = FCC.formpq(FCC.params.length, FCC.params.radius, FCC.params.sigmal, FCC.params.sigma, FCC.params.p1,
-                                FCC.params.rho, FCC.alphash, FCC.theta, FCC.phi, fabs(qy), FCC.limq1, FCC.limq2, FCC.limq3,
-                                FCC.limq4, FCC.limq5, FCC.limq6, FCC.limq7, FCC.limq8, FCC.limq9, qx, qy, 0, qy, q, FCC.norm,
-                                FCC.por, FCC.part, FCC.cs, FCC.ordis, FCC.orcase, FCC.params.CR->myarray, FCC.params.CR->carr1p, FCC.params.CR->carr2p,
-                                FCC.params.CR->carr3p, FCC.params.CR->carr4p, FCC.params.CR->carr5p, FCC.params.CR->carr6p, FCC.params.CR->carr7p, FCC.params.CR->carr8p,
-                                FCC.params.CR->carr9p /*, carr11pm^,carr22pm^*/ );   /*Z0311=24188*/
-                /* fq:=pq; */   /*Z=24735*/
-                if ( lattice )
-                    fq = FCC.formfq(FCC.params.length, FCC.params.radius, FCC.params.sigmal, FCC.params.sigma, FCC.params.p1,
-                                    FCC.params.rho, FCC.alphash, FCC.theta, FCC.phi, fabs(qy), FCC.limq1f, FCC.limq2f, FCC.limq3f,
-                                    FCC.limq4f, FCC.limq5f, FCC.limq6f, qx, qy, 0, qy, q, FCC.norm,
-                                    FCC.part, FCC.cs, FCC.ordis, FCC.orcase, FCC.params.CR->myarray, FCC.params.CR->carr1p, FCC.params.CR->carr2f,  // TODO: carr1p?
-                                    FCC.params.CR->carr3f, FCC.params.CR->carr4f, FCC.params.CR->carr5f, FCC.params.CR->carr6f, FCC.params.CR->carr7f
-                                    /*,carr11pm^,carr22pm^*/ );   /*Z0311=24192*/
-                break;   /*Z=24739*/
+                pq = CALC.formpq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
+                                CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, fabs(qy), CALC.limq1, CALC.limq2, CALC.limq3,
+                                CALC.limq4, CALC.limq5, CALC.limq6, CALC.limq7, CALC.limq8, CALC.limq9, qx, qy, 0, qy, q, CALC.norm,
+                                CALC.por, CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1p, CALC.params.CR->carr2p,
+                                CALC.params.CR->carr3p, CALC.params.CR->carr4p, CALC.params.CR->carr5p, CALC.params.CR->carr6p, CALC.params.CR->carr7p, CALC.params.CR->carr8p,
+                                CALC.params.CR->carr9p /*, carr11pm^,carr22pm^*/ );   //Z=25339
+                /* fq = pq;  //Z=25340 */
+                if ( CALC.lattice )
+                    fq = CALC.formfq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
+                                    CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, fabs(qy), CALC.limq1f, CALC.limq2f, CALC.limq3f,
+                                    CALC.limq4f, CALC.limq5f, CALC.limq6f, qx, qy, 0, qy, q, CALC.norm,
+                                    CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1f, CALC.params.CR->carr2f,
+                                    CALC.params.CR->carr3f, CALC.params.CR->carr4f, CALC.params.CR->carr5f, CALC.params.CR->carr6f, CALC.params.CR->carr7f
+                                    /*,carr11pm^,carr22pm^*/ );   //Z=25343
+                break;   //Z=25344
             case 4:     // Z-Axis (phi==0 || phi==90) && theta==0
                 /*Z=24741*/
-                pq = FCC.formpq(FCC.params.length, FCC.params.radius, FCC.params.sigmal, FCC.params.sigma, FCC.params.p1,
-                                FCC.params.rho, FCC.alphash, FCC.theta, FCC.phi, q, FCC.limq1, FCC.limq2, FCC.limq3, FCC.limq4,
-                                FCC.limq5, FCC.limq6, FCC.limq7, FCC.limq8, FCC.limq9, qx, qy, qx, qy, q, FCC.norm,
-                                FCC.por, FCC.part, FCC.cs, FCC.ordis, FCC.orcase, FCC.params.CR->myarray, FCC.params.CR->carr1p, FCC.params.CR->carr2p,
-                                FCC.params.CR->carr3p, FCC.params.CR->carr4p, FCC.params.CR->carr5p, FCC.params.CR->carr6p, FCC.params.CR->carr7p, FCC.params.CR->carr8p,
-                                FCC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );   /*Z0311=24196*/
-                /* fq:=pq; */   /*Z=24743*/
-                if ( lattice )
-                    fq = FCC.formfq(FCC.params.length, FCC.params.radius, FCC.params.sigmal, FCC.params.sigma, FCC.params.p1,
-                                    FCC.params.rho, FCC.alphash, FCC.theta, FCC.phi, q, FCC.limq1f, FCC.limq2f, FCC.limq3f,
-                                    FCC.limq4f, FCC.limq5f, FCC.limq6f, qx, qy, qx, qy, q, FCC.norm,
-                                    FCC.part, FCC.cs, FCC.ordis, FCC.orcase, FCC.params.CR->myarray, FCC.params.CR->carr1p, FCC.params.CR->carr2f,  // TODO carr1p?
-                                    FCC.params.CR->carr3f, FCC.params.CR->carr4f, FCC.params.CR->carr5f, FCC.params.CR->carr6f, FCC.params.CR->carr7f
-                                    /*,carr11pm^,carr22pm^*/ );   /*Z0311=24200*/
-                break;   /*Z=24747*/
-            } // switch orcase   /*Z=24748*/
-        } // if ( FCC.ordis==6 )
-
-        /* general orientation */   /*Z0311=24204*/
-        else if ( FCC.ordis==ordis_Gaussian /*0*/ )
-        {   /*Z=24754*/
-            switch ( FCC.orcase )
-            {
-            case 1:
-                /* general orientation */   /*Z=24755*/
-                pq = FCC.formpq(FCC.params.length, FCC.params.radius, FCC.params.sigmal, FCC.params.sigma, FCC.params.p1,
-                                FCC.params.rho, FCC.alphash, FCC.theta, FCC.phi, q, FCC.limq1, FCC.limq2, FCC.limq3, FCC.limq4,
-                                FCC.limq5, FCC.limq6, FCC.limq7, FCC.limq8, FCC.limq9, qx, qy, qx*FCC.cosphic-qy*FCC.sinphic,
-                                qx*FCC.sinphic+qy*FCC.cosphic, q, FCC.norm,
-                                FCC.por, FCC.part, FCC.cs, FCC.ordis, FCC.orcase, FCC.params.CR->myarray, FCC.params.CR->carr1p, FCC.params.CR->carr2p,
-                                FCC.params.CR->carr3p, FCC.params.CR->carr4p, FCC.params.CR->carr5p, FCC.params.CR->carr6p, FCC.params.CR->carr7p, FCC.params.CR->carr8p,
-                                FCC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );   /*Z0311=24208*/
-                //fq=pq;    /*Z=24757, neu weg*/
-                if ( lattice ) /* fq:=pq; */   /*Z=24758*/
-                    fq = FCC.formfq(FCC.params.length, FCC.params.radius, FCC.params.sigmal, FCC.params.sigma, FCC.params.p1,
-                                    FCC.params.rho, FCC.alphash, FCC.theta, FCC.phi, q, FCC.limq1f, FCC.limq2f, FCC.limq3f,
-                                    FCC.limq4f, FCC.limq5f, FCC.limq6f, qx, qy, qx*FCC.cosphic-qy*FCC.sinphic,
-                                    qx*FCC.sinphic+qy*FCC.cosphic, q, FCC.norm,
-                                    FCC.part, FCC.cs, FCC.ordis, FCC.orcase, FCC.params.CR->myarray, FCC.params.CR->carr1p, FCC.params.CR->carr2f,  // TODO: carr1p?
-                                    FCC.params.CR->carr3f, FCC.params.CR->carr4f, FCC.params.CR->carr5f, FCC.params.CR->carr6f, FCC.params.CR->carr7f
-                                    /*,carr11pm^,carr22pm^*/ );   /*Z0311=24212*/
-                break;   /*Z=24761*/
-            case 2:
-                /* x-axis */   /*Z=24763*/
-                pq = FCC.formpq(FCC.params.length, FCC.params.radius, FCC.params.sigmal, FCC.params.sigma, FCC.params.p1,
-                                FCC.params.rho, FCC.alphash, FCC.theta, FCC.phi, q, FCC.limq1, FCC.limq2, FCC.limq3, FCC.limq4,
-                                FCC.limq5, FCC.limq6, FCC.limq7, FCC.limq8, FCC.limq9, qx, qy, qx, qy, q, FCC.norm,
-                                FCC.por, FCC.part, FCC.cs, FCC.ordis, FCC.orcase, FCC.params.CR->myarray, FCC.params.CR->carr1p, FCC.params.CR->carr2p,
-                                FCC.params.CR->carr3p, FCC.params.CR->carr4p, FCC.params.CR->carr5p, FCC.params.CR->carr6p, FCC.params.CR->carr7p, FCC.params.CR->carr8p,
-                                FCC.params.CR->carr9p /*,carr11pm^,carr22pm^ */);   /*Z0311=24216*/
-                //fq=pq;    /*Z=24765, neu weg*/
-                //ffq = pq;   /*Z=24766, neu, wird aber nur hier verwendet*/
-                if ( lattice ) /* fq:=pq; */   /*Z0311=24219*/
-                    fq = FCC.formfq(FCC.params.length, FCC.params.radius, FCC.params.sigmal, FCC.params.sigma, FCC.params.p1,
-                                    FCC.params.rho, FCC.alphash, FCC.theta, FCC.phi, q, FCC.limq1f, FCC.limq2f, FCC.limq3f,
-                                    FCC.limq4f, FCC.limq5f, FCC.limq6f, qx, qy, qx, qy, q, FCC.norm,
-                                    FCC.part, FCC.cs, FCC.ordis, FCC.orcase, FCC.params.CR->myarray, FCC.params.CR->carr1f, FCC.params.CR->carr2f,  // TODO: carr1p?
-                                    FCC.params.CR->carr3f, FCC.params.CR->carr4f, FCC.params.CR->carr5f, FCC.params.CR->carr6f, FCC.params.CR->carr7f
-                                    /*,carr11pm^,carr22pm^*/ );   /*Z0311=24221*/
-                szq = /*ffq*/ pq;   /*Z=24770 neu*/
-                break;   /*Z=24771*/
-            case 3:
-                /* y-axis */   /*Z0311=24224*/
-                pq = FCC.formpq(FCC.params.length, FCC.params.radius, FCC.params.sigmal, FCC.params.sigma, FCC.params.p1,
-                                FCC.params.rho, FCC.alphash, FCC.theta, FCC.phi, q, FCC.limq1, FCC.limq2, FCC.limq3, FCC.limq4,
-                                FCC.limq5, FCC.limq6, FCC.limq7, FCC.limq8, FCC.limq9, qx, qy, qx, qy, q, FCC.norm,
-                                FCC.por, FCC.part, FCC.cs, FCC.ordis, FCC.orcase, FCC.params.CR->myarray, FCC.params.CR->carr1p, FCC.params.CR->carr2p,
-                                FCC.params.CR->carr3p, FCC.params.CR->carr4p, FCC.params.CR->carr5p, FCC.params.CR->carr6p, FCC.params.CR->carr7p, FCC.params.CR->carr8p,
-                                FCC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );   /*Z0311=24226*/
-                //fq=pq;    /*Z=24775 neu weg*/
-                if ( lattice ) /* fq:=pq; */   /*Z=24776*/
-                    fq = FCC.formfq(FCC.params.length, FCC.params.radius, FCC.params.sigmal, FCC.params.sigma, FCC.params.p1,
-                                    FCC.params.rho, FCC.alphash, FCC.theta, FCC.phi, q, FCC.limq1f, FCC.limq2f, FCC.limq3f,
-                                    FCC.limq4f, FCC.limq5f, FCC.limq6f, qx, qy, qx, qy, q, FCC.norm,
-                                    FCC.part, FCC.cs, FCC.ordis, FCC.orcase, FCC.params.CR->myarray, FCC.params.CR->carr1f, FCC.params.CR->carr2f,  // TODO: carr1p?
-                                    FCC.params.CR->carr3f, FCC.params.CR->carr4f, FCC.params.CR->carr5f, FCC.params.CR->carr6f, FCC.params.CR->carr7f
-                                    /*,carr11pm^,carr22pm^*/ );   /*Z0311=24230*/
-                break;   /*Z=24779*/
-            case 4:
-                /* z-axis */   /*Z=24780*/
-                pq = FCC.formpq(FCC.params.length, FCC.params.radius, FCC.params.sigmal, FCC.params.sigma, FCC.params.p1,
-                                FCC.params.rho, FCC.alphash, FCC.theta, FCC.phi, q, FCC.limq1, FCC.limq2, FCC.limq3,
-                                FCC.limq4, FCC.limq5, FCC.limq6, FCC.limq7, FCC.limq8, FCC.limq9, qx, qy, qx, qy, q, FCC.norm,
-                                FCC.por, FCC.part, FCC.cs, FCC.ordis, FCC.orcase, FCC.params.CR->myarray, FCC.params.CR->carr1p, FCC.params.CR->carr2p,
-                                FCC.params.CR->carr3p, FCC.params.CR->carr4p, FCC.params.CR->carr5p, FCC.params.CR->carr6p, FCC.params.CR->carr7p, FCC.params.CR->carr8p,
-                                FCC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );   /*Z0311=24234*/
-                fq=pq;    /*Z0311=24235*/
-                if ( lattice ) /* fq:=pq; */   /*Z=24784*/
-                    fq = FCC.formfq(FCC.params.length, FCC.params.radius, FCC.params.sigmal, FCC.params.sigma, FCC.params.p1,
-                                    FCC.params.rho, FCC.alphash, FCC.theta, FCC.phi, q, FCC.limq1f, FCC.limq2f, FCC.limq3f,
-                                    FCC.limq4f, FCC.limq5f, FCC.limq6f, qx, qy, qx, qy, q, FCC.norm,
-                                    FCC.part, FCC.cs, FCC.ordis, FCC.orcase, FCC.params.CR->myarray, FCC.params.CR->carr1f, FCC.params.CR->carr2f,  // TODO: carr1p?
-                                    FCC.params.CR->carr3f, FCC.params.CR->carr4f, FCC.params.CR->carr5f, FCC.params.CR->carr6f, FCC.params.CR->carr7f
-                                    /*,carr11pm^,carr22pm^*/ );   /*Z0311=24238*/
-                break;   /*Z=24787*/
-            } // switch orcase   /*Z=24788*/
-
-        } // if ( FCC.ordis==0 )
-
-    }  /* of part=1 (Cylinder) */   /*Z=24790*/
-
-    if ( FCC.ComboBoxParticle==cbpartDisk /*2*/ )     /*Z0311=24252*/  /*Z=24796*/
-    {
-        /* isotropic cases */
-        if ( FCC.ordis == 7 )
-        {
-            pq=FCC.formpq(FCC.params.length,FCC.params.radius,FCC.params.sigmal,FCC.params.sigma,FCC.params.p1,
-                          FCC.params.rho,FCC.params.alphash,FCC.theta,FCC.phi,q,FCC.limq1,FCC.limq2,FCC.limq3,
-                          FCC.limq4,FCC.limq5,FCC.limq6,FCC.limq7,FCC.limq8,FCC.limq9,qx,qy,qx,qy,q,FCC.norm,
-                          FCC.por,FCC.part,FCC.cs,FCC.ordis,FCC.orcase,FCC.params.CR->myarray,
-                          FCC.params.CR->carr1p,FCC.params.CR->carr2p,FCC.params.CR->carr3p,FCC.params.CR->carr4p,
-                          FCC.params.CR->carr5p,FCC.params.CR->carr6p,FCC.params.CR->carr7p,FCC.params.CR->carr8p,
-                          FCC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );
-            //fq:=pq;
-            if ( lattice )
-                fq=FCC.formfq(FCC.params.length,FCC.params.radius,FCC.params.sigmal,FCC.params.sigma,FCC.params.p1,
-                                FCC.params.rho,FCC.params.alphash,FCC.theta,FCC.phi,q,FCC.limq1f,FCC.limq2f,
-                                FCC.limq3f,FCC.limq4f,FCC.limq5f,FCC.limq6f,qx,qy,qx,qy,q,FCC.norm,
-                                FCC.part,FCC.cs,FCC.ordis,FCC.orcase,FCC.params.CR->myarray,FCC.params.CR->carr1f,
-                                FCC.params.CR->carr2f,FCC.params.CR->carr3f,FCC.params.CR->carr4f,FCC.params.CR->carr5f,
-                                FCC.params.CR->carr6f,FCC.params.CR->carr7f /*,carr11pm^,carr22pm^*/ );
-        }
-
-        /* perfect orientation */
-        if ( FCC.ordis==6 ) /*Z=24808*/
-        {
-            switch ( FCC.orcase )
-            {
-            case 1:
-                pq=FCC.formpq(FCC.params.length,FCC.params.radius,FCC.params.sigmal,FCC.params.sigma,FCC.params.p1,
-                                FCC.params.rho,FCC.params.alphash,FCC.theta,FCC.phi,
-                                sqrt(FCC.sinphi*qx*qx+FCC.cosphi*qy*qy+eps9),
-                                FCC.limq1,FCC.limq2,FCC.limq3,FCC.limq4,FCC.limq5,FCC.limq6,FCC.limq7,FCC.limq8,FCC.limq9,
-                                qx,qy,qx*FCC.cosphi*FCC.sintheta/q,qy*FCC.sinphi*FCC.sintheta/q,q,FCC.norm,
-                                FCC.por,FCC.part,FCC.cs,FCC.ordis,FCC.orcase,FCC.params.CR->myarray,FCC.params.CR->carr1p,
-                                FCC.params.CR->carr2p,FCC.params.CR->carr3p,FCC.params.CR->carr4p,FCC.params.CR->carr5p,
-                                FCC.params.CR->carr6p,FCC.params.CR->carr7p,FCC.params.CR->carr8p,FCC.params.CR->carr9p
-                                /*,carr11pm^,carr22pm^*/ );
-                //fq:=pq;
-                if ( lattice )
-                    fq=FCC.formfq(FCC.params.length,FCC.params.radius,FCC.params.sigmal,FCC.params.sigma,FCC.params.p1,
-                                    FCC.params.rho,FCC.params.alphash,FCC.theta,FCC.phi,
-                                    sqrt(FCC.sinphi*qx*qx+FCC.cosphi*qy*qy+eps9),
-                                    FCC.limq1f,FCC.limq2f,FCC.limq3f,FCC.limq4f,FCC.limq5f,FCC.limq6f,
-                                    qx,qy,qx*FCC.cosphi*FCC.sintheta/q,qy*FCC.sinphi*FCC.sintheta/q,q,FCC.norm,
-                                    FCC.part,FCC.cs,FCC.ordis,FCC.orcase,FCC.params.CR->myarray,FCC.params.CR->carr1f, /*TODO: hier stand carr1p*/
-                                    FCC.params.CR->carr2f,FCC.params.CR->carr3f,FCC.params.CR->carr4f,FCC.params.CR->carr5f,
-                                    FCC.params.CR->carr6f,FCC.params.CR->carr7f /*,carr11pm^,carr22pm^*/ );
-                break;
-            case 2:
-                pq=FCC.formpq(FCC.params.length,FCC.params.radius,FCC.params.sigmal,FCC.params.sigma,FCC.params.p1,
-                                FCC.params.rho,FCC.params.alphash,FCC.theta,FCC.phi,
-                                fabs(qy),
-                                FCC.limq1,FCC.limq2,FCC.limq3,FCC.limq4,FCC.limq5,FCC.limq6,FCC.limq7,FCC.limq8,FCC.limq9,
-                                qx,qy,qx/q,0,q,FCC.norm,
-                                FCC.por,FCC.part,FCC.cs,FCC.ordis,FCC.orcase,FCC.params.CR->myarray,FCC.params.CR->carr1p,
-                                FCC.params.CR->carr2p,FCC.params.CR->carr3p,FCC.params.CR->carr4p,FCC.params.CR->carr5p,
-                                FCC.params.CR->carr6p,FCC.params.CR->carr7p,FCC.params.CR->carr8p,FCC.params.CR->carr9p
-                                /*,carr11pm^,carr22pm^*/ );
-                //fq:=pq;
-                if ( lattice )
-                    fq=FCC.formfq(FCC.params.length,FCC.params.radius,FCC.params.sigmal,FCC.params.sigma,FCC.params.p1,
-                                    FCC.params.rho,FCC.params.alphash,FCC.theta,FCC.phi,
-                                    fabs(qy),
-                                    FCC.limq1f,FCC.limq2f,FCC.limq3f,FCC.limq4f,FCC.limq5f,FCC.limq6f,
-                                    qx,qy,qx/q,0,q,FCC.norm,
-                                    FCC.part,FCC.cs,FCC.ordis,FCC.orcase,FCC.params.CR->myarray,FCC.params.CR->carr1f, /*TODO: hier stand carr1p*/
-                                    FCC.params.CR->carr2f,FCC.params.CR->carr3f,FCC.params.CR->carr4f,FCC.params.CR->carr5f,
-                                    FCC.params.CR->carr6f,FCC.params.CR->carr7f /*,carr11pm^,carr22pm^*/ );
-                break;
-            case 3:
-                pq=FCC.formpq(FCC.params.length,FCC.params.radius,FCC.params.sigmal,FCC.params.sigma,FCC.params.p1,
-                                FCC.params.rho,FCC.params.alphash,FCC.theta,FCC.phi,
-                                fabs(qx),FCC.limq1,FCC.limq2,FCC.limq3,FCC.limq4,FCC.limq5,FCC.limq6,FCC.limq7,
-                                FCC.limq8,FCC.limq9,
-                                qx,qy,0,qy/q,q,FCC.norm,
-                                FCC.por,FCC.part,FCC.cs,FCC.ordis,FCC.orcase,FCC.params.CR->myarray,FCC.params.CR->carr1p,
-                                FCC.params.CR->carr2p,FCC.params.CR->carr3p,FCC.params.CR->carr4p,FCC.params.CR->carr5p,
-                                FCC.params.CR->carr6p,FCC.params.CR->carr7p,FCC.params.CR->carr8p,FCC.params.CR->carr9p
-                                /*,carr11pm^,carr22pm^*/ );
-                //fq:=pq;
-                if ( lattice )
-                    fq=FCC.formfq(FCC.params.length,FCC.params.radius,FCC.params.sigmal,FCC.params.sigma,FCC.params.p1,
-                                    FCC.params.rho,FCC.params.alphash,FCC.theta,FCC.phi,
-                                    fabs(qx),
-                                    FCC.limq1f,FCC.limq2f,FCC.limq3f,FCC.limq4f,FCC.limq5f,FCC.limq6f,
-                                    qx,qy,0,qy/q,q,FCC.norm,
-                                    FCC.part,FCC.cs,FCC.ordis,FCC.orcase,FCC.params.CR->myarray,FCC.params.CR->carr1f, /*TODO: hier stand carr1p*/
-                                    FCC.params.CR->carr2f,FCC.params.CR->carr3f,FCC.params.CR->carr4f,FCC.params.CR->carr5f,
-                                    FCC.params.CR->carr6f,FCC.params.CR->carr7f /*,carr11pm^,carr22pm^*/ );
-                break;
-            case 4:
-                pq=FCC.formpq(FCC.params.length,FCC.params.radius,FCC.params.sigmal,FCC.params.sigma,FCC.params.p1,
-                                FCC.params.rho,FCC.params.alphash,FCC.theta,FCC.phi,
-                                q,
-                                FCC.limq1,FCC.limq2,FCC.limq3,FCC.limq4,FCC.limq5,FCC.limq6,FCC.limq7,FCC.limq8,FCC.limq9,
-                                qx,qy,qx,qy,q,FCC.norm,
-                                FCC.por,FCC.part,FCC.cs,FCC.ordis,FCC.orcase,FCC.params.CR->myarray,FCC.params.CR->carr1p,
-                                FCC.params.CR->carr2p,FCC.params.CR->carr3p,FCC.params.CR->carr4p,FCC.params.CR->carr5p,
-                                FCC.params.CR->carr6p,FCC.params.CR->carr7p,FCC.params.CR->carr8p,FCC.params.CR->carr9p
-                                /*,carr11pm^,carr22pm^*/ );
-                //fq:=pq;
-                if ( lattice )
-                    fq=FCC.formfq(FCC.params.length,FCC.params.radius,FCC.params.sigmal,FCC.params.sigma,FCC.params.p1,
-                                    FCC.params.rho,FCC.params.alphash,FCC.theta,FCC.phi,
-                                    q,
-                                    FCC.limq1f,FCC.limq2f,FCC.limq3f,FCC.limq4f,FCC.limq5f,FCC.limq6f,
-                                    qx,qy,qx,qy,q,FCC.norm,
-                                    FCC.part,FCC.cs,FCC.ordis,FCC.orcase,FCC.params.CR->myarray,FCC.params.CR->carr1f, /*TODO ...*/
-                                    FCC.params.CR->carr2f,FCC.params.CR->carr3f,FCC.params.CR->carr4f,FCC.params.CR->carr5f,
-                                    FCC.params.CR->carr6f,FCC.params.CR->carr7f /*,carr11pm^,carr22pm^*/ );
-                break;
+                pq = CALC.formpq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
+                                CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, q, CALC.limq1, CALC.limq2, CALC.limq3, CALC.limq4,
+                                CALC.limq5, CALC.limq6, CALC.limq7, CALC.limq8, CALC.limq9, qx, qy, qx, qy, q, CALC.norm,
+                                CALC.por, CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1p, CALC.params.CR->carr2p,
+                                CALC.params.CR->carr3p, CALC.params.CR->carr4p, CALC.params.CR->carr5p, CALC.params.CR->carr6p, CALC.params.CR->carr7p, CALC.params.CR->carr8p,
+                                CALC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );   //Z=25347
+                /* fq = pq;  //Z=25348 */
+                if ( CALC.lattice )
+                    fq = CALC.formfq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
+                                    CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, q, CALC.limq1f, CALC.limq2f, CALC.limq3f,
+                                    CALC.limq4f, CALC.limq5f, CALC.limq6f, qx, qy, qx, qy, q, CALC.norm,
+                                    CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1f, CALC.params.CR->carr2f,
+                                    CALC.params.CR->carr3f, CALC.params.CR->carr4f, CALC.params.CR->carr5f, CALC.params.CR->carr6f, CALC.params.CR->carr7f
+                                    /*,carr11pm^,carr22pm^*/ );   //Z=25351
+                break;   //Z=25352
             } // switch orcase
-        } /* if ( FCC.ordis==6 ) */  /*Z=24841*/
+        } // if ( CALC.ordis==6 ) //Z=25353
 
-        //(* isotropic fraction *)
-        //if (iso>0) then pqiso:=formpq(length,radius,sigmal,sigma,p1,rho,alphash,theta,phi,q,limq1,limq2,limq3,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,qx,qy,q,norm,
-        //       por,part,cs,7,orcase,myarray,carr1p^,carr2p^,carr3p^,carr4p^,carr5p^,carr6p^,carr7p^,carr8p^,carr9p^,carr11pm^,carr22pm^)
-        //else pqiso:=0.0;
+        /*  general orientation  */  //Z=25357
+        else if ( CALC.ordis==ordis_Gaussian /*0*/ )
+        {   //Z=25358
+            switch ( CALC.orcase )
+            {
+            case 1:    /*  general orientation  */  //Z=25359
+                pq = CALC.formpq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
+                                CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, q, CALC.limq1, CALC.limq2, CALC.limq3, CALC.limq4,
+                                CALC.limq5, CALC.limq6, CALC.limq7, CALC.limq8, CALC.limq9, qx, qy, qx*CALC.cosphic-qy*CALC.sinphic,
+                                qx*CALC.sinphic+qy*CALC.cosphic, q, CALC.norm,
+                                CALC.por, CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1p, CALC.params.CR->carr2p,
+                                CALC.params.CR->carr3p, CALC.params.CR->carr4p, CALC.params.CR->carr5p, CALC.params.CR->carr6p, CALC.params.CR->carr7p, CALC.params.CR->carr8p,
+                                CALC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );   //Z=25361
+                /* fq = pq;  //Z=25362 */
+                if ( CALC.lattice ) /* fq:=pq; */   /*Z=24758*/
+                    fq = CALC.formfq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
+                                    CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, q, CALC.limq1f, CALC.limq2f, CALC.limq3f,
+                                    CALC.limq4f, CALC.limq5f, CALC.limq6f, qx, qy, qx*CALC.cosphic-qy*CALC.sinphic,
+                                    qx*CALC.sinphic+qy*CALC.cosphic, q, CALC.norm,
+                                    CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1f, CALC.params.CR->carr2f,
+                                    CALC.params.CR->carr3f, CALC.params.CR->carr4f, CALC.params.CR->carr5f, CALC.params.CR->carr6f, CALC.params.CR->carr7f
+                                    /*,carr11pm^,carr22pm^*/ );   //Z=25365
+                break;   //Z=25366
+            case 2:   /*  x-axis  */  //Z=25367
+                pq = CALC.formpq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
+                                CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, sqrt(qx*qx+(1-CALC.order)*qy*qy), CALC.limq1, CALC.limq2, CALC.limq3, CALC.limq4,
+                                CALC.limq5, CALC.limq6, CALC.limq7, CALC.limq8, CALC.limq9, qx, qy, qx, qy, q, CALC.norm,
+                                CALC.por, CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1p, CALC.params.CR->carr2p,
+                                CALC.params.CR->carr3p, CALC.params.CR->carr4p, CALC.params.CR->carr5p, CALC.params.CR->carr6p, CALC.params.CR->carr7p, CALC.params.CR->carr8p,
+                                CALC.params.CR->carr9p /*,carr11pm^,carr22pm^ */);   //Z=25369
+                /* fq = pq;  //Z=25370 */
+                //ffq = pq;  //Z=25371
+                if ( CALC.lattice )
+                    fq = CALC.formfq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
+                                    CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, sqrt(qx*qx+(1-CALC.order)*qy*qy), CALC.limq1f, CALC.limq2f, CALC.limq3f,
+                                    CALC.limq4f, CALC.limq5f, CALC.limq6f, qx, qy, qx, qy, q, CALC.norm,
+                                    CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1f, CALC.params.CR->carr2f,
+                                    CALC.params.CR->carr3f, CALC.params.CR->carr4f, CALC.params.CR->carr5f, CALC.params.CR->carr6f, CALC.params.CR->carr7f
+                                    /*,carr11pm^,carr22pm^*/ );   //Z=25374
+                szq = pq; // ffq;  //Z=25375  TODO das macht hier keinen Sinn
+                break;   //Z=25376
+            case 3:  /*  y-axis  */  //Z=25377
+                pq = CALC.formpq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
+                                CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, sqrt((1.0-CALC.order)*qx*qx+qy*qy), CALC.limq1, CALC.limq2, CALC.limq3, CALC.limq4,
+                                CALC.limq5, CALC.limq6, CALC.limq7, CALC.limq8, CALC.limq9, qx, qy, qx, qy, q, CALC.norm,
+                                CALC.por, CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1p, CALC.params.CR->carr2p,
+                                CALC.params.CR->carr3p, CALC.params.CR->carr4p, CALC.params.CR->carr5p, CALC.params.CR->carr6p, CALC.params.CR->carr7p, CALC.params.CR->carr8p,
+                                CALC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );   //Z=25379
+                /* fq = pq;  //Z=25380 */
+                if ( CALC.lattice ) /* fq:=pq; */   /*Z=24776*/
+                    fq = CALC.formfq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
+                                    CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, sqrt((1.0-CALC.order)*qx*qx+qy*qy), CALC.limq1f, CALC.limq2f, CALC.limq3f,
+                                    CALC.limq4f, CALC.limq5f, CALC.limq6f, qx, qy, qx, qy, q, CALC.norm,
+                                    CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1f, CALC.params.CR->carr2f,
+                                    CALC.params.CR->carr3f, CALC.params.CR->carr4f, CALC.params.CR->carr5f, CALC.params.CR->carr6f, CALC.params.CR->carr7f
+                                    /*,carr11pm^,carr22pm^*/ );   //Z=25383
+                break;   //Z=25384
+            case 4:  /*  z-axis  */  //Z=25385
+                pq = CALC.formpq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
+                                CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, q, CALC.limq1, CALC.limq2, CALC.limq3,
+                                CALC.limq4, CALC.limq5, CALC.limq6, CALC.limq7, CALC.limq8, CALC.limq9, qx, qy, qx, qy, q, CALC.norm,
+                                CALC.por, CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1p, CALC.params.CR->carr2p,
+                                CALC.params.CR->carr3p, CALC.params.CR->carr4p, CALC.params.CR->carr5p, CALC.params.CR->carr6p, CALC.params.CR->carr7p, CALC.params.CR->carr8p,
+                                CALC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );   //Z=25387
+                /* fq = pq;  //Z=25388 */
+                if ( CALC.lattice )
+                    fq = CALC.formfq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
+                                    CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, q, CALC.limq1f, CALC.limq2f, CALC.limq3f,
+                                    CALC.limq4f, CALC.limq5f, CALC.limq6f, qx, qy, qx, qy, q, CALC.norm,
+                                    CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1f, CALC.params.CR->carr2f,
+                                    CALC.params.CR->carr3f, CALC.params.CR->carr4f, CALC.params.CR->carr5f, CALC.params.CR->carr6f, CALC.params.CR->carr7f
+                                    /*,carr11pm^,carr22pm^*/ );   //Z=25391
+                break;   /*Z=24787*/
+            } // switch orcase
 
-        /* general orientation */
-        if ( FCC.ordis==0 ) /*Z=24850*/
+        } // if ( CALC.ordis==0 ) //Z=25393
+
+    }  /*  of part=1 (Cylinder)  */   //Z=25395
+
+
+    /* *********** */  //Z=25398
+    /* ** disks ** */  //Z=25399
+    /* *********** */  //Z=25400
+    if ( CALC.partdisk )
+    {/*6*/     /*  disks  */  //Z=25401
+
+        /*  isotropic cases  */  //Z=25403
+        if ( CALC.ordis == 7 )
         {
-#define nnnorm FCC.norm  /*Z=20467*/
-            switch ( FCC.orcase )
+            pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                          CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,
+                          CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
+                          CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                          CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
+                          CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
+                          CALC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );   //Z=25406
+            fq = pq;  //Z=25407
+            //if ( CALC.lattice )
+            //    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+            //                    CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1f,CALC.limq2f,
+            //                    CALC.limq3f,CALC.limq4f,CALC.limq5f,CALC.limq6f,qx,qy,qx,qy,q,CALC.norm,
+            //                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1f,
+            //                    CALC.params.CR->carr2f,CALC.params.CR->carr3f,CALC.params.CR->carr4f,CALC.params.CR->carr5f,
+            //                    CALC.params.CR->carr6f,CALC.params.CR->carr7f /*,carr11pm^,carr22pm^*/ );
+        }   //Z=25411
+
+        /*  perfect orientation  */    //Z=25412
+        if ( CALC.ordis==6 ) //Z=25413
+        {
+            switch ( CALC.orcase )
             {
             case 1:
-                pq=FCC.formpq(FCC.params.length,FCC.params.radius,FCC.params.sigmal,FCC.params.sigma,FCC.params.p1,
-                                FCC.params.rho,FCC.params.alphash,FCC.theta,FCC.phi,
-                                q,FCC.limq1,FCC.limq2,FCC.limq3,FCC.limq4,FCC.limq5,FCC.limq6,FCC.limq7,FCC.limq8,FCC.limq9,
-                                qx,qy,qx*FCC.cosphic/q-qy*FCC.sinphic/q,qx*FCC.sinphic/q+qy*FCC.cosphic/q,q,nnnorm,
-                                FCC.por,FCC.part,FCC.cs,FCC.ordis,FCC.orcase,FCC.params.CR->myarray,FCC.params.CR->carr1p,
-                                FCC.params.CR->carr2p,FCC.params.CR->carr3p,FCC.params.CR->carr4p,FCC.params.CR->carr5p,
-                                FCC.params.CR->carr6p,FCC.params.CR->carr7p,FCC.params.CR->carr8p,FCC.params.CR->carr9p
-                                /*,carr11pm^,carr22pm^*/ );
-                //fq:=pq;
-                if ( lattice )
-                    fq=FCC.formfq(FCC.params.length,FCC.params.radius,FCC.params.sigmal,FCC.params.sigma,FCC.params.p1,
-                                    FCC.params.rho,FCC.params.alphash,FCC.theta,FCC.phi,
-                                    q,FCC.limq1f,FCC.limq2f,FCC.limq3f,FCC.limq4f,FCC.limq5f,FCC.limq6f,
-                                    qx,qy,qx*FCC.cosphic/q-qy*FCC.sinphic/q,qx*FCC.sinphic/q+qy*FCC.cosphic/q,q,nnnorm,
-                                    FCC.part,FCC.cs,FCC.ordis,FCC.orcase,FCC.params.CR->myarray,FCC.params.CR->carr1p,
-                                    FCC.params.CR->carr2p,FCC.params.CR->carr3p,FCC.params.CR->carr4p,FCC.params.CR->carr5p,
-                                    FCC.params.CR->carr6p,FCC.params.CR->carr7p /*,carr11pm^,carr22pm^*/ );
-                break;
+                limql = sqrt(  sqr((qx*CALC.sinphi+qy*CALC.cosphi)*CALC.costheta*CALC.sintheta)
+                             + sqr(qx-CALC.cosphi*(qx*CALC.cosphi+qy*CALC.sinphi)*CALC.sintheta*CALC.sintheta)
+                             + sqr(qy-CALC.sinphi*(qx*CALC.cosphi+qy*CALC.sinphi)*CALC.sintheta*CALC.sintheta));  //Z=25415
+                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, limql,
+                                CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,
+                                qx,qy,qx*CALC.cosphi*CALC.sintheta/q,qy*CALC.sinphi*CALC.sintheta/q,q,CALC.norm,
+                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
+                                CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
+                                CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,CALC.params.CR->carr9p
+                                /*,carr11pm^,carr22pm^*/ );   //Z=25417
+                fq = pq;  //Z=25418
+                //if ( CALC.lattice )
+                //    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                //                    CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi,
+                //                    sqrt(CALC.sinphi*qx*qx+CALC.cosphi*qy*qy+eps9),
+                //                    CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,CALC.limq5f,CALC.limq6f,
+                //                    qx,qy,qx*CALC.cosphi*CALC.sintheta/q,qy*CALC.sinphi*CALC.sintheta/q,q,CALC.norm,
+                //                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1f,
+                //                    CALC.params.CR->carr2f,CALC.params.CR->carr3f,CALC.params.CR->carr4f,CALC.params.CR->carr5f,
+                //                    CALC.params.CR->carr6f,CALC.params.CR->carr7f /*,carr11pm^,carr22pm^*/ );  //Z=25421
+                break;   //Z=25422
             case 2:
-                pq=FCC.formpq(FCC.params.length,FCC.params.radius,FCC.params.sigmal,FCC.params.sigma,FCC.params.p1,
-                                FCC.params.rho,FCC.params.alphash,FCC.theta,FCC.phi,
-                                q,FCC.limq1,FCC.limq2,FCC.limq3,FCC.limq4,FCC.limq5,FCC.limq6,FCC.limq7,FCC.limq8,FCC.limq9,
-                                qx,qy,qx/q,qy/q,q,nnnorm,
-                                FCC.por,FCC.part,FCC.cs,FCC.ordis,FCC.orcase,FCC.params.CR->myarray,FCC.params.CR->carr1p,
-                                FCC.params.CR->carr2p,FCC.params.CR->carr3p,FCC.params.CR->carr4p,FCC.params.CR->carr5p,
-                                FCC.params.CR->carr6p,FCC.params.CR->carr7p,FCC.params.CR->carr8p,FCC.params.CR->carr9p
-                                /*,carr11pm^,carr22pm^*/ );
-                //fq:=pq;
-                if ( lattice ) //fq:=pq;
-                    fq=FCC.formfq(FCC.params.length,FCC.params.radius,FCC.params.sigmal,FCC.params.sigma,FCC.params.p1,
-                                    FCC.params.rho,FCC.params.alphash,FCC.theta,FCC.phi,
-                                    q,FCC.limq1f,FCC.limq2f,FCC.limq3f,FCC.limq4f,FCC.limq5f,FCC.limq6f,
-                                    qx,qy,qx/q,qy/q,q,nnnorm,
-                                    FCC.part,FCC.cs,FCC.ordis,FCC.orcase,FCC.params.CR->myarray,FCC.params.CR->carr1p,
-                                    FCC.params.CR->carr2p,FCC.params.CR->carr3p,FCC.params.CR->carr4p,FCC.params.CR->carr5p,
-                                    FCC.params.CR->carr6p,FCC.params.CR->carr7p /*,carr11pm^,carr22pm^*/ );
-                break;
+                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, fabs(qy),
+                                CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,
+                                qx,qy,qx/q,0,q,CALC.norm,
+                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
+                                CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
+                                CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,CALC.params.CR->carr9p
+                                /*,carr11pm^,carr22pm^*/ );   //Z=25425
+                fq = pq;  //Z=25426
+                //if ( CALC.lattice )
+                //    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                //                    CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, fabs(qy),
+                //                    CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,CALC.limq5f,CALC.limq6f,
+                //                    qx,qy,qx/q,0,q,CALC.norm,
+                //                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1f,
+                //                    CALC.params.CR->carr2f,CALC.params.CR->carr3f,CALC.params.CR->carr4f,CALC.params.CR->carr5f,
+                //                    CALC.params.CR->carr6f,CALC.params.CR->carr7f /*,carr11pm^,carr22pm^*/ );   //Z=25429
+                break;  //Z=25430
             case 3:
-                pq=FCC.formpq(FCC.params.length,FCC.params.radius,FCC.params.sigmal,FCC.params.sigma,FCC.params.p1,
-                                FCC.params.rho,FCC.params.alphash,FCC.theta,FCC.phi,
-                                q,FCC.limq1,FCC.limq2,FCC.limq3,FCC.limq4,FCC.limq5,FCC.limq6,FCC.limq7,FCC.limq8,FCC.limq9,
-                                qx,qy,qx/q,qy/q,q,nnnorm,
-                                FCC.por,FCC.part,FCC.cs,FCC.ordis,FCC.orcase,FCC.params.CR->myarray,FCC.params.CR->carr1p,
-                                FCC.params.CR->carr2p,FCC.params.CR->carr3p,FCC.params.CR->carr4p,FCC.params.CR->carr5p,
-                                FCC.params.CR->carr6p,FCC.params.CR->carr7p,FCC.params.CR->carr8p,FCC.params.CR->carr9p
-                                /*,carr11pm^,carr22pm^*/ );
-                //fq:=pq;
-                if ( lattice ) //fq:=pq;
-                    fq=FCC.formfq(FCC.params.length,FCC.params.radius,FCC.params.sigmal,FCC.params.sigma,FCC.params.p1,
-                                    FCC.params.rho,FCC.params.alphash,FCC.theta,FCC.phi,
-                                    q,FCC.limq1f,FCC.limq2f,FCC.limq3f,FCC.limq4f,FCC.limq5f,FCC.limq6f,
-                                    qx,qy,qx/q,qy/q,q,nnnorm,
-                                    FCC.part,FCC.cs,FCC.ordis,FCC.orcase,FCC.params.CR->myarray,FCC.params.CR->carr1p,
-                                    FCC.params.CR->carr2p,FCC.params.CR->carr3p,FCC.params.CR->carr4p,FCC.params.CR->carr5p,
-                                    FCC.params.CR->carr6p,FCC.params.CR->carr7p /*,carr11pm^,carr22pm^*/ );
-                break;
+                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi,
+                                fabs(qx),CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,
+                                CALC.limq8,CALC.limq9, qx,qy,0,qy/q,q,CALC.norm,
+                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
+                                CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
+                                CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,CALC.params.CR->carr9p
+                                /*,carr11pm^,carr22pm^*/ );  //Z=25433
+                fq = pq;  //Z=25434
+                //if ( CALC.lattice )
+                //    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                //                    CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, fabs(qx),
+                //                    CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,CALC.limq5f,CALC.limq6f,
+                //                    qx,qy,0,qy/q,q,CALC.norm,
+                //                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1f, /*TODO: hier stand carr1p*/
+                //                    CALC.params.CR->carr2f,CALC.params.CR->carr3f,CALC.params.CR->carr4f,CALC.params.CR->carr5f,
+                //                    CALC.params.CR->carr6f,CALC.params.CR->carr7f /*,carr11pm^,carr22pm^*/ );  //Z=25437
+                break;  //Z=25438
             case 4:
-                pq=FCC.formpq(FCC.params.length,FCC.params.radius,FCC.params.sigmal,FCC.params.sigma,FCC.params.p1,
-                                FCC.params.rho,FCC.params.alphash,FCC.theta,FCC.phi,
-                                q,FCC.limq1,FCC.limq2,FCC.limq3,FCC.limq4,FCC.limq5,FCC.limq6,FCC.limq7,FCC.limq8,FCC.limq9,
-                                qx,qy,qx,qy,q,nnnorm,
-                                FCC.por,FCC.part,FCC.cs,FCC.ordis,FCC.orcase,FCC.params.CR->myarray,FCC.params.CR->carr1p,
-                                FCC.params.CR->carr2p,FCC.params.CR->carr3p,FCC.params.CR->carr4p,FCC.params.CR->carr5p,
-                                FCC.params.CR->carr6p,FCC.params.CR->carr7p,FCC.params.CR->carr8p,FCC.params.CR->carr9p
+                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, q,
+                                CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,
+                                qx,qy,qx,qy,q,CALC.norm,
+                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
+                                CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
+                                CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,CALC.params.CR->carr9p
+                                /*,carr11pm^,carr22pm^*/ );   //Z=25441
+                fq = pq;  //Z=25442
+                //if ( CALC.lattice )
+                //    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                //                    CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, q,
+                //                    CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,CALC.limq5f,CALC.limq6f,
+                //                    qx,qy,qx,qy,q,CALC.norm,
+                //                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1f, /*TODO ...*/
+                //                    CALC.params.CR->carr2f,CALC.params.CR->carr3f,CALC.params.CR->carr4f,CALC.params.CR->carr5f,
+                //                    CALC.params.CR->carr6f,CALC.params.CR->carr7f /*,carr11pm^,carr22pm^*/ );   //Z=25445
+                break;  //Z=25446
+            } // switch orcase
+        } /* if ( CALC.ordis==6 ) */  //Z=25447
+
+        /*  isotropic fraction  */  //Z=25449
+        if ( CALC.iso>0 )
+            pqiso = CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                               CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, q, CALC.limq1,CALC.limq2,
+                               CALC.limq3,CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,
+                               qx,qy,qx,qy,q,CALC.norm,  //Z=25450
+                               CALC.por,CALC.part,CALC.cs, 7/*ordis*/, CALC.orcase, CALC.params.CR->myarray,
+                               CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
+                               CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
+                               CALC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );  //Z=25451
+        else
+            pqiso = 0.0;  //Z=25452
+
+#define nnnorm CALC.norm  /*Z=20467*/
+        /*  general orientation  */  //Z=25455
+        if ( CALC.ordis==0 )
+        {
+            switch ( CALC.orcase )
+            {
+            case 1:
+                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi,
+                                q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,
+                                qx,qy,qx*CALC.cosphic/q-qy*CALC.sinphic/q,qx*CALC.sinphic/q+qy*CALC.cosphic/q,q,nnnorm,
+                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
+                                CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
+                                CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,CALC.params.CR->carr9p
+                                /*,carr11pm^,carr22pm^*/ );   //Z=25459
+                /* fq = pq;  //Z=25460 */
+                if ( CALC.lattice )
+                    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                    CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi,
+                                    q,CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,CALC.limq5f,CALC.limq6f,
+                                    qx,qy,qx*CALC.cosphic/q-qy*CALC.sinphic/q,qx*CALC.sinphic/q+qy*CALC.cosphic/q,q,nnnorm,
+                                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
+                                    CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
+                                    CALC.params.CR->carr6p,CALC.params.CR->carr7p /*,carr11pm^,carr22pm^*/ );   //Z=25463
+                break;  //Z=25464
+            case 2:  //Z=25465
+                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, sqrt((1.0-CALC.order)*qx*qx+qy*qy),
+                                CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,
+                                qx,qy,qx/q,qy/q,q,nnnorm,
+                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
+                                CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
+                                CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,CALC.params.CR->carr9p
                                 /*,carr11pm^,carr22pm^*/ );
-                //fq:=pq;
-                if ( lattice ) //fq:=pq;
-                    fq=FCC.formfq(FCC.params.length,FCC.params.radius,FCC.params.sigmal,FCC.params.sigma,FCC.params.p1,
-                                    FCC.params.rho,FCC.params.alphash,FCC.theta,FCC.phi,
-                                    q,FCC.limq1f,FCC.limq2f,FCC.limq3f,FCC.limq4f,FCC.limq5f,FCC.limq6f,
+                /* fq = pq;  //Z=25468 */
+                if ( CALC.lattice ) //fq:=pq;
+                    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                    CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, sqrt((1.0-CALC.order)*qx*qx+qy*qy),
+                                    CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,CALC.limq5f,CALC.limq6f,
+                                    qx,qy,qx/q,qy/q,q,nnnorm,
+                                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
+                                    CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
+                                    CALC.params.CR->carr6p,CALC.params.CR->carr7p /*,carr11pm^,carr22pm^*/ );  //Z=25471
+                break;  //Z=25472
+            case 3:  //Z=25473
+                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, sqrt(qx*qx+(1-CALC.order)*qy*qy),
+                                CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,
+                                qx,qy,qx/q,qy/q,q,nnnorm,
+                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
+                                CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
+                                CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,CALC.params.CR->carr9p
+                                /*,carr11pm^,carr22pm^*/ );  //Z=25475
+                /* fq = pq;  //Z=25476 */
+                if ( CALC.lattice )
+                    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                    CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, sqrt(qx*qx+(1-CALC.order)*qy*qy),
+                                    CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,CALC.limq5f,CALC.limq6f,
+                                    qx,qy,qx/q,qy/q,q,nnnorm,
+                                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
+                                    CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
+                                    CALC.params.CR->carr6p,CALC.params.CR->carr7p /*,carr11pm^,carr22pm^*/ );  //Z=25479
+                break;  //Z=25480
+            case 4:  //Z=25481
+                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi,
+                                q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,
+                                qx,qy,qx,qy,q,nnnorm,
+                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
+                                CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
+                                CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,CALC.params.CR->carr9p
+                                /*,carr11pm^,carr22pm^*/ );  //Z=25483
+                /* fq = pq;  //Z=25484 */
+                if ( CALC.lattice ) //fq:=pq;
+                    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                    CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi,
+                                    q,CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,CALC.limq5f,CALC.limq6f,
                                     qx,qy,qx,qy,q,nnnorm,
-                                    FCC.part,FCC.cs,FCC.ordis,FCC.orcase,FCC.params.CR->myarray,FCC.params.CR->carr1p,
-                                    FCC.params.CR->carr2p,FCC.params.CR->carr3p,FCC.params.CR->carr4p,FCC.params.CR->carr5p,
-                                    FCC.params.CR->carr6p,FCC.params.CR->carr7p /*,carr11pm^,carr22pm^*/ );
-                break;
+                                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
+                                    CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
+                                    CALC.params.CR->carr6p,CALC.params.CR->carr7p /*,carr11pm^,carr22pm^*/ );  //Z=25487
+                break;  //Z=25488
             } // switch orcase
 #undef nnnorm
-        } // if ( FCC.ordis==0 )
+        } // if ( CALC.ordis==0 )  //Z=25489
 
-    } // if ( FCC.ComboBoxParticle==cbpartDisk ) /*Z=24884*/
-
-
-
-#ifdef nur_sphere   // Als erster Ansatz
+    } /*  of part=2, disk  */  //Z=25490
 
 
-    if ( FCC.ComboBoxParticle==cbpartVesicle )      /*Z0311=24343*/
-    {   //{NV}-X/16446
-        //pq:=polyvesicle(length,radius,sigma,sigmal,q);
-        //if CheckBoxf2q.Checked=true then fq:=f2dpolyvesicle(length,radius,sigma,sigmal,q)
-        //else fq:=pq;
-    }
+    if ( CALC.partvesicle )
+    {  //Z=25493
+        pq = CALC.polyvesicle(/*length,radius,sigma,sigmal,*/q);  //Z=25494
+        //if ( CheckBoxf2q.Checked==true )
+        //    fq = f2dpolyvesicle(length,radius,sigma,sigmal,q);  //Z=25495
+        //else
+        fq = pq;  //Z=25496
+    }  //Z=25497
 
 
-    if ( FCC.ComboBoxParticle==cbpartLiposome )     /*Z0311=24349*/
-    {   //{NV}-X/16452
-        //pq=polyliposome(length,radius,sigma,sigmal,shellno,alphash,ceff,reff,a,b,c,domainsize,aziwidth,3,q);
-        //fq=pq;
-    }
+    // Wird aktuell nicht verwendet
+    //if ( CALC.partliposome )
+    //{  //Z=25499
+    //    /* pq:=polyliposome(length,radius,sigma,sigmal,shellno,alphash,ceff,reff,a,b,c,domainsize,aziwidth,3,q);  //Z=25500 */
+    //    /* pq:=liposome(a,rho,radiusi,p1,shellno,q);  //Z=25501 */
+    //    pq = liposome(5,0,10,0.8,3,q);  //Z=25502
+    //    fq = pq;  //Z=25503
+    //}  //Z=25504
 
-    if ( FCC.ComboBoxParticle==cbpartCube )     /*Z0311=24356*/
-    {   //{NV}-X/16458
-        /* isotropic cases */
-        //   if ( (ordis=7) and homogeneous) then pq:=formpq(length,radius,1,1,zz,q,limq1,limq3,1,1,qx,qy,1,q,norm,part,cs,ordis,orcase,FCC.params.CR->carr1,FCC.params.CR->carr3,FCC.params.CR->carr5,FCC.params.CR->carr6,FCC.params.CR->carr2);
-        //fq:=pq;
-    }
 
-        cbpartEllipsoide        /*Z0311=24384*/
-        cbpartTriaxEllips       /*Z0311=24453*/
-        cbpartSuperEllips       /*Z0311=24479*/
+    if ( CALC.partcube )
+    {/*6*/  //Z=25506
+        /* pq:=polycube(radius,sigma,0,q);  //Z=25507 */
+        /* fq:=polycube(radius,sigma,1,q);  //Z=25508 */
 
-        if gisax  /*Z0311=24504*/
+        /*  isotropic cases  */  //Z=25511
+        if ( (CALC.ordis==7) && CALC.homogeneous )
+        {/*7*/  //Z=25512
+            pq = CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                            CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,CALC.limq5,
+                            CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,  //Z=25513
+                            CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                            CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
+                            CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
+                            CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25514
+            fq = pq;  //Z=25515
+            /* if lattice then  //Z=25516 */
+            /* fq:=formfq(length,radius,sigmal,sigma,p1,rho,alphash,theta,phi,q,limq1,limq2,limq3,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,qx,qy,q,norm,  //Z=25517 */
+            /*      part,cs,ordis,orcase,myarray,carr1f^,carr2f^,carr3f^,carr4f^,carr5f^,carr6f^,carr7f^,carr11pm^,carr22pm^);  //Z=25518 */
+        }/*7*/  //Z=25519
 
-#endif // nur_sphere (erster Ansatz)
+        /*  perfect orientation  */  //Z=25521
+        if ( (CALC.ordis==6) && CALC.homogeneous )
+        {/*7*/  //Z=25522
+            pq = CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                            CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,CALC.limq5,
+                            CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,  //Z=25523
+                            CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                            CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
+                            CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
+                            CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25524
+            /* if lattice then fq:=formfq(length,radius,sigmal,sigma,p1,rho,alphash,theta,phi,q,limq1,limq2,limq3,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,qx,qy,q,norm,  //Z=25525 */
+            /*          part,cs,ordis,orcase,myarray,carr1f^,carr2f^,carr3f^,carr4f^,carr5f^,carr6f^,carr7f^,carr11pm^,carr22pm^);  //Z=25526 */
+            fq = pq;  //Z=25527
+        }/*7*/  //Z=25528
+        /* pq:=formpq(length,radius,1,1,zz,q,limq1,limq3,1,1,qx,qy,1,q,norm,part,cs,ordis,orcase,carr1p^,carr3p^,carr5p^,carr6p^,carr7p^,carr8p^,carr9p^,carr7p^,carr2p^);  //Z=25529 */
+        /* if ((ordis=7) and coreshell) then pq:=formpq(length,radiusi,p1,rho,alphash,theta,phi,zz,q,limq1,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,1,q,norm,part,cs,ordis,orcase,carr1p^,carr4p^,carr5p^,carr6p^,carr7p^,carr8p^,carr9p^,carr2p^);  //Z=25530 */
 
-/*Z=25084
+    }/*6*/  //Z=25532 cbpartCube
+
+
+    if ( CALC.partellipsoid )
+    {   //Z=25534
+
+        /*  isotropic cases  */  //Z=25535
+        if ( CALC.ordis==7 && CALC.homogeneous )
+        {   /*Z221118=25536*/
+            pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.epsilon,CALC.params.sigma,CALC.params.p1,
+                            CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
+                            CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
+                            CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                            CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
+                            CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
+                            CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25538
+            fq = pq;  //Z=25539
+            /* if lattice then fq:=formfq(length,radius,sigmal,sigma,p1,rho,alphash,theta,phi,q,limq1,limq2,limq3,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,qx,qy,q,norm,  //Z=25540 */
+            /*      part,cs,ordis,orcase,myarray,carr1f^,carr2f^,carr3f^,carr4f^,carr5f^,carr6f^,carr7f^,carr11pm^,carr22pm^);  //Z=25541 */
+        }  //Z=25542
+
+        /* perfect orientation */
+        if ( CALC.ordis==6 && CALC.homogeneous )
+        {   //Z=25545
+            switch ( CALC.orcase )
+            {
+            case 1:
+                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
+                                CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
+                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                                CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
+                                CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
+                                CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25548
+                break;
+            case 2:
+                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
+                                CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,0,q,CALC.norm,
+                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                                CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
+                                CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
+                                CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25551
+                break;
+            case 3:
+                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
+                                CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qy,qx,q,CALC.norm,
+                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                                CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
+                                CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
+                                CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25554
+                break;
+            case 4:
+                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
+                                CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
+                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                                CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
+                                CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
+                                CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25557
+                break;
+            }
+            fq = pq;  //Z=25559
+        }
+
+        /*  general orientation  */  //Z=25562
+        if ( CALC.ordis==0 )
+        {   //Z=25563
+            switch ( CALC.orcase )
+            {
+            case 1:   /*  general orientation  */  //Z=25564
+                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
+                                CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,
+                                qx*CALC.cosphic-qy*CALC.sinphic,qx*CALC.sinphic+qy*CALC.cosphic,q,CALC.norm,
+                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                                CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
+                                CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
+                                CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25566
+                /* fq = pq;  //Z=25567 */
+                if ( CALC.lattice )
+                    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                    CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,
+                                    CALC.limq5f,CALC.limq6f,qx,qy,qx*CALC.cosphic-qy*CALC.sinphic,qx*CALC.sinphic+qy*CALC.cosphic,q,CALC.norm,
+                                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                                    CALC.params.CR->carr1f,CALC.params.CR->carr2f,CALC.params.CR->carr3f,CALC.params.CR->carr4f,
+                                    CALC.params.CR->carr5f,CALC.params.CR->carr6f,CALC.params.CR->carr7f/*,carr11pm^,carr22pm^*/);  //Z=25570
+                break;  //Z=25571
+            case 2:  /*  x-axis  */  //Z=25572
+                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
+                                CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
+                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                                CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
+                                CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
+                                CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25574
+                fq = pq;  //Z=25575
+                /* ffq:=pq;  //Z=25576 */
+                /* if lattice then //fq:=pq;  //Z=25577 */
+                /* fq:=formfq(length,radius,sigmal,sigma,p1,rho,alphash,theta,phi,q,limq1f,limq2f,limq3f,limq4f,limq5f,limq6f,qx,qy,qx,qy,q,norm,  //Z=25578 */
+                /*    part,cs,ordis,orcase,myarray,carr1p^,carr2f^,carr3f^,carr4f^,carr5f^,carr6f^,carr7f^,carr11pm^,carr22pm^);  //Z=25579 */
+                /* szq:=ffq;  //Z=25580 */
+                break;  //Z=25581
+            case 3:  /*  y-axis  */  //Z=25582
+                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
+                                CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
+                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                                CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
+                                CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
+                                CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25584
+                /* fq = pq;  //Z=25585 */
+                if ( CALC.lattice )
+                    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                    CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,
+                                    CALC.limq5f,CALC.limq6f,qx,qy,qx,qy,q,CALC.norm,
+                                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                                    CALC.params.CR->carr1f,CALC.params.CR->carr2f,CALC.params.CR->carr3f,CALC.params.CR->carr4f,
+                                    CALC.params.CR->carr5f,CALC.params.CR->carr6f,CALC.params.CR->carr7f/*,carr11pm^,carr22pm^*/);  //Z=25588
+                break;  //Z=25589
+            case 4:  /*  z-axis  */  //Z=25590
+                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
+                                CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
+                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                                CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
+                                CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
+                                CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25592
+                /* fq = pq;  //Z=25593 */
+                if ( CALC.lattice )
+                    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                                    CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,
+                                    CALC.limq5f,CALC.limq6f,qx,qy,qx,qy,q,CALC.norm,
+                                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                                    CALC.params.CR->carr1f,CALC.params.CR->carr2f,CALC.params.CR->carr3f,CALC.params.CR->carr4f,
+                                    CALC.params.CR->carr5f,CALC.params.CR->carr6f,CALC.params.CR->carr7f/*,carr11pm^,carr22pm^*/);  //Z=25596
+                break;  //Z=25597
+            }
+
+            //fq = pq;  //Z=25600  TODO  Wenn if ( CALC.lattice ) greift, dann macht die dortige Rechnung keinen Sinn mehr
+
+        } // if ordis==0  //Z=25598
+    } // partellipsoid  //Z=25601
+
+
+    if ( CALC.parttriellipsoid )
+    {   //Z=25603
+#ifndef __CUDACC__
+        if ( idxCenter ) qDebug() << "parttriellipsoid" << "ordis"<<CALC.ordis << "part"<<CALC.part << "cs"<<CALC.cs << "limq4"<<CALC.limq4;
+#endif
+
+        /*  isotropic cases  */  //Z=25604
+        if ( (CALC.ordis==7) && CALC.homogeneous )
+        {   //Z=25605
+            pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                            CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
+                            CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
+                            CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                            CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
+                            CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
+                            CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25607
+            //fq = pq;  //Z=25608
+            /* if lattice then fq:=formfq(length,radius,sigmal,sigma,p1,rho,alphash,theta,phi,q,limq1,limq2,limq3,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,qx,qy,q,norm,  //Z=25609 */
+            /*      part,cs,ordis,orcase,myarray,carr1f^,carr2f^,carr3f^,carr4f^,carr5f^,carr6f^,carr7f^,carr11pm^,carr22pm^);  //Z=25610 */
+        }  //Z=25611
+
+        /*  perfect orientation  */  //Z=25613
+        if ( (CALC.ordis==6) && CALC.homogeneous )
+        {   //Z=25614
+            pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                            CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
+                            CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
+                            CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                            CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
+                            CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
+                            CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);
+            //fq = pq;  //Z=25617
+            /* if lattice then  //Z=25618 */
+            /* fq:=formfq(length,radius,sigmal,sigma,p1,rho,alphash,theta,phi,q,limq1,limq2,limq3,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,qx,qy,q,norm,  //Z=25619 */
+            /*          part,cs,ordis,orcase,myarray,carr1f^,carr2f^,carr3f^,carr4f^,carr5f^,carr6f^,carr7f^,carr11pm^,carr22pm^);  //Z=25620 */
+        }  //Z=25621
+        /* pq:=formpq(length,radius,1,1,zz,q,limq1,limq3,1,1,qx,qy,1,q,norm,part,cs,ordis,orcase,carr1p^,carr3p^,carr5p^,carr6p^,carr7p^,carr8p^,carr9p^,carr7p^,carr2p^,carr11pm^,carr22pm^);  //Z=25622 */
+        /* if ((ordis=7) and coreshell) then pq:=formpq(length,radiusi,p1,rho,alphash,theta,phi,zz,q,limq1,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,1,q,norm,part,cs,ordis,orcase,carr1p^,carr4p^,carr5p^,carr6p^,carr7p^,carr8p^,carr9p^,carr2p^,carr11pm^,carr22pm^);  //Z=25623 */
+
+        fq = pq;  //Z=25625
+    }  //Z=25626
+
+
+    if ( CALC.partbarrel )
+    {   //Z=25629
+
+        /*  isotropic cases  */  //Z=25630
+        if ( (CALC.ordis==7) && CALC.homogeneous )
+        {   //Z=25631
+            pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                            CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
+                            CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
+                            CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                            CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
+                            CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
+                            CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25633
+            //fq = pq;  //Z=25634
+            /* if lattice then fq:=formfq(length,radius,sigmal,sigma,p1,rho,alphash,theta,phi,q,limq1,limq2,limq3,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,qx,qy,q,norm,  //Z=25635 */
+            /*      part,cs,ordis,orcase,myarray,carr1f^ ,carr2f^,carr3f^,carr4f^,carr5f^,carr6f^,carr7f^,carr11pm^,carr22pm^);  //Z=25636 */
+        }  //Z=25637
+
+        /*  perfect orientation  */  //Z=25639
+        if ( (CALC.ordis==6) && CALC.homogeneous )
+        {   //Z=25640
+            pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                            CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
+                            CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
+                            CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                            CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
+                            CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
+                            CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25642
+            //fq = pq;  //Z=25643
+            /* if lattice then  //Z=25644 */
+            /* fq:=formfq(length,radius,sigmal,sigma,p1,rho,alphash,theta,phi,q,limq1,limq2,limq3,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,qx,qy,q,norm,  //Z=25645 */
+            /*          part,cs,ordis,orcase,myarray,carr1f^,carr2f^,carr3f^,carr4f^,carr5f^,carr6f^,carr7f^,carr11pm^,carr22pm^);  //Z=25646 */
+        }  //Z=25647
+        /* pq:=formpq(length,radius,1,1,zz,q,limq1,limq3,1,1,qx,qy,1,q,norm,part,cs,ordis,orcase,carr1p^,carr3p^,carr5p^,carr6p^,carr7p^,carr8p^,carr9p^,carr7p^,carr2p^,carr11pm^,carr22pm^);  //Z=25648 */
+        /* if ((ordis=7) and coreshell) then pq:=formpq(length,radiusi,p1,rho,alphash,theta,phi,zz,q,limq1,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,1,q,norm,part,cs,ordis,orcase,carr1p^,carr4p^,carr5p^,carr6p^,carr7p^,carr8p^,carr9p^,carr2p^,carr11pm^,carr22pm^);  //Z=25649 */
+
+        fq = pq;  //Z=25651
+    }  //Z=25652
+
+
+    if ( CALC.partball )
+    {   //Z=25654
+
+        /*  isotropic cases  */  //Z=25655
+        if ( (CALC.ordis==7) && CALC.homogeneous )
+        {   //Z=25656
+            pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                            CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
+                            CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
+                            CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                            CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
+                            CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
+                            CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25658
+            //fq = pq;  //Z=25659
+            /* if lattice then fq:=formfq(length,radius,sigmal,sigma,p1,rho,alphash,theta,phi,q,limq1,limq2,limq3,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,qx,qy,q,norm,  //Z=25660 */
+            /*      part,cs,ordis,orcase,myarray,carr1f^ ,carr2f^,carr3f^,carr4f^,carr5f^,carr6f^,carr7f^,carr11pm^,carr22pm^);  //Z=25661 */
+        }  //Z=25662
+
+        /*  perfect orientation  */  //Z=25664
+        if ( (CALC.ordis==6) && CALC.homogeneous )
+        {   //Z=25665
+            pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
+                            CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
+                            CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
+                            CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
+                            CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
+                            CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
+                            CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25667
+            //fq = pq;  //Z=25668
+            /* if lattice then  //Z=25669 */
+            /* fq:=formfq(length,radius,sigmal,sigma,p1,rho,alphash,theta,phi,q,limq1,limq2,limq3,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,qx,qy,q,norm,  //Z=25670 */
+            /*          part,cs,ordis,orcase,myarray,carr1f^,carr2f^,carr3f^,carr4f^,carr5f^,carr6f^,carr7f^,carr11pm^,carr22pm^);  //Z=25671 */
+        }  //Z=25672
+        /* pq:=formpq(length,radius,1,1,zz,q,limq1,limq3,1,1,qx,qy,1,q,norm,part,cs,ordis,orcase,carr1p^,carr3p^,carr5p^,carr6p^,carr7p^,carr8p^,carr9p^,carr7p^,carr2p^,carr11pm^,carr22pm^);  //Z=25673 */
+        /* if ((ordis=7) and coreshell) then pq:=formpq(length,radiusi,p1,rho,alphash,theta,phi,zz,q,limq1,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,1,q,norm,part,cs,ordis,orcase,carr1p^,carr4p^,carr5p^,carr6p^,carr7p^,carr8p^,carr9p^,carr2p^,carr11pm^,carr22pm^);  //Z=25674 */
+
+        fq = pq;  //Z=25676
+    }  //Z=25677
+
+
+#ifdef nochnichteingebaut
+    /*  excluded volume chain  */  //Z=25679
+    /*  descloi4(rg,nu,gammas,q)  */  //Z=25680
+    if ( partchain )
+    {  //Z=25681
+        pq = descloi4(radius,sigma,length,q);  //Z=25682
+        fq = pq;  //Z=25683
+    }  //Z=25684
+
+    if ( partkpchain )
+    {  //Z=25686
+        pq = kpchain(length,sigmal,q)*psphered(radius,sigma,2,q);  ;      /*  sigmal = persistence length  */  //Z=25687
+        fq = pq;  //Z=25688
+    }  //Z=25689
+
+
     if ( Checkbox10 )
-    {
-    if partsphere then pq:=schulz(length,radius,radiusi,1,1,sigma,q,1);
-    if partcylinder then pq:=schulztheta(length,radius,radiusi,1,sigma,q,2);
-    if partellipsoid then pq:=schulztheta(length,radius,radiusi,1,sigma,q,4);
-    if parttriellipsoid then pq:=schulzthetaphi(length,radius,radiusi,sigma,q,5);
-    if partcube then pq:=schulzthetaphi(length,radius,radiusi,sigma,q,7);
-    }
-*/
+    {  //Z=25692
+        if ( partsphere ) pq = schulz(length,radius,radiusi,1,1,sigma,q,1);  //Z=25693
+        if ( partcylinder ) pq = schulztheta(length,radius,radiusi,1,sigma,q,2);  //Z=25702
+        if ( partellipsoid ) pq = schulztheta(length,radius,radiusi,1,sigma,q,4);  //Z=25703
+        if ( parttriellipsoid ) pq = schulzthetaphi(length,radius,radiusi,sigma,q,5);  //Z=25718
+        if ( partcube ) pq = schulzthetaphi(length,radius,radiusi,sigma,q,7);  //Z=25719
+    }  //Z=25720
+#endif
+
 
     double width = 1;
-    if ( FCC.RadioButtonDebyeScherrer )    /*Z=25114*/
-        width = 4.0/FCC.params.domainsize;
-    if ( FCC.RadioButtonPara )
-        width = (4.0/FCC.params.domainsize)+FCC.reldis*FCC.reldis*FCC.dist*q*q;
-    //if ( ! FCC.tpvRandomOldValues.empty() )   // doIntCalc... - nicht auf der GPU zulässig
+    if ( CALC.RadioButtonDebyeScherrer )
+        width = 4.0/CALC.params.domainsize;  //Z=25722
+    if ( CALC.RadioButtonPara )
+        width = (4.0/CALC.params.domainsize); // +CALC.reldis*CALC.reldis*CALC.dist*q*q;  //Z=25723
+
+    //if ( ! CALC.tpvRandomOldValues.empty() )   // doIntCalc... - nicht auf der GPU zulässig
     {
         //if ( fabs(qx) < 0.1 && fabs(qy) < 0.1 && fabs(qz) < 0.1 )
-        //    std::cerr << "TPV CALC " << FCC.params.width_zuf << std::endl << std::flush;
-        width = width * FCC.params.width_zuf;
+        //    std::cerr << "TPV CALC " << CALC.params.width_zuf << std::endl << std::flush;
+        width = width * CALC.params.width_zuf;
     }
 
+#ifdef nochnichteingebaut
+    /*  Percus-Yevick  */  //Z=25725
+    if ( ltype==20 )
+    {/*6*/  //Z=25726
+        pq = pq*spy(radius,dbeta,q);  //Z=25727
+    }/*6*/  //Z=25728
+
+    /*  Teubner-Strey  */  //Z=25730
+    if ( ltype==21 )
+    {/*6*/  //Z=25731
+        tsrr = sqr(2*M_PI*domainsize/uca);  //Z=25732
+        tsc0 = sqr(1+tsrr);  //Z=25733
+        tsc1 = 2*sqr(domainsize)*(1-tsrr);  //Z=25734
+        tsc2 = pow(domainsize,4);  //Z=25735
+        pq = tsc0/(tsc0+tsc1*q*q+tsc2*q*q*q*q);  //Z=25736
+    }/*6*/  //Z=25737
+#endif
+
 /*#ifndef __CUDACC__
-    if ( ihex == 0 && i == 0 )
+    if ( idxCenter )
     {
-        if ( FCC.RadioButtonDebyeScherrer )
-            qDebug() << "WIDTH" << width << "Scherrer" << FCC.params.domainsize;
-        if ( FCC.RadioButtonPara )
-            qDebug() << "WIDTH" << width << "Para" << FCC.params.domainsize << FCC.reldis << FCC.dist << q;
-        if ( ! FCC.RadioButtonDebyeScherrer && ! FCC.RadioButtonPara )
-            qDebug() << "WIDTH" << width;
+        if ( CALC.RadioButtonDebyeScherrer )
+            qDebug() << "WIDTH" << width << "Scherrer" << CALC.params.domainsize << "zuf" << CALC.params.width_zuf;
+        if ( CALC.RadioButtonPara )
+            qDebug() << "WIDTH" << width << "Para" << CALC.params.domainsize << CALC.reldis << CALC.dist << q << "zuf" << CALC.params.width_zuf;
+        if ( ! CALC.RadioButtonDebyeScherrer && ! CALC.RadioButtonPara )
+            qDebug() << "WIDTH" << width << "zuf" << CALC.params.width_zuf;
     }
 #endif*/
 
     double /*qhkl0,*/ qxhkl, qyhkl, qzhkl, qhkl, qxhklt, qyhklt, qzhklt, g3, peaknorm1; //, peaknorm2;
     double dqx, dqy, dqz, yphi, psiord, phiord, x2phi;
 
-    double widthiso = 1.0 / FCC.params.uca;  /*Z0311=19448*/
+    double widthiso = 1.0 / CALC.params.uca;  /*Z0311=19448*/
     double sphno=0, cubevol=0; // fürs Debuggen besser
 
-    radintensity = 0.0;     // Immer nur für ein Pixel, somit kein Array
+    radintensity = 0.0;     // Immer nur für ein Pixel berechnet, somit kein Array nötig
     intensity = 0.0;
 
-    /*** lattice hkl-factor calcuation */
-    if ( lattice )  /*Z=25123*/
-    {
-        sphno    = FCC.latpar[1];   /*Z=25127, nur PC-Version*/
-        cubevol  = FCC.latpar[2];
-        // dwfactor ist global
+    /* ** lattice hkl-factor calcuation  */  //Z=25744
+    if ( CALC.lattice )
+    {/*6*/  //Z=25745
+
+        /*  PC-version  */  //Z=25748
+        sphno = CALC.latpar[1];  //Z=25749
+        cubevol = CALC.latpar[2];  //Z=25750
+        //global: dwfactor = CALC.latpar[3];  //Z=25751
 
         /* isotropic peaks */
-        for ( int ii=1; ii<=FCC.peakmax1; ii++ )
-        {
-            //int h    = FCC.latpar1(ii,1);
-            //int k    = FCC.latpar1(ii,2);
-            //int l    = FCC.latpar1(ii,3);
-            int mhkl    = FCC.latpar1(ii,4);
-            int fhkl    = FCC.latpar1(ii,5);
-            double qhkl = FCC.latpar3(ii,5);
-            double x2   = sqr(q-qhkl)/sqr(widthiso);  /*Z=25144*/
-            double sq   = exp(-4*x2/M_PI)/(M_PI*widthiso/2.0);
-            radintensity += sq*mhkl*fhkl;
-        } /* of peak loop */
+        for ( int ii=1; ii<=CALC.peakmax1; ii++ )
+        {   //Z=25759
+            //int h    = CALC.latpar1(ii,1);  //Z=25760
+            //int k    = CALC.latpar1(ii,2);
+            //int l    = CALC.latpar1(ii,3);
+            int mhkl    = CALC.latpar1(ii,4);  //Z=25763
+            int fhkl    = CALC.latpar1(ii,5);
+            qhkl        = CALC.latpar3(ii,5);
+            double x2   = sqr(q-qhkl)/sqr(widthiso);  //Z=25766
+            double sq   = exp(-4*x2/M_PI)/(M_PI*widthiso/2.0);  //Z=25767
+            radintensity += sq*mhkl*fhkl;  //Z=25768
+        } /* of peak loop */  //Z=25769
 
-        for ( int ii=1; ii<=FCC.peakmax2; ii++ )
-        {
-            if ( FCC._endThread ) return 0;  // Falls Anwender abgebrochen hat
-            int h = FCC.latpar2(ii,1);  /*Z=25158*/
-            int k = FCC.latpar2(ii,2);
-            int l = FCC.latpar2(ii,3);
-            int mhkl = FCC.latpar2(ii,4);
-            int fhkl = FCC.latpar2(ii,5);
+#ifndef __CUDACC__
+        //int ignHklData = 0;
+#endif
+        for ( int ii=1; ii<=CALC.peakmax2; ii++ )
+        {   //Z=25779
+            if ( CALC._endThread ) return 0;  // Falls Anwender abgebrochen hat
+            int h = CALC.latpar2(ii,1);  //Z=25780
+            int k = CALC.latpar2(ii,2);
+            int l = CALC.latpar2(ii,3);
+            int mhkl = CALC.latpar2(ii,4);
+            int fhkl = CALC.latpar2(ii,5);
 
-            //qhkl0 = FCC.latpar3(ii,1);    /*Z=25198*/
-            qxhkl = FCC.latpar3(ii,2);
-            qyhkl = FCC.latpar3(ii,3);
-            qzhkl = FCC.latpar3(ii,4);
-            qhkl  = FCC.latpar3(ii,5);
-            qxhklt = FCC.latpar3(ii,7);
-            qyhklt = FCC.latpar3(ii,8);
-            qzhklt = FCC.latpar3(ii,9);
-            g3     = FCC.latpar3(ii,10);
+            //qhkl0 = CALC.latpar3(ii,1);  //Z=25820
+            qxhkl = CALC.latpar3(ii,2);
+            qyhkl = CALC.latpar3(ii,3);
+            qzhkl = CALC.latpar3(ii,4);
+            qhkl  = CALC.latpar3(ii,5);
+            if ( qhkl <= 0 ) continue; // Verkürzt die Rechnung, da diese Daten nicht verwendet werden.
+            qxhklt = CALC.latpar3(ii,7);
+            qyhklt = CALC.latpar3(ii,8);
+            qzhklt = CALC.latpar3(ii,9);
+            g3     = CALC.latpar3(ii,10);
 
-            switch ( FCC.shp )  /*Z=25231*/
+            switch ( CALC.shp )
             {
-            case cbpeakAnisotropicGaussian /*8*/:
-                if ( FCC.ordis==6/*z-dir*/ || fabs(FCC.params.dbeta) < eps9 )   /*Z=25233*/
-                {   /* perfect orientation */
-                    D8( qDebug() << "CPU: shp=8(A): ihex,i" << ihex << i << "ii" << ii << "/" << FCC.peakmax2 );
+            case cbpeakAnisotropicGaussian /*8*/:  //Z=25853
+                /*  perfect orientation  */  //Z=25854
+                if ( CALC.ordis==6/*z-dir*/ || fabs(CALC.params.dbeta) < eps9/*dbeta==0*/ )
+                {   //Z=25855
+                    D8( qDebug() << "CPU: shp=8(A): ihex,i" << ihex << i << "ii" << ii << "/" << CALC.peakmax2 );
                     dqx = qx-qxhkl;
                     dqy = qy-qyhkl;
                     dqz = qz-qzhkl;
-                    dqs1 = (dqx*FCC.ax1.x()+dqy*FCC.ax1.y()+dqz*FCC.ax1.z())/(FCC.ax1n_sigx);
-                    dqs2 = (dqx*FCC.ax2.x()+dqy*FCC.ax2.y()+dqz*FCC.ax2.z())/(FCC.ax2n_sigy);
-                    dqs3 = (dqx*FCC.ax3.x()+dqy*FCC.ax3.y()+dqz*FCC.ax3.z())/(FCC.ax3n_sigz);
+                    dqs1 = (dqx*CALC.params.ax1.x()+dqy*CALC.params.ax1.y()+dqz*CALC.params.ax1.z())/(CALC.ax1n_sigx);
+                    dqs2 = (dqx*CALC.params.ax2.x()+dqy*CALC.params.ax2.y()+dqz*CALC.params.ax2.z())/(CALC.ax2n_sigy);
+                    dqs3 = (dqx*CALC.params.ax3.x()+dqy*CALC.params.ax3.y()+dqz*CALC.params.ax3.z())/(CALC.ax3n_sigz);
                     x2 = dqs1*dqs1+dqs2*dqs2+dqs3*dqs3;                        /*** different for twin ***/
-                    sq = exp(-4*x2/M_PI)/(sqrt(M_PI*M_PI*M_PI)*FCC.sig.x()*FCC.sig.y()*FCC.sig.z()/8.0);
+                    sq = exp(-4*x2/M_PI)/(sqrt(M_PI*M_PI*M_PI)*CALC.params.sig.x()*CALC.params.sig.y()*CALC.params.sig.z()/8.0);
                 }
-                else if ( FCC.ordis==7/*isotropic*/ )
-                {   /* isotropic orientation */
-                    D8( qDebug() << "CPU: shp=8(B): ihex,i" << ihex << i << "ii" << ii << "/" << FCC.peakmax2 );
-                    width = FCC.sig.length() /*sqrt(sigx*sigx+sigy*sigy+sigz*sigz)*/ /3.0;      /*Z0311=24626*/
+                else if ( CALC.ordis==7/*isotropic*/ )
+                {   /* isotropic orientation */   //Z=25890
+                    D8( qDebug() << "CPU: shp=8(B): ihex,i" << ihex << i << "ii" << ii << "/" << CALC.peakmax2 );
+                    width = CALC.params.sig.length() /*sqrt(sigx*sigx+sigy*sigy+sigz*sigz)*/ /3.0;  //Z=25892
 /*#ifndef __CUDACC__
-                    if ( ihex == 0 && i == 0 )
+                    if ( idxCenter && ii==1 )
                         qDebug() << "WIDTH" << width << "Ordis=7, cbpeakAnisotropicGaussian";
 #endif*/
-                    x2 = (q-qhkl)*(q-qhkl)/(width*width);
-                    sq = g3*exp(-4*x2/M_PI)/(M_PI*width/2.0);
+                    x2 = (q-qhkl)*(q-qhkl)/(width*width);  //Z=25893
+                    sq = g3*exp(-4*x2/M_PI)/(M_PI*width/2.0);  //Z=25894
                 }
-                else if ( FCC.ordis==13/*fiber pattern*/ )
+                else if ( CALC.ordis==13/*fiber pattern*/ )
                 {   /* fiber pattern */
-                    D8( qDebug() << "CPU: shp=8(C): ihex,i" << ihex << i << "ii" << ii << "/" << FCC.peakmax2 );
+                    D8( qDebug() << "CPU: shp=8(C): ihex,i" << ihex << i << "ii" << ii << "/" << CALC.peakmax2 );
                     // Update 20220608
-                    // rotaxphi   = FCC.phi
-                    // rotaxtheta = FCC.theta
-// TODO: Dieser Code (die ersten beiden if) ist in dem Programm vom 30.07.22 nicht mehr dabei ???
+                    // rotaxphi   = CALC.polPhi
+                    // rotaxtheta = CALC.polTheta
 #define sign(x) ((x<0)?-1:1)
                     /* rotated around y-axis */
-                    if ( fabs(FCC.phi)<eps9 /*(rotaxphi=0)*/ &&
-                        fabs(FCC.theta-90)<eps9 /*(rotaxtheta=90)*/ )
-                    {
+                    if ( fabs(CALC.polPhi)<eps9 /*(rotaxphi=0)*/ &&
+                         fabs(CALC.polTheta-90)<eps9 /*(rotaxtheta=90)*/ )
+                    {  //Z=25899
                         double signq=sign(qyhkl);
-                        qyhkl=signq*sqrt(qyhkl*qyhkl+qzhkl*qzhkl);
+                        qyhkl=signq*sqrt(qyhkl*qyhkl+qzhkl*qzhkl);  //Z=25901
                         qzhkl=1E-20;
                         dqx=qx-qxhkl;
                         dqy=qy-qyhkl;
                         dqz=qz-qzhkl;
-                        dqs1=(dqx*FCC.ax1.x()+dqy*FCC.ax1.y()+dqz*FCC.ax1.z())/(FCC.ax1n_sigx);
-                        dqs2=(dqx*FCC.ax2.x()+dqy*FCC.ax2.y()+dqz*FCC.ax2.z())/(FCC.ax2n_sigy);
-                        dqs3=(dqx*FCC.ax3.x()+dqy*FCC.ax3.y()+dqz*FCC.ax3.z())/(FCC.ax3n_sigz);
+                        dqs1=(dqx*CALC.params.ax1.x()+dqy*CALC.params.ax1.y()+dqz*CALC.params.ax1.z())/(CALC.ax1n_sigx);  //Z=25906
+                        dqs2=(dqx*CALC.params.ax2.x()+dqy*CALC.params.ax2.y()+dqz*CALC.params.ax2.z())/(CALC.ax2n_sigy);
+                        dqs3=(dqx*CALC.params.ax3.x()+dqy*CALC.params.ax3.y()+dqz*CALC.params.ax3.z())/(CALC.ax3n_sigz);
                         x2=dqs1*dqs1+dqs2*dqs2+dqs3*dqs3;                        /*** different for twin ***/
-                        sq=exp(-4*x2/M_PI)/(sqrt(M_PI*M_PI*M_PI)*FCC.sig.x()*FCC.sig.y()*FCC.sig.z()/8.);
-                    }
+                        sq=exp(-4*x2/M_PI)/(sqrt(M_PI*M_PI*M_PI)*CALC.params.sig.x()*CALC.params.sig.y()*CALC.params.sig.z()/8.);
+                    }  //Z=25911
                     /* rotated around x-axis */
-                    else if ( fabs(FCC.phi-90)<eps9 /*(rotaxphi=90)*/ &&
-                             fabs(FCC.theta-90)<eps9 /*(rotaxtheta=90)*/ )
-                    {
+                    else if ( fabs(CALC.polPhi-90)<eps9 /*(rotaxphi=90)*/ &&
+                              fabs(CALC.polTheta-90)<eps9 /*(rotaxtheta=90)*/ )
+                    {  //Z=25913
                         double signq=sign(qxhkl);
                         qxhkl=signq*sqrt(qxhkl*qxhkl+qzhkl*qzhkl);
                         qzhkl=1E-20;
                         dqx=qx-qxhkl;
                         dqy=qy-qyhkl;
                         dqz=qz-qzhkl;
-                        dqs1=(dqx*FCC.ax1.x()+dqy*FCC.ax1.y()+dqz*FCC.ax1.z())/(FCC.ax1n_sigx);
-                        dqs2=(dqx*FCC.ax2.x()+dqy*FCC.ax2.y()+dqz*FCC.ax2.z())/(FCC.ax2n_sigy);
-                        dqs3=(dqx*FCC.ax3.x()+dqy*FCC.ax3.y()+dqz*FCC.ax3.z())/(FCC.ax3n_sigz);
+                        dqs1=(dqx*CALC.params.ax1.x()+dqy*CALC.params.ax1.y()+dqz*CALC.params.ax1.z())/(CALC.ax1n_sigx);  //Z=25920
+                        dqs2=(dqx*CALC.params.ax2.x()+dqy*CALC.params.ax2.y()+dqz*CALC.params.ax2.z())/(CALC.ax2n_sigy);
+                        dqs3=(dqx*CALC.params.ax3.x()+dqy*CALC.params.ax3.y()+dqz*CALC.params.ax3.z())/(CALC.ax3n_sigz);
                         x2=dqs1*dqs1+dqs2*dqs2+dqs3*dqs3;                        /*** different for twin ***/
-                        sq=exp(-4*x2/M_PI)/(sqrt(M_PI*M_PI*M_PI)*FCC.sig.x()*FCC.sig.y()*FCC.sig.z()/8.);
-                    }
+                        sq=exp(-4*x2/M_PI)/(sqrt(M_PI*M_PI*M_PI)*CALC.params.sig.x()*CALC.params.sig.y()*CALC.params.sig.z()/8.);
+                    }  //Z=25925
                     /* rotated round an oblique axis */
                     else // if ((rotaxphi<>0) and (rotaxphi<>90)) then begin
-                    {
-                        FCC.qrombchid(FCC.params.length,FCC.ucl1,FCC.ucl2,FCC.ucl3,delta,FCC.uctheta*M_PI/180.0,FCC.ucphi*M_PI/180.0,qx,qy,qz,
-                                      FCC.ri11,FCC.ri12,FCC.ri13,FCC.ri21,FCC.ri22,FCC.ri23,FCC.ri31,FCC.ri32,FCC.ri33,
-                                      qxhkl,qyhkl,qzhkl,qhkl,FCC.ax1.length(),FCC.ax2.length(),FCC.ax3.length(),
-                                      FCC.ax1.x(),FCC.ax1.y(),FCC.ax1.z(),FCC.ax2.x(),FCC.ax2.y(),FCC.ax2.z(),
-                                      FCC.ax3.x(),FCC.ax3.y(),FCC.ax3.z(),FCC.sig.x(),FCC.sig.y(),FCC.sig.z(),
-                                      FCC.ordis,3,5,7,h,k,l, FCC.params.CR->carr1p, sq );                         /*Z0311=24644*/
-                        sq = sq*2*M_PI*qhkl/(2*M_PI*sqrt(M_PI*M_PI*M_PI)*FCC.sig.x()*FCC.sig.y()*FCC.sig.z()/8.0);
-                    }
+                    {/*10*/  //Z=25927
+                        CALC.qrombchid(CALC.params.length,CALC.ucl1,CALC.params.p1,CALC.ucl2,CALC.params.alpha_deg,CALC.ucl3,
+                                      delta,CALC.polTheta*M_PI/180.0,CALC.polPhi*M_PI/180.0,qx,qy,qz,CALC.ri11,CALC.ri12,CALC.ri13,
+                                      CALC.ri21,CALC.ri22,CALC.ri23,CALC.ri31,CALC.ri32,CALC.ri33,  //Z=25928
+                                      qxhkl,qyhkl,qzhkl,qhkl,
+                                      CALC.params.ax1.length(),CALC.params.ax2.length(),CALC.params.ax3.length(),
+                                      CALC.params.ax1.x(),CALC.params.ax1.y(),CALC.params.ax1.z(),
+                                      CALC.params.ax2.x(),CALC.params.ax2.y(),CALC.params.ax2.z(),
+                                      CALC.params.ax3.x(),CALC.params.ax3.y(),CALC.params.ax3.z(),
+                                      CALC.params.sig.x(),CALC.params.sig.y(),CALC.params.sig.z(),  //Z=25929
+                                      CALC.ordis,3,5,7,h,k,l, CALC.params.CR->carr1p, sq);  //Z=25930
+                        sq = sq*2*M_PI*qhkl/(2.0*M_PI*sqrt(M_PI*M_PI*M_PI)*CALC.params.sig.x()*CALC.params.sig.y()*CALC.params.sig.z()/8.0);  //Z=25931
+                    }/*10*/  //Z=25932
                 }
-                else if ( FCC.ordis == 14 /* TEST:(x²*y³) */ )
-                {
-                    D8( qDebug() << "CPU: shp=8(T): ihex,i" << ihex << i << "ii" << ii << "/" << FCC.peakmax2 );
-                    double phi = atan2(qyhkl,(qxhkl+eps9));
-                    double theta = atan2(sqrt(qxhkl*qxhkl+qyhkl*qyhkl),(qzhkl+eps9));
-                    phi = phi*180/M_PI;
-                    theta = theta*180/M_PI;
-                    FCC.qrombdeltac(FCC.params.length, FCC.params.radius, theta, phi, qx, qy, qz,
-                                    qxhkl, qyhkl, qzhkl, qhkl, FCC.ax1.length(), FCC.ax2.length(), FCC.ax3.length(),
-                                    FCC.ax1.x(), FCC.ax1.y(), FCC.ax1.z(), FCC.ax2.x(), FCC.ax2.y(), FCC.ax2.z(),
-                                    FCC.ax3.x(), FCC.ax3.y(), FCC.ax3.z(), FCC.sig.x(), FCC.sig.y(), FCC.sig.z(),
-                                    FCC.ordis,3, /*i0=*/99, /*i1=*/99, 0,0,0, FCC.params.CR->carr1p, sq );
-                }
-                else // if ( (FCC.ordis!=6) && (FCC.ordis!=7) && (FCC.ordis!=13) && (FCC.dbeta!=0) )    /*Z0311=24676*/
+                else // if ( (CALC.ordis!=6) && (CALC.ordis!=7) && (CALC.ordis!=13) && (CALC.dbeta!=0) )      //Z=25985
                 {   /* other anisotropic cases, rotated around the qhkl-axis direction */                                                             //20210812-D
-                    D8( qDebug() << "CPU: shp=8(D): ihex,i" << ihex << i << "ii" << ii << "/" << FCC.peakmax2 );
+                    D8( qDebug() << "CPU: shp=8(D): ihex,i" << ihex << i << "ii" << ii << "/" << CALC.peakmax2 );
                     double phi = atan2(qyhkl,(qxhkl+eps6));
-                    double theta = atan2(sqrt(qxhkl*qxhkl+qyhkl*qyhkl),(qzhkl+eps6));
+                    double theta = atan2(sqrt(qxhkl*qxhkl+qyhkl*qyhkl),(qzhkl+eps6));  //Z=25987
                     phi = phi*180/M_PI;
                     theta = theta*180/M_PI;
-                    FCC.qrombdeltac(FCC.params.length, FCC.params.radius, theta, phi, qx, qy, qz,
-                                    qxhkl, qyhkl, qzhkl, qhkl, FCC.ax1.length(), FCC.ax2.length(), FCC.ax3.length(),
-                                    FCC.ax1.x(), FCC.ax1.y(), FCC.ax1.z(), FCC.ax2.x(), FCC.ax2.y(), FCC.ax2.z(),
-                                    FCC.ax3.x(), FCC.ax3.y(), FCC.ax3.z(), FCC.sig.x(), FCC.sig.y(), FCC.sig.z(),
-                                    FCC.ordis,3, /*i0=*/5, /*i1=*/6,0,0,0, FCC.params.CR->carr1p, sq );
-                    sq = sq*2*M_PI*qhkl/FCC.norm;
+                    CALC.qrombdeltac(CALC.params.length, CALC.params.radius, CALC.params.p1, CALC.params.sigma, CALC.params.alpha_deg,
+                                    CALC.params.dbeta, theta, phi, qx, qy, qz,
+                                    qxhkl, qyhkl, qzhkl, qhkl,
+                                    CALC.params.ax1.length(), CALC.params.ax2.length(), CALC.params.ax3.length(),
+                                    CALC.params.ax1.x(), CALC.params.ax1.y(), CALC.params.ax1.z(),
+                                    CALC.params.ax2.x(), CALC.params.ax2.y(), CALC.params.ax2.z(),
+                                    CALC.params.ax3.x(), CALC.params.ax3.y(), CALC.params.ax3.z(),
+                                    CALC.params.sig.x(), CALC.params.sig.y(), CALC.params.sig.z(),
+                                    CALC.ordis,3, /*i0=*/5, /*i1=*/6,0,0,0, CALC.params.CR->carr1p, sq );
+                    sq = sq*2*M_PI*qhkl/CALC.norm;  //Z=25991
                 }
 
-                psiord = 1;     //{NV}-X/16581
+                psiord = 1;  //Z=25994
 #ifdef undef
-                if ( FCC.CheckBoxTwinned )
-                {
-                    double sqtwin;
-                    if ( FCC.ordis==6 || fabs(FCC.params.dbeta) < eps9 )
-                    {   /* perfect orientation */
-                        D8( qDebug() << "CPU: shp=8(TA): ihex,i" << ihex << i << "ii" << ii << "/" << FCC.peakmax2 );
-                        dqx = qx-qxhklt;
-                        dqy = qy-qyhklt;
-                        dqz = qz-qzhklt;
-                        dqs1 = (dqx*FCC.ax1.x()+dqy*FCC.ax1.y()+dqz*FCC.ax1.z())/(FCC.ax1n_sigx);
-                        dqs2 = (dqx*FCC.ax2.x()+dqy*FCC.ax2.y()+dqz*FCC.ax2.z())/(FCC.ax2n_sigy);
-                        dqs3 = (dqx*FCC.ax3.x()+dqy*FCC.ax3.y()+dqz*FCC.ax3.z())/(FCC.ax3n_sigz);
-                        x2 = dqs1*dqs1+dqs2*dqs2+dqs3*dqs3;                        /*** different for twin ***/
-                        sqtwin = exp(-4*x2/M_PI)/(sqrt(M_PI*M_PI*M_PI)*FCC.sig.x()*FCC.sig.y()*FCC.sig.z()/8.0);
-                        /* sqtwin:=sqtwin*2*pi*qhkl; */
-                    }
-                    else if ( FCC.ordis==7 )
-                    {   /* isotropic orientation */
-                        D8( qDebug() << "CPU: shp=8(TB): ihex,i" << ihex << i << "ii" << ii << "/" << FCC.peakmax2 );
-                        width = FCC.sig.length() /*sqrt(sigx*sigx+sigy*sigy+sigz*sigz)*/ /3.0;
-                        x2 = (q-qhkl)*(q-qhkl)/(width*width);
-                        sqtwin = g3*exp(-4*x2/M_PI)/(M_PI*width/2.0);
-                    }
-                    else if ( FCC.ordis==13 )
-                    {   /* fiber pattern */
-                        D8( qDebug() << "CPU: shp=8(TC): ihex,i" << ihex << i << "ii" << ii << "/" << FCC.peakmax2 );
-                        FCC.qrombchid(FCC.ucl1,FCC.ucl2,FCC.ucl3,delta,FCC.uctheta*M_PI/180.0,FCC.ucphi*M_PI/180.0,qx,qy,qz,
-                                      FCC.ri11,FCC.ri12,FCC.ri13,FCC.ri21,FCC.ri22,FCC.ri23,FCC.ri31,FCC.ri32,FCC.ri33,
-                                      qxhkl,qyhkl,qzhkl,qhkl,FCC.ax1.length(),FCC.ax2.length(),FCC.ax3.length(),
-                                      FCC.ax1.x(),FCC.ax1.y(),FCC.ax1.z(),FCC.ax2.x(),FCC.ax2.y(),FCC.ax2.z(),
-                                      FCC.ax3.x(),FCC.ax3.y(),FCC.ax3.z(),FCC.sig.x(),FCC.sig.y(),FCC.sig.z(),
-                                      FCC.ordis,3,5,7,h,k,l,sqtwin, threadid );
-                        sqtwin = sqtwin*2*M_PI*qhkl/(2*M_PI*sqrt(M_PI*M_PI*M_PI)*FCC.sig.x()*FCC.sig.y()*FCC.sig.z()/8.0);
-                    }
-                    else // if ( (FCC.ordis!=6) && (FCC.ordis!=7) && (FCC.ordis!=13) && (FCC.dbeta!=0) )
-                    {   /* other anistropic cases */
-                        D8( qDebug() << "CPU: shp=8(TD): ihex,i" << ihex << i << "ii" << ii << "/" << FCC.peakmax2 );
-                        double phi = atan2(qyhklt,(qxhklt+eps9));
-                        double theta = atan2(sqrt(qxhklt*qxhklt+qyhklt*qyhklt),(qzhklt+eps9));
-                        phi = phi*180/M_PI;
-                        theta = theta*180/M_PI;
-                        FCC.qrombdeltac( FCC.params.radius, theta, phi, qx, qy, qz,
-                                        qxhkl, qyhkl, qzhkl, qhkl, FCC.ax1.length(), FCC.ax2.length(), FCC.ax3.length(),
-                                        FCC.ax1.x(), FCC.ax1.y(), FCC.ax1.z(), FCC.ax2.x(), FCC.ax2.y(), FCC.ax2.z(),
-                                        FCC.ax3.x(), FCC.ax3.y(), FCC.ax3.z(), FCC.sig.x(), FCC.sig.y(), FCC.sig.z(),
-                                        FCC.ordis,3,5,6,0,0,0,sqtwin, threadid );
-                        sqtwin = sqtwin*2*M_PI*qhkl/FCC.norm;
-                        //qrombdeltac(radius,sigma,dbeta,theta,phi,qx,qy,qz,qxhklt,qyhklt,qzhklt,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,3,5,6,0,0,0,sqtwin);
-                        //sqtwin = sqtwin*2*M_PI*qhkl/norm;
-                    }
-                    sq = FCC.params.ceff*sq+(1-FCC.params.ceff)*sqtwin;
-                    //sq = ceff*sq+(1-ceff)*sqtwin;
-                }
+                if ( CALC.CheckBoxTwinned )
+                {  //Z=25995
+                }  //Z=26061
 #endif
-                break;  // shp == cbpeakAnisotropicGaussian
+                break;  // shp == cbpeakAnisotropicGaussian  //Z=26062
 
             case cbpeakLorentzian /*1*/:
-                peaknorm1 = FCC.latpar3(ii,11);				/*Z0311=24690*/
+                peaknorm1 = CALC.latpar3(ii,11);  //Z=26066
                 yphi = acos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));
                 x2 = (q-qhkl)*(q-qhkl)/(width*width);
-                sq = sqrt(FCC.c1)/(M_PI*width*(1+FCC.c1*x2));
-                x2phi = 4*q*q/sqr(FCC.phiwidth);             /*** b-factor ***/
-                psiord = g3/(peaknorm1*(1+x2phi*yphi*yphi));
-                if ( FCC.CheckBoxTwinned )
+                sq = sqrt(CALC.c1)/(M_PI*width*(1+CALC.c1*x2));
+                x2phi = 4*q*q/sqr(CALC.phiwidth);             /*** b-factor ***/
+                psiord = g3/(peaknorm1*(1+x2phi*yphi*yphi));  //Z=26071
+                if ( CALC.CheckBoxTwinned )
                 {
                     yphi = acos((qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl));
                     phiord = g3/(peaknorm1*(1+x2phi*yphi*yphi));
-                    psiord = FCC.params.ceff*psiord+(1-FCC.params.ceff)*phiord;
-                }
+                    psiord = CALC.params.ceff*psiord+(1-CALC.params.ceff)*phiord;
+                }  //Z=26076
                 break;
 
             case cbpeakGaussian /*2*/:                                                          //20210812-E
-                peaknorm1 = FCC.latpar3(ii,11);
-                yphi = acos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));   /*Z0311=24706*/
+                peaknorm1 = CALC.latpar3(ii,11);  //Z=26081
+                yphi = acos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));
                 x2 = (q-qhkl)*(q-qhkl)/(width*width);
                 sq = exp(-4*x2/M_PI)/(M_PI*width/2.0);
-                x2phi = 4*q*q/(M_PI*sqr(FCC.phiwidth));             /*** a-factor ***/
+                x2phi = 4*q*q/(M_PI*sqr(CALC.phiwidth));             /*** a-factor ***/
                 psiord = g3*exp(-x2phi*yphi*yphi)/peaknorm1;
-                if ( FCC.CheckBoxTwinned )
+                if ( CALC.CheckBoxTwinned )
                 {
-                    yphi = acos((qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl));
+                    yphi = (qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl);  //Z=26088
+                    if ( yphi>1 ) yphi = 1;  //Z=26089
+                    if ( yphi<(-1) ) yphi = -1;  //Z=26090
+                    yphi = acos(yphi);  //Z=26091
                     phiord = g3*exp(-x2phi*yphi*yphi)/peaknorm1;
-                    psiord = FCC.params.ceff*psiord+(1-FCC.params.ceff)*phiord;
+                    psiord = CALC.params.ceff*psiord+(1-CALC.params.ceff)*phiord;
                 }
                 break;
 
             case cbpeakMod1Lorentzian /*Lorentzian1*/:
-                peaknorm1 = FCC.latpar3(ii,11);
+                peaknorm1 = CALC.latpar3(ii,11);  //Z=26100
                 yphi = acos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));
                 x2 = (q-qhkl)*(q-qhkl)/(width*width);
-                sq = 2*sqrt(FCC.c2)/(M_PI*width*(1+FCC.c1*x2)*(1+FCC.c1*x2));
-                x2phi = 4*q*q/sqr(FCC.phiwidth);             /*** c-factor ***/
+                sq = 2*sqrt(CALC.c2)/(M_PI*width*(1+CALC.c1*x2)*(1+CALC.c1*x2));
+                x2phi = 4*q*q/sqr(CALC.phiwidth);             /*** c-factor ***/
                 psiord = g3/(peaknorm1*(1+x2phi*yphi*yphi)*(1+x2phi*yphi*yphi));
-                if ( FCC.CheckBoxTwinned )
-                {
+                if ( CALC.CheckBoxTwinned )
+                {  //Z=26106
                     yphi = acos((qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl));
                     phiord = g3/(peaknorm1*(1+x2phi*yphi*yphi)*(1+x2phi*yphi*yphi));
-                    psiord = FCC.params.ceff*psiord+(1-FCC.params.ceff)*phiord;
-                }
+                    psiord = CALC.params.ceff*psiord+(1-CALC.params.ceff)*phiord;
+                }  //Z=26110
                 break;
 
             case cbpeakMod2Lorentzian /*Lorentzian2*/:
-                peaknorm1 = FCC.latpar3(ii,11);
+                peaknorm1 = CALC.latpar3(ii,11);  //Z=26115
                 yphi = acos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));
                 x2 = (q-qhkl)*(q-qhkl)/(width*width);
-                sq = sqrt(FCC.c3)/(2*width*exp(3*log(1+FCC.c1*x2)/2.0));
-                x2phi = 4*q*q/sqr(FCC.phiwidth);             /*** c-factor ***/
+                sq = sqrt(CALC.c3)/(2*width*exp(3*log(1+CALC.c1*x2)/2.0));
+                x2phi = 4*q*q/sqr(CALC.phiwidth);             /*** c-factor ***/
                 psiord = g3/(peaknorm1*exp(3*log(1+x2phi*yphi*yphi)/2.0));
-                if ( FCC.CheckBoxTwinned )
-                {
+                if ( CALC.CheckBoxTwinned )
+                {  //Z=26121
                     yphi = acos((qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl));
                     phiord = g3/(peaknorm1*exp(3*log(1+x2phi*yphi*yphi)/2.0));
-                    psiord = FCC.params.ceff*psiord+(1-FCC.params.ceff)*phiord;
-                }
+                    psiord = CALC.params.ceff*psiord+(1-CALC.params.ceff)*phiord;
+                }  //Z=26125
                 break;
 
             case cbpeakPseudoVoigt /*Voigt*/:
             {
-                peaknorm1 = FCC.latpar3(ii,11);
-                double peaknorm2 = FCC.latpar3(ii,12);
+                peaknorm1 = CALC.latpar3(ii,11);  //Z=26131
+                double peaknorm2 = CALC.latpar3(ii,12);
                 yphi = acos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));
                 x2 = (q-qhkl)*(q-qhkl)/(width*width);
-                sq = FCC.eta*sqrt(FCC.c1)/(M_PI*width*(1+FCC.c1*x2))+(1-FCC.eta)*sqrt(FCC.c0)*exp(-FCC.c0*x2)/(sqrt(M_PI)*width);
-                double x2psi = 4*q*q/(M_PI*sqr(FCC.phiwidth));             /*** a-factor ***/
-                //double x2psihkl = 4*qhkl*qhkl/(M_PI*sqr(FCC.phiwidth));
-                x2phi = 4*q*q/sqr(FCC.phiwidth);                /*** b-factor ***/
-                psiord = g3*(FCC.eta*(1/(1+x2phi*yphi*yphi))+(1-FCC.eta)*exp(-x2psi*yphi*yphi))/(FCC.eta*peaknorm1+(1-FCC.eta)*peaknorm2);
-                if ( FCC.CheckBoxTwinned )
-                {
+                sq = CALC.eta*sqrt(CALC.c1)/(M_PI*width*(1+CALC.c1*x2))+(1-CALC.eta)*sqrt(CALC.c0)*exp(-CALC.c0*x2)/(sqrt(M_PI)*width);  //Z=26135
+                double x2psi = 4*q*q/(M_PI*sqr(CALC.phiwidth));             /*** a-factor ***/
+                //double x2psihkl = 4*qhkl*qhkl/(M_PI*sqr(CALC.phiwidth));  //Z=26137 wird nicht weiter verwendet
+                x2phi = 4*q*q/sqr(CALC.phiwidth);                /*** b-factor ***/
+                psiord = g3*(CALC.eta*(1/(1+x2phi*yphi*yphi))+(1-CALC.eta)*exp(-x2psi*yphi*yphi))/(CALC.eta*peaknorm1+(1-CALC.eta)*peaknorm2);  //Z=26139
+                if ( CALC.CheckBoxTwinned )
+                {  //Z=26140
                     yphi = acos((qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl));
-                    phiord = g3*(FCC.eta*(1/(1+x2phi*yphi*yphi))+(1-FCC.eta)*exp(-x2psi*yphi*yphi))/(FCC.eta*peaknorm1+(1-FCC.eta)*peaknorm2);
-                    psiord = FCC.params.ceff*psiord+(1-FCC.params.ceff)*phiord;
-                }
+                    phiord = g3*(CALC.eta*(1/(1+x2phi*yphi*yphi))+(1-CALC.eta)*exp(-x2psi*yphi*yphi))/(CALC.eta*peaknorm1+(1-CALC.eta)*peaknorm2);
+                    psiord = CALC.params.ceff*psiord+(1-CALC.params.ceff)*phiord;
+                }  //Z=26144
                 break;
             }
 
             case cbpeakPearsonVII /*Pearson*/:
-                peaknorm1 = FCC.latpar3(ii,11);
+                peaknorm1 = CALC.latpar3(ii,11);  //Z=26149
                 yphi = acos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));
                 x2 = (q-qhkl)*(q-qhkl)/(width*width);
-                sq = FCC.gamma(FCC.beta)*FCC.c4*2/(FCC.gamma(FCC.beta-0.5)*M_PI*width*exp(FCC.beta*log(1+4*FCC.c4*x2)));
-                x2phi = 4*q*q/sqr(FCC.phiwidth);             /*** c-factor ***/
-                psiord = g3/(peaknorm1*exp(FCC.beta*log(1+x2phi*yphi*yphi)));
-                if ( FCC.CheckBoxTwinned )
-                {
+                sq = CALC.gamma(CALC.beta)*CALC.c4*2/(CALC.gamma(CALC.beta-0.5)*M_PI*width*exp(CALC.beta*log(1+4*CALC.c4*x2)));
+                x2phi = 4*q*q/sqr(CALC.phiwidth);             /*** c-factor ***/
+                psiord = g3/(peaknorm1*exp(CALC.beta*log(1+x2phi*yphi*yphi)));
+                if ( CALC.CheckBoxTwinned )
+                {  //Z=26155
                     yphi = acos((qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl));
-                    phiord = g3/(peaknorm1*exp(FCC.beta*log(1+x2phi*yphi*yphi)));
-                    psiord = FCC.params.ceff*psiord+(1-FCC.params.ceff)*phiord;
-                }
+                    phiord = g3/(peaknorm1*exp(CALC.beta*log(1+x2phi*yphi*yphi)));
+                    psiord = CALC.params.ceff*psiord+(1-CALC.params.ceff)*phiord;
+                }  //Z=26159
                 break;
 
 #ifdef undef
                 if ( BurgerG )
-                {
-                    peaknorm1 = latpar3p^[ii][11];
-                    yphi = acos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));
-                    x2 = (q-qhkl)*(q-qhkl)/(width*width);
-                    sq = burger(width,bnu,x2);
-                    x2phi = 4*q*q/(M_PI*phiwidth*phiwidth);             /*** a-factor ***/
-                    psiord = g3*exp(-x2phi*yphi*yphi)/peaknorm1;
-                    if ( FCC.CheckBoxTwinned )
-                    {
-                        yphi = acos((qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl));
-                        phiord = g3*exp(-x2phi*yphi*yphi)/peaknorm1;
-                        psiord = ceff*psiord+(1-ceff)*phiord;
-                    }
-                }
+                {/*8*/  //Z=26161
+                    /* x2phihkl:=4*qhkl*qhkl/(pi*phiwidth*phiwidth);  //Z=26162 */
+                    /* peaknorm1:=gaussnorm3(x2phihkl);  //Z=26163 */
+                    peaknorm1 = latpar3p^[ii][11];  //Z=26164
+                    yphi = acos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));  //Z=26165
+                    x2 = (q-qhkl)*(q-qhkl)/(width*width);  //Z=26166
+                    sq = burger(width,bnu,x2);  //Z=26167
+                    x2phi = 4*q*q/(M_PI*phiwidth*phiwidth);             /* ** a-factor ** */  //Z=26168
+                    psiord = g3*exp(-x2phi*yphi*yphi)/peaknorm1;  //Z=26169
+                    if ( CheckBoxTwinned.Checked==true )
+                    {/*9*/  //Z=26170
+                        yphi = acos((qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl));  //Z=26171
+                        phiord = g3*exp(-x2phi*yphi*yphi)/peaknorm1;  //Z=26172
+                        psiord = ceff*psiord+(1-ceff)*phiord;  //Z=26173
+                    }/*9*/  //Z=26174
+                }/*8*/  //Z=26175
 #endif
 
             default:
                 return 0;
             } // switch shp
 
-            if ( qhkl > 0 ) intensity += sq*mhkl*fhkl*psiord; /*Z0311=24796*/
-        }/*2*/  /* of peak-loop */
+            if ( qhkl > 0 ) intensity += sq*mhkl*fhkl*psiord;  //Z=26176
+#ifndef __CUDACC__
+            //else ignHklData++;
+#endif
 
-        /*Z0311=19416:  b:=StrToFloat(EditLatticeb.Text); */
-        /*Z0311=19438:  dwfactoriso:=b; */
+        }/*2*/  /* of peak-loop */  //Z=26182
 
-        /*Z0311=28841 Abschlussberechnungen (izero,base) machen nur hier Sinn, später werden intensity und radintensity nicht mehr verwendet */
-        //for i:=1 to imax do
-        //intensity = FCC.base + FCC.izero*intensity + conc*radintensity + ifluc/(1+q*q*rfluc*rfluc);
-        //for i:=iimin to iimax do
-        //radintensity = FCC.base + FCC.izero*radintensity + ifluc/(1+q*q*rfluc*rfluc);
+#ifndef __CUDACC__
+        //if ( ignHklData > 0 )
+        //    qDebug() << "IgnHklData" << ignHklData << "max" << CALC.peakmax2;
+#endif
 
-        szqiso = (1+(1)*(8*M_PI*M_PI*M_PI*radintensity/(4*M_PI*sphno*cubevol)-1)*exp(-FCC.params.ucb/*dwfactoriso*/*q*q));   /*Z0311=24804*/
-        szq = (1+(fq/pq)*(2*M_PI*intensity/(sphno*cubevol)-1)*exp(-FCC.dwfactor*q*q));   /*Z0311=24805*/
+        szqiso = (1+(1)*(8*M_PI*M_PI*M_PI*radintensity/(4*M_PI*sphno*cubevol)-1)*exp(-CALC.params.ucb/*dwfactoriso*/*q*q));   /*Z0311=24804*/
+        szq = (1+(fq/pq)*(2*M_PI*intensity/(sphno*cubevol)-1)*exp(-CALC.dwfactor*q*q));   /*Z0311=24805*/
     }
-    else // (if ! lattice)
-    {
-        szq = 1.0;           /*Z=25483*/
+    else // (if lattice)
+    {  //Z=26200
+        szq = 1.0;
         szqiso = 1.0;   // zur Sicherheit
     }
 
-    double retval = FCC.base + FCC.izero*(szq*pq + FCC.iso*szqiso*pqiso) + FCC.ifluc/(1+q*q*FCC.rfluc*FCC.rfluc); /*Z=29549*/
+    // Abschlussberechnungen (izero,base) machen nur hier Sinn. Im Pascalprogramm wurde dies nach den kompletten Schleifen gemacht
+    double retval = CALC.base + CALC.izero*(szq*pq + CALC.iso*szqiso*pqiso) + CALC.ifluc/(1+q*q*CALC.rfluc*CALC.rfluc);
+    //Z=26207: szq*pq + CALC.iso*szqiso*pqiso
+    //Z=30277: xyintensity^[ihex+zmax][i+zmax] = base+izero*xyintensity^[ihex+zmax][i+zmax]+ifluc/(1.0+q*q*rfluc*rfluc);  //Z=30277
+    // retval ist der Pixelwert bei [ihex+zmax][i+zmax]
+
 #ifndef __CUDACC__
-    if ( retval < -1e6 )
-        qDebug() << "szq"<<szq << "pq"<<pq <<"fq"<<fq << "szqiso"<<szqiso << "pqiso"<<pqiso << "q"<<q
-                 << "intens"<<intensity << "radint"<<radintensity
-                 << "="<<retval;
+//    if ( retval < -1e9 )
+//        qDebug() << "szq"<<szq << "pq"<<pq <<"fq"<<fq << "szqiso"<<szqiso << "pqiso"<<pqiso << "q"<<q
+//                 << "intens"<<intensity << "radint"<<radintensity << CALC.peakmax1
+//                 << "="<<retval;
 #else
-    //if ( retval < -1e6 )
+    //if ( retval < -1e9 )
     //    printf( "szq=%lf pq=%lf fq=%lf szqiso=%lf pqiso=%lf q=%lf intens=%lf radint=%lf erg=%lf\n", szq, pq, fq, szqiso, pqiso, q, intensity, radintensity, retval );
 #endif
 
@@ -2803,10 +3248,12 @@ void SasCalc_GENERIC_calculation::corotations(double a, double b, double c, doub
 
 
 // myarray wird genutzt, um diverse Parameter als "Struktur" zu übergeben!
-void CLASSLIB::coefficients( double l, double r, double rm, double sigmal, double sigma,
-                             double epsi, double alfa, double dbeta, double theta, double phi,
-                             int part, int dim, int nmax, int ordis, int cs,
-                             double *myarray /*Z0311=9310*/,
+// Bei einigen Parametern ist in /* */ der Variablenname im rufenden Programm angegeben.
+void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, double r/*params.radius*/, double rm/*params.radiusi*/,
+                             double sigmal/*params.sigmal*/, double sigma/*params.sigma*/, double epsi/*phi*/,
+                             double alfa/*alphash*/, double dbeta/*params.dbeta*/, double theta/*theta*/, double phi/*phi*/,
+                             int part/*part*/, int dim/*cdim*/, int nmax/*120*/, int ordis/*ordis*/, int cs/*cs=coreshell*/,
+                             double *myarray/*params.CR->myarray*/,
                              int &cho1/*orcase*/,
                              double &por, double &order, double &norm, double &lim1, double &lim2,
                              double &lim3, double &lim4, double &lim5, double &lim6, double &lim7,
@@ -2820,15 +3267,15 @@ void CLASSLIB::coefficients( double l, double r, double rm, double sigmal, doubl
                              //double *carr1f, double *carr2f, double *carr3f,
                              //double *carr4f, double *carr5f, double *carr6f,
                              //double *carr7f, double *carr8f, double *carr9f)  //: ArrayImax2D )
-{   /*Z0311=9317*/ /*Z=9365*/
+{/*1*/  //Z=9861
 
-    static const int nnmax = 120; // 500;  /*Z0311=9321*/
-    const double min = 1E-30;  /*Z0311=9322*/
+    static const int  nnmax = 120; // 500;  //Z=9865
+    static const double min =  1E-40;  //Z=9866
 
-    int    i,j,k,ll,m,n,ns,ms,n1,n2,n3,n4,n5,n6,n7,n8,n9,n1f,/*n2f,n3f,*/n4f,n5f,n6f,n7f,n8f,n9f,/*nmax2,*/cnt,inmax;
+    int    i,j,k,ll,m,n,ns,ms,n1,n2,n3,n4,n5,n6,n7,n8,n9,n1f,n2f,n3f,n4f,n5f,n6f,n7f,n8f,n9f,/*nmax2,*/cnt,inmax;
     int    /*ii,jj,kk,pp,qq,rr,iis,iie,jjs,jje,pps,ppe,qqs,qqe,*/ncell;
     double z,zz,zl,zzl,xlz,xl2z,xrz,xr2z,b1s,/*v,ee0,ee1,gb1s,preg1,pz2v,pz2v1,pz2v2,com,*/binsum/*,binsum1*/;
-    double a1,intl,p11,p12,p13,p21,p22,p23,p31,p32,p33,p,vvm,eps,area,vol;
+    double a1,intl,p,vvm,eps,area,vol; // p11,p12,p13,p21,p22,p23,p31,p32,p33 jetzt in params.*
     long double /*u1z,u1n,u2,u3,u4,u5,*/xrmz,xrm2z,sump,sump1,sump2,sumi,sumf,radv,aell,bell,cell;
     double carr2i[nnmax+1],fsum[nnmax+1]; //: Array[0..2*nnmax] of extended;  /*Z0311=9329*/;
     double lqm[10/*3*nnmax+1*/],qqm[10/*3*nnmax+1*/],phim[3*nnmax+1],llm[3*nnmax+1],rrm[3*nnmax+1],ppm[3*nnmax+1],
@@ -2840,12 +3287,14 @@ void CLASSLIB::coefficients( double l, double r, double rm, double sigmal, doubl
     float  philiph,philipt,phiax,phiin,phiout,rad,lliph,llipt,lin,lout,len,rmax;  /*Z0311=9333*/;
     float  /*xradm,xrzm,*/x1zm,x12zm;  /*Z0311=9334*/;
 
+    double b1sv_n = 1;
+
     // Arrays von oben mit erhöhter Genauigkeit
-    long double gam3[nnmax+1], fkv[nnmax+1], fk2v[nnmax+1], pn[nnmax+1],xrn[nnmax+1], xln[nnmax+1], z12v[nnmax+1], z12vl[nnmax+1];
+    long double gam3[nnmax+1], fkv[nnmax+1], fk2v[nnmax+1], fkvm[nnmax+1], pn[nnmax+1],xrn[nnmax+1], xln[nnmax+1], z12v[nnmax+1], z12vl[nnmax+1];
 
     // Arrays von oben, von denen aber nur das letzte Element genutzt wird.
     // Können also als normale Variablen geschrieben werden um Speicher zu sparen
-    long double xrmn_n, fkvm_n;
+    long double xrmn_n; // , fkvm_n;
 
     // TODO: Vielleicht sollten einige Arrays nur lokal angelegt werden, sobald diese auch verwendet werden.
     //       Es bleibt zu untersuchen, ob man diese Routine nicht auch auf die GPU portieren kann. Dann sollten
@@ -2866,341 +3315,343 @@ void CLASSLIB::coefficients( double l, double r, double rm, double sigmal, doubl
     const double a = params.uca; // latt_a  oder  "EditLattice"
 
     // Variablen vorbesetzen um Compiler-Warnungen zu unterdrücken
-    p11=1; p12=1; p13=1; p21=1; p22=1; p23=1; p31=1; p32=1; p33=1;
+    params.p11=1; params.p12=1; params.p13=1;
+    params.p21=1; params.p22=1; params.p23=1;
+    params.p31=1; params.p32=1; params.p33=1;
 
-    /*begin*/  /*Z0311=9336*/
-    z = (1-sqr(sigma))/sqr(sigma);  /*Z0311=9337*/ /*Z=9386*/
-    zl = (1-sqr(sigmal))/sqr(sigmal);  /*Z0311=9338*/
-    zz = z;  /*Z0311=9339*/
-    zzl = zl;  /*Z0311=9340*/
-    DBG( qDebug() << "coefficients()" << "z=" << z << "zl=" << zl; )
-    // z:=z+2*dim;          /* z-average */ */  /*Z0311=9341*/
-    /* zl:=zl+2*dim; */  /*Z0311=9342*/
-    //nmax2 = ceil(nmax/2.0);  /*Z0311=9343*/
-    p = r/rm;  /*Z0311=9344*/
-    eps = l/r;  /*Z0311=9345*/
+    z = (1-sqr(sigma))/sqr(sigma);  //Z=9891
+    zl = (1-sqr(sigmal))/sqr(sigmal);  //Z=9892
+    zz = z;  //Z=9893
+    zzl = zl;  //Z=9894
+    //DBG( qDebug() << "coefficients()" << "z=" << z << "zl=" << zl; )
+    /* z:=z+2*dim;          (* z-average *)  //Z=9895 */
+    /* zl:=zl+2*dim;  //Z=9896 */
+    //nmax2 = ceil(nmax/2.0);  //Z=9897
+    p = r/rm;  //Z=9898
+    eps = l/r;  //Z=9899
 
-    xlz = l/(2.*(zzl+1));  /*Z0311=9347*/
-    xl2z = xlz*xlz;  /*Z0311=9348*/
-    xrz = r/(2.*(zz+1));  /*Z0311=9349*/
-    xr2z = xrz*xrz;  /*Z0311=9350*/
-    xrmz = rm/(2.*(zz+1));  /*Z0311=9351*/
-    xrm2z = xrmz*xrmz;  /*Z0311=9352*/
+    xlz = l/(2.0*(zzl+1));  //Z=9901
+    xl2z = xlz*xlz;  //Z=9902
+    xrz = r/(2.0*(zz+1));  //Z=9903
+    xr2z = xrz*xrz;  //Z=9904
+    xrmz = rm/(2.0*(zz+1));  //Z=9905
+    xrm2z = xrmz*xrmz;  //Z=9906
 
-    /* ellipsoid semiaxis */  /*Z0311=9354*/
-    aell = r;  /*Z0311=9355*/
-    bell = l;  /*Z0311=9356*/
-    cell = rm;  /*Z0311=9357*/
+    /*  ellipsoid semiaxis  */  //Z=9908
+    aell = r;  //Z=9909
+    bell = l;  //Z=9910
+    cell = rm;  //Z=9911
 
-    xln[0] = 1;  /*Z0311=9359*/
-    xrn[0] = 1;  /*Z0311=9360*/
-    xrmn_n = 1;  /*Z0311=9361*/
-    pn[0] = 1;  /*Z0311=9362*/
-    z12v[0] = 1;  /*Z0311=9363*/
-    z12vl[0] = 1;  /*Z0311=9364*/
-    fsum[0] = 1;  /*Z0311=9365*/
+    xln[0] = 1;  //Z=9913
+    xrn[0] = 1;  //Z=9914
+    xrmn_n = 1;  //Z=9915
+    pn[0] = 1;  //Z=9916
+    z12v[0] = 1;  //Z=9917
+    z12vl[0] = 1;  //Z=9918
+    fsum[0] = 1;  //Z=9919
 
-    /* factor for cross-sectional formfactors */  /*Z0311=9368*/ /*Z=9417*/
-    if ( dim==1 ) b1s = 2;         /* cylinder, cross-section is disk */  /*Z0311=9369*/
-    if ( dim==2 ) b1s = 3/2.0;       /* disk, cross-section is cylinder */  /*Z0311=9370*/
-    if ( dim==3 ) b1s = 5/2.0;       /* sphere */  /*Z0311=9371*/
-    if ( dim==4 ) b1s = 3/2.0;       /* cube */  /*Z0311=9372*/
+    /*  factor for cross-sectional formfactors  */  //Z=9922
+    if ( dim==1 ) b1s = 2;         /*  cylinder, cross-section is disk  */  //Z=9923
+    if ( dim==2 ) b1s = 3/2.0;       /*  disk, cross-section is cylinder  */  //Z=9924
+    if ( dim==3 ) b1s = 5/2.0;       /*  sphere  */  //Z=9925
+    if ( dim==4 ) b1s = 3/2.0;       /*  cube  */  //Z=9926
 
-    /* start values for recursive parameters */  /*Z0311=9374*/
-    //b1sv[0] = 1;  /*Z0311=9375*/
-    fkv[0] = 1;  /*Z0311=9376*/
-    fk2v[0] = 1;  /*Z0311=9377*/
-    //e1[0] = 1;  /*Z0311=9378*/
-    //gam1[0] = sqrt(M_PI);  /*Z0311=9379*/
-    //gam2[0] = 1.0;  /*Z0311=9380*/
-    gam3[0] = sqrt(M_PI)/2.0;  /*Z0311=9381*/
+    /*  start values for recursive parameters  */  //Z=9928
+    //b1sv[0] = 1;  //Z=9929
+    fkv[0] = 1;  //Z=9930
+    fk2v[0] = 1;  //Z=9931
+    //e1[0] = 1;  //Z=9932
+    //gam1[0] = sqrt(M_PI);  //Z=9933
+    //gam2[0] = 1.0;  //Z=9934
+    gam3[0] = sqrt(M_PI)/2.0;  //Z=9935
 
-    /* initialize */  /*Z0311=9383*/
-    /* for n:=0 to 10000 do begin */  /*Z0311=9384*/
-    /*    carr1pm[n]:=1; */  /*Z0311=9385*/
-    /*    carr2pm[n]:=1; */  /*Z0311=9386*/
-    /* end; */  /*Z0311=9387*/
-    for ( n=0; n<coeffarray_len; n++ )
-    {  /*Z0311=9388*/
-        CR->carr1p[n] = 1;      CR->carr1f[n] = 1;  /*Z0311=9389*/
-        CR->carr2p[n] = 1;      CR->carr2f[n] = 1;  /*Z0311=9390*/
-        CR->carr3p[n] = 1;      CR->carr3f[n] = 1;  /*Z0311=9391*/
-        CR->carr4p[n] = 1;      CR->carr4f[n] = 1;  /*Z0311=9392*/
-        CR->carr5p[n] = 1;      CR->carr5f[n] = 1;  /*Z0311=9393*/
-        CR->carr6p[n] = 1;      CR->carr6f[n] = 1;  /*Z0311=9394*/
-        CR->carr7p[n] = 1;      CR->carr7f[n] = 1;  /*Z0311=9395*/
-        CR->carr8p[n] = 1;      CR->carr8f[n] = 1;  /*Z0311=9396*/
-        CR->carr9p[n] = 1;      CR->carr9f[n] = 1;  /*Z0311=9397*/
-        carr2i[n] = 1;  /*Z0311=9398*/
-    }  /*Z0311=9399*/
-    for ( n=0; n<imax2d_len; n++ ) // imax2d_len=130+1
-    {  /*Z0311=9400*/
-        for ( m=0; m<imax2d_len; m++ )
-        {  /*Z0311=9401*/
-            CR->carr11pm[n][m] = 1;  /*Z0311=9402, init*/
-            CR->carr22pm[n][m] = 1;  /*Z0311=9403*/
-        }  /*Z0311=9404*/
-    }  /*Z0311=9405*/
+    /*  initialize  */  //Z=9937
+    /* for n:=0 to 10000 do begin  //Z=9938 */
+    /*    carr1pm[n]:=1;  //Z=9939 */
+    /*    carr2pm[n]:=1;  //Z=9940 */
+    /* end;  //Z=9941 */
+    for ( n=0; n<=150; n++ )
+    {/*2*/  //Z=9942
+        CR->carr1p[n] = 1;      CR->carr1f[n] = 1;  //Z=9943
+        CR->carr2p[n] = 1;      CR->carr2f[n] = 1;  //Z=9944
+        CR->carr3p[n] = 1;      CR->carr3f[n] = 1;  //Z=9945
+        CR->carr4p[n] = 1;      CR->carr4f[n] = 1;  //Z=9946
+        CR->carr5p[n] = 1;      CR->carr5f[n] = 1;  //Z=9947
+        CR->carr6p[n] = 1;      CR->carr6f[n] = 1;  //Z=9948
+        CR->carr7p[n] = 1;      CR->carr7f[n] = 1;  //Z=9949
+        CR->carr8p[n] = 1;      CR->carr8f[n] = 1;  //Z=9950
+        CR->carr9p[n] = 1;      CR->carr9f[n] = 1;  //Z=9951
+        //CR->carr2i[n] = 1;  //Z=9952
+    }/*2*/  //Z=9953
+    for ( n=0; n<=130; n++ )
+    {/*2*/  //Z=9954
+        for ( m=0; m<=130; m++ )
+        {/*3*/  //Z=9955
+            CR->carr11pm[n][m] = 1;  //Z=9956
+            CR->carr11pm[n][m] = 1;  //Z=9957
+        }/*3*/  //Z=9958
+    }/*2*/  //Z=9959
 
-    /* multi-shell or liposome structure parameters */  /*Z=9456, nicht angepasst*/
+    /*  multi-shell or liposome structure parameters  */  //Z=9961
     if ( cs==3 )
-    {   /*Z0311=9408*/
-        philiph = myarray[12];     /* water */  /*Z0311=9409*/
-        philipt = myarray[13];     /* bilayer */  /*Z0311=9410*/
+    {/*2*/  //Z=9962
+        philiph = myarray[12];     /*  water  */  //Z=9963
+        philipt = myarray[13];     /*  bilayer  */  //Z=9964
 
-        rad = myarray[1];          /* vesicle inner radius */  /*Z0311=9412*/
-        lliph = myarray[7];        /* water */  /*Z0311=9413*/
-        llipt = myarray[8];        /* bilayer */  /*Z0311=9414*/
+        rad = myarray[1];          /*  vesicle inner radius  */  //Z=9966
+        lliph = myarray[7];        /*  water  */  //Z=9967
+        llipt = myarray[8];        /*  bilayer  */  //Z=9968
 
-        len = lliph+llipt;  /*Z0311=9416*/
-        ncell = round(myarray[4]);  /*Z0311=9417*/
-        rmax = rad+ncell*len;  /*Z0311=9418*/
+        len = lliph+llipt;  //Z=9970
+        ncell = round(myarray[4]);  //Z=9971
+        rmax = rad+ncell*len;  //Z=9972
 
-        lqm[1] = lliph;  /*Z0311=9420*/
-        lqm[2] = lqm[1]+llipt;  /*Z0311=9421*/
+        lqm[1] = lliph;  //Z=9974
+        lqm[2] = lqm[1]+llipt;  //Z=9975
 
-        for ( i=1; i<=2; i++ ) qqm[i] = lqm[i]/len;  /*Z0311=9423*/
+        for ( i=1; i<=2; i++ ) qqm[i] = lqm[i]/len;  //Z=9977
 
-        phim[1] = philiph;       /* vesicle interior */  /*Z0311=9425*/
-        llm[1] = 0.0;  /*Z0311=9426*/
-        rrm[1] = rad+llm[1];  /*Z0311=9427*/
-        ppm[1] = 1.0;  /*Z0311=9428*/
+        phim[1] = philiph;       /*  vesicle interior  */  //Z=9979
+        llm[1] = 0.0;  //Z=9980
+        rrm[1] = rad+llm[1];  //Z=9981
+        ppm[1] = 1.0;  //Z=9982
 
-        radv = rrm[1];        /* vesicle radius */  /*Z0311=9430*/
-        cnt = 1;  /*Z0311=9431*/
+        radv = rrm[1];        /*  vesicle radius  */  //Z=9984
+        cnt = 1;  //Z=9985
         for ( i=1; i<=ncell; i++ )
-        {  /*Z0311=9432*/
-            phim[cnt+1] = philipt;         /* bilayer */  /*Z0311=9433*/
-            phim[cnt+2] = philiph;         /* water */  /*Z0311=9434*/
-            llm[cnt+1] = (i-1+qqm[1])*len;  /*Z0311=9435*/
-            llm[cnt+2] = (i-1+qqm[2])*len;  /*Z0311=9436*/
-            rrm[cnt+1] = radv+llm[cnt+1];  /*Z0311=9437*/
-            rrm[cnt+2] = radv+llm[cnt+2];  /*Z0311=9438*/
-            ppm[cnt+1] = rrm[cnt+1]/rad;  /*Z0311=9439*/
-            ppm[cnt+2] = rrm[cnt+2]/rad;  /*Z0311=9440*/
-            cnt = cnt+2;  /*Z0311=9441*/
-        }  /*Z0311=9442*/
-        inmax = cnt;  /*Z0311=9443*/
-        phim[cnt+1] = 0.0;  /*Z0311=9444*/
+        {/*3*/  //Z=9986
+            phim[cnt+1] = philipt;         /*  bilayer  */  //Z=9987
+            phim[cnt+2] = philiph;         /*  water  */  //Z=9988
+            llm[cnt+1] = (i-1+qqm[1])*len;  //Z=9989
+            llm[cnt+2] = (i-1+qqm[2])*len;  //Z=9990
+            rrm[cnt+1] = radv+llm[cnt+1];  //Z=9991
+            rrm[cnt+2] = radv+llm[cnt+2];  //Z=9992
+            ppm[cnt+1] = rrm[cnt+1]/rad;  //Z=9993
+            ppm[cnt+2] = rrm[cnt+2]/rad;  //Z=9994
+            cnt = cnt+2;  //Z=9995
+        }/*3*/  //Z=9996
+        inmax = cnt;  //Z=9997
+        phim[cnt+1] = 0.0;  //Z=9998
 
-        //xradm = rad;  /*Z0311=9446*/
-        //xrzm = xradm/(z+1);  /*Z0311=9447*/
-        x1zm = rad/(2.*(z+1));  /*Z0311=9448*/
-        x12zm = x1zm*x1zm;  /*Z0311=9449*/
-        // nicht verwendet: xmax = q*rmax;  /*Z0311=9450*/
+        //xradm = rad;  //Z=10000
+        //xrzm = xradm/(z+1);  //Z=10001
+        x1zm = rad/(2.0*(z+1));  //Z=10002
+        x12zm = x1zm*x1zm;  //Z=10003
+        //xmax = q*rmax;  //Z=10004
 
         for ( i=1; i<=inmax; i++ )
-        {  /*Z0311=9452*/           //220908 - alle pow() auf double,double anpassen
-            if ( part==0 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],3.); /* spheres */  /*Z0311=9453*/
-            if ( part==1 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],2.); /* cylinders */  /*Z0311=9454*/
-            if ( part==2 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],1.); /* disks */  /*Z0311=9455*/
-            CR->carr7p[i] = ppm[i];  /*Z0311=9456*/
-            CR->carr3p[i] = llm[i];  /*Z0311=9457*/
-            CR->carr5p[i] = a1m[i];  /*Z0311=9458*/
-        }  /*Z0311=9459*/
+        {/*3*/  //Z=10006
+            if ( part==0 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],3); /*  spheres  */  //Z=10007
+            if ( part==1 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],2); /*  cylinders  */  //Z=10008
+            if ( part==2 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],1); /*  disks  */  //Z=10009
+            CR->carr7p[i] = ppm[i];  //Z=10010
+            CR->carr3p[i] = llm[i];  //Z=10011
+            CR->carr5p[i] = a1m[i];  //Z=10012
+        }/*3*/  //Z=10013
 
-        fkvm_n = 1;  /*Z0311=9461*/
-        gam3[0] = sqrt(M_PI)/2.0;  /*Z0311=9462*/
+        fkvm[0] = 1;  //Z=10015
+        gam3[0] = sqrt(M_PI)/2.0;  //Z=10016
         for ( n=1; n<=nmax; n++ )
-        {  /*Z0311=9463*/
+        {/*3*/  //Z=10017
             if ( part==0 )
-            {   /* spheres */  /*Z0311=9464*/
-                fkvm_n = fkvm_n*n;  /*Z0311=9465*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  /*Z0311=9466*/
-                CR->carr6p[n] = (n+3/2.0)*gam3[n]*fkvm_n*4/(3.0*sqrt(M_PI));  /*Z0311=9467*/
-            }  /*Z0311=9468*/
+            {/*4*/       /*  spheres  */  //Z=10018
+                fkvm[n] = fkvm[n-1]*n;  //Z=10019
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10020
+                CR->carr6p[n] = (n+3/2.0)*gam3[n]*fkvm[n]*4/(3.0*sqrt(M_PI));  //Z=10021
+            }/*4*/  //Z=10022
             if ( part==1 )
-            {   /* cylinders */  /*Z0311=9469*/
-                fkvm_n = fkvm_n*n;  /*Z0311=9470*/
-                CR->carr6p[n] = (n+1)*fkvm_n*fkvm_n;  /*Z0311=9471*/
-            }  /*Z0311=9472*/
+            {/*4*/       /*  cylinders  */  //Z=10023
+                fkvm[n] = fkvm[n-1]*n;  //Z=10024
+                CR->carr6p[n] = (n+1)*fkvm[n]*fkvm[n];  //Z=10025
+            }/*4*/  //Z=10026
             if ( part==2 )
-            {   /* disks */  /*Z0311=9473*/
-                fkvm_n = fkvm_n*n;  /*Z0311=9474*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  /*Z0311=9475*/
-                CR->carr6p[n] = gam3[n]*fkvm_n*2.0/sqrt(M_PI);  /*Z0311=9476*/
-            }  /*Z0311=9477*/
-        }  /*Z0311=9478*/
+            {/*4*/       /*  disks  */  //Z=10027
+                fkvm[n] = fkvm[n-1]*n;  //Z=10028
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10029
+                CR->carr6p[n] = gam3[n]*fkvm[n]*2/sqrt(M_PI);  //Z=10030
+            }/*4*/  //Z=10031
+        }/*3*/  //Z=10032
 
-        vvm = 0;  /*Z0311=9480*/
+        vvm = 0;  //Z=10034
         for ( i=1; i<=inmax; i++ )
-        {  /*Z0311=9481*/
-            for ( j=1; j<=inmax; j++ ) vvm = vvm+a1m[i]*a1m[j];  /*Z0311=9482*/
-        }  /*Z0311=9483*/
+        {/*3*/  //Z=10035
+            for ( j=1; j<=inmax; j++ ) vvm = vvm+a1m[i]*a1m[j];  //Z=10036
+        }/*3*/  //Z=10037
 
-        myarray[14] = inmax;  /*Z0311=9485*/
-        myarray[15] = vvm;  /*Z0311=9486*/
-        myarray[16] = rmax;  /*Z0311=9487*/
-    }  /*Z0311=9488*/
+        myarray[14] = inmax;  //Z=10039
+        myarray[15] = vvm;  //Z=10040
+        myarray[16] = rmax;  //Z=10041
+    }/*2*/  //Z=10042
 
 
-    /* myelin structure parameters */  /*Z=9540, nicht angepasst*/
+    /*  myelin structure parameters  */  //Z=10045
     if ( cs==4 )
-    {   /*Z0311=9492*/
-        philiph = myarray[12];     /* head group */  /*Z0311=9493*/
-        philipt = myarray[13];     /* tail */  /*Z0311=9494*/
-        phiax = myarray[9];        /* axon */  /*Z0311=9495*/
-        phiin = myarray[10];       /* intra cell */  /*Z0311=9496*/
-        phiout = myarray[11];      /* extra cell */  /*Z0311=9497*/
+    {/*2*/  //Z=10046
+        philiph = myarray[12];     /*  head group  */  //Z=10047
+        philipt = myarray[13];     /*  tail  */  //Z=10048
+        phiax = myarray[9];        /*  axon  */  //Z=10049
+        phiin = myarray[10];       /*  intra cell  */  //Z=10050
+        phiout = myarray[11];      /*  extra cell  */  //Z=10051
 
-        rad = myarray[1];          /* vesicle inner radius */  /*Z0311=9499*/
-        lliph = myarray[7];        /* head group */  /*Z0311=9500*/
-        llipt = myarray[8];        /* tail */  /*Z0311=9501*/
-        lin = myarray[6];          /* intra cell */  /*Z0311=9502*/
-        lout = myarray[5];         /* extra cell */  /*Z0311=9503*/
+        rad = myarray[1];          /*  vesicle inner radius  */  //Z=10053
+        lliph = myarray[7];        /*  head group  */  //Z=10054
+        llipt = myarray[8];        /*  tail  */  //Z=10055
+        lin = myarray[6];          /*  intra cell  */  //Z=10056
+        lout = myarray[5];         /*  extra cell  */  //Z=10057
 
-        len = lout+2*(2*lliph+llipt)+lin;  /*Z0311=9505*/
-        ncell = round(myarray[4]);  /*Z0311=9506*/
-        rmax = rad+ncell*len;  /*Z0311=9507*/
+        len = lout+2*(2*lliph+llipt)+lin;  //Z=10059
+        ncell = round(myarray[4]);  //Z=10060
+        rmax = rad+ncell*len;  //Z=10061
 
-        lqm[1] = lout;  /*Z0311=9509*/
-        lqm[2] = lqm[1]+lliph;  /*Z0311=9510*/
-        lqm[3] = lqm[2]+llipt;  /*Z0311=9511*/
-        lqm[4] = lqm[3]+lliph;  /*Z0311=9512*/
-        lqm[5] = lqm[4]+lin;  /*Z0311=9513*/
-        lqm[6] = lqm[5]+lliph;  /*Z0311=9514*/
-        lqm[7] = lqm[6]+llipt;  /*Z0311=9515*/
-        lqm[8] = lqm[7]+lliph;  /*Z0311=9516*/
+        lqm[1] = lout;  //Z=10063
+        lqm[2] = lqm[1]+lliph;  //Z=10064
+        lqm[3] = lqm[2]+llipt;  //Z=10065
+        lqm[4] = lqm[3]+lliph;  //Z=10066
+        lqm[5] = lqm[4]+lin;  //Z=10067
+        lqm[6] = lqm[5]+lliph;  //Z=10068
+        lqm[7] = lqm[6]+llipt;  //Z=10069
+        lqm[8] = lqm[7]+lliph;  //Z=10070
 
-        for ( i=1; i<=8; i++ ) qqm[i] = lqm[i]/len;  /*Z0311=9518*/
+        for ( i=1; i<=8; i++ ) qqm[i] = lqm[i]/len;  //Z=10072
 
-        phim[1] = phiax;       /* vesicle interior */  /*Z0311=9520*/
-        llm[1] = 0.0;  /*Z0311=9521*/
-        rrm[1] = rad+llm[1];  /*Z0311=9522*/
-        ppm[1] = 1.0;  /*Z0311=9523*/
-        phim[2] = philiph;     /* vesicle bilayer: head group */  /*Z0311=9524*/
-        llm[2] = lliph;  /*Z0311=9525*/
-        rrm[2] = rad+llm[2];  /*Z0311=9526*/
-        ppm[2] = rrm[2]/rad;  /*Z0311=9527*/
-        phim[3] = philipt;     /* vesicle bilayer: tail group */  /*Z0311=9528*/
-        llm[3] = llm[2]+llipt;  /*Z0311=9529*/
-        rrm[3] = rad+llm[3];  /*Z0311=9530*/
-        ppm[3] = rrm[3]/rad;  /*Z0311=9531*/
-        phim[4] = philiph;     /* vesicle bilayer: head group */  /*Z0311=9532*/
-        llm[4] = llm[3]+lliph;  /*Z0311=9533*/
-        rrm[4] = rad+llm[4];  /*Z0311=9534*/
-        ppm[4] = rrm[4]/rad;  /*Z0311=9535*/
+        phim[1] = phiax;       /*  vesicle interior  */  //Z=10074
+        llm[1] = 0.0;  //Z=10075
+        rrm[1] = rad+llm[1];  //Z=10076
+        ppm[1] = 1.0;  //Z=10077
+        phim[2] = philiph;     /*  vesicle bilayer: head group  */  //Z=10078
+        llm[2] = lliph;  //Z=10079
+        rrm[2] = rad+llm[2];  //Z=10080
+        ppm[2] = rrm[2]/rad;  //Z=10081
+        phim[3] = philipt;     /*  vesicle bilayer: tail group  */  //Z=10082
+        llm[3] = llm[2]+llipt;  //Z=10083
+        rrm[3] = rad+llm[3];  //Z=10084
+        ppm[3] = rrm[3]/rad;  //Z=10085
+        phim[4] = philiph;     /*  vesicle bilayer: head group  */  //Z=10086
+        llm[4] = llm[3]+lliph;  //Z=10087
+        rrm[4] = rad+llm[4];  //Z=10088
+        ppm[4] = rrm[4]/rad;  //Z=10089
 
-        radv = rrm[4];        /* vesicle radius + bilayer */  /*Z0311=9537*/
-        cnt = 4;  /*Z0311=9538*/
+        radv = rrm[4];        /*  vesicle radius + bilayer  */  //Z=10091
+        cnt = 4;  //Z=10092
         for ( i=1; i<=ncell; i++ )
-        {   /*Z0311=9539*/
-            phim[cnt+1] = phiout;          /* extra cell */  /*Z0311=9540*/
-            phim[cnt+2] = philiph;         /* head group */  /*Z0311=9541*/
-            phim[cnt+3] = philipt;         /* tail group */  /*Z0311=9542*/
-            phim[cnt+4] = philiph;         /* head group */  /*Z0311=9543*/
-            phim[cnt+5] = phiin;           /* intra cell */  /*Z0311=9544*/
-            phim[cnt+6] = philiph;         /* head group */  /*Z0311=9545*/
-            phim[cnt+7] = philipt;         /* tail group */  /*Z0311=9546*/
-            phim[cnt+8] = philiph;         /* head group */  /*Z0311=9547*/
-            llm[cnt+1] = (i-1+qqm[1])*len;  /*Z0311=9548*/
-            llm[cnt+2] = (i-1+qqm[2])*len;  /*Z0311=9549*/
-            llm[cnt+3] = (i-1+qqm[3])*len;  /*Z0311=9550*/
-            llm[cnt+4] = (i-1+qqm[4])*len;  /*Z0311=9551*/
-            llm[cnt+5] = (i-1+qqm[5])*len;  /*Z0311=9552*/
-            llm[cnt+6] = (i-1+qqm[6])*len;  /*Z0311=9553*/
-            llm[cnt+7] = (i-1+qqm[7])*len;  /*Z0311=9554*/
-            llm[cnt+8] = (i-1+qqm[8])*len;  /*Z0311=9555*/
-            rrm[cnt+1] = radv+llm[cnt+1];  /*Z0311=9556*/
-            rrm[cnt+2] = radv+llm[cnt+2];  /*Z0311=9557*/
-            rrm[cnt+3] = radv+llm[cnt+3];  /*Z0311=9558*/
-            rrm[cnt+4] = radv+llm[cnt+4];  /*Z0311=9559*/
-            rrm[cnt+5] = radv+llm[cnt+5];  /*Z0311=9560*/
-            rrm[cnt+6] = radv+llm[cnt+6];  /*Z0311=9561*/
-            rrm[cnt+7] = radv+llm[cnt+7];  /*Z0311=9562*/
-            rrm[cnt+8] = radv+llm[cnt+8];  /*Z0311=9563*/
-            ppm[cnt+1] = rrm[cnt+1]/rad;  /*Z0311=9564*/
-            ppm[cnt+2] = rrm[cnt+2]/rad;  /*Z0311=9565*/
-            ppm[cnt+3] = rrm[cnt+3]/rad;  /*Z0311=9566*/
-            ppm[cnt+4] = rrm[cnt+4]/rad;  /*Z0311=9567*/
-            ppm[cnt+5] = rrm[cnt+5]/rad;  /*Z0311=9568*/
-            ppm[cnt+6] = rrm[cnt+6]/rad;  /*Z0311=9569*/
-            ppm[cnt+7] = rrm[cnt+7]/rad;  /*Z0311=9570*/
-            ppm[cnt+8] = rrm[cnt+8]/rad;  /*Z0311=9571*/
-            cnt = cnt+8;  /*Z0311=9572*/
-        }   /*Z0311=9573*/
-        inmax = cnt;  /*Z0311=9574*/
-        phim[cnt+1] = 0.0;  /*Z0311=9575*/
+        {/*3*/  //Z=10093
+            phim[cnt+1] = phiout;          /*  extra cell  */  //Z=10094
+            phim[cnt+2] = philiph;         /*  head group  */  //Z=10095
+            phim[cnt+3] = philipt;         /*  tail group  */  //Z=10096
+            phim[cnt+4] = philiph;         /*  head group  */  //Z=10097
+            phim[cnt+5] = phiin;           /*  intra cell  */  //Z=10098
+            phim[cnt+6] = philiph;         /*  head group  */  //Z=10099
+            phim[cnt+7] = philipt;         /*  tail group  */  //Z=10100
+            phim[cnt+8] = philiph;         /*  head group  */  //Z=10101
+            llm[cnt+1] = (i-1+qqm[1])*len;  //Z=10102
+            llm[cnt+2] = (i-1+qqm[2])*len;  //Z=10103
+            llm[cnt+3] = (i-1+qqm[3])*len;  //Z=10104
+            llm[cnt+4] = (i-1+qqm[4])*len;  //Z=10105
+            llm[cnt+5] = (i-1+qqm[5])*len;  //Z=10106
+            llm[cnt+6] = (i-1+qqm[6])*len;  //Z=10107
+            llm[cnt+7] = (i-1+qqm[7])*len;  //Z=10108
+            llm[cnt+8] = (i-1+qqm[8])*len;  //Z=10109
+            rrm[cnt+1] = radv+llm[cnt+1];  //Z=10110
+            rrm[cnt+2] = radv+llm[cnt+2];  //Z=10111
+            rrm[cnt+3] = radv+llm[cnt+3];  //Z=10112
+            rrm[cnt+4] = radv+llm[cnt+4];  //Z=10113
+            rrm[cnt+5] = radv+llm[cnt+5];  //Z=10114
+            rrm[cnt+6] = radv+llm[cnt+6];  //Z=10115
+            rrm[cnt+7] = radv+llm[cnt+7];  //Z=10116
+            rrm[cnt+8] = radv+llm[cnt+8];  //Z=10117
+            ppm[cnt+1] = rrm[cnt+1]/rad;  //Z=10118
+            ppm[cnt+2] = rrm[cnt+2]/rad;  //Z=10119
+            ppm[cnt+3] = rrm[cnt+3]/rad;  //Z=10120
+            ppm[cnt+4] = rrm[cnt+4]/rad;  //Z=10121
+            ppm[cnt+5] = rrm[cnt+5]/rad;  //Z=10122
+            ppm[cnt+6] = rrm[cnt+6]/rad;  //Z=10123
+            ppm[cnt+7] = rrm[cnt+7]/rad;  //Z=10124
+            ppm[cnt+8] = rrm[cnt+8]/rad;  //Z=10125
+            cnt = cnt+8;  //Z=10126
+        }/*3*/  //Z=10127
+        inmax = cnt;  //Z=10128
+        phim[cnt+1] = 0.0;  //Z=10129
 
-        //xradm = rad;  /*Z0311=9577*/
-        //xrzm = xradm/(z+1);  /*Z0311=9578*/
-        x1zm = rad/(2.*(z+1));  /*Z0311=9579*/
-        x12zm = x1zm*x1zm;  /*Z0311=9580*/
-        // nicht verwendet: xmax = q*rmax;  /*Z0311=9581*/
+        //xradm = rad;  //Z=10131
+        //xrzm = xradm/(z+1);  //Z=10132
+        x1zm = rad/(2.0*(z+1));  //Z=10133
+        x12zm = x1zm*x1zm;  //Z=10134
+        //xmax = q*rmax;  //Z=10135
 
         for ( i=1; i<=inmax; i++ )
-        {   /*Z0311=9583*/
-            if ( part==0 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],3.); /* spheres */  /*Z0311=9584*/
-            if ( part==1 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],2.); /* cylinders */  /*Z0311=9585*/
-            if ( part==2 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],1.); /* disks */  /*Z0311=9586*/
-            CR->carr7p[i] = ppm[i];  /*Z0311=9587*/
-            CR->carr3p[i] = llm[i];  /*Z0311=9588*/
-            CR->carr5p[i] = a1m[i];  /*Z0311=9589*/
-        }   /*Z0311=9590*/
+        {/*3*/  //Z=10137
+            if ( part==0 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],3); /*  spheres  */  //Z=10138
+            if ( part==1 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],2); /*  cylinders  */  //Z=10139
+            if ( part==2 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],1); /*  disks  */  //Z=10140
+            CR->carr7p[i] = ppm[i];  //Z=10141
+            CR->carr3p[i] = llm[i];  //Z=10142
+            CR->carr5p[i] = a1m[i];  //Z=10143
+        }/*3*/  //Z=10144
 
-        fkvm_n = 1;  /*Z0311=9592*/
-        gam3[0] = sqrt(M_PI)/2.0;  /*Z0311=9593*/
+        fkvm[0] = 1;  //Z=10146
+        gam3[0] = sqrt(M_PI)/2.0;  //Z=10147
         for ( n=1; n<=nmax; n++ )
-        {   /*Z0311=9594*/
+        {/*3*/  //Z=10148
             if ( part==0 )
-            {   /* spheres */  /*Z0311=9595*/
-                fkvm_n = fkvm_n*n;  /*Z0311=9596*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  /*Z0311=9597*/
-                CR->carr6p[n] = (n+3/2.0)*gam3[n]*fkvm_n*4/(3*sqrt(M_PI));  /*Z0311=9598*/
-            }   /*Z0311=9599*/
+            {/*4*/       /*  spheres  */  //Z=10149
+                fkvm[n] = fkvm[n-1]*n;  //Z=10150
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10151
+                CR->carr6p[n] = (n+3/2.0)*gam3[n]*fkvm[n]*4/(3.0*sqrt(M_PI));  //Z=10152
+            }/*4*/  //Z=10153
             if ( part==1 )
-            {   /* cylinders */  /*Z0311=9600*/
-                fkvm_n = fkvm_n*n;  /*Z0311=9601*/
-                CR->carr6p[n] = (n+1)*fkvm_n*fkvm_n;  /*Z0311=9602*/
-            }   /*Z0311=9603*/
+            {/*4*/       /*  cylinders  */  //Z=10154
+                fkvm[n] = fkvm[n-1]*n;  //Z=10155
+                CR->carr6p[n] = (n+1)*fkvm[n]*fkvm[n];  //Z=10156
+            }/*4*/  //Z=10157
             if ( part==2 )
-            {   /* disks */  /*Z0311=9604*/
-                fkvm_n = fkvm_n*n;  /*Z0311=9605*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  /*Z0311=9606*/
-                CR->carr6p[n] = gam3[n]*fkvm_n*2/sqrt(M_PI);  /*Z0311=9607*/
-            }   /*Z0311=9608*/
-        }   /*Z0311=9609*/
+            {/*4*/       /*  disks  */  //Z=10158
+                fkvm[n] = fkvm[n-1]*n;  //Z=10159
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10160
+                CR->carr6p[n] = gam3[n]*fkvm[n]*2/sqrt(M_PI);  //Z=10161
+            }/*4*/  //Z=10162
+        }/*3*/  //Z=10163
 
-        vvm = 0;  /*Z0311=9611*/
+        vvm = 0;  //Z=10165
         for ( i=1; i<=inmax; i++ )
-        {   /*Z0311=9612*/
-            for ( j=1; j<=inmax; j++ ) vvm = vvm+a1m[i]*a1m[j];  /*Z0311=9613*/
-        }   /*Z0311=9614*/
+        {/*3*/  //Z=10166
+            for ( j=1; j<=inmax; j++ ) vvm = vvm+a1m[i]*a1m[j];  //Z=10167
+        }/*3*/  //Z=10168
 
-        myarray[14] = inmax;  /*Z0311=9616*/
-        myarray[15] = vvm;  /*Z0311=9617*/
-        myarray[16] = rmax;  /*Z0311=9618*/
-    }   /*Z0311=9619*/
+        myarray[14] = inmax;  //Z=10170
+        myarray[15] = vvm;  //Z=10171
+        myarray[16] = rmax;  //Z=10172
+    }/*2*/  //Z=10173
 
 
-    search1 = true;  /*Z0311=9624*/ /*Z=9673*/
-    //search2 = true;  /*Z0311=9625*/
-    search3 = true;  /*Z0311=9626*/
-    search4 = true;  /*Z0311=9627*/
-    search5 = true;  /*Z0311=9628*/
-    search6 = true;  /*Z0311=9629*/
-    //search7 = true;  /*Z0311=9630*/
-    //search8 = true;  /*Z0311=9631*/
-    //search9 = true;  /*Z0311=9632*/
-    n1 = nmax;      n1f = nmax;  /*Z0311=9633*/
-    n2 = nmax;      //n2f = nmax;  /*Z0311=9634*/
-    n3 = nmax;      //n3f = nmax;  /*Z0311=9635*/
-    n4 = nmax;      n4f = nmax;  /*Z0311=9636*/
-    n5 = nmax;      n5f = nmax;  /*Z0311=9637*/
-    n6 = nmax;      n6f = nmax;  /*Z0311=9638*/
-    n7 = nmax;      n7f = nmax;  /*Z0311=9639*/
-    n8 = nmax;      n8f = nmax;  /*Z0311=9640*/
-    n9 = nmax;      n9f = nmax;  /*Z0311=9641*/
 
-    /* orientation case */  /*Z0311=9643*/ /*Z=9692*/
-    cho1 = 1;                                     /* general */  /*Z0311=9644*/
-    if ( (phi== 0) && (theta==90) ) cho1 = 2;     /* x-axis */   /*Z0311=9645*/
-    if ( (phi==90) && (theta==90) ) cho1 = 3;     /* y-axis */   /*Z0311=9646*/
-    if ( (phi== 0) && (theta== 0) ) cho1 = 4;     /* z-axis */   /*Z0311=9647*/
-    if ( (phi==90) && (theta== 0) ) cho1 = 4;     /* z-axis */   /*Z0311=9648*/
+    search1 = true;  //Z=10176
+    //search2 = true;  //Z=10177
+    search3 = true;  //Z=10178
+    search4 = true;  //Z=10179
+    search5 = true;  //Z=10180
+    search6 = true;  //Z=10181
+    //search7 = true;  //Z=10182
+    //search8 = true;  //Z=10183
+    //search9 = true;  //Z=10184
+    n1 = nmax;      n1f = nmax;  //Z=10185
+    n2 = nmax;      n2f = nmax;  //Z=10186
+    n3 = nmax;      n3f = nmax;  //Z=10187
+    n4 = nmax;      n4f = nmax;  //Z=10188
+    n5 = nmax;      n5f = nmax;  //Z=10189
+    n6 = nmax;      n6f = nmax;  //Z=10190
+    n7 = nmax;      n7f = nmax;  //Z=10191
+    n8 = nmax;      n8f = nmax;  //Z=10192
+    n9 = nmax;      n9f = nmax;  //Z=10193
+
+    /*  orientation case  */  //Z=10195
+    cho1 = 1;                                     /*  general  */  //Z=10196
+    if ( (phi== 0) && (theta==90) ) cho1 = 2;     /*  x-axis  */  //Z=10197
+    if ( (phi==90) && (theta==90) ) cho1 = 3;     /*  y-axis  */  //Z=10198
+    if ( (phi== 0) && (theta== 0) ) cho1 = 4;     /*  z-axis  */  //Z=10199
+    if ( (phi==90) && (theta== 0) ) cho1 = 4;     /*  z-axis  */  //Z=10200
 
 #ifndef __CUDACC__
-    //DBG( qDebug() << "coefficients()" << "ordis"<<ordis << "dim"<<dim << "part"<<part << "nmax"<<nmax << "cs"<<cs << "orcase" << cho1; )
+    qDebug() << "coefficients()" << "ordis"<<ordis << "dim"<<dim << "part"<<part << "cs"<<cs << "cho1|orcase"<<cho1;
 #endif
     //Debug: coefficients ordis 0="CBOrdis.Gaussian"
     //                    dim 1=im Vorfeld aus CBPart.Cylinder bestimmt
@@ -3209,5244 +3660,5073 @@ void CLASSLIB::coefficients( double l, double r, double rm, double sigmal, doubl
     //                    cs 0="CBInt.homogeneous" - geht von 0 bis 2, hier wird aber 3 und mehr genutzt TODO
 
 
-    /*** isotropic case for spheres ***/  /*Z=9700, nicht angepasst*/
+    /* ** isotropic case for spheres ** */  //Z=10203
     if ( dim==3 )
-    {   /*Z0311=9652*/
-        norm = 1;  /*Z0311=9653*/
-        order = 0;  /*Z0311=9654*/
-        /* homogeneous */  /*Z0311=9655*/
+    {/*2*/  //Z=10204
+        norm = 1;  //Z=10205
+        order = 0;  //Z=10206
+        /*  homogeneous  */  //Z=10207
         if ( cs==0 )
-        {   /*Z0311=9656*/
+        {/*3*/  //Z=10208
             for ( n=1; n<=nmax; n++ )
-            {   /*Z0311=9657*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  /*Z0311=9658*/
-                fkv[n] = fkv[n-1]*n;  /*Z0311=9659*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  /*Z0311=9660*/
-                /* e1[n]:=e1[n-1]*(epsi*epsi-1); */  /*Z0311=9661*/
-                xrn[n] = -xrn[n-1]*xr2z;  /*Z0311=9662*/
-                /* P(q)-coefficient */  /*Z0311=9663*/
-                CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.,1.0*n)*z12v[n]*xrn[n]/(2.*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  /*Z0311=9664*/
-                /* F(q)-coefficient */  /*Z0311=9665*/
-                binsum = 0.0;  /*Z0311=9666*/
-                for ( m=0; m<=n; m++ ) binsum = binsum+z12v[m]*z12v[n-m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  /*Z0311=9667*/
-                CR->carr4f[n] = 9*M_PI*xrn[n-1]*binsum/16.0;  /*Z0311=9668*/
+            {/*4*/  //Z=10209
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10210
+                fkv[n] = fkv[n-1]*n;  //Z=10211
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10212
+                /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=10213 */
+                xrn[n] = -xrn[n-1]*xr2z;  //Z=10214
+                /*  P(q)-coefficient  */  //Z=10215
+                CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn[n]/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=10216
+                /*  F(q)-coefficient  */  //Z=10217
+                binsum = 0.0;  //Z=10218
+                for ( m=0; m<=n; m++ ) binsum = binsum+z12v[m]*z12v[n-m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=10219
+                CR->carr4f[n] = 9*M_PI*xrn[n]*binsum/16.0;  //Z=10220
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z0311=9669*/
-                    if ( n<n4 ) n4 = n;  /*Z0311=9670*/
-                }   /*Z0311=9671*/
+                {/*5*/  //Z=10221
+                    if ( n<n4 ) n4 = n;  //Z=10222
+                }/*5*/  //Z=10223
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z0311=9672*/
-                    if ( n<n4f ) n4f = n;  /*Z0311=9673*/
-                }   /*Z0311=9674*/
-            }   /*Z0311=9675*/
-            goto Label99;  /*Z0311=9676*/
-        }   /* of homogeneous */  /*Z0311=9677*/
+                {/*5*/  //Z=10224
+                    if ( n<n4f ) n4f = n;  //Z=10225
+                }/*5*/  //Z=10226
+            }/*4*/  //Z=10227
+            goto Label99;  //Z=10228
+        }/*3*/   /*  of homogeneous  */  //Z=10229
 
-        /* core/shell */  /*Z0311=9679*/
+        /*  core/shell  */  //Z=10231
         if ( cs==1 )
-        {   /*Z0311=9680*/
+        {/*3*/  //Z=10232
             for ( n=1; n<=nmax; n++ )
-            {   /*Z0311=9681*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  /*Z0311=9682*/
-                fkv[n] = fkv[n-1]*n;  /*Z0311=9683*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  /*Z0311=9684*/
-                /* e1[n]:=e1[n-1]*(epsi*epsi-1); */  /*Z0311=9685*/
-                xrn[n] = -xrn[n-1]*xr2z;  /*Z0311=9686*/
-                xrmn_n = -xrmn_n*xrm2z;  /*Z0311=9687*/
-                pn[n] = pn[n-1]*p*p;  /*Z0311=9688*/
-                /* P(q)-coefficients */  /*Z0311=9689*/
-                sump = 0.0;  /*Z0311=9690*/
+            {/*4*/  //Z=10233
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10234
+                fkv[n] = fkv[n-1]*n;  //Z=10235
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10236
+                /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=10237 */
+                xrn[n] = -xrn[n-1]*xr2z;  //Z=10238
+                xrmn_n = -xrmn_n*xrm2z;  //Z=10239
+                pn[n] = pn[n-1]*p*p;  //Z=10240
+                /*  P(q)-coefficients  */  //Z=10241
+                sump = 0.0;  //Z=10242
                 for ( m=0; m<=n; m++ )
-                {   /*Z0311=9691*/
-                    sump = sump+pn[m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  /*Z0311=9692*/
-                }   /*Z0311=9693*/
-                CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.,1.0*n)*z12v[n]*xrn[n]/(2.*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  /*Z0311=9694*/
-                CR->carr5p[n] = (9*M_PI/16.0)*z12v[n]*xrmn_n*sump;  /*Z0311=9695*/
-                CR->carr6p[n] = CR->carr4p[n]/pn[n];  /*Z0311=9696*/
-                /* F(q)-coefficients */  /*Z0311=9697*/
-                sump = 0.0;  /*Z0311=9698*/
+                {/*5*/  //Z=10243
+                    sump = sump+pn[m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=10244
+                }/*5*/  //Z=10245
+                CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn[n]/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=10246
+                CR->carr5p[n] = (9*M_PI/16.0)*z12v[n]*xrmn_n*sump;  //Z=10247
+                CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=10248
+                /*  F(q)-coefficients  */  //Z=10249
+                sump = 0.0;  //Z=10250
                 for ( m=0; m<=n; m++ )
-                {   /*Z0311=9699*/
-                    sump = sump+z12v[m]*z12v[n-m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  /*Z0311=9700*/
-                }   /*Z0311=9701*/
-                CR->carr4f[n] = (9*M_PI/16.0)*xrn[n-1]*sump;  /*Z0311=9702*/
-                sump = 0.0;  /*Z0311=9703*/
+                {/*5*/  //Z=10251
+                    sump = sump+z12v[m]*z12v[n-m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=10252
+                }/*5*/  //Z=10253
+                CR->carr4f[n] = (9*M_PI/16.0)*xrn[n]*sump;  //Z=10254
+                sump = 0.0;  //Z=10255
                 for ( m=0; m<=n; m++ )
-                {   /*Z0311=9704*/
-                    sump = sump+pn[m]*z12v[m]*z12v[n-m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  /*Z0311=9705*/
-                }   /*Z0311=9706*/
-                CR->carr5f[n] = (9*M_PI/16.0)*xrmn_n*sump;  /*Z0311=9707*/
-                CR->carr6f[n] = CR->carr4f[n]/pn[n];  /*Z0311=9708*/
+                {/*5*/  //Z=10256
+                    sump = sump+pn[m]*z12v[m]*z12v[n-m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=10257
+                }/*5*/  //Z=10258
+                CR->carr5f[n] = (9*M_PI/16.0)*xrmn_n*sump;  //Z=10259
+                CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=10260
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z0311=9709*/
-                    if ( n<n4 ) n4 = n;  /*Z0311=9710*/
-                }   /*Z0311=9711*/
+                {/*5*/  //Z=10261
+                    if ( n<n4 ) n4 = n;  //Z=10262
+                }/*5*/  //Z=10263
                 if ( fabs(CR->carr5p[n])<min )
-                {   /*Z0311=9712*/
-                    if ( n<n5 ) n5 = n;  /*Z0311=9713*/
-                }   /*Z0311=9714*/
+                {/*5*/  //Z=10264
+                    if ( n<n5 ) n5 = n;  //Z=10265
+                }/*5*/  //Z=10266
                 if ( fabs(CR->carr6p[n])<min )
-                {   /*Z0311=9715*/
-                    if ( n<n6 ) n6 = n;  /*Z0311=9716*/
-                }   /*Z0311=9717*/
+                {/*5*/  //Z=10267
+                    if ( n<n6 ) n6 = n;  //Z=10268
+                }/*5*/  //Z=10269
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z0311=9718*/
-                    if ( n<n4f ) n4f = n;  /*Z0311=9719*/
-                }   /*Z0311=9720*/
+                {/*5*/  //Z=10270
+                    if ( n<n4f ) n4f = n;  //Z=10271
+                }/*5*/  //Z=10272
                 if ( fabs(CR->carr5f[n])<min )
-                {   /*Z0311=9721*/
-                    if ( n<n5f ) n5f = n;  /*Z0311=9722*/
-                }   /*Z0311=9723*/
+                {/*5*/  //Z=10273
+                    if ( n<n5f ) n5f = n;  //Z=10274
+                }/*5*/  //Z=10275
                 if ( fabs(CR->carr6f[n])<min )
-                {   /*Z0311=9724*/
-                    if ( n<n6f ) n6f = n;  /*Z0311=9725*/
-                }   /*Z0311=9726*/
-            }   /*Z0311=9727*/
-            goto Label99;  /*Z0311=9728*/
-        }   /* of core/shell */  /*Z0311=9729*/
+                {/*5*/  //Z=10276
+                    if ( n<n6f ) n6f = n;  //Z=10277
+                }/*5*/  //Z=10278
+            }/*4*/  //Z=10279
+            goto Label99;  //Z=10280
+        }/*3*/   /*  of core/shell  */  //Z=10281
 
-        /* inhomogeneous core/shell */  /*Z0311=9731*/
+        /*  inhomogeneous core/shell  */  //Z=10283
         if ( cs==2 )
-        {   /*Z0311=9732*/
+        {/*3*/  //Z=10284
             for ( n=1; n<=nmax; n++ )
-            {   /*Z0311=9733*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  /*Z0311=9734*/
-                fkv[n] = fkv[n-1]*n;  /*Z0311=9735*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  /*Z0311=9736*/
-                /* e1[n]:=e1[n-1]*(epsi*epsi-1); */  /*Z0311=9737*/
-                xrn[n] = -xrn[n-1]*xr2z;  /*Z0311=9738*/
-                xrmn_n = -xrmn_n*xrm2z;  /*Z0311=9739*/
-                pn[n] = pn[n-1]*p*p;  /*Z0311=9740*/
-                /* P(q)-coefficients */  /*Z0311=9741*/
-                CR->carr1p[n] = 9*sqrt(M_PI)*pow(4.,1.0*n)*z12v[n]*xrn[n]/(2.*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  /*Z0311=9742*/
-                sump = 0.0;  /*Z0311=9743*/
-                sump1 = 0.0;  /*Z0311=9744*/
+            {/*4*/  //Z=10285
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10286
+                fkv[n] = fkv[n-1]*n;  //Z=10287
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10288
+                /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=10289 */
+                xrn[n] = -xrn[n-1]*xr2z;  //Z=10290
+                xrmn_n = -xrmn_n*xrm2z;  //Z=10291
+                pn[n] = pn[n-1]*p*p;  //Z=10292
+                /*  P(q)-coefficients  */  //Z=10293
+                CR->carr1p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn[n]/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=10294
+                sump = 0.0;  //Z=10295
+                sump1 = 0.0;  //Z=10296
                 for ( m=0; m<=n; m++ )
-                {   /*Z0311=9745*/
-                    sumi = 1/((n-m+3/2.0)*gam3[n-m]*(m+3/2.0-alfa/2.0)*gam3[m]*fkv[m]*fkv[n-m]);  /*Z0311=9746*/
-                    sump = sump+pn[n-m]*sumi;  /*Z0311=9747*/
-                    sump1 = sump1+sumi;  /*Z0311=9748*/
-                }   /*Z0311=9749*/
-                CR->carr2p[n] = (3*M_PI*(3-alfa)/16.0)*z12v[n]*xrmn_n*sump;  /*Z0311=9750*/
-                CR->carr3p[n] = (3*M_PI*(3-alfa)/16.0)*z12v[n]*xrn[n-1]*sump1;  /*Z0311=9751*/
-                sump = 0.0;  /*Z0311=9752*/
-                sump1 = 0.0;  /*Z0311=9753*/
+                {/*5*/  //Z=10297
+                    sumi = 1/((n-m+3/2.0)*gam3[n-m]*(m+3/2.0-alfa/2.0)*gam3[m]*fkv[m]*fkv[n-m]);  //Z=10298
+                    sump = sump+pn[n-m]*sumi;  //Z=10299
+                    sump1 = sump1+sumi;  //Z=10300
+                }/*5*/  //Z=10301
+                CR->carr2p[n] = (3*M_PI*(3-alfa)/16.0)*z12v[n]*xrmn_n*sump;  //Z=10302
+                CR->carr3p[n] = (3*M_PI*(3-alfa)/16.0)*z12v[n]*xrn[n]*sump1;  //Z=10303
+                sump = 0.0;  //Z=10304
+                sump1 = 0.0;  //Z=10305
                 for ( m=0; m<=n; m++ )
-                {   /*Z0311=9754*/
-                    sumi = 1/((n-m+3/2.0-alfa/2.0)*(m+3/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  /*Z0311=9755*/
-                    sump = sump+sumi;  /*Z0311=9756*/
-                    sump1 = sump1+pn[n-m]*sumi;  /*Z0311=9757*/
-                }   /*Z0311=9758*/
-                CR->carr4p[n] = ((3-alfa)*(3-alfa)*M_PI/16.0)*z12v[n]*xrmn_n*sump;  /*Z0311=9759*/
-                CR->carr5p[n] = ((3-alfa)*(3-alfa)*M_PI/16.0)*z12v[n]*xrmn_n*sump1;  /*Z0311=9760*/
-                CR->carr6p[n] = ((3-alfa)*(3-alfa)*M_PI/16.0)*z12v[n]*xrn[n-1]*sump;  /*Z0311=9761*/
+                {/*5*/  //Z=10306
+                    sumi = 1/((n-m+3/2.0-alfa/2.0)*(m+3/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=10307
+                    sump = sump+sumi;  //Z=10308
+                    sump1 = sump1+pn[n-m]*sumi;  //Z=10309
+                }/*5*/  //Z=10310
+                CR->carr4p[n] = ((3-alfa)*(3-alfa)*M_PI/16.0)*z12v[n]*xrmn_n*sump;  //Z=10311
+                CR->carr5p[n] = ((3-alfa)*(3-alfa)*M_PI/16.0)*z12v[n]*xrmn_n*sump1;  //Z=10312
+                CR->carr6p[n] = ((3-alfa)*(3-alfa)*M_PI/16.0)*z12v[n]*xrn[n]*sump;  //Z=10313
 
-                /* F(q)-coefficients */  /*Z0311=9763*/
-                CR->carr4f[n] = (3*sqrt(M_PI)/4.0)*z12v[n]*xrn[n]/((n+3/2.0)*gam3[n]*fkv[n]);  /*Z0311=9764*/
-                CR->carr5f[n] = (sqrt(M_PI)*(3-alfa)/4.0)*z12v[n]*xrmn_n/((n+3/2.0-alfa/2.0)*gam3[n]*fkv[n]);  /*Z0311=9765*/
-                CR->carr6f[n] = (sqrt(M_PI)*(3-alfa)/4.0)*z12v[n]*xrn[n]/((n+3/2.0-alfa/2.0)*gam3[n]*fkv[n]);  /*Z0311=9766*/
+                /*  F(q)-coefficients  */  //Z=10315
+                CR->carr4f[n] = (3*sqrt(M_PI)/4.0)*z12v[n]*xrn[n]/((n+3/2.0)*gam3[n]*fkv[n]);  //Z=10316
+                CR->carr5f[n] = (sqrt(M_PI)*(3-alfa)/4.0)*z12v[n]*xrmn_n/((n+3/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=10317
+                CR->carr6f[n] = (sqrt(M_PI)*(3-alfa)/4.0)*z12v[n]*xrn[n]/((n+3/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=10318
                 if ( fabs(CR->carr1p[n])<min )
-                {   /*Z0311=9767*/
-                    if ( n<n1 ) n1 = n;  /*Z0311=9768*/
-                }   /*Z0311=9769*/
+                {/*5*/  //Z=10319
+                    if ( n<n1 ) n1 = n;  //Z=10320
+                }/*5*/  //Z=10321
                 if ( fabs(CR->carr2p[n])<min )
-                {   /*Z0311=9770*/
-                    if ( n<n2 ) n2 = n;  /*Z0311=9771*/
-                }   /*Z0311=9772*/
+                {/*5*/  //Z=10322
+                    if ( n<n2 ) n2 = n;  //Z=10323
+                }/*5*/  //Z=10324
                 if ( fabs(CR->carr3p[n])<min )
-                {   /*Z0311=9773*/
-                    if ( n<n3 ) n3 = n;  /*Z0311=9774*/
-                }   /*Z0311=9775*/
+                {/*5*/  //Z=10325
+                    if ( n<n3 ) n3 = n;  //Z=10326
+                }/*5*/  //Z=10327
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z0311=9776*/
-                    if ( n<n4 ) n4 = n;  /*Z0311=9777*/
-                }   /*Z0311=9778*/
+                {/*5*/  //Z=10328
+                    if ( n<n4 ) n4 = n;  //Z=10329
+                }/*5*/  //Z=10330
                 if ( fabs(CR->carr5p[n])<min )
-                {   /*Z0311=9779*/
-                    if ( n<n5 ) n5 = n;  /*Z0311=9780*/
-                }   /*Z0311=9781*/
+                {/*5*/  //Z=10331
+                    if ( n<n5 ) n5 = n;  //Z=10332
+                }/*5*/  //Z=10333
                 if ( fabs(CR->carr6p[n])<min )
-                {   /*Z0311=9782*/
-                    if ( n<n6 ) n6 = n;  /*Z0311=9783*/
-                }   /*Z0311=9784*/
+                {/*5*/  //Z=10334
+                    if ( n<n6 ) n6 = n;  //Z=10335
+                }/*5*/  //Z=10336
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z0311=9785*/
-                    if ( n<n4f ) n4f = n;  /*Z0311=9786*/
-                }   /*Z0311=9787*/
+                {/*5*/  //Z=10337
+                    if ( n<n4f ) n4f = n;  //Z=10338
+                }/*5*/  //Z=10339
                 if ( fabs(CR->carr5f[n])<min )
-                {   /*Z0311=9788*/
-                    if ( n<n5f ) n5f = n;  /*Z0311=9789*/
-                }   /*Z0311=9790*/
+                {/*5*/  //Z=10340
+                    if ( n<n5f ) n5f = n;  //Z=10341
+                }/*5*/  //Z=10342
                 if ( fabs(CR->carr6f[n])<min )
-                {   /*Z0311=9791*/
-                    if ( n<n6f ) n6f = n;  /*Z0311=9792*/
-                }   /*Z0311=9793*/
-            }   /*Z0311=9794*/
-            goto Label99;  /*Z0311=9795*/
-        }   /* of inhomogeneous core/shell */  /*Z0311=9796*/
+                {/*5*/  //Z=10343
+                    if ( n<n6f ) n6f = n;  //Z=10344
+                }/*5*/  //Z=10345
+            }/*4*/  //Z=10346
+            goto Label99;  //Z=10347
+        }/*3*/   /*  of inhomogeneous core/shell  */  //Z=10348
 
-        /* myelin */  /*Z0311=9798*/
+        /*  myelin  */  //Z=10350
         if ( (cs==3) || (cs==4) )
-        {   /*Z0311=9799*/
-            i = 2;  /*Z0311=9800*/
+        {/*3*/  //Z=10351
+            i = 2;  //Z=10352
             for ( n=1; n<=nmax; n++ )
-            {   /*Z0311=9801*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  /*Z0311=9802*/
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  /*Z0311=9803*/
-                //b1sv[n] = b1sv[n-1]*(b1s-1+n);  /*Z0311=9804*/
-                fkv[n] = fkv[n-1]*n;  /*Z0311=9805*/
-                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  /*Z0311=9806*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  /*Z0311=9807*/
-                /* e1[n]:=e1[n-1]*(epsi*epsi-1); */  /*Z0311=9808*/
-                xln[n] = -xln[n-1]*xl2z;  /*Z0311=9809*/
-                /* xrn[n]:=-xrn[n-1]*xr2z; */  /*Z0311=9810*/
-                xrn[n] = -xrn[n-1]*x12zm;         /* myelin radius */  /*Z0311=9811*/
+            {/*4*/  //Z=10353
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10354
+                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=10355
+                b1sv_n = b1sv_n*(b1s-1+n);  //Z=10356
+                fkv[n] = fkv[n-1]*n;  //Z=10357
+                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=10358
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10359
+                /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=10360 */
+                xln[n] = -xln[n-1]*xl2z;  //Z=10361
+                /* xrn[n]:=-xrn[n-1]*xr2z;  //Z=10362 */
+                xrn[n] = -xrn[n-1]*x12zm;         /*  myelin radius  */  //Z=10363
 
-                /* P(q) */  /*Z0311=9813*/
+                /*  P(q)  */  //Z=10365
                 for ( m=0; m<=n; m++ )
-                {   /*Z0311=9814*/
-                    /* carr1pm[i]:=1/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]); */  /*Z0311=9815*/
-                    /* i:=i+1; */  /*Z0311=9816*/
-                    CR->carr11pm[n][m] = (9*M_PI/16.0)*(1/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]));  /*Z0311=9817, cs=3|4,dim=3*/
-                }   /*Z0311=9818*/
-                CR->carr4p[n] = z12v[n]*xrn[n];  /*Z0311=9819*/
-                /* CR->carr4[n]:=4*(n+1/2)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]); */  /*Z0311=9820*/
+                {/*5*/  //Z=10366
+                    /* carr1pm[i]:=1/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=10367 */
+                    /* i:=i+1;  //Z=10368 */
+                    CR->carr11pm[n][m] = (9*M_PI/16.0)*(1/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]));  //Z=10369
+                }/*5*/  //Z=10370
+                CR->carr4p[n] = z12v[n]*xrn[n];  //Z=10371
+                /* carr4p[n]:=4*(n+1/2)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=10372 */
 
-                /* F(q) */  /*Z0311=9823*/
-                binsum = 0.0;  /*Z0311=9824*/
-                for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  /*Z0311=9825*/
-                CR->carr1f[n] = M_PI*xln[n]*binsum/(4.*(2*n+1));  /*Z0311=9826*/
-                binsum = 0.0;  /*Z0311=9827*/
-                for ( m=0; m<=n; m++ ) binsum = binsum+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  /*Z0311=9828*/
-                CR->carr4f[n] = xrn[n-1]*binsum;  /*Z0311=9829*/
+                /*  F(q)  */  //Z=10375
+                binsum = 0.0;  //Z=10376
+                for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=10377
+                CR->carr1f[n] = M_PI*xln[n]*binsum/(4.0*(2*n+1));  //Z=10378
+                binsum = 0.0;  //Z=10379
+                for ( m=0; m<=n; m++ ) binsum = binsum+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=10380
+                CR->carr4f[n] = xrn[n]*binsum;  //Z=10381
 
                 if ( fabs(CR->carr1p[n])<min )
-                {   /*Z0311=9832*/
-                    if ( n<n1 ) n1 = n;  /*Z0311=9833*/
-                }   /*Z0311=9834*/
+                {/*5*/  //Z=10384
+                    if ( n<n1 ) n1 = n;  //Z=10385
+                }/*5*/  //Z=10386
                 if ( fabs(CR->carr1f[n])<min )
-                {   /*Z0311=9835*/
-                    if ( n<n1f ) n1f = n;  /*Z0311=9836*/
-                }   /*Z0311=9837*/
+                {/*5*/  //Z=10387
+                    if ( n<n1f ) n1f = n;  //Z=10388
+                }/*5*/  //Z=10389
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z0311=9838*/
-                    if ( n<n4 ) n4 = n;  /*Z0311=9839*/
-                }   /*Z0311=9840*/
+                {/*5*/  //Z=10390
+                    if ( n<n4 ) n4 = n;  //Z=10391
+                }/*5*/  //Z=10392
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z0311=9841*/
-                    if ( n<n4f ) n4f = n;  /*Z0311=9842*/
-                }   /*Z0311=9843*/
-            }   /*Z0311=9844*/
-        }  /* of myelin */  /*Z0311=9845*/
+                {/*5*/  //Z=10393
+                    if ( n<n4f ) n4f = n;  //Z=10394
+                }/*5*/  //Z=10395
+            }/*4*/  //Z=10396
+            goto Label99;
+        }/*3*/ /*  of myelin  */  //Z=10397
 
-    }   /* of dim=3, spheres */  /*Z0311=9849*/
+    }/*2*/  /*  of dim=3, spheres  */  //Z=10401
 
-    /* isotropic case for cubes */  /*Z=9900*/
+
+    /*  isotropic case for cubes  */  //Z=10403
     if ( (ordis==7) && (dim==4) )
-    {    /* cubes */
-        norm = 1;   /*Z=9902*/
-        order = 0;   /*Z=9903*/
-        /* homogeneous */   /*Z=9904*/
+    {/*2*/    /*  cubes  */  //Z=10404
+        norm = 1;  //Z=10405
+        order = 0;  //Z=10406
+        /*  homogeneous  */  //Z=10407
         if ( cs==0 )
-        {   /*Z=9905*/
-            area = 6*4*r*r;   /*Z=9906*/
-            vol = 8*r*r*r;   /*Z=9907*/
-            por = 2*M_PI*pow(z+1,4.)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);   /*Z=9908*/
+        {/*3*/  //Z=10408
+            area = 6*4*r*r;  //Z=10409
+            vol = 8*r*r*r;  //Z=10410
+            por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=10411
 
-            u1ell[0] = 2;   /*Z=9910*/
+#ifndef __CUDACC__
+            qDebug() << "coeff() ordis=7, dim=4, cs=0, por:" << por;
+#endif
+
+            u1ell[0] = 2;  //Z=10413
             for ( n=1; n<=nmax; n++ )
-            {   /*Z=9911*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=9912*/
-                fkv[n]  = fkv[n-1]*n;   /*Z=9913*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=9914*/
-                /* u1ell[n]:=z12v[n]/((n+1/2)*(n+1)*fkv[n]); */   /*Z=9915*/
-                u1ell[n] = 1/((n+1/2.0)*(n+1)*fkv[n]);   /*Z=9916*/
-            }   /*Z=9917*/
+            {/*4*/  //Z=10414
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10415
+                fkv[n] = fkv[n-1]*n;  //Z=10416
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10417
+                /* u1ell[n]:=z12v[n]/((n+1/2)*(n+1)*fkv[n]);  //Z=10418 */
+                u1ell[n] = 1/((n+1/2.0)*(n+1)*fkv[n]);  //Z=10419
+            }/*4*/  //Z=10420
 
             for ( n=0; n<=nmax; n++ )
-            {   /*Z=9919*/
-                sump1 = 0.0;   /*Z=9920*/
-                for ( m=0; m<=n; m++ ) sump1 = sump1+u1ell[n-m]*u1ell[m];   /*Z=9921*/
-                v1ell[n] = sump1;   /*Z=9922*/
-            }   /*Z=9923*/
+            {/*4*/  //Z=10422
+                sump1 = 0.0;  //Z=10423
+                for ( m=0; m<=n; m++ ) sump1 = sump1+u1ell[n-m]*u1ell[m];  //Z=10424
+                v1ell[n] = sump1;  //Z=10425
+            }/*4*/  //Z=10426
 
             for ( n=1; n<=nmax; n++ )
-            {   /*Z=9925*/
-                xrn[n] = -xrn[n-1]*xr2z;   /*Z=9926*/
-                sumf = 0.0;   /*Z=9927*/
-                for ( m=0; m<=n; m++ )
-                    sumf = sumf+z12v[n-m]*z12v[m]/(gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);   /*Z=9928*/
-                fsum[n] = sumf;   /*Z=9929*/
-                /* P(q)-coefficient */   /*Z=9930*/
-                sump = 0.0;   /*Z=9931*/
-                for ( m=0; m<=n; m++ ) sump = sump+u1ell[n-m]*v1ell[m];   /*Z=9944*/
+            {/*4*/  //Z=10428
+                xrn[n] = -xrn[n-1]*xr2z;  //Z=10429
+                sumf = 0.0;  //Z=10430
+                for ( m=0; m<=n; m++ ) sumf = sumf+z12v[n-m]*z12v[m]/(gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=10431
+                fsum[n] = sumf;  //Z=10432
+                /*  P(q)-coefficient  */  //Z=10433
+                sump = 0.0;  //Z=10434
+                /* for m:=0 to n do begin  //Z=10435
+                   sump1:=0.0;  //Z=10436
+                   for k:=0 to m do sump1:=sump1+z12v[m-k]*z12v[k]/((k+1/2)*(m-k+1/2)*(k+1)*fkv[k]*(m-k+1)*fkv[m-k]);  //Z=10437
+                   sump:=sump+z12v[n-m]*sump1/((n-m+1/2)*(n-m+1)*fkv[n-m]);  //Z=10438
+                   end; */  //Z=10439
 
-                /* carr4p[n]:=sqrt(pi)*power(4,n)*xrn[n]*sump/(16*gam3[n]); */   /*Z=9946*/
-                CR->carr4p[n] = sqrt(M_PI)*pow(4.,1.0*n)*z12v[n]*xrn[n-1]*sump/(16*gam3[n]);   /*Z=9947*/
+                /* for m:=0 to n do begin  //Z=10441
+                   sump1:=0.0;  //Z=10442
+                   for k:=0 to m do sump1:=sump1+u1ell[m-k]*u1ell[k];  //Z=10443
+                   sump:=sump+u1ell[n-m]*sump1;  //Z=10444
+                   end; */  //Z=10445
 
-                /* F(q)-coefficient */   /*Z=9949*/
-                sump = 0.0;   /*Z=9950*/
+                for ( m=0; m<=n; m++ ) sump = sump+u1ell[n-m]*v1ell[m];  //Z=10447
+
+                /* carr4p[n]:=sqrt(pi)*power(4,n)*xrn[n]*sump/(16*gam3[n]);  //Z=10449 */
+                CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn[n]*sump/(16.0*gam3[n]);  //Z=10450
+
+                /*  F(q)-coefficient  */  //Z=10452
+                sump = 0.0;  //Z=10453
                 for ( m=0; m<=n; m++ )
-                {   /*Z=9951*/
-                    sump1 = 0.0;   /*Z=9952*/
-                    for ( k=0; k<=m; k++ )
-                        sump1 = sump1+fsum[m-k]*fsum[k]*gam3[m-k]*gam3[k]/((k+1/2.0)*(m-k+1/2.0));   /*Z=9953*/
-                    sump = sump+sump1*fsum[n-m]*gam3[n-m]/(n-m+1/2.0);   /*Z=9954*/
-                }   /*Z=9955*/
-                CR->carr4f[n] = M_PI*M_PI*xrn[n-1]*sump/(128*gam3[n]);   /*Z=9956*/
+                {/*5*/  //Z=10454
+                    sump1 = 0.0;  //Z=10455
+                    for ( k=0; k<=m; k++ ) sump1 = sump1+fsum[m-k]*fsum[k]*gam3[m-k]*gam3[k]/((k+1/2.0)*(m-k+1/2.0));  //Z=10456
+                    sump = sump+sump1*fsum[n-m]*gam3[n-m]/(n-m+1/2.0);  //Z=10457
+                }/*5*/  //Z=10458
+                CR->carr4f[n] = M_PI*M_PI*xrn[n]*sump/(128.0*gam3[n]);  //Z=10459
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z=9957*/
-                    if ( n<n4 ) n4 = n;   /*Z=9958*/
-                }   /*Z=9959*/
+                {/*5*/  //Z=10460
+                    if ( n<n4 ) n4 = n;  //Z=10461
+                }/*5*/  //Z=10462
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z=9960*/
-                    if ( n<n4f ) n4f = n;   /*Z=9961*/
-                }   /*Z=9962*/
-            }   /*Z=9963*/
-            goto Label99;   /*Z=9964*/
-        }   /* of homogeneous */   /*Z=9965*/
+                {/*5*/  //Z=10463
+                    if ( n<n4f ) n4f = n;  //Z=10464
+                }/*5*/  //Z=10465
 
-        /* core/shell */          /* not yet ready */   /*Z=9967*/
+#ifndef __CUDACC__
+                qDebug() << "coeff() carr4p[]:" << n << CR->carr4p[n] << n4;
+#endif
+
+            }/*4*/  //Z=10466
+            goto Label99;  //Z=10467
+        }/*3*/   /*  of homogeneous  */  //Z=10468
+
+        /*  core/shell  */          /*  not yet ready  */  //Z=10470
         if ( cs==1 )
-        {   /*Z=9968*/
+        {/*3*/  //Z=10471
             for ( n=1; n<=nmax; n++ )
-            {   /*Z=9969*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=9970*/
-                fkv[n] = fkv[n-1]*n;   /*Z=9971*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=9972*/
-                /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=9973*/
-                xrn[n] = -xrn[n-1]*xr2z;   /*Z=9974*/
-                xrmn_n = -xrmn_n*xrm2z;   /*Z=9975*/
-                pn[n] = pn[n-1]*p*p;   /*Z=9976*/
-                /* P(q)-coefficient */   /*Z=9977*/
-                sump = 0.0;   /*Z=9978*/
+            {/*4*/  //Z=10472
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10473
+                fkv[n] = fkv[n-1]*n;  //Z=10474
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10475
+                /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=10476 */
+                xrn[n] = -xrn[n-1]*xr2z;  //Z=10477
+                xrmn_n = -xrmn_n*xrm2z;  //Z=10478
+                pn[n] = pn[n-1]*p*p;  //Z=10479
+                /*  P(q)-coefficient  */  //Z=10480
+                sump = 0.0;  //Z=10481
                 for ( m=0; m<=n; m++ )
-                {   /*Z=9979*/
-                    sump = sump+pn[m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=9980*/
-                }   /*Z=9981*/
-                CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.,1.0*n)*z12v[n]*xrn[n]/(2.*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);   /*Z=9982*/
-                CR->carr5p[n] = (9*M_PI/16.0)*z12v[n]*xrmn_n*sump;   /*Z=9983*/
-                CR->carr6p[n] = CR->carr4p[n]/pn[n];   /*Z=9984*/
-                /* F(q)-coefficient */   /*Z=9985*/
-                /* carr3[n]:=3*sqrt(pi)*z12v[n]*xrn[n]/(4*(n+3/2)*gam3[n]*fkv[n]); */   /*Z=9986*/
+                {/*5*/  //Z=10482
+                    sump = sump+pn[m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=10483
+                }/*5*/  //Z=10484
+                CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn[n]/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=10485
+                CR->carr5p[n] = (9*M_PI/16.0)*z12v[n]*xrmn_n*sump;  //Z=10486
+                CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=10487
+                /*  F(q)-coefficient  */  //Z=10488
+                /* carr3[n]:=3*sqrt(pi)*z12v[n]*xrn[n]/(4*(n+3/2)*gam3[n]*fkv[n]);  //Z=10489 */
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z=9987*/
-                    if ( n<n4 ) n4 = n;   /*Z=9988*/
-                }   /*Z=9989*/
+                {/*5*/  //Z=10490
+                    if ( n<n4 ) n4 = n;  //Z=10491
+                }/*5*/  //Z=10492
                 if ( fabs(CR->carr5p[n])<min )
-                {   /*Z=9990*/
-                    if ( n<n5 ) n5 = n;   /*Z=9991*/
-                }   /*Z=9992*/
+                {/*5*/  //Z=10493
+                    if ( n<n5 ) n5 = n;  //Z=10494
+                }/*5*/  //Z=10495
                 if ( fabs(CR->carr6p[n])<min )
-                {   /*Z=9993*/
-                    if ( n<n6 ) n6 = n;   /*Z=9994*/
-                }   /*Z=9995*/
-            }   /*Z=9996*/
-            goto Label99;   /*Z=9997*/
-        }   /* of core/shell */   /*Z=9998*/
-    }  /* of dim=4, cubes */  /*Z=9999*/
+                {/*5*/  //Z=10496
+                    if ( n<n6 ) n6 = n;  //Z=10497
+                }/*5*/  //Z=10498
+            }/*4*/  //Z=10499
+            goto Label99;  //Z=10500
+        }/*3*/   /*  of core/shell  */  //Z=10501
+    }/*2*/  /*  of dim=4, cubes  */  //Z=10502
 
-    /* perfect orientation case for cubes */  /*Z=10001*/
+    /*  perfect orientation case for cubes  */  //Z=10504
     if ( (ordis==6) && (dim==4) )
-    {   /* cubes */
-        norm = 1;   /*Z=10003*/
-        order = 1;   /*Z=10004*/
-        /* homogeneous */   /*Z=10005*/
+    {/*2*/    /*  cubes  */  //Z=10505
+        norm = 1;  //Z=10506
+        order = 1;  //Z=10507
+        /*  homogeneous  */  //Z=10508
         if ( cs==0 )
-        {   /*Z=10006*/
-            i = 2;   /*Z=10007*/
+        {/*3*/  //Z=10509
+            i = 2;  //Z=10510
             for ( n=1; n<=nmax; n++ )
-            {   /*Z=10008*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=10009*/
-                fkv[n] = fkv[n-1]*n;   /*Z=10010*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=10011*/
-                /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=10012*/
-                xrn[n] = -xrn[n-1]*xr2z;   /*Z=10013*/
-                /* P(q)-coefficient */   /*Z=10014*/
+            {/*4*/  //Z=10511
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10512
+                fkv[n] = fkv[n-1]*n;  //Z=10513
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10514
+                /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=10515 */
+                xrn[n] = -xrn[n-1]*xr2z;  //Z=10516
+                /*  P(q)-coefficient  */  //Z=10517
                 for ( m=0; m<=n; m++ )
-                {   /*Z=10015*/
-                    /* carr1pm[i]:=(pi/4)*power(4,n)*z12v[n-m]*z12v[m]*xrn[n]/(gam3[n-m]*gam3[m]*(n-m+1)*fkv[n-m]*(m+1)*fkv[m]); */   /*Z=10016*/
-                    /* carr1fm[i]:=carr1pm[i]; */   /*Z=10017*/
-                    CR->carr11pm[n][m] = (M_PI/4.0)*pow(4.,1.0*n)*z12v[n-m]*z12v[m]*xrn[n]/(gam3[n-m]*gam3[m]*(n-m+1)*fkv[n-m]*(m+1)*fkv[m]);   /*Z=10018, cs=0,ordis=6,dim=4*/
-                    i = i+1;   /*Z=10019*/
-                }   /*Z=10020*/
-                CR->carr4p[n] = sqrt(M_PI)*pow(4.,1.0*n)*xrn[n]/(16*gam3[n]);   /*Z=10021*/
-                /* F(q)-coefficient */   /*Z=10022*/
-                CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128*gam3[n]);   /*Z=10023*/
+                {/*5*/  //Z=10518
+                    /* carr1pm[i]:=(pi/4)*power(4,n)*z12v[n-m]*z12v[m]*xrn[n]/(gam3[n-m]*gam3[m]*(n-m+1)*fkv[n-m]*(m+1)*fkv[m]);  //Z=10519 */
+                    /* carr1fm[i]:=carr1pm[i];  //Z=10520 */
+                    CR->carr11pm[n][m] = (M_PI/4.0)*pow(4.0,n)*z12v[n-m]*z12v[m]*xrn[n]/(gam3[n-m]*gam3[m]*(n-m+1)*fkv[n-m]*(m+1)*fkv[m]);  //Z=10521
+                    i = i+1;  //Z=10522
+                }/*5*/  //Z=10523
+                CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*xrn[n]/(16.0*gam3[n]);  //Z=10524
+                /*  F(q)-coefficient  */  //Z=10525
+                CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128.0*gam3[n]);  //Z=10526
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z=10024*/
-                    if ( n<n4 ) n4 = n;   /*Z=10025*/
-                }   /*Z=10026*/
+                {/*5*/  //Z=10527
+                    if ( n<n4 ) n4 = n;  //Z=10528
+                }/*5*/  //Z=10529
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z=10027*/
-                    if ( n<n4f ) n4f = n;   /*Z=10028*/
-                }   /*Z=10029*/
-            }   /*Z=10030*/
-            goto Label99;   /*Z=10031*/
-        }   /* of homogeneous */   /*Z=10032*/
+                {/*5*/  //Z=10530
+                    if ( n<n4f ) n4f = n;  //Z=10531
+                }/*5*/  //Z=10532
+            }/*4*/  //Z=10533
+            goto Label99;  //Z=10534
+        }/*3*/   /*  of homogeneous  */  //Z=10535
 
-        /* core/shell */          /* not yet ready */   /*Z=10034*/
+        /*  core/shell  */          /*  not yet ready  */  //Z=10537
         if ( cs==1 )
-        {   /*Z=10035*/
+        {/*3*/  //Z=10538
             for ( n=1; n<=nmax; n++ )
-            {   /*Z=10036*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=10037*/
-                fkv[n] = fkv[n-1]*n;   /*Z=10038*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=10039*/
-                /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=10040*/
-                xrn[n] = -xrn[n-1]*xr2z;   /*Z=10041*/
-                xrmn_n = -xrmn_n*xrm2z;   /*Z=10042*/
-                pn[n] = pn[n-1]*p*p;   /*Z=10043*/
-                /* P(q)-coefficient */   /*Z=10044*/
-                sump = 0.0;   /*Z=10045*/
+            {/*4*/  //Z=10539
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10540
+                fkv[n] = fkv[n-1]*n;  //Z=10541
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10542
+                /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=10543 */
+                xrn[n] = -xrn[n-1]*xr2z;  //Z=10544
+                xrmn_n = -xrmn_n*xrm2z;  //Z=10545
+                pn[n] = pn[n-1]*p*p;  //Z=10546
+                /*  P(q)-coefficient  */  //Z=10547
+                sump = 0.0;  //Z=10548
                 for ( m=0; m<=n; m++ )
-                {   /*Z=10046*/
-                    sump = sump+pn[m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=10047*/
-                }   /*Z=10048*/
-                CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.,1.0*n)*z12v[n]*xrn[n]/(2.*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);   /*Z=10049*/
-                CR->carr5p[n] = (9*M_PI/16.0)*z12v[n]*xrmn_n*sump;   /*Z=10050*/
-                CR->carr6p[n] = CR->carr4p[n]/pn[n];   /*Z=10051*/
-                /* F(q)-coefficient */   /*Z=10052*/
-                /* carr3[n]:=3*sqrt(pi)*z12v[n]*xrn[n]/(4*(n+3/2)*gam3[n]*fkv[n]); */   /*Z=10053*/
+                {/*5*/  //Z=10549
+                    sump = sump+pn[m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=10550
+                }/*5*/  //Z=10551
+                CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn[n]/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=10552
+                CR->carr5p[n] = (9*M_PI/16.0)*z12v[n]*xrmn_n*sump;  //Z=10553
+                CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=10554
+                /*  F(q)-coefficient  */  //Z=10555
+                /* carr3[n]:=3*sqrt(pi)*z12v[n]*xrn[n]/(4*(n+3/2)*gam3[n]*fkv[n]);  //Z=10556 */
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z=10054*/
-                    if ( n<n4 ) n4 = n;   /*Z=10055*/
-                }   /*Z=10056*/
+                {/*5*/  //Z=10557
+                    if ( n<n4 ) n4 = n;  //Z=10558
+                }/*5*/  //Z=10559
                 if ( fabs(CR->carr5p[n])<min )
-                {   /*Z=10057*/
-                    if ( n<n5 ) n5 = n;   /*Z=10058*/
-                }   /*Z=10059*/
+                {/*5*/  //Z=10560
+                    if ( n<n5 ) n5 = n;  //Z=10561
+                }/*5*/  //Z=10562
                 if ( fabs(CR->carr6p[n])<min )
-                {   /*Z=10060*/
-                    if ( n<n6 ) n6 = n;   /*Z=10061*/
-                }   /*Z=10062*/
-            }   /*Z=10063*/
-            goto Label99;   /*Z=10064*/
-        }   /* of core/shell */   /*Z=10065*/
-    }   /* of dim=4, cubes */  /*Z=10066*/
+                {/*5*/  //Z=10563
+                    if ( n<n6 ) n6 = n;  //Z=10564
+                }/*5*/  //Z=10565
+            }/*4*/  //Z=10566
+            goto Label99;  //Z=10567
+        }/*3*/   /*  of core/shell  */  //Z=10568
+    }/*2*/  /*  of dim=4, cubes  */  //Z=10569
 
-    /* isotropic case for ellipsoids */  /*Z=10068*/
+
+    /*  isotropic case for ellipsoids  */  //Z=10571
     if ( (ordis==7) && (dim==5) )
-    {   /* ellipsoids */
-        norm = 1;   /*Z=10070*/
-        order = 0;   /*Z=10071*/
-        if ( eps==1 ) area = 4*M_PI*r*r;   /*Z=10072*/
-        if ( eps> 1 ) area = 2*M_PI*r*(r+(l*l/sqrt(l*l-r*r))*asin(sqrt(l*l-r*r)/l));   /*Z=10073*/
-        if ( eps< 1 ) area = 2*M_PI*r*(r+(l*l/sqrt(r*r-l*l))*asinh(sqrt(r*r-l*l)/l));   /*Z=10074*/
-        vol = (4*M_PI/3.0)*r*r*l;   /*Z=10075*/
-        por = 2*M_PI*pow(z+1,4.)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);   /*Z=10076*/
+    {/*2*/    /*  ellipsoids  */  //Z=10572
+        norm = 1;  //Z=10573
+        order = 0;  //Z=10574
+        if ( eps==1 ) area = 4*M_PI*r*r;  //Z=10575
+        if ( eps>1 ) area = 2*M_PI*r*(r+(l*l/sqrt(l*l-r*r))*asin(sqrt(l*l-r*r)/l));  //Z=10576
+        if ( eps<1 ) area = 2*M_PI*r*(r+(l*l/sqrt(r*r-l*l))*asinh(sqrt(r*r-l*l)/l));  //Z=10577
+        vol = (4*M_PI/3.0)*r*r*l;  //Z=10578
+        por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=10579
 
-        /* homogeneous */   /*Z=10078*/
+        /*  homogeneous  */  //Z=10581
         if ( cs==0 )
-        {   /*Z=10079*/
-            double e1[nnmax+1];
+        {/*3*/  //Z=10582
+            double e1[nnmax+1];  // lokal angelegt, da nur hier verwendet
             e1[0] = 1;
             for ( n=1; n<=nmax; n++ )
-            {   /*Z=10080*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=10081*/
-                fkv[n] = fkv[n-1]*n;   /*Z=10082*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=10083*/
-                e1[n] = e1[n-1]*(eps*eps-1);   /*Z=10084*/
-                xrn[n] = -xrn[n-1]*xr2z;   /*Z=10085*/
-                sump = 0.0;   /*Z=10086*/
-                for ( m=0; m<=n; m++ ) sump = sump+e1[n-m]/(fkv[n-m]*fkv[m]*(2*(n-m)+1));   /*Z=10087*/
-                /* sumf:=0.0; */   /*Z=10088*/
-                /* for m:=0 to n do sumf:=sumf+z12v[n-m]*z12v[m]/(gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]); */   /*Z=10089*/
-                /* fsum[n]:=sumf; */   /*Z=10090*/
-                /* P(q)-coefficient */   /*Z=10091*/
-                CR->carr4p[n] = (9*sqrt(M_PI)/2.0)*pow(4.,1.0*n)*z12v[n]*xrn[n-1]*sump/((n+3)*(n+2)*(n+3/2.0)*gam3[n]);   /*Z=10092*/
-                /* F(q)-coefficient */   /*Z=10093*/
-                sump = 0.0;   /*Z=10094*/
+            {/*4*/  //Z=10583
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10584
+                fkv[n] = fkv[n-1]*n;  //Z=10585
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10586
+                e1[n] = e1[n-1]*(eps*eps-1);  //Z=10587
+                xrn[n] = -xrn[n-1]*xr2z;  //Z=10588
+                sump = 0.0;  //Z=10589
+                for ( m=0; m<=n; m++ ) sump = sump+e1[n-m]/(fkv[n-m]*fkv[m]*(2*(n-m)+1));  //Z=10590
+                /* sumf:=0.0;  //Z=10591 */
+                /* for m:=0 to n do sumf:=sumf+z12v[n-m]*z12v[m]/(gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=10592 */
+                /* fsum[n]:=sumf;  //Z=10593 */
+                /*  P(q)-coefficient  */  //Z=10594
+                CR->carr4p[n] = (9*sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]*sump/((n+3)*(n+2)*(n+3/2.0)*gam3[n]);  //Z=10595
+                /*  F(q)-coefficient  */  //Z=10596
+                sump = 0.0;  //Z=10597
                 for ( m=0; m<=n; m++ )
-                {   /*Z=10095*/
-                    sump1 = 0.0;   /*Z=10096*/
-                    for ( k=0; k<=m; k++ ) sump1 = sump1+fsum[m-k]*fsum[k]*gam3[m-k]*gam3[k]/((k+1/2.0)*(m-k+1/2.0));   /*Z=10097*/
-                    sump = sump+sump1*fsum[n-m]*gam3[n-m]/(n-m+1/2.0);   /*Z=10098*/
-                }   /*Z=10099*/
-                CR->carr4f[n]  = M_PI*M_PI*xrn[n-1]*sump/(128*gam3[n]);   /*Z=10100*/
+                {/*5*/  //Z=10598
+                    sump1 = 0.0;  //Z=10599
+                    for ( k=0; k<=m; k++ ) sump1 = sump1+fsum[m-k]*fsum[k]*gam3[m-k]*gam3[k]/((k+1/2.0)*(m-k+1/2.0));  //Z=10600
+                    sump = sump+sump1*fsum[n-m]*gam3[n-m]/(n-m+1/2.0);  //Z=10601
+                }/*5*/  //Z=10602
+                CR->carr4f[n]  = M_PI*M_PI*xrn[n]*sump/(128.0*gam3[n]);  //Z=10603
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z=10101*/
-                    if ( n<n4 ) n4 = n;   /*Z=10102*/
-                }   /*Z=10103*/
+                {/*5*/  //Z=10604
+                    if ( n<n4 ) n4 = n;  //Z=10605
+                }/*5*/  //Z=10606
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z=10104*/
-                    if ( n<n4f ) n4f = n;   /*Z=10105*/
-                }   /*Z=10106*/
-            }   /*Z=10107*/
-            goto Label99;   /*Z=10108*/
-        }   /* of homogeneous */   /*Z=10109*/
+                {/*5*/  //Z=10607
+                    if ( n<n4f ) n4f = n;  //Z=10608
+                }/*5*/  //Z=10609
+            }/*4*/  //Z=10610
+            goto Label99;  //Z=10611
+        }/*3*/   /*  of homogeneous  */  //Z=10612
 
-        /* core/shell */          /* not yet ready */   /*Z=10111*/
-        //if cs=1 then begin   /*Z=10112*/
+        /*  core/shell  */          /*  not yet ready  */  //Z=10614
+        /* if cs=1 then begin  //Z=10615
+           end;   (* of core/shell *) */  //Z=10645
 
-    }   /* of dim=5, ellipsoids */  /*Z=10143*/
+    }/*2*/  /*  of dim=5, ellipsoids  */  //Z=10646
 
-    /* perfect orientation case for ellipsoids */  /*Z=10145*/
+
+    /*  perfect orientation case for ellipsoids  */  //Z=10648
     if ( (ordis==6) && (dim==5) )
-    {   /* ellipsoids */
-        norm = 1;   /*Z=10147*/
-        order = 1;   /*Z=10148*/
-        /* homogeneous */   /*Z=10149*/
+    {/*2*/    /*  ellipsoids  */  //Z=10649
+        norm = 1;  //Z=10650
+        order = 1;  //Z=10651
+        /*  homogeneous  */  //Z=10652
         if ( cs==0 )
-        {   /*Z=10150*/
+        {/*3*/  //Z=10653
             for ( n=1; n<=2*nmax+2; n++ )
-            {   /*Z=10151*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=10152*/
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=10153*/
-                fkv[n] = fkv[n-1]*n;   /*Z=10154*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=10155*/
-                //e1[n] = e1[n-1]*(epsi*epsi-1);   /*Z=10156*/
-                xrn[n] = -xrn[n-1]*xr2z;   /*Z=10157*/
-                xln[n] = -xln[n-1]*xl2z;   /*Z=10158*/
-            }   /*Z=10159*/
+            {/*4*/  //Z=10654
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10655
+                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=10656
+                fkv[n] = fkv[n-1]*n;  //Z=10657
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10658
+                //e1[n] = e1[n-1]*(epsi*epsi-1);  //Z=10659
+                xrn[n] = -xrn[n-1]*xr2z;  //Z=10660
+                xln[n] = -xln[n-1]*xl2z;  //Z=10661
+            }/*4*/  //Z=10662
             for ( n=0; n<=nmax; n++ )
-            {   /*Z=10160*/
-                a1 = sqr(3/4.0);   /*Z=10161*/
+            {/*4*/  //Z=10663
+                a1 = sqr(3/4.0);  //Z=10664
                 for ( m=0; m<=nmax; m++ )
-                {   /*Z=10162*/
-                    sump1 = 0.0;   /*Z=10163*/
+                {/*5*/  //Z=10665
+                    sump1 = 0.0;  //Z=10666
                     for ( k=0; k<=n; k++ )
-                    {   /*Z=10164*/
-                        sump2 = 0.0;   /*Z=10165*/
-                        for ( ll=0; ll<=m; ll++ )   /*Z=10166*/
-                            sump2 = sump2+1/(fkv[m-ll]*fkv[ll]*(m-ll+n-k+3/2.0)*(ll+k+3/2.0)*gam3[m-ll+n-k]*gam3[ll+k]);   /*Z=10167*/
-                        sump1 = sump1+sump2/(fkv[n-k]*fkv[k]);   /*Z=10168*/
-                    }   /*Z=10169*/
-                    CR->carr11pm[n][m] = M_PI*sump1;   /*Z=10170, cs=0,ordis=6,dim=5*/
-                }   /*Z=10171*/
+                    {/*6*/  //Z=10667
+                        sump2 = 0.0;  //Z=10668
+                        for ( ll=0; ll<=m; ll++ )  //Z=10669
+                            sump2 = sump2+1/(fkv[m-ll]*fkv[ll]*(m-ll+n-k+3/2.0)*(ll+k+3/2.0)*gam3[m-ll+n-k]*gam3[ll+k]);  //Z=10670
+                        sump1 = sump1+sump2/(fkv[n-k]*fkv[k]);  //Z=10671
+                    }/*6*/  //Z=10672
+                    params.CR->carr11pm[n][m] = M_PI*sump1;  //Z=10673
+                }/*5*/  //Z=10674
 
-                CR->carr4p[n] = a1*z12vl[n]*xln[n];   /*Z=10173*/
-                CR->carr5p[n] = z12v[n]*xrn[n];   /*Z=10174*/
+                CR->carr4p[n] = a1*z12vl[n]*xln[n];  //Z=10676
+                CR->carr5p[n] = z12v[n]*xrn[n];  //Z=10677
 
-                /* P(q)-coefficient */   /*Z=10176*/
-                /* for m:=0 to n do begin */   /*Z=10177*/
-                /* carr1pm[i]:=(pi/4)*power(4,n)*z12v[n-m]*z12v[m]*xrn[n]/(gam3[n-m]*gam3[m]*(n-m+1)*fkv[n-m]*(m+1)*fkv[m]); */   /*Z=10178*/
-                /* carr1fm[i]:=carr1pm[i]; */   /*Z=10179*/
-                /* i:=i+1; */   /*Z=10180*/
-                /* end; */   /*Z=10181*/
+                /*  P(q)-coefficient  */  //Z=10679
+                /* for m:=0 to n do begin  //Z=10680 */
+                /* carr1pm[i]:=(pi/4)*power(4,n)*z12v[n-m]*z12v[m]*xrn[n]/(gam3[n-m]*gam3[m]*(n-m+1)*fkv[n-m]*(m+1)*fkv[m]);  //Z=10681 */
+                /* carr1fm[i]:=carr1pm[i];  //Z=10682 */
+                /* i:=i+1;  //Z=10683 */
+                /* end;  //Z=10684 */
 
-                /* F(q)-coefficient */   /*Z=10183*/
-                CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128*gam3[n]);   /*Z=10184*/
+                /*  F(q)-coefficient  */  //Z=10686
+                CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128.0*gam3[n]);  //Z=10687
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z=10185*/
-                    if ( n<n4 ) n4 = n;   /*Z=10186*/
-                }   /*Z=10187*/
+                {/*5*/  //Z=10688
+                    if ( n<n4 ) n4 = n;  //Z=10689
+                }/*5*/  //Z=10690
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z=10188*/
-                    if ( n<n4f ) n4f = n;   /*Z=10189*/
-                }   /*Z=10190*/
-            }   /*Z=10191*/
-            goto Label99;   /*Z=10192*/
-        }   /* of homogeneous */   /*Z=10193*/
+                {/*5*/  //Z=10691
+                    if ( n<n4f ) n4f = n;  //Z=10692
+                }/*5*/  //Z=10693
+            }/*4*/  //Z=10694
+            goto Label99;  //Z=10695
+        }/*3*/   /*  of homogeneous  */  //Z=10696
 
-        /* core/shell */          /* not yet ready */   /*Z=10195*/
-        // if cs=1 then begin   /*Z=10196*/
+        /*  core/shell  */          /*  not yet ready  */  //Z=10698
+        /* if cs=1 then begin  //Z=10699
+            goto 99;  //Z=10728
+           end;   (* of core/shell *)   */  //Z=10729
+    }/*2*/  /*  of dim=5, ellipsoid  */  //Z=10730
 
-    }  /* of dim=5, ellipsoid */  /*Z=10227*/
 
-    /*** ellipsoid orientational distribution */  /*Z=10229*/
+    /* ** ellipsoid orientational distribution  */  //Z=10732
     if ( (ordis==0) && (cho1==2) && (dim==5) )
-    {
+    {/*2*/  //Z=10733
+
         if ( cs==0 )
-        {   /*Z=10232*/
-            //qrombdeltac(l,r,/*params.p1,sigma,dbeta,*/theta,phi,1,1,1, 9,9,9, 9,9,9,9, 9,9,9, 9,9,9, 9,9,9, 9,9,9,
-            //            ordis, 3, 2, 0, 0, 0, 0, CR->carr1, norm );  /*Z0311=10162*/
-            qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,2,0,0,0,0,CR->carr1p,norm);   /*Z=10233*/
-            qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,3,0,0,0,0,CR->carr1p,order);   /*Z=10234*/
-            //TODO 30.07.2022: Parameter alpha ist hier neu, ich warte noch auf die passende Routine als Source
-            order = order/norm;   /*Z=10235*/
+        {/*3*/  //Z=10735
+            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,2,0,0,0,0,CR->carr1p,norm);  //Z=10736
+            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,3,0,0,0,0,CR->carr1p,order);  //Z=10737
+            order = order/norm;  //Z=10738
 
             for ( n=1; n<=2*nmax+2; n++ )
-            {   /*Z=10237*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=10238*/
-                z12vl[n] = z12vl[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=10239*/
-                fkv[n] = fkv[n-1]*n;   /*Z=10240*/
-                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=10241*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=10242*/
-                xln[n] = -xln[n-1]*xl2z;   /*Z=10243*/
-                xrn[n] = -xrn[n-1]*xr2z;   /*Z=10244*/
-            }   /*Z=10245*/
+            {/*4*/  //Z=10740
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10741
+                z12vl[n] = z12vl[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10742
+                fkv[n] = fkv[n-1]*n;  //Z=10743
+                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=10744
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10745
+                xln[n] = -xln[n-1]*xl2z;  //Z=10746
+                xrn[n] = -xrn[n-1]*xr2z;  //Z=10747
+            }/*4*/  //Z=10748
 
             for ( n=0; n<=nmax; n++ )
-            {   /*Z=10247*/
+            {/*4*/  //Z=10750
                 for ( m=0; m<=nmax; m++ )
-                {   /*Z=10248*/
-                    sump1 = 0.0;   /*Z=10249*/
+                {/*5*/  //Z=10751
+                    sump1 = 0.0;  //Z=10752
                     for ( k=0; k<=n; k++ )
-                    {   /*Z=10250*/
-                        sump2 = 0.0;   /*Z=10251*/
-                        for ( ll=0; ll<=m; ll++ )   /*Z=10252*/
-                            sump2 = sump2+1/(fkv[m-ll]*fkv[ll]*(m-ll+n-k+3/2.0)*(ll+k+3/2.0)*gam3[m-ll+n-k]*gam3[ll+k]);   /*Z=10253*/
-                        sump1 = sump1+sump2/(fkv[n-k]*fkv[k]);   /*Z=10254*/
-                    }   /*Z=10255*/
-                    CR->carr11pm[n][m] = M_PI*sump1;   /*Z=10256, cs=0,ordis=0,cho1=2,dim=5*/
-                }   /*Z=10257*/
-                sump1 = 0.0;   /*Z=10258*/
+                    {/*6*/  //Z=10753
+                        sump2 = 0.0;  //Z=10754
+                        for ( ll=0; ll<=m; ll++ )  //Z=10755
+                            sump2 = sump2+1/(fkv[m-ll]*fkv[ll]*(m-ll+n-k+3/2.0)*(ll+k+3/2.0)*gam3[m-ll+n-k]*gam3[ll+k]);  //Z=10756
+                        sump1 = sump1+sump2/(fkv[n-k]*fkv[k]);  //Z=10757
+                    }/*6*/  //Z=10758
+                    CR->carr11pm[n][m] = M_PI*sump1;  //Z=10759
+                }/*5*/  //Z=10760
+                sump1 = 0.0;  //Z=10761
                 for ( m=0; m<=n; m++ )
-                {   /*Z=10259*/
-                    qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);   /*Z=10260*/
-                    // TOD: alpha ist hier neu (s.o.)
-                    sump1 = sump1+pow(4.,1.0*m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);   /*Z=10261*/
-                    CR->carr22pm[n][m] = pow(4.,1.0*m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);   /*Z=10262*/
-                }   /*Z=10263*/
+                {/*5*/  //Z=10762
+                    qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);  //Z=10763
+                    sump1 = sump1+pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=10764
+                    CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=10765
+                }/*5*/  //Z=10766
 
-                /* all coefficients: Mok */   /*Z=10265*/
-                /* integral part */   /*Z=10266*/
-                CR->carr4p[n] = sump1;   /*Z=10267*/
-                /* qR-part */   /*Z=10268*/
-                CR->carr5p[n] = z12v[n]*xrn[n];   /*Z=10269*/
-                /* qL-part */   /*Z=10270*/
-                /* carr3p[n]:=sqr(3/4)*fk2v[n]*z12v[n]*xln[n]/power(4,n); */   /*Z=10271*/
-                CR->carr6p[n] = sqr(3/4.0)*fk2v[n]*z12vl[n]*xln[n];   /*Z=10272*/
+                /*  all coefficients: Mok  */  //Z=10768
+                /*  integral part  */  //Z=10769
+                CR->carr4p[n] = sump1;  //Z=10770
+                /*  qR-part  */  //Z=10771
+                CR->carr5p[n] = z12v[n]*xrn[n];  //Z=10772
+                /*  qL-part  */  //Z=10773
+                /* carr3p[n]:=sqr(3/4)*fk2v[n]*z12v[n]*xln[n]/power(4,n);  //Z=10774 */
+                CR->carr6p[n] = sqr(3/4.0)*fk2v[n]*z12vl[n]*xln[n];  //Z=10775
 
-                if ( search5 )
-                {   /*Z=10289*/
-                    if ( fabs(CR->carr5p[n])<1e-50 )
-                    {   /*Z=10290*/
-                        n5 = n;   /*Z=10291*/
-                        search1 = false;   /*Z=10292*/
-                    }   /*Z=10293*/
-                }   /*Z=10294*/
-                if ( search6 )
-                {   /*Z=10295*/
-                    if ( fabs(CR->carr6p[n])<1e-50 )
-                    {   /*Z=10296*/
-                        n6 = n;   /*Z=10297*/
-                        search6 = false;   /*Z=10298*/
-                    }   /*Z=10299*/
-                }   /*Z=10300*/
-                if ( search3 )
-                {   /*Z=10301*/
-                    if ( fabs(CR->carr3p[n])<1e-50 )
-                    {   /*Z=10302*/
-                        n3 = n;   /*Z=10303*/
-                        search3 = false;   /*Z=10304*/
-                    }   /*Z=10305*/
-                }   /*Z=10306*/
-                if ( search4 )
-                {   /*Z=10307*/
-                    if ( fabs(CR->carr4p[n])<1e-50 )
-                    {   /*Z=10308*/
-                        n4 = n;   /*Z=10309*/
-                        search4 = false;   /*Z=10310*/
-                    }   /*Z=10311*/
-                }   /*Z=10312*/
+                /* (* P(q)-coefficient *)  //Z=10778
+                //carr1p[n]:=power(4,n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=10779
+                (* F(q)-coefficient *)  //Z=10780
+                sump:=0.0;  //Z=10781
+                for m:=0 to n do sump:=sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=10782
+                carr1f[n]:=fk2v[n]*xln[n]*sump/(power(4,n));  //Z=10783
+
+                (* cross-section *)  //Z=10785
+                carr4p[n]:=4*(n+1/2)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  //Z=10786
+                sump:=0.0;  //Z=10787
+                for m:=0 to n do sump:=sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=10788
+                carr4f[n]:=xrn[n]*sump;  //Z=10789
+                */  //Z=10790
+
+                if ( fabs(CR->carr3p[n])<min )
+                {/*5*/  //Z=10792
+                    if ( n<n3 ) n3 = n;  //Z=10793
+                }/*5*/  //Z=10794
+                if ( fabs(CR->carr4p[n])<min )
+                {/*5*/  //Z=10795
+                    if ( n<n4 ) n4 = n;  //Z=10796
+                }/*5*/  //Z=10797
+                if ( fabs(CR->carr5p[n])<min )
+                {/*5*/  //Z=10798
+                    if ( n<n5 ) n5 = n;  //Z=10799
+                }/*5*/  //Z=10800
+                if ( fabs(CR->carr6p[n])<min )
+                {/*5*/  //Z=10801
+                    if ( n<n6 ) n6 = n;  //Z=10802
+                }/*5*/  //Z=10803
                 if ( fabs(CR->carr1f[n])<min )
-                {   /*Z=10313*/
-                    if ( n<n1f ) n1f = n;   /*Z=10314*/
-                }   /*Z=10315*/
+                {/*5*/  //Z=10804
+                    if ( n<n1f ) n1f = n;  //Z=10805
+                }/*5*/  //Z=10806
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z=10316*/
-                    if ( n<n4f ) n4f = n;   /*Z=10317*/
-                }   /*Z=10318*/
-            }  /* of n-loop */   /*Z=10319*/
+                {/*5*/  //Z=10807
+                    if ( n<n4f ) n4f = n;  //Z=10808
+                }/*5*/  //Z=10809
+            }/*4*/  /*  of n-loop  */  //Z=10810
+            goto Label99;  //Z=10812
+        }/*3*/  /*  of cs-loop  */  //Z=10813
+    }/*2*/  /*  of ordis-loop  if ( (ordis==0) && (cho1==2) && (dim==5) ) */  //Z=10814
 
-            goto Label99;   /*Z=10321*/
-        }  /* of cs-loop */   /*Z=10322*/
-    }   /* if ( (ordis==0) && (cho1==2) && (dim==5) ) */  /*Z=10323*/
 
-    /* isotropic case for triaxial ellipsoids */  /*Z=10326*/
-    if ( (ordis==7) && (dim==6) )     /* triaxial ellipsoids */
-    {
-        norm = 1;   /*Z=10328*/
-        order = 0;   /*Z=10329*/
+    /*  isotropic case for triaxial ellipsoids  */  //Z=10817
+    if ( (ordis==7) && (dim==6) )
+    {/*2*/    /*  triaxial ellipsoids  */  //Z=10818
+        norm = 1;  //Z=10819
+        order = 0;  //Z=10820
         if ( (aell==bell) && (bell==cell) )
-            area = 4*M_PI*aell*aell;   /*Z=10330*/
+            area = 4*M_PI*aell*aell;  //Z=10821
         else
-        {   double ab = aell * bell;    //220908
-            double bc = bell * cell;
-            double ac = aell * cell;
-            area = 4*M_PI*pow((pow(ab,8/5.0)+pow(bc,8/5.0)+pow(ac,8/5.0))/3.0,5/8.0);   /*Z=10331*/
-        }
-        vol = (4*M_PI/3.0)*aell*bell*cell;   /*Z=10332*/
-        por = 2*M_PI*pow(z+1,4.)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);   /*Z=10333*/
+            area = 4*M_PI*pow((pow(aell*bell,8/5.0)+pow(bell*cell,8/5.0)+pow(aell*cell,8/5.0))/3.0,5/8.0);  //Z=10822
+        vol = (4*M_PI/3.0)*aell*bell*cell;  //Z=10823
+        por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=10824
 
-        /* homogeneous */   /*Z=10335*/
+        std::cerr << "area="<<area << ", por="<<por << ", z="<<z << ", vol="<<vol
+                  << ", aell="<<aell << ", bell="<<bell << ", cell="<<cell << std::endl;
+
+        /*  homogeneous  */  //Z=10826
         if ( cs==0 )
-        {   /*Z=10336*/
-            u1ell[0] = 1;   /*Z=10338*/
-            u2ell[0] = 1;   /*Z=10339*/
-            v1ell[0] = 1;   /*Z=10340*/
-            v2ell[0] = 1;   /*Z=10341*/
-            gell[0] = sqrt(M_PI);   /*Z=10342*/
+        {/*3*/  //Z=10827
+            u1ell[0] = 1;  //Z=10829
+            u2ell[0] = 1;  //Z=10830
+            v1ell[0] = 1;  //Z=10831
+            v2ell[0] = 1;  //Z=10832
+            gell[0] = sqrt(M_PI);  //Z=10833
             for ( n=1; n<=nmax; n++ )
-            {   /*Z=10343*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=10344*/
-                fkv[n] = fkv[n-1]*n;   /*Z=10345*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=10346*/
-                xrn[n] = -xrn[n-1]*xr2z;   /*Z=10347*/
-                u1ell[n] = (aell*aell-bell*bell)*u1ell[n-1]/double(n);   /*Z=10348*/
-                u2ell[n] = bell*bell*u2ell[n-1]/n;   /*Z=10349*/
-                v1ell[n] = (bell*bell-aell*aell)*v1ell[n-1]/double(n);   /*Z=10350*/
-                v2ell[n] = (cell*cell-bell*bell)*v2ell[n-1]/double(n);   /*Z=10351*/
-                gell[n] = gam3[n]/((n+1/2.0)*fkv[n]);   /*Z=10352*/
-            }   /*Z=10353*/
+            {/*4*/  //Z=10834
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10835
+                fkv[n] = fkv[n-1]*n;  //Z=10836
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10837
+                xrn[n] = -xrn[n-1]*xr2z;  //Z=10838
+                u1ell[n] = (aell*aell-bell*bell)*u1ell[n-1]/n;  //Z=10839
+                u2ell[n] = bell*bell*u2ell[n-1]/n;  //Z=10840
+                v1ell[n] = (bell*bell-aell*aell)*v1ell[n-1]/n;  //Z=10841
+                v2ell[n] = (cell*cell-bell*bell)*v2ell[n-1]/n;  //Z=10842
+                gell[n] = gam3[n]/((n+1/2.0)*fkv[n]);  //Z=10843
+            }/*4*/  //Z=10844
 
             for ( n=1; n<=nmax; n++ )
-            {   /*Z=10355*/
-                sump = 0.0;   /*Z=10368*/
+            {/*4*/  //Z=10846
+                sump = 0.0;  //Z=10859
                 for ( m=0; m<=n; m++ )
-                {   /*Z=10369*/
-                    sump1 = 0.0;   /*Z=10370*/
+                {   //Z=10860
+                    sump1 = 0.0;  //Z=10861
                     for ( k=0; k<=m; k++ )
-                    {   /*Z=10371*/
-                        sump2 = 0.0;   /*Z=10372*/
-                        for ( ll=0; ll<=n-m; ll++ ) sump2 = sump2+gell[k+ll]*v1ell[ll]*v2ell[n-m-ll];   /*Z=10373*/
-                        sump1 = sump1+u1ell[k]*u2ell[m-k]*sump2;   /*Z=10374*/
-                    }   /*Z=10375*/
-                    sump = sump+sump1/((2.*(n-m))+1);   /*Z=10376*/
-                }   /*Z=10377*/
+                    {   //Z=10862
+                        sump2 = 0.0;  //Z=10863
+                        for ( ll=0; ll<=n-m; ll++ ) sump2 = sump2+gell[k+ll]*v1ell[ll]*v2ell[n-m-ll];  //Z=10864
+                        sump1 = sump1+u1ell[k]*u2ell[m-k]*sump2;  //Z=10865
+                    }   //Z=10866
+                    sump = sump+sump1/((2.0*(n-m))+1);  //Z=10867
+                }   //Z=10868
 
-                /* fsum[n]:=sumf; */   /*Z=10379*/
-                sumf = 0.0;   /*Z=10380*/
-                for ( m=0; m<=n; m++ ) sumf = sumf+z12v[n-m]*z12v[m]/(gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);   /*Z=10381*/
-                fsum[n] = sumf;   /*Z=10382*/
-                /* P(q)-coefficient */   /*Z=10383*/
-                CR->carr4p[n] = (9*M_PI)*pow(4.,n-1.)*z12v[n]*pow(-1./(4.*(z+1)*(z+1)),1.0*n)*sump/((n+3)*(n+2)*(n+3/2.0)*gam3[n]);   /*Z=10384*/
-                /* F(q)-coefficient */   /*Z=10385*/
-                sump = 0.0;   /*Z=10386*/
+                /* fsum[n]:=sumf;  //Z=10870 */
+                sumf = 0.0;  //Z=10871
+                for ( m=0; m<=n; m++ ) sumf = sumf+z12v[n-m]*z12v[m]/(gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=10872
+                fsum[n] = sumf;  //Z=10873
+                /*  P(q)-coefficient  */  //Z=10874
+                CR->carr4p[n] = (9*M_PI)*pow(4.0,n-1)*z12v[n]*pow(-1/(4.0*(z+1)*(z+1)),n)*sump/((n+3.0)*(n+2.0)*(n+3/2.0)*gam3[n]);  //Z=10875
+                //CR->carr4p[n] = (9*M_PI)*pow(4.0,n-1)*pow(-1/(4.0*(z+1)*(z+1)),n)*sump*(z12v[n]/((n+3.0)*(n+2.0)*(n+3/2.0)*gam3[n]));  //Z=10875
+                //std::cerr << "n="<<n << ", "<<pow(4.0,n-1) << ", "<<z12v[n] << ", z="<<z
+                //          << ", "<<pow(-1/(4.0*(z+1)*(z+1)),n) << ", "<<sump << ", "<<gam3[n]
+                //          << " = " << CR->carr4p[n] << std::endl;
+
+                /*  F(q)-coefficient  */  //Z=10876
+                sump = 0.0;  //Z=10877
                 for ( m=0; m<=n; m++ )
-                {   /*Z=10387*/
-                    sump1 = 0.0;   /*Z=10388*/
-                    for ( k=0; k<=m; k++ ) sump1 = sump1+fsum[m-k]*fsum[k]*gam3[m-k]*gam3[k]/((k+1/2.0)*(m-k+1/2.0));   /*Z=10389*/
-                    sump = sump+sump1*fsum[n-m]*gam3[n-m]/(n-m+1/2.0);   /*Z=10390*/
-                }   /*Z=10391*/
-                CR->carr4f[n] = M_PI*M_PI*xrn[n-1]*sump/(128*gam3[n]);   /*Z=10392*/
+                {/*5*/  //Z=10878
+                    sump1 = 0.0;  //Z=10879
+                    for ( k=0; k<=m; k++ ) sump1 = sump1+fsum[m-k]*fsum[k]*gam3[m-k]*gam3[k]/((k+1/2.0)*(m-k+1/2.0));  //Z=10880
+                    sump = sump+sump1*fsum[n-m]*gam3[n-m]/(n-m+1/2.0);  //Z=10881
+                }/*5*/  //Z=10882
+                CR->carr4f[n] = M_PI*M_PI*xrn[n]*sump/(128.0*gam3[n]);  //Z=10883
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z=10393*/
-                    if ( n<n4 ) n4 = n;   /*Z=10394*/
-                }   /*Z=10395*/
+                {/*5*/  //Z=10884
+                    if ( n<n4 ) n4 = n;  //Z=10885
+                }/*5*/  //Z=10886
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z=10396*/
-                    if ( n<n4f ) n4f = n;   /*Z=10397*/
-                }   /*Z=10398*/
-            }   /*Z=10399*/
-            goto Label99;   /*Z=10400*/
-        }   /* of homogeneous */   /*Z=10401*/
+                {/*5*/  //Z=10887
+                    if ( n<n4f ) n4f = n;  //Z=10888
+                }/*5*/  //Z=10889
+            }/*4*/  //Z=10890
+            goto Label99;  //Z=10891
+        }/*3*/   /*  of homogeneous  */  //Z=10892
 
-        /* core/shell */          /* not yet ready */   /*Z=10403*/
-        //if cs=1 then begin   /*Z=10404*/
+        /*  core/shell  */          /*  not yet ready  */  //Z=10894
+        /* if cs=1 then begin  //Z=10895
+             goto 99;  //Z=10924
+           end;   (* of core/shell *) */  //Z=10925
+    }/*2*/  /*  of dim=5, ellipsoids  */  //Z=10926
 
-    }   /* of dim=6, ellipsoids */  /*Z=10435*/
 
-    /* perfect orientation case for ellipsoids */  /*Z=10437*/
-    if ( (ordis==6) && (dim==5) )     /* ellipsoids */
-    {
-        norm = 1;   /*Z=10439*/
-        order = 1;   /*Z=10440*/
-        /* homogeneous */   /*Z=10441*/
+    /*  perfect orientation case for ellipsoids  */  //Z=10928  TODO: siehe unten | cs==0
+    if ( (ordis==6) && (dim==5) )
+    {/*2*/    /*  ellipsoids  */  //Z=10929
+        norm = 1;  //Z=10930
+        order = 1;  //Z=10931
+        /*  homogeneous  */  //Z=10932
         if ( cs==0 )
-        {   /*Z=10442*/
-            i = 2;   /*Z=10443*/
+        {/*3*/  //Z=10933
+            i = 2;  //Z=10934
             for ( n=1; n<=nmax; n++ )
-            {   /*Z=10444*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=10445*/
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=10446*/
-                fkv[n] = fkv[n-1]*n;   /*Z=10447*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=10448*/
-                //e1[n] = e1[n-1]*(epsi*epsi-1);   /*Z=10449*/
-                xrn[n] = -xrn[n-1]*xr2z;   /*Z=10450*/
-                xln[n] = -xln[n-1]*xl2z;   /*Z=10451*/
+            {/*4*/  //Z=10935
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10936
+                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=10937
+                fkv[n] = fkv[n-1]*n;  //Z=10938
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10939
+                //e1[n] = e1[n-1]*(epsi*epsi-1);  //Z=10940
+                xrn[n] = -xrn[n-1]*xr2z;  //Z=10941
+                xln[n] = -xln[n-1]*xl2z;  //Z=10942
                 for ( m=0; m<=n; m++ )
-                {   /*Z=10452*/
-                    sump = 0.0;   /*Z=10453*/
+                {/*5*/  //Z=10943
+                    sump = 0.0;  //Z=10944
                     for ( ns=0; ns<=n; ns++ )
-                    {   /*Z=10454*/
-                        sump1 = 0.0;   /*Z=10455*/
-                        for ( ms=0; ms<=m; ms++ ) sump1 = sump1+1/(fkv[ms]*fkv[m-ms]*(ms+ns+3/2.0)*gam3[ms+ns]*(m-ms+n-ns+3/2.0)*gam3[m-ms+n-ns]);   /*Z=10456*/
-                        sump = sump+sump1*fsum[n-m]/(fkv[ns]*fkv[n-ns]);   /*Z=10457*/
-                    }   /*Z=10458*/
-                    CR->carr11pm[n][m] = (9/16.0)*z12vl[n]*z12v[m]*xln[n]*xrn[m]*sump;   /*Z=10459, cs=0,ordis=6,dim=5*/
-                }   /*Z=10460*/
-                /* P(q)-coefficient */   /*Z=10461*/
-                /* for m:=0 to n do begin */   /*Z=10462*/
-                /* carr1pm[i]:=(pi/4)*power(4,n)*z12v[n-m]*z12v[m]*xrn[n]/(gam3[n-m]*gam3[m]*(n-m+1)*fkv[n-m]*(m+1)*fkv[m]); */   /*Z=10463*/
-                /* carr1fm[i]:=carr1pm[i]; */   /*Z=10464*/
-                /* i:=i+1; */   /*Z=10465*/
-                /* end; */   /*Z=10466*/
-                CR->carr4p[n] = sqrt(M_PI)*pow(4.,1.0*n)*xrn[n]/(16.*gam3[n]);   /*Z=10467*/
-                /* F(q)-coefficient */   /*Z=10468*/
-                CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128*gam3[n]);   /*Z=10469*/
+                    {/*6*/  //Z=10945
+                        sump1 = 0.0;  //Z=10946
+                        for ( ms=0; ms<=m; ms++ ) sump1 = sump1+1/(fkv[ms]*fkv[m-ms]*(ms+ns+3/2.0)*gam3[ms+ns]*(m-ms+n-ns+3/2.0)*gam3[m-ms+n-ns]);  //Z=10947
+                        sump = sump+sump1*fsum[n-m]/(fkv[ns]*fkv[n-ns]);  //Z=10948
+                    }/*6*/  //Z=10949
+                    CR->carr11pm[n][m] = (9/16.0)*z12vl[n]*z12v[m]*xln[n]*xrn[m]*sump;  //Z=10950
+                }/*5*/  //Z=10951
+                /*  P(q)-coefficient  */  //Z=10952
+                /* for m:=0 to n do begin  //Z=10953 */
+                /* carr1pm[i]:=(pi/4)*power(4,n)*z12v[n-m]*z12v[m]*xrn[n]/(gam3[n-m]*gam3[m]*(n-m+1)*fkv[n-m]*(m+1)*fkv[m]);  //Z=10954 */
+                /* carr1fm[i]:=carr1pm[i];  //Z=10955 */
+                /* i:=i+1;  //Z=10956 */
+                /* end;  //Z=10957 */
+                CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*xrn[n]/(16.0*gam3[n]);  //Z=10958
+                /*  F(q)-coefficient  */  //Z=10959
+                CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128.0*gam3[n]);  //Z=10960
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z=10470*/
-                    if ( n<n4 ) n4 = n;   /*Z=10471*/
-                }   /*Z=10472*/
+                {/*5*/  //Z=10961
+                    if ( n<n4 ) n4 = n;  //Z=10962
+                }/*5*/  //Z=10963
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z=10473*/
-                    if ( n<n4f ) n4f = n;   /*Z=10474*/
-                }   /*Z=10475*/
-            }   /*Z=10476*/
-            goto Label99;   /*Z=10477*/
-        }   /* of homogeneous */   /*Z=10478*/
+                {/*5*/  //Z=10964
+                    if ( n<n4f ) n4f = n;  //Z=10965
+                }/*5*/  //Z=10966
+            }/*4*/  //Z=10967
+            goto Label99;  //Z=10968
+        }/*3*/   /*  of homogeneous  */  //Z=10969
 
-        /* core/shell */          /* not yet ready */   /*Z=10480*/
-        //if cs=1 then begin   /*Z=10481*/
+        /*  core/shell  */          /*  not yet ready  */  //Z=10971
+        /* if cs=1 then begin  //Z=10972
+             goto 99;  //Z=11001
+           end;   (* of core/shell *)   */  //Z=11002
+    }/*2*/  /*  of dim=6, triellipsoid  */  //Z=11003
 
-    }  /* of dim=6, triellipsoid */  /*Z=10512*/
 
-    /* isotropic case for super ellipsoids, barrel */  /*Z=10515*/
-    if ( (ordis==7) && (dim==7) )    /* super ellipsoids */
-    {
+    /*  isotropic case for super ellipsoids, barrel  */  //Z=11006
+    if ( (ordis==7) && (dim==7) )
+    {/*2*/    /*  super ellipsoids  */  //Z=11007
+
         // TODO
         double qx=1, qy=1, qz=1, qhkl=1;
         // Diese Variablen sind im Orginal-Pascalprogramm an der Stelle des coefficients() Aufrufes nicht bekannt.
 
-        // TODO: die Variablen p11 bis p33 werden im Vorfeld zu diesem Aufruf nicht gesetzt
-//        p11=p12=p13=p21=p22=p23=p31=p32=p33 = 1; // da später damit multipliziert wird macht eine 0 weniger Sinn
+        norm = 1;  //Z=11008
+        order = 0;  //Z=11009
+        qrombchid(params.length,params.radius,alfa,sigma,alfa,dbeta,epsi,theta,phi,qx,qy,qz,params.p11,params.p12,params.p13,params.p21,params.p22,params.p23,params.p31,params.p32,params.p33,qx,qy,0,qhkl,
+                  params.ax1.length(),params.ax2.length(),params.ax3.length(),
+                  params.ax1.x(),params.ax1.y(),params.ax1.z(),
+                  params.ax2.x(),params.ax2.y(),params.ax2.z(),
+                  params.ax3.x(),params.ax3.y(),params.ax3.z(),
+                  params.sig.x(),params.sig.y(),params.sig.z(),
+                  ordis,3,8,15,7,0,0,CR->carr1p,area);   //Z=11010
+        area = 2*M_PI*area;  //Z=11011
+        vol = 2*M_PI*r*r*l*gamma((2+alfa)/alfa)*gamma(1/alfa)/(alfa*gamma((3+alfa)/alfa));  //Z=11012
+        por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=11013
 
-        norm = 1;   /*Z=10517*/
-        order = 0;   /*Z=10518*/
-        //    void qrombchid( double l, double r, double sigma, double dbeta, double delta, double theta, double phi,
-        qrombchid(params.length,params.radius,/*alfa,*/sigma,/*alfa,*/dbeta,epsi,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qx,qy,0,qhkl,
-                  ax1.length(),ax2.length(),ax3.length(),ax1.x(),ax1.y(),ax1.z(),ax2.x(),ax2.y(),ax2.z(),ax3.x(),ax3.y(),ax3.z(),
-                  sig.x(),sig.y(),sig.z(),ordis,3,8,15,7,0,0,CR->carr1p,area);   /*Z=10519*/
-        area = 2*M_PI*area;   /*Z=10520*/
-        vol = 2*M_PI*r*r*l*gamma((2+alfa)/alfa)*gamma(1/alfa)/(alfa*gamma((3+alfa)/alfa));   /*Z=10521*/
-        por = 2*M_PI*pow(z+1,4.)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);   /*Z=10522*/
-
-        /* homogeneous */   /*Z=10524*/
-        u1ell[0] = 1;             /* for barrel */   /*Z=10525*/
-        u2ell[0] = 1;             /* for barrel */   /*Z=10526*/
+        /*  homogeneous  */  //Z=11015
+        u1ell[0] = 1;             /*  for barrel  */  //Z=11016
+        u2ell[0] = 1;             /*  for barrel  */  //Z=11017
         for ( n=1; n<=3*nmax+1; n++ )
-        {   /*Z=10527*/
-            z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=10528*/
-            fkv[n] = fkv[n-1]*n;   /*Z=10529*/
-            gam3[n] = gam3[n-1]*(2*n+1.)/2.0;   /*Z=10530*/
-            u1ell[n] = u1ell[n-1]/((n-1./2.0)*n);   /* for barrel */   /*Z=10531*/
-            u2ell[n] = u2ell[n-1]/((n+1.)*n);     /* for barrel */   /*Z=10532*/
-        }   /*Z=10533*/
+        {/*3*/  //Z=11018
+            z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=11019
+            fkv[n] = fkv[n-1]*n;  //Z=11020
+            gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=11021
+            u1ell[n] = u1ell[n-1]/((n-1/2.0)*n);   /*  for barrel  */  //Z=11022
+            u2ell[n] = u2ell[n-1]/((n+1)*n);     /*  for barrel  */  //Z=11023
+        }/*3*/  //Z=11024
 
         for ( n=0; n<=3*nmax+1; n++ )
-        {   /*Z=10535*/
-            v1ell[n] = gamma((2*n+1)/alfa)*u1ell[n];         /* for barrel */   /*Z=10536*/
-            v2ell[n] = gamma((2*n+2+alfa)/alfa)*u2ell[n];    /* for barrel */   /*Z=10537*/
-            gell[n] = gamma((2*n+3+alfa)/alfa);              /* for barrel */   /*Z=10538*/
-        }   /*Z=10539*/
+        {/*3*/  //Z=11026
+            v1ell[n] = gamma((2*n+1)/alfa)*u1ell[n];         /*  for barrel  */  //Z=11027
+            v2ell[n] = gamma((2*n+2+alfa)/alfa)*u2ell[n];    /*  for barrel  */  //Z=11028
+            gell[n] = gamma((2*n+3+alfa)/alfa);              /*  for barrel  */  //Z=11029
+        }/*3*/  //Z=11030
 
         if ( cs==0 )
-        {   /*Z=10541*/
+        {/*3*/  //Z=11032
             for ( n=0; n<=nmax; n++ )
-            {   /*Z=10542*/
-                /* for k variable, very slow */   /*Z=10543*/
+            {/*4*/  //Z=11033
+
                 if ( alfa==2 )
-                {   /*Z=10556*/
-                    a1 = sqr(3/4.0);   /*Z=10557*/
+                {/*5*/  //Z=11047
+                    a1 = sqr(3/4.0);  //Z=11048
                     for ( m=0; m<=nmax; m++ )
-                    {   /*Z=10558*/
-                        sump1 = 0.0;   /*Z=10559*/
+                    {/*6*/  //Z=11049
+                        sump1 = 0.0;  //Z=11050
                         for ( k=0; k<=n; k++ )
-                        {   /*Z=10560*/
-                            sump2 = 0.0;   /*Z=10561*/
-                            for ( ll=0; ll<=m; ll++ )   /*Z=10562*/
-                                sump2 = sump2+1/(fkv[m-ll]*fkv[ll]*(m-ll+n-k+3/2.0)*(ll+k+3/2.0)*gam3[m-ll+n-k]*gam3[ll+k]);   /*Z=10563*/
-                            sump1 = sump1+sump2/(fkv[n-k]*fkv[k]);   /*Z=10564*/
-                        }   /*Z=10565*/
-                        CR->carr11pm[n][m] = M_PI*sump1;   /*Z=10566, cs=0,ordis=7,dim=7,alfa=2*/
-                    }   /*Z=10567*/
-                }   /*Z=10568*/
+                        {/*7*/  //Z=11051
+                            sump2 = 0.0;  //Z=11052
+                            for ( ll=0; ll<=m; ll++ )  //Z=11053
+                                sump2 = sump2+1/(fkv[m-ll]*fkv[ll]*(m-ll+n-k+3/2.0)*(ll+k+3/2.0)*gam3[m-ll+n-k]*gam3[ll+k]);  //Z=11054
+                            sump1 = sump1+sump2/(fkv[n-k]*fkv[k]);  //Z=11055
+                        }/*7*/  //Z=11056
+                        CR->carr11pm[n][m] = M_PI*sump1;  //Z=11057
+                    }/*6*/  //Z=11058
+                }/*5*/  //Z=11059
                 else
-                {   /*Z=10569*/
-                    a1 = gamma((alfa+3)/alfa)/(gamma((alfa+2)/alfa)*gamma(1/alfa));   /*Z=10570*/
-                    a1 = a1*a1;   /*Z=10571*/
+                {/*5*/  //Z=11060
+                    a1 = gamma((alfa+3)/alfa)/(gamma((alfa+2)/alfa)*gamma(1/alfa));  //Z=11061
+                    a1 = a1*a1;  //Z=11062
                     for ( m=0; m<=nmax; m++ )
-                    {   /*Z=10572*/
-                        sump1 = 0.0;   /*Z=10573*/
+                    {/*6*/  //Z=11063
+                        sump1 = 0.0;  //Z=11064
                         for ( ns=0; ns<=n; ns++ )
-                        {   /*Z=10574*/
-                            sump2 = 0.0;   /*Z=10575*/
-                            for ( ms=0; ms<=m; ms++ )   /*Z=10576*/
-                                sump2 = sump2+v2ell[m-ms]*v2ell[ms]/(gell[ns+ms]*gell[n-ns+m-ms]);   /*Z=10577*/
-                            sump1 = sump1+v1ell[n-ns]*v1ell[ns]*sump2;   /*Z=10578*/
-                        }   /*Z=10579*/
-                        CR->carr11pm[n][m] = sump1;   /*Z=10580, cs=0,ordis=7,dim=7,alfa!=2*/
-                    }   /*Z=10581*/
-                }   /*Z=10582*/
+                        {/*7*/  //Z=11065
+                            sump2 = 0.0;  //Z=11066
+                            for ( ms=0; ms<=m; ms++ )  //Z=11067
+                                sump2 = sump2+v2ell[m-ms]*v2ell[ms]/(gell[ns+ms]*gell[n-ns+m-ms]);  //Z=11068
+                            sump1 = sump1+v1ell[n-ns]*v1ell[ns]*sump2;  //Z=11069
+                        }/*7*/  //Z=11070
+                        CR->carr11pm[n][m] = sump1;  //Z=11071
+                    }/*6*/  //Z=11072
+                }/*5*/  //Z=11073
 
-                /* orientational average */   /*Z=10584*/
-                sump = 0.0;   /*Z=10585*/
-                for ( m=0; m<=n; m++ ) sump = sump+gam3[n-m]*z12v[n-m]*z12v[m]*pow(l*l,1.0*n-m)*pow(r*r,1.0*m)*fkv[m]*CR->carr11pm[n-m][m]/(n-m+1/2.0);   /*Z=10586*/
-                CR->carr4p[n] = a1*pow(-1./(4.*(z+1)*(z+1)),1.0*n)*sump/(2*gam3[n]);   /*Z=10587*/
+                /*  orientational average  */  //Z=11075
+                sump = 0.0;  //Z=11076
+                for ( m=0; m<=n; m++ ) sump = sump+gam3[n-m]*z12v[n-m]*z12v[m]*pow(l*l,n-m)*pow(r*r,m)*fkv[m]*params.CR->carr11pm[n-m][m]/(n-m+1/2.0);  //Z=11077
+                CR->carr4p[n] = a1*pow(-1/(4.0*(z+1)*(z+1)),n)*sump/(2.0*gam3[n]);  //Z=11078
 
-                /* fsum[n]:=sumf; */   /*Z=10590*/
-                /* sumf:=0.0; */   /*Z=10591*/
-                /* for m:=0 to n do sumf:=sumf+z12v[n-m]*z12v[m]/(gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]); */   /*Z=10592*/
-                /* fsum[n]:=sumf; */   /*Z=10593*/
-                /* P(q)-coefficient */   /*Z=10594*/
-                /* F(q)-coefficient */   /*Z=10595*/
-                sump = 0.0;   /*Z=10596*/
+                /* fsum[n]:=sumf;  //Z=11081 */
+                /* sumf:=0.0;  //Z=11082 */
+                /* for m:=0 to n do sumf:=sumf+z12v[n-m]*z12v[m]/(gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=11083 */
+                /* fsum[n]:=sumf;  //Z=11084 */
+                /*  P(q)-coefficient  */  //Z=11085
+                /*  F(q)-coefficient  */  //Z=11086
+                sump = 0.0;  //Z=11087
                 for ( m=0; m<=n; m++ )
-                {   /*Z=10597*/
-                    sump1 = 0.0;   /*Z=10598*/
-                    for ( k=0; k<=m; k++ ) sump1 = sump1+fsum[m-k]*fsum[k]*gam3[m-k]*gam3[k]/((k+1/2.0)*(m-k+1/2.0));   /*Z=10599*/
-                    sump = sump+sump1*fsum[n-m]*gam3[n-m]/(n-m+1/2.0);   /*Z=10600*/
-                }   /*Z=10601*/
-                CR->carr4f[n] = M_PI*M_PI*xrn[n-1]*sump/(128*gam3[n]);   /*Z=10602*/
+                {/*5*/  //Z=11088
+                    sump1 = 0.0;  //Z=11089
+                    for ( k=0; k<=m; k++ ) sump1 = sump1+fsum[m-k]*fsum[k]*gam3[m-k]*gam3[k]/((k+1/2.0)*(m-k+1/2.0));  //Z=11090
+                    sump = sump+sump1*fsum[n-m]*gam3[n-m]/(n-m+1/2.0);  //Z=11091
+                }/*5*/  //Z=11092
+                CR->carr4f[n] = M_PI*M_PI*xrn[n]*sump/(128.0*gam3[n]);  //Z=11093
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z=10603*/
-                    if ( n<n4 ) n4 = n;   /*Z=10604*/
-                }   /*Z=10605*/
+                {/*5*/  //Z=11094
+                    if ( n<n4 ) n4 = n;  //Z=11095
+                }/*5*/  //Z=11096
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z=10606*/
-                    if ( n<n4f ) n4f = n;   /*Z=10607*/
-                }   /*Z=10608*/
-            }   /*Z=10609*/
-            goto Label99;   /*Z=10610*/
-        }   /* of homogeneous */   /*Z=10611*/
+                {/*5*/  //Z=11097
+                    if ( n<n4f ) n4f = n;  //Z=11098
+                }/*5*/  //Z=11099
+            }/*4*/  //Z=11100
+            goto Label99;  //Z=11101
+        }/*3*/   /*  of homogeneous  */  //Z=11102
 
-        /* core/shell */          /* not yet ready */   /*Z=10613*/
-        //if cs=1 then begin   /*Z=10614*/
+        /*  core/shell  */          /*  not yet ready  */  //Z=11104
+        /* if cs=1 then begin  //Z=11105
+             goto 99;  //Z=11134
+           end;   (* of core/shell *) */  //Z=11135
+    }/*2*/  /*  of dim=5, ellipsoids  */  //Z=11136
 
-    }  /* of dim=5, ellipsoids */  /*Z=10645*/
 
-    /* perfect orientation case for ellipsoids */  /*Z=10647*/
-    if ( (ordis==6) && (dim==5) )    /* ellipsoids */
-    {
-        norm = 1;   /*Z=10649*/
-        order = 1;   /*Z=10650*/
-        /* homogeneous */   /*Z=10651*/
+    /*  perfect orientation case for ellipsoids  */  //Z=11138  TODO: gleich wie oben | cs==0
+    if ( (ordis==6) && (dim==5) )
+    {/*2*/    /*  ellipsoids  */  //Z=11139
+        norm = 1;  //Z=11140
+        order = 1;  //Z=11141
+        /*  homogeneous  */  //Z=11142
         if ( cs==0 )
-        {   /*Z=10652*/
-            i = 2;   /*Z=10653*/
+        {/*3*/  //Z=11143
+            i = 2;  //Z=11144
             for ( n=1; n<=nmax; n++ )
-            {   /*Z=10654*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=10655*/
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=10656*/
-                fkv[n] = fkv[n-1]*n;   /*Z=10657*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=10658*/
-                //e1[n] = e1[n-1]*(epsi*epsi-1);   /*Z=10659*/
-                xrn[n] = -xrn[n-1]*xr2z;   /*Z=10660*/
-                xln[n] = -xln[n-1]*xl2z;   /*Z=10661*/
+            {/*4*/  //Z=11145
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=11146
+                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11147
+                fkv[n] = fkv[n-1]*n;  //Z=11148
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=11149
+                //e1[n] = e1[n-1]*(epsi*epsi-1);  //Z=11150
+                xrn[n] = -xrn[n-1]*xr2z;  //Z=11151
+                xln[n] = -xln[n-1]*xl2z;  //Z=11152
                 for ( m=0; m<=n; m++ )
-                {   /*Z=10662*/
-                    sump = 0.0;   /*Z=10663*/
+                {/*5*/  //Z=11153
+                    sump = 0.0;  //Z=11154
                     for ( ns=0; ns<=n; ns++ )
-                    {   /*Z=10664*/
-                        sump1 = 0.0;   /*Z=10665*/
-                        for ( ms=0; ms<=m; ms++ ) sump1 = sump1+1/(fkv[ms]*fkv[m-ms]*(ms+ns+3/2.0)*gam3[ms+ns]*(m-ms+n-ns+3/2.0)*gam3[m-ms+n-ns]);   /*Z=10666*/
-                        sump = sump+sump1*fsum[n-m]/(fkv[ns]*fkv[n-ns]);   /*Z=10667*/
-                    }   /*Z=10668*/
-                    CR->carr11pm[n][m] = (9/16.0)*z12vl[n]*z12v[m]*xln[n]*xrn[m]*sump;   /*Z=10669, cs=0,ordis=6,dim=5*/
-                }   /*Z=10670*/
-                /* P(q)-coefficient */   /*Z=10671*/
-                /* for m:=0 to n do begin */   /*Z=10672*/
-                /* carr1pm[i]:=(pi/4)*power(4,n)*z12v[n-m]*z12v[m]*xrn[n]/(gam3[n-m]*gam3[m]*(n-m+1)*fkv[n-m]*(m+1)*fkv[m]); */   /*Z=10673*/
-                /* carr1fm[i]:=carr1pm[i]; */   /*Z=10674*/
-                /* i:=i+1; */   /*Z=10675*/
-                /* end; */   /*Z=10676*/
-                CR->carr4p[n] = sqrt(M_PI)*pow(4.,1.0*n)*xrn[n]/(16*gam3[n]);   /*Z=10677*/
-                /* F(q)-coefficient */   /*Z=10678*/
-                CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128*gam3[n]);   /*Z=10679*/
+                    {/*6*/  //Z=11155
+                        sump1 = 0.0;  //Z=11156
+                        for ( ms=0; ms<=m; ms++ ) sump1 = sump1+1/(fkv[ms]*fkv[m-ms]*(ms+ns+3/2.0)*gam3[ms+ns]*(m-ms+n-ns+3/2.0)*gam3[m-ms+n-ns]);  //Z=11157
+                        sump = sump+sump1*fsum[n-m]/(fkv[ns]*fkv[n-ns]);  //Z=11158
+                    }/*6*/  //Z=11159
+                    CR->carr11pm[n][m] = (9/16.0)*z12vl[n]*z12v[m]*xln[n]*xrn[m]*sump;  //Z=11160
+                }/*5*/  //Z=11161
+                /*  P(q)-coefficient  */  //Z=11162
+                /* for m:=0 to n do begin  //Z=11163 */
+                /* carr1pm[i]:=(pi/4)*power(4,n)*z12v[n-m]*z12v[m]*xrn[n]/(gam3[n-m]*gam3[m]*(n-m+1)*fkv[n-m]*(m+1)*fkv[m]);  //Z=11164 */
+                /* carr1fm[i]:=carr1pm[i];  //Z=11165 */
+                /* i:=i+1;  //Z=11166 */
+                /* end;  //Z=11167 */
+                CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*xrn[n]/(16.0*gam3[n]);  //Z=11168
+                /*  F(q)-coefficient  */  //Z=11169
+                CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128.0*gam3[n]);  //Z=11170
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z=10680*/
-                    if ( n<n4 ) n4 = n;   /*Z=10681*/
-                }   /*Z=10682*/
+                {/*5*/  //Z=11171
+                    if ( n<n4 ) n4 = n;  //Z=11172
+                }/*5*/  //Z=11173
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z=10683*/
-                    if ( n<n4f ) n4f = n;   /*Z=10684*/
-                }   /*Z=10685*/
-            }   /*Z=10686*/
-            goto Label99;   /*Z=10687*/
-        }   /* of homogeneous */   /*Z=10688*/
+                {/*5*/  //Z=11174
+                    if ( n<n4f ) n4f = n;  //Z=11175
+                }/*5*/  //Z=11176
+            }/*4*/  //Z=11177
+            goto Label99;  //Z=11178
+        }/*3*/   /*  of homogeneous  */  //Z=11179
 
-        /* core/shell */          /* not yet ready */   /*Z=10690*/
-        //if cs=1 then begin   /*Z=10691*/
+        /*  core/shell  */          /*  not yet ready  */  //Z=11181
+        /* if cs=1 then begin  //Z=11182
+             goto 99;  //Z=11211
+           end;   (* of core/shell *)   */  //Z=11212
+    }/*2*/  /*  of dim=7, super ellipsoid  */  //Z=11213
 
-    }  /* of dim=7, super ellipsoid */  /*Z=10722*/
 
-    /* isotropic case for superballs */   /*Z=10726*/
-    if ( (ordis==7) && (dim==8) ) // NEU Aug.2022 - TODO: gammlog() unbekannt
-    {    /* superball */   /*Z=10727*/
+    /*  isotropic case for superballs  */  //Z=11217
+    if ( (ordis==7) && (dim==8) )
+    {/*2*/    /*  superball  */  //Z=11218
+
         //type ArrayImax3D=array[0..50,0..50,0..50] of real;
         //carr111pm: ^ArrayImax3D;
         //new(carr111pm);   /*Z=10728*/
-        float carr111pm[51][51][51];
-        nmax = 40;   /*Z=10729*/
-        norm = 1;   /*Z=10730*/
-        order = 0;   /*Z=10731*/
-        /* l:=r; */   /*Z=10732*/
-        /*Z=10733*/
-        /* radius=a, rm=b, length=c */   /*Z=10734*/
-        qrombdeltac(l,r,/*rm,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,8,17,0,0,0,CR->carr1p,area);   /*Z=10735*/
-        area = 8*area;   /*Z=10736*/
-        vol = 8*r*rm*l*pow(gamma(1/alfa),3.)/(pow(alfa,3.)*gamma(1+3/alfa));   /*Z=10737*/
-        por = 2*M_PI*pow(z+1,4.)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);   /*Z=10738*/
+        static const int ardim = 50;  //Z=11221
+        //SetLength(carr111pm^, (ardim+1));  //Z=11222
+        //for ( i=0; i<=ardim; i++ ) SetLength(carr111pm^[i], (ardim+1));  //Z=11223
+        //for ( i=0; i<=ardim; i++ )
+        //{/*3*/  //Z=11224
+        //    for ( j=0; j<=ardim; j++ ) SetLength(carr111pm^[i][j], (ardim+1));  //Z=11225
+        //}/*3*/  //Z=11226
 
-        /* homogeneous */   /*Z=10741*/
-        u3ell[0] = 1;             /* for superball */   /*Z=10742*/
+        float carr111pm[ardim+1][ardim+1][ardim+1];
+
+        nmax = 40;  //Z=11231
+        norm = 1;  //Z=11232
+        order = 0;  //Z=11233
+        /* l:=r;  //Z=11234 */
+
+        /*  radius=a, rm=b, length=c  */  //Z=11236
+        qrombdeltac(l,r,rm,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,8,17,0,0,0,CR->carr1p,area);  //Z=11237
+        area = 8*area;  //Z=11238
+        vol = 8*r*rm*l*pow(gamma(1/alfa),3)/(pow(alfa,3)*gamma(1+3/alfa));  //Z=11239
+        por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=11240
+
+        /*  homogeneous  */  //Z=11243
+        u3ell[0] = 1;             /*  for superball  */  //Z=11244
         for ( n=1; n<=3*nmax+1; n++ )
-        {   /*Z=10743*/
-            z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=10744*/
-            fkv[n] = fkv[n-1]*n;   /*Z=10745*/
-            gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=10746*/
-            u3ell[n] = u3ell[n-1]/((n-1/2.0)*n);   /* for superball */   /*Z=10747*/
-        }   /*Z=10748*/
+        {/*3*/  //Z=11245
+            z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=11246
+            fkv[n] = fkv[n-1]*n;  //Z=11247
+            gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=11248
+            u3ell[n] = u3ell[n-1]/((n-1/2.0)*n);   /*  for superball  */  //Z=11249
+        }/*3*/  //Z=11250
 
-        /* for n:=0 to 3*nmax+1 do begin */   /*Z=10750*/
-        /*    v3ell[n]:=gamma((2*n+1)/alfa)*u3ell[n];  */       /* for superball */    /*Z=10751*/
-        /*    g3ell[n]:=gamma(((2*n+3)/alfa)+1);       */       /* for superball */    /*Z=10752*/
-        /* end; */   /*Z=10753*/
+        /* for n:=0 to 3*nmax+1 do begin  //Z=11252 */
+        /*    v3ell[n]:=gamma((2*n+1)/alfa)*u3ell[n];         (* for superball *)  //Z=11253 */
+        /*    g3ell[n]:=gamma(((2*n+3)/alfa)+1);              (* for superball *)  //Z=11254 */
+        /* end;  //Z=11255 */
 
         for ( n=0; n<=3*nmax+1; n++ )
-        {   /*Z=10755*/
-#define gammlog(x) (log10(gamma(x)))
-            v3ell[n] = exp(gammlog((2*n+1)/alfa))*u3ell[n];         /* for superball */   /*Z=10756*/
-            g3ell[n] = exp(gammlog(((2*n+3)/alfa)+1));              /* for superball */   /*Z=10757*/
-        }   /*Z=10758*/
+        {/*3*/  //Z=11257
+            v3ell[n] = exp(gammln((2*n+1)/alfa))*u3ell[n];         /*  for superball  */  //Z=11258
+            g3ell[n] = exp(gammln(((2*n+3)/alfa)+1));              /*  for superball  */  //Z=11259
+        }/*3*/  //Z=11260
 
         if ( cs==0 )
-        {   /*Z=10760*/
+        {/*3*/  //Z=11262
             for ( n=0; n<=nmax; n++ )
-            {   /*Z=10761*/
+            {/*4*/  //Z=11263
                 if ( alfa==200000 )
-                {   /*Z=10762*/
-                    a1 = sqr(3/4.0);   /*Z=10763*/
+                {/*5*/  //Z=11264
+                    a1 = sqr(3/4.0);  //Z=11265
                     for ( m=0; m<=nmax; m++ )
-                    {   /*Z=10764*/
-                        sump1 = 0.0;   /*Z=10765*/
+                    {/*6*/  //Z=11266
+                        sump1 = 0.0;  //Z=11267
                         for ( k=0; k<=n; k++ )
-                        {   /*Z=10766*/
-                            sump2 = 0.0;   /*Z=10767*/
-                            for ( ll=0; ll<=m; ll++ )   /*Z=10768*/
-                                sump2 = sump2+1/(fkv[m-ll]*fkv[ll]*(m-ll+n-k+3/2.0)*(ll+k+3/2.0)*gam3[m-ll+n-k]*gam3[ll+k]);   /*Z=10769*/
-                            sump1 = sump1+sump2/(fkv[n-k]*fkv[k]);   /*Z=10770*/
-                        }   /*Z=10771*/
-                        CR->carr11pm[n][m] = M_PI*sump1;   /*Z=10772, cs=0,ordis=7,dim=8,alfa=200000*/
-                    }   /*Z=10773*/
-                }   /*Z=10774*/
+                        {/*7*/  //Z=11268
+                            sump2 = 0.0;  //Z=11269
+                            for ( ll=0; ll<=m; ll++ )  //Z=11270
+                                sump2 = sump2+1/(fkv[m-ll]*fkv[ll]*(m-ll+n-k+3/2.0)*(ll+k+3/2.0)*gam3[m-ll+n-k]*gam3[ll+k]);  //Z=11271
+                            sump1 = sump1+sump2/(fkv[n-k]*fkv[k]);  //Z=11272
+                        }/*7*/  //Z=11273
+                        CR->carr11pm[n][m] = M_PI*sump1;  //Z=11274
+                    }/*6*/  //Z=11275
+                }/*5*/  //Z=11276
                 else
-                {   /*Z=10775*/
-                    a1 = gamma(1+3/alfa)/pow(gamma(1/alfa),3.);   /*Z=10776*/
-                    a1 = a1*a1;   /*Z=10777*/
+                {/*5*/  //Z=11277
+                    a1 = gamma(1+3/alfa)/pow(gamma(1/alfa),3);  //Z=11278
+                    a1 = a1*a1;  //Z=11279
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=10778*/
+                    {/*6*/  //Z=11280
                         for ( k=0; k<=nmax; k++ )
-                        {   /*Z=10779*/
-                            sump1 = 0.0;   /*Z=10780*/
+                        {/*7*/  //Z=11281
+                            sump1 = 0.0;  //Z=11282
                             for ( ns=0; ns<=n; ns++ )
-                            {   /*Z=10781*/
-                                sump2 = 0.0;   /*Z=10782*/
+                            {/*8*/  //Z=11283
+                                sump2 = 0.0;  //Z=11284
                                 for ( ms=0; ms<=m; ms++ )
-                                {   /*Z=10783*/
-                                    double sump3 = 0.0;   /*Z=10784*/
-                                    for ( int ks=0; ks<=k; ks++ )   /*Z=10785*/
-                                        sump3 = sump3+v3ell[k-ks]*v3ell[ks]/(g3ell[ns+ms+ks]*g3ell[n-ns+m-ms+k-ks]);   /*Z=10786*/
-                                    sump2 = sump2+v3ell[m-ms]*v3ell[ms]*sump3;   /*Z=10787*/
-                                }   /*Z=10788*/
-                                sump1 = sump1+v3ell[n-ns]*v3ell[ns]*sump2;   /*Z=10789*/
-                            }   /*Z=10790*/
-                            carr111pm[n][m][k] = sump1;   /*Z=10791*/
-                            carr111pm[m][n][k] = sump1;   /*Z=10792*/
-                        }   /*Z=10793*/
-                    }   /*Z=10794*/
-                }   /*Z=10795*/
+                                {/*9*/  //Z=11285
+                                    double sump3 = 0.0;  //Z=11286
+                                    for ( int ks=0; ks<=k; ks++ )  //Z=11287
+                                        sump3 = sump3+v3ell[k-ks]*v3ell[ks]/(g3ell[ns+ms+ks]*g3ell[n-ns+m-ms+k-ks]);  //Z=11288
+                                    sump2 = sump2+v3ell[m-ms]*v3ell[ms]*sump3;  //Z=11289
+                                }/*9*/  //Z=11290
+                                sump1 = sump1+v3ell[n-ns]*v3ell[ns]*sump2;  //Z=11291
+                            }/*8*/  //Z=11292
+                            carr111pm[n][m][k] = sump1;  //Z=11293
+                            carr111pm[m][n][k] = sump1;  //Z=11294
+                        }/*7*/  //Z=11295
+                    }/*6*/  //Z=11296
+                }/*5*/  //Z=11297
 
-                /* orientational average for superball */   /*Z=10797*/
-                sump = 0.0;   /*Z=10798*/
+                /*  orientational average for superball  */  //Z=11299
+                sump = 0.0;  //Z=11300
                 for ( m=0; m<=n; m++ )
-                {   /*Z=10799*/
-                    sump1 = 0.0;   /*Z=10800*/
-                    for ( k=0; k<=m; k++ )   /*Z=10801*/
-                        sump1 = sump1+z12v[m-k]*z12v[k]*gam3[m-k]*gam3[k]*pow(rm*rm,1.0*m-k)*pow(l*l,1.0*k)*carr111pm[n-m][m-k][k]/((m-k+1/2.0)*(k+1/2.0));     /*  */   /*Z=10802*/
-                    sump = sump+z12v[n-m]*gam3[n-m]*pow(r*r,1.0*n-m)*sump1/(n-m+1/2.0);   /*Z=10803*/
-                }   /*Z=10804*/
-                CR->carr4p[n] = (a1/(2*M_PI))*pow(-1./(4.*(z+1)*(z+1)),1.0*n)*sump/gam3[n];   /*Z=10805*/
+                {/*5*/  //Z=11301
+                    sump1 = 0.0;  //Z=11302
+                    for ( k=0; k<=m; k++ )  //Z=11303
+                        sump1 = sump1+z12v[m-k]*z12v[k]*gam3[m-k]*gam3[k]*pow(rm*rm,m-k)*pow(l*l,k)*carr111pm[n-m][m-k][k]/((m-k+1/2.0)*(k+1/2.0));   //Z=11304
+                    sump = sump+z12v[n-m]*gam3[n-m]*pow(r*r,n-m)*sump1/(n-m+1/2.0);  //Z=11305
+                }/*5*/  //Z=11306
+                CR->carr4p[n] = (a1/(2.0*M_PI))*pow(-1/(4.0*(z+1)*(z+1)),n)*sump/gam3[n];  //Z=11307
 
-                /* fsum[n]:=sumf; */   /*Z=10808*/
-                /* sumf:=0.0; */   /*Z=10809*/
-                /* for m:=0 to n do sumf:=sumf+z12v[n-m]*z12v[m]/(gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]); */   /*Z=10810*/
-                /* fsum[n]:=sumf; */   /*Z=10811*/
-                /* P(q)-coefficient */   /*Z=10812*/
-                /* F(q)-coefficient */   /*Z=10813*/
-                sump = 0.0;   /*Z=10814*/
+
+                /* fsum[n]:=sumf;  //Z=11310 */
+                /* sumf:=0.0;  //Z=11311 */
+                /* for m:=0 to n do sumf:=sumf+z12v[n-m]*z12v[m]/(gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=11312 */
+                /* fsum[n]:=sumf;  //Z=11313 */
+                /*  P(q)-coefficient  */  //Z=11314
+                /*  F(q)-coefficient  */  //Z=11315
+                sump = 0.0;  //Z=11316
                 for ( m=0; m<=n; m++ )
-                {   /*Z=10815*/
-                    sump1 = 0.0;   /*Z=10816*/
-                    for ( k=0; k<=m; k++ ) sump1 = sump1+fsum[m-k]*fsum[k]*gam3[m-k]*gam3[k]/((k+1/2.0)*(m-k+1/2.0));   /*Z=10817*/
-                    sump = sump+sump1*fsum[n-m]*gam3[n-m]/(n-m+1/2.0);   /*Z=10818*/
-                }   /*Z=10819*/
-                CR->carr4f[n] = M_PI*M_PI*xrn[n-1]*sump/(128*gam3[n]);   /*Z=10820*/
+                {/*5*/  //Z=11317
+                    sump1 = 0.0;  //Z=11318
+                    for ( k=0; k<=m; k++ ) sump1 = sump1+fsum[m-k]*fsum[k]*gam3[m-k]*gam3[k]/((k+1/2.0)*(m-k+1/2.0));  //Z=11319
+                    sump = sump+sump1*fsum[n-m]*gam3[n-m]/(n-m+1/2.0);  //Z=11320
+                }/*5*/  //Z=11321
+                CR->carr4f[n] = M_PI*M_PI*xrn[n]*sump/(128.0*gam3[n]);  //Z=11322
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z=10821*/
-                    if ( n<n4 ) n4 = n;   /*Z=10822*/
-                }   /*Z=10823*/
+                {/*5*/  //Z=11323
+                    if ( n<n4 ) n4 = n;  //Z=11324
+                }/*5*/  //Z=11325
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z=10824*/
-                    if ( n<n4f ) n4f = n;   /*Z=10825*/
-                }   /*Z=10826*/
-            }   /*Z=10827*/
-            goto Label99;   /*Z=10828*/
-        }   /* of homogeneous */   /*Z=10829*/
+                {/*5*/  //Z=11326
+                    if ( n<n4f ) n4f = n;  //Z=11327
+                }/*5*/  //Z=11328
+            }/*4*/  //Z=11329
+            goto Label99;  //Z=11330
+        }/*3*/   /*  of homogeneous  */  //Z=11331
 
-        /* core/shell */          /* not yet ready */   /*Z=10831*/
-        //if cs=1 then begin   /*Z=10832*/
+        /*  core/shell  */          /*  not yet ready  */  //Z=11333
+        /* if cs=1 then begin  //Z=11334
+             goto 99;  //Z=11363
+           end;   (* of core/shell *) */  //Z=11364
+        //dispose(carr111pm);  //Z=11365
+    }/*2*/  /*  of dim=5, ellipsoids  */  //Z=11366
 
-        //dispose(carr111pm);   /*Z=10863*/
-    }  /* of isotropic case for superballs */   /*Z=10864*/
 
-    /* perfect orientation case for ellipsoids */   /*Z=10866*/
-    if ( (ordis==6) && (dim==5) )  // NEU Aug.2022
-    {    /* ellipsoids */   /*Z=10867*/
-        norm = 1;   /*Z=10868*/
-        order = 1;   /*Z=10869*/
-        /* homogeneous */   /*Z=10870*/
+    /*  perfect orientation case for ellipsoids  */  //Z=11368  TODO: gleich wie oben | cs==0
+    if ( (ordis==6) && (dim==5) )
+    {/*2*/    /*  ellipsoids  */  //Z=11369
+        norm = 1;  //Z=11370
+        order = 1;  //Z=11371
+        /*  homogeneous  */  //Z=11372
         if ( cs==0 )
-        {   /*Z=10871*/
-            i = 2;   /*Z=10872*/
+        {/*3*/  //Z=11373
+            i = 2;  //Z=11374
             for ( n=1; n<=nmax; n++ )
-            {   /*Z=10873*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=10874*/
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=10875*/
-                fkv[n] = fkv[n-1]*n;   /*Z=10876*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=10877*/
-                //e1[n] = e1[n-1]*(epsi*epsi-1);   /*Z=10878*/
-                xrn[n] = -xrn[n-1]*xr2z;   /*Z=10879*/
-                xln[n] = -xln[n-1]*xl2z;   /*Z=10880*/
+            {/*4*/  //Z=11375
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=11376
+                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11377
+                fkv[n] = fkv[n-1]*n;  //Z=11378
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=11379
+                //e1[n] = e1[n-1]*(epsi*epsi-1);  //Z=11380
+                xrn[n] = -xrn[n-1]*xr2z;  //Z=11381
+                xln[n] = -xln[n-1]*xl2z;  //Z=11382
                 for ( m=0; m<=n; m++ )
-                {   /*Z=10881*/
-                    sump = 0.0;   /*Z=10882*/
+                {/*5*/  //Z=11383
+                    sump = 0.0;  //Z=11384
                     for ( ns=0; ns<=n; ns++ )
-                    {   /*Z=10883*/
-                        sump1 = 0.0;   /*Z=10884*/
-                        for ( ms=0; ms<=m; ms++ ) sump1 = sump1+1/(fkv[ms]*fkv[m-ms]*(ms+ns+3/2.0)*gam3[ms+ns]*(m-ms+n-ns+3/2.0)*gam3[m-ms+n-ns]);   /*Z=10885*/
-                        sump = sump+sump1*fsum[n-m]/(fkv[ns]*fkv[n-ns]);   /*Z=10886*/
-                    }   /*Z=10887*/
-                    CR->carr11pm[n][m] = (9/16.0)*z12vl[n]*z12v[m]*xln[n]*xrn[m]*sump;   /*Z=10888, cs=0,ordis=6,dim=5*/
-                }   /*Z=10889*/
-                /* P(q)-coefficient */   /*Z=10890*/
-                /* for m:=0 to n do begin */   /*Z=10891*/
-                /* carr1pm[i]:=(pi/4)*power(4,n)*z12v[n-m]*z12v[m]*xrn[n]/(gam3[n-m]*gam3[m]*(n-m+1)*fkv[n-m]*(m+1)*fkv[m]); */   /*Z=10892*/
-                /* carr1fm[i]:=carr1pm[i]; */   /*Z=10893*/
-                /* i:=i+1; */   /*Z=10894*/
-                /* end; */   /*Z=10895*/
-                CR->carr4p[n] = sqrt(M_PI)*pow(4.,1.0*n)*xrn[n]/(16*gam3[n]);   /*Z=10896*/
-                /* F(q)-coefficient */   /*Z=10897*/
-                CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128*gam3[n]);   /*Z=10898*/
+                    {/*6*/  //Z=11385
+                        sump1 = 0.0;  //Z=11386
+                        for ( ms=0; ms<=m; ms++ ) sump1 = sump1+1/(fkv[ms]*fkv[m-ms]*(ms+ns+3/2.0)*gam3[ms+ns]*(m-ms+n-ns+3/2.0)*gam3[m-ms+n-ns]);  //Z=11387
+                        sump = sump+sump1*fsum[n-m]/(fkv[ns]*fkv[n-ns]);  //Z=11388
+                    }/*6*/  //Z=11389
+                    CR->carr11pm[n][m] = (9/16.0)*z12vl[n]*z12v[m]*xln[n]*xrn[m]*sump;  //Z=11390
+                }/*5*/  //Z=11391
+                /*  P(q)-coefficient  */  //Z=11392
+                /* for m:=0 to n do begin  //Z=11393 */
+                /* carr1pm[i]:=(pi/4)*power(4,n)*z12v[n-m]*z12v[m]*xrn[n]/(gam3[n-m]*gam3[m]*(n-m+1)*fkv[n-m]*(m+1)*fkv[m]);  //Z=11394 */
+                /* carr1fm[i]:=carr1pm[i];  //Z=11395 */
+                /* i:=i+1;  //Z=11396 */
+                /* end;  //Z=11397 */
+                CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*xrn[n]/(16.0*gam3[n]);  //Z=11398
+                /*  F(q)-coefficient  */  //Z=11399
+                CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128.0*gam3[n]);  //Z=11400
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z=10899*/
-                    if ( n<n4 ) n4 = n;   /*Z=10900*/
-                }   /*Z=10901*/
-                if ( abs(CR->carr4f[n])<min )
-                {   /*Z=10902*/
-                    if ( n<n4f ) n4f = n;   /*Z=10903*/
-                }   /*Z=10904*/
-            }   /*Z=10905*/
-            goto Label99;   /*Z=10906*/
-        }   /* of homogeneous */   /*Z=10907*/
+                {/*5*/  //Z=11401
+                    if ( n<n4 ) n4 = n;  //Z=11402
+                }/*5*/  //Z=11403
+                if ( fabs(CR->carr4f[n])<min )
+                {/*5*/  //Z=11404
+                    if ( n<n4f ) n4f = n;  //Z=11405
+                }/*5*/  //Z=11406
+            }/*4*/  //Z=11407
+            goto Label99;  //Z=11408
+        }/*3*/   /*  of homogeneous  */  //Z=11409
 
-        /* core/shell */          /* not yet ready */   /*Z=10909*/
-        //if cs=1 then begin   /*Z=10910*/
+        /*  core/shell  */          /*  not yet ready  */  //Z=11411
+        /* if cs=1 then begin  //Z=11412
+             goto 99;  //Z=11441
+           end;   (* of core/shell *)   */  //Z=11442
+    }/*2*/  /*  of dim=8, superball  */  //Z=11443
 
-    }  /* of dim=8, superball */   /*Z=10941*/
 
-    /*** isotropic case for cylinders and disks ***/  /*Z=10945*/
+    /* ** isotropic case for cylinders and disks ** */  //Z=11447
     if ( (ordis==7) && (dim!=3) )
-    {
-        norm = 1;   /*Z=10947*/
-        order = 0;   /*Z=10948*/
-        /* homogeneous */   /*Z=10949*/
+    {/*2*/  //Z=11448
+        norm = 1;  //Z=11449
+        order = 0;  //Z=11450
+        /*  homogeneous  */  //Z=11451
         if ( cs==0 )
-        {   /*Z=10950*/
+        {/*3*/  //Z=11452
 
-            /* small axial ratios */   /*Z=10952*/
+            /*  small axial ratios  */  //Z=11454
             if ( (l/r)<2 )
-            {   /*Z=10953*/
-                area = 2*M_PI*r*r+2*M_PI*r*(2*l);   /*Z=10954*/
-                vol = M_PI*r*r*(2*l);   /*Z=10955*/
-                por = 2*M_PI*pow(z+1,4.)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);   /*Z=10956*/
+            {/*4*/  //Z=11455
+                area = 2*M_PI*r*r+2*M_PI*r*(2*l);  //Z=11456
+                vol = M_PI*r*r*(2*l);  //Z=11457
+                por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=11458
 
                 for ( n=1; n<=nmax; n++ )
-                {   /*Z=10958*/
-                    z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=10959*/
-                    z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=10960*/
-                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=10961*/
-                    fkv[n] = fkv[n-1]*n;   /*Z=10962*/
-                    fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=10963*/
-                    gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=10964*/
-                    /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=10965*/
-                    xln[n] = -xln[n-1]*xl2z;   /*Z=10966*/
-                    xrn[n] = -xrn[n-1]*xr2z;   /*Z=10967*/
-                }   /*Z=10968*/
+                {/*5*/  //Z=11460
+                    z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=11461
+                    z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11462
+                    b1sv_n = b1sv_n*(b1s-1+n);  //Z=11463
+                    fkv[n] = fkv[n-1]*n;  //Z=11464
+                    fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=11465
+                    gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=11466
+                    /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=11467 */
+                    xln[n] = -xln[n-1]*xl2z;  //Z=11468
+                    xrn[n] = -xrn[n-1]*xr2z;  //Z=11469
+                }/*5*/  //Z=11470
 
                 for ( n=0; n<=nmax; n++ )
-                {   /*Z=10970*/
-                    binsum = 0.0;   /*Z=10971*/
-                    /* for m:=0 to n do */   /* Cauchy sum */    /*Z=10972*/
-                    /*       binsum:=binsum+gam3[m]*z12vl[n-m]*z12v[m]*xln[n-m]*xrn[m]/((n-m+1/2)*(n-m+1)*fkv[n-m]*(m+2)*(m+1)*fkv[m]*(m+1)*fkv[m]); */   /*Z=10973*/
-                    CR->carr11pm[n][0] = sqrt(M_PI)/gam3[n];   /*Z=10974, cs=0,ordis=7,dim!=3*/
-                    a1 = sqrt(M_PI)/(2*gam3[n]);   /*Z=10975*/
+                {/*5*/  //Z=11472
+                    binsum = 0.0;  //Z=11473
+                    /* for m:=0 to n do    (* Cauchy sum *)  //Z=11474 */
+                    /*       binsum:=binsum+gam3[m]*z12vl[n-m]*z12v[m]*xln[n-m]*xrn[m]/((n-m+1/2)*(n-m+1)*fkv[n-m]*(m+2)*(m+1)*fkv[m]*(m+1)*fkv[m]);  //Z=11475 */
+                    CR->carr11pm[n][0] = sqrt(M_PI)/gam3[n];  //Z=11476
+                    a1 = sqrt(M_PI)/(2.0*gam3[n]);  //Z=11477
                     for ( m=1; m<=nmax; m++ )
-                    {    /* double sum */   /*Z=10976*/
-                        a1 = a1*(m+1/2.0)/(n+m+1/2.0);   /*Z=10977*/
-                        /* carr11pm[n,m]:=power(4,m+1)*gam3[m]*z12v[m]*xrn[m]/((m+2)*(m+1)*fkv[m]*(m+1)*fkv[m]*gam3[n+m]); */  /* ok */   /*Z=10978*/
-                        CR->carr11pm[n][m] = pow(4.,m+1.)*a1*z12v[m]*xrn[m]/((m+2)*(m+1)*fkv[m]*(m+1)*fkv[m]);       /* Mok */   /*Z=10979, cs=0,ordis=7,dim!=3*/
-                    }   /*Z=10980*/
-                    CR->carr2p[n] = pow(4.,n-1.)*z12vl[n]*xln[n]/((n+1/2.0)*(n+1)*fkv[n]);     /* double sum */   /*Z=10981*/
-                    CR->carr3p[n] = pow(4.,1.0*n)*binsum/gam3[n];      /* Cauchy sum */   /*Z=10982*/
-                }   /*Z=10983*/
+                    {/*6*/    /*  double sum  */  //Z=11478
+                        a1 = a1*(m+1/2.0)/(n+m+1/2.0);  //Z=11479
+                        /* carr11pm[n,m]:=power(4,m+1)*gam3[m]*z12v[m]*xrn[m]/((m+2)*(m+1)*fkv[m]*(m+1)*fkv[m]*gam3[n+m]);   (* ok *)  //Z=11480 */
+                        CR->carr11pm[n][m] = pow(4.0,m+1)*a1*z12v[m]*xrn[m]/((m+2)*(m+1)*fkv[m]*(m+1)*fkv[m]);       /*  Mok  */  //Z=11481
+                    }/*6*/  //Z=11482
+                    CR->carr2p[n] = pow(4.0,n-1)*z12vl[n]*xln[n]/((n+1/2.0)*(n+1)*fkv[n]);     /*  double sum  */  //Z=11483
+                    CR->carr3p[n] = pow(4.0,n)*binsum/gam3[n];      /*  Cauchy sum  */  //Z=11484
+                }/*5*/  //Z=11485
 
-            }   /*Z=10985*/
-            /* large axial ratios */   /*Z=10986*/
+            }/*4*/  //Z=11487
+            /*  large axial ratios  */  //Z=11488
             else
-            {   /*Z=10987*/
+            {/*4*/  //Z=11489
+
                 for ( n=1; n<=nmax; n++ )
-                {   /*Z=10989*/
-                    z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=10990*/
-                    z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=10991*/
-                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=10992*/
-                    fkv[n] = fkv[n-1]*n;   /*Z=10993*/
-                    fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=10994*/
-                    gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=10995*/
-                    /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=10996*/
-                    xln[n] = -xln[n-1]*xl2z;   /*Z=10997*/
-                    xrn[n] = -xrn[n-1]*xr2z;   /*Z=10998*/
-                    /* cylinder, ok*/   /*Z=10999*/
+                {/*5*/  //Z=11491
+                    z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=11492
+                    z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11493
+                    b1sv_n = b1sv_n*(b1s-1+n);  //Z=11494
+                    fkv[n] = fkv[n-1]*n;  //Z=11495
+                    fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=11496
+                    gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=11497
+                    /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=11498 */
+                    xln[n] = -xln[n-1]*xl2z;  //Z=11499
+                    xrn[n] = -xrn[n-1]*xr2z;  //Z=11500
+                    /*  cylinder, ok */  //Z=11501
                     if ( dim==1 )
-                    {   /*Z=11000*/
-                        /* P(q) factorization */   /*Z=11002*/
-                        CR->carr1p[n] = sqrt(M_PI)*pow(4.,1.0*n)*z12vl[n]*xln[n]/(2*(2*n+1)*(n+1)*gam3[n]*fkv[n]);      /* P||iso(q) */   /*Z=11003*/
-                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);   /* P-(q) */   /*Z=11004*/
-                        /* F(q) */   /*Z=11005*/
-                        binsum = 0.0;   /*Z=11006*/
-                        for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=11007*/
-                        CR->carr1f[n] = M_PI*xln[n]*binsum/(4.*(2*n+1));   /*Z=11008*/
-                        binsum = 0.0;   /*Z=11009*/
-                        for ( m=0; m<=n; m++ ) binsum = binsum+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=11010*/
-                        CR->carr4f[n] = xrn[n-1]*binsum;   /*Z=11011*/
-                    }   /*Z=11012*/
-                    /* disk, ok */   /*Z=11013*/
+                    {/*6*/  //Z=11502
+
+                        /*  P(q) factorization  */  //Z=11504
+                        CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(2*n+1)*(n+1)*gam3[n]*fkv[n]);      /*  P||iso(q)  */  //Z=11505
+                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);   /*  P-(q)  */  //Z=11506
+                        /*  F(q)  */  //Z=11507
+                        binsum = 0.0;  //Z=11508
+                        for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11509
+                        CR->carr1f[n] = M_PI*xln[n]*binsum/(4.0*(2*n+1));  //Z=11510
+                        binsum = 0.0;  //Z=11511
+                        for ( m=0; m<=n; m++ ) binsum = binsum+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11512
+                        CR->carr4f[n] = xrn[n]*binsum;  //Z=11513
+                    }/*6*/  //Z=11514
+                    /*  disk, ok  */  //Z=11515
                     if ( dim==2 )
-                    {   /*Z=11014*/
-                        /* P(q) */   /*Z=11015*/
-                        CR->carr1p[n] = 2*pow(4.,1.0*n)*z12vl[n]*xln[n]/((n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);   /*Z=11016*/
-                        CR->carr4p[n] = pow(4.,1.0*n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2*(n+1)*gam3[n]*fkv[n]);   /*Z=11017*/
-                        /* F(q) */   /*Z=11018*/
-                        binsum = 0.0;   /*Z=11019*/
-                        for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=11020*/
-                        CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*binsum/(2*gam3[n]);   /*Z=11021*/
-                        binsum = 0.0;   /*Z=11022*/
-                        for ( m=0; m<=n; m++ ) binsum = binsum+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=11023*/
-                        CR->carr4f[n] = M_PI*xrn[n-1]*binsum/4.0;   /*Z=11024*/
-                    }   /*Z=11025*/
-                }  /* of large axial ratios */   /*Z=11026*/
+                    {/*6*/  //Z=11516
+                        /*  P(q)  */  //Z=11517
+                        CR->carr1p[n] = 2*pow(4.0,n)*z12vl[n]*xln[n]/((n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=11518
+                        CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=11519
+                        /*  F(q)  */  //Z=11520
+                        binsum = 0.0;  //Z=11521
+                        for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=11522
+                        CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*binsum/(2.0*gam3[n]);  //Z=11523
+                        binsum = 0.0;  //Z=11524
+                        for ( m=0; m<=n; m++ ) binsum = binsum+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11525
+                        CR->carr4f[n] = M_PI*xrn[n]*binsum/4.0;  //Z=11526
+                    }/*6*/  //Z=11527
+                }/*5*/  /*  of large axial ratios  */  //Z=11528
 
                 if ( fabs(CR->carr1p[n])<min )
-                {   /*Z=11028*/
-                    if ( n<n1 ) n1 = n;   /*Z=11029*/
-                }   /*Z=11030*/
+                {/*5*/  //Z=11530
+                    if ( n<n1 ) n1 = n;  //Z=11531
+                }/*5*/  //Z=11532
                 if ( fabs(CR->carr2p[n])<min )
-                {   /*Z=11031*/
-                    if ( n<n2 ) n2 = n;   /*Z=11032*/
-                }   /*Z=11033*/
+                {/*5*/  //Z=11533
+                    if ( n<n2 ) n2 = n;  //Z=11534
+                }/*5*/  //Z=11535
                 if ( fabs(CR->carr3p[n])<min )
-                {   /*Z=11034*/
-                    if ( n<n3 ) n3 = n;   /*Z=11035*/
-                }   /*Z=11036*/
+                {/*5*/  //Z=11536
+                    if ( n<n3 ) n3 = n;  //Z=11537
+                }/*5*/  //Z=11538
                 if ( fabs(CR->carr1f[n])<min )
-                    {   /*Z=11037*/
-                    if ( n<n1f ) n1f = n;   /*Z=11038*/
-                }   /*Z=11039*/
+                {/*5*/  //Z=11539
+                    if ( n<n1f ) n1f = n;  //Z=11540
+                }/*5*/  //Z=11541
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z=11040*/
-                    if ( n<n4 ) n4 = n;   /*Z=11041*/
-                }   /*Z=11042*/
+                {/*5*/  //Z=11542
+                    if ( n<n4 ) n4 = n;  //Z=11543
+                }/*5*/  //Z=11544
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z=11043*/
-                    if ( n<n4f ) n4f = n;   /*Z=11044*/
-                }   /*Z=11045*/
-            }   /*Z=11046*/
-        } /* of homogeneous */   /*Z=11047*/
+                {/*5*/  //Z=11545
+                    if ( n<n4f ) n4f = n;  //Z=11546
+                }/*5*/  //Z=11547
+            }/*4*/  //Z=11548
+        }/*3*/ /*  of homogeneous  */  //Z=11549
 
-        /* core/shell */   /*Z=11049*/
+        /*  core/shell  */  //Z=11551
         if ( cs==1 )
-        {   /*Z=11050*/
+        {/*3*/  //Z=11552
             for ( n=1; n<=nmax; n++ )
-            {   /*Z=11051*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=11052*/
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=11053*/
-                //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=11054*/
-                fkv[n] = fkv[n-1]*n;   /*Z=11055*/
-                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=11056*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=11057*/
-                /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=11058*/
-                xln[n] = -xln[n-1]*xl2z;   /*Z=11059*/
-                xrn[n] = -xrn[n-1]*xr2z;   /*Z=11060*/
-                xrmn_n = -xrmn_n*xrm2z;   /*Z=11061*/
-                pn[n] = pn[n-1]*p*p;   /*Z=11062*/
-                /*** cylinder ***/   /*Z=11063*/
+            {/*4*/  //Z=11553
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=11554
+                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11555
+                b1sv_n = b1sv_n*(b1s-1+n);  //Z=11556
+                fkv[n] = fkv[n-1]*n;  //Z=11557
+                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=11558
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=11559
+                /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=11560 */
+                xln[n] = -xln[n-1]*xl2z;  //Z=11561
+                xrn[n] = -xrn[n-1]*xr2z;  //Z=11562
+                xrmn_n = -xrmn_n*xrm2z;  //Z=11563
+                pn[n] = pn[n-1]*p*p;  //Z=11564
+                /* ** cylinder ** */  //Z=11565
                 if ( dim==1 )
-                {   /*Z=11064*/
-                    /* longitudinal P(q) */   /*Z=11065*/
-                    CR->carr1p[n] = sqrt(M_PI)*pow(4.,1.0*n)*z12vl[n]*xln[n]/(2*(2*n+1)*(n+1)*gam3[n]*fkv[n]);   /*Z=11066*/
-                    /* cross-sectional P(q) */   /*Z=11067*/
-                    /* F121 */   /*Z=11068*/
-                    CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);   /*Z=11069*/
-                    /* F122 */   /*Z=11070*/
-                    sump = 0.0;   /*Z=11071*/
+                {/*5*/  //Z=11566
+                    /*  longitudinal P(q)  */  //Z=11567
+                    CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(2*n+1)*(n+1)*gam3[n]*fkv[n]);  //Z=11568
+                    /*  cross-sectional P(q)  */  //Z=11569
+                    /*  F121  */  //Z=11570
+                    CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=11571
+                    /*  F122  */  //Z=11572
+                    sump = 0.0;  //Z=11573
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11072*/
-                        sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=11073*/
-                    }   /*Z=11074*/
-                    CR->carr5p[n] = z12v[n]*xrmn_n*sump;   /*Z=11075*/
-                    /* F123 */   /*Z=11076*/
-                    CR->carr6p[n] = CR->carr4p[n]/pn[n];   /*Z=11077*/
+                    {/*6*/  //Z=11574
+                        sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11575
+                    }/*6*/  //Z=11576
+                    CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=11577
+                    /*  F123  */  //Z=11578
+                    CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=11579
 
-                    /* longitudinal F(q) */   /*Z=11079*/
-                    binsum = 0.0;   /*Z=11080*/
-                    for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=11081*/
-                    CR->carr1f[n] = M_PI*xln[n]*binsum/(4.*(2*n+1));   /*Z=11082*/
-                    /* cross-sectional F(q) */   /*Z=11083*/
-                    /* F121 */   /*Z=11084*/
-                    sump = 0.0;   /*Z=11085*/
+                    /*  longitudinal F(q)  */  //Z=11581
+                    binsum = 0.0;  //Z=11582
+                    for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11583
+                    CR->carr1f[n] = M_PI*xln[n]*binsum/(4.0*(2*n+1));  //Z=11584
+                    /*  cross-sectional F(q)  */  //Z=11585
+                    /*  F121  */  //Z=11586
+                    sump = 0.0;  //Z=11587
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11086*/
-                        sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=11087*/
-                    }   /*Z=11088*/
-                    CR->carr4f[n] = xrn[n-1]*sump;   /*Z=11089*/
-                    /* F122 */   /*Z=11090*/
-                    sump = 0.0;   /*Z=11091*/
+                    {/*6*/  //Z=11588
+                        sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11589
+                    }/*6*/  //Z=11590
+                    CR->carr4f[n] = xrn[n]*sump;  //Z=11591
+                    /*  F122  */  //Z=11592
+                    sump = 0.0;  //Z=11593
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11092*/
-                        sump = sump+z12v[m]*z12v[n-m]*pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=11093*/
-                    }   /*Z=11094*/
-                    CR->carr5f[n] = xrmn_n*sump;   /*Z=11095*/
-                    /* F123 */   /*Z=11096*/
-                    CR->carr6f[n] = CR->carr4f[n]/pn[n];   /*Z=11097*/
-                }   /*Z=11098*/
+                    {/*6*/  //Z=11594
+                        sump = sump+z12v[m]*z12v[n-m]*pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11595
+                    }/*6*/  //Z=11596
+                    CR->carr5f[n] = xrmn_n*sump;  //Z=11597
+                    /*  F123  */  //Z=11598
+                    CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=11599
+                }/*5*/  //Z=11600
 
-                /*** disk ***/   /*Z=11100*/
+                /* ** disk ** */  //Z=11602
                 if ( dim==2 )
-                {   /*Z=11101*/
-                    /* longitudinal */   /*Z=11102*/
-                    CR->carr1p[n] = 2*pow(4.,1.0*n)*z12vl[n]*xln[n]/((n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);   /*Z=11103*/
-                    /* cross-sectional P(q) */   /*Z=11104*/
-                    /* F121 */   /*Z=11105*/
-                    CR->carr4p[n] = pow(4.,1.0*n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2*(n+1)*gam3[n]*fkv[n]);   /*Z=11106*/
-                    /* F122 */   /*Z=11107*/
-                    sump = 0.0;   /*Z=11108*/
+                {/*5*/  //Z=11603
+                    /*  longitudinal  */  //Z=11604
+                    CR->carr1p[n] = 2*pow(4.0,n)*z12vl[n]*xln[n]/((n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=11605
+                    /*  cross-sectional P(q)  */  //Z=11606
+                    /*  F121  */  //Z=11607
+                    CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=11608
+                    /*  F122  */  //Z=11609
+                    sump = 0.0;  //Z=11610
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11109*/
-                        sump = sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=11110*/
-                    }   /*Z=11111*/
-                    CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;   /*Z=11112*/
-                    /* F123 */   /*Z=11113*/
-                    CR->carr6p[n] = CR->carr4p[n]/pn[n];   /*Z=11114*/
+                    {/*6*/  //Z=11611
+                        sump = sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11612
+                    }/*6*/  //Z=11613
+                    CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=11614
+                    /*  F123  */  //Z=11615
+                    CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=11616
 
-                    /* longitudinal F(q) */   /*Z=11116*/
-                    binsum = 0.0;   /*Z=11117*/
-                    for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=11118*/
-                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*binsum/(2*gam3[n]);   /*Z=11119*/
-                    /* cross-sectional F(q) */   /*Z=11120*/
-                    /* F121 */   /*Z=11121*/
-                    sump = 0.0;   /*Z=11122*/
+                    /*  longitudinal F(q)  */  //Z=11618
+                    binsum = 0.0;  //Z=11619
+                    for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=11620
+                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*binsum/(2.0*gam3[n]);  //Z=11621
+                    /*  cross-sectional F(q)  */  //Z=11622
+                    /*  F121  */  //Z=11623
+                    sump = 0.0;  //Z=11624
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11123*/
-                        sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=11124*/
-                    }   /*Z=11125*/
-                    CR->carr4f[n] = M_PI*xrn[n-1]*sump/4.0;   /*Z=11126*/
-                    /* F122 */   /*Z=11127*/
-                    sump = 0.0;   /*Z=11128*/
+                    {/*6*/  //Z=11625
+                        sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11626
+                    }/*6*/  //Z=11627
+                    CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=11628
+                    /*  F122  */  //Z=11629
+                    sump = 0.0;  //Z=11630
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11129*/
-                        sump = sump+pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=11130*/
-                    }   /*Z=11131*/
-                    CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;   /*Z=11132*/
-                    /* F123 */   /*Z=11133*/
-                    CR->carr6f[n] = CR->carr4f[n]/pn[n];   /*Z=11134*/
-                }   /*Z=11135*/
+                    {/*6*/  //Z=11631
+                        sump = sump+pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11632
+                    }/*6*/  //Z=11633
+                    CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=11634
+                    /*  F123  */  //Z=11635
+                    CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=11636
+                }/*5*/  //Z=11637
                 if ( fabs(CR->carr1p[n])<min )
-                {   /*Z=11136*/
-                    if ( n<n1 ) n1 = n;   /*Z=11137*/
-                }   /*Z=11138*/
+                {/*5*/  //Z=11638
+                    if ( n<n1 ) n1 = n;  //Z=11639
+                }/*5*/  //Z=11640
                 if ( fabs(CR->carr3p[n])<min )
-                {   /*Z=11139*/
-                    if ( n<n3 ) n3 = n;   /*Z=11140*/
-                }   /*Z=11141*/
+                {/*5*/  //Z=11641
+                    if ( n<n3 ) n3 = n;  //Z=11642
+                }/*5*/  //Z=11643
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z=11142*/
-                    if ( n<n4 ) n4 = n;   /*Z=11143*/
-                }   /*Z=11144*/
+                {/*5*/  //Z=11644
+                    if ( n<n4 ) n4 = n;  //Z=11645
+                }/*5*/  //Z=11646
                 if ( fabs(CR->carr5p[n])<min )
-                {   /*Z=11145*/
-                    if ( n<n5 ) n5 = n;   /*Z=11146*/
-                }   /*Z=11147*/
+                {/*5*/  //Z=11647
+                    if ( n<n5 ) n5 = n;  //Z=11648
+                }/*5*/  //Z=11649
                 if ( fabs(CR->carr6p[n])<min )
-                {   /*Z=11148*/
-                    if ( n<n6 ) n6 = n;   /*Z=11149*/
-                }   /*Z=11150*/
+                {/*5*/  //Z=11650
+                    if ( n<n6 ) n6 = n;  //Z=11651
+                }/*5*/  //Z=11652
                 if ( fabs(CR->carr1f[n])<min )
-                {   /*Z=11151*/
-                    if ( n<n1f ) n1f = n;   /*Z=11152*/
-                }   /*Z=11153*/
+                {/*5*/  //Z=11653
+                    if ( n<n1f ) n1f = n;  //Z=11654
+                }/*5*/  //Z=11655
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z=11154*/
-                    if ( n<n4f ) n4f = n;   /*Z=11155*/
-                }   /*Z=11156*/
+                {/*5*/  //Z=11656
+                    if ( n<n4f ) n4f = n;  //Z=11657
+                }/*5*/  //Z=11658
                 if ( fabs(CR->carr5f[n])<min )
-                {   /*Z=11157*/
-                    if ( n<n5f ) n5f = n;   /*Z=11158*/
-                }   /*Z=11159*/
+                {/*5*/  //Z=11659
+                    if ( n<n5f ) n5f = n;  //Z=11660
+                }/*5*/  //Z=11661
                 if ( fabs(CR->carr6f[n])<min )
-                {   /*Z=11160*/
-                    if ( n<n6f ) n6f = n;   /*Z=11161*/
-                }   /*Z=11162*/
-            }   /*Z=11163*/
-        } /* of core/shell */   /*Z=11164*/
+                {/*5*/  //Z=11662
+                    if ( n<n6f ) n6f = n;  //Z=11663
+                }/*5*/  //Z=11664
+            }/*4*/  //Z=11665
+        }/*3*/ /*  of core/shell  */  //Z=11666
 
-        /* inhomogeneous core/shell */   /*Z=11166*/
+        /*  inhomogeneous core/shell  */  //Z=11668
         if ( cs==2 )
-        {   /*Z=11167*/
+        {/*3*/  //Z=11669
             for ( n=1; n<=nmax; n++ )
-            {   /*Z=11168*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=11169*/
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=11170*/
-                //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=11171*/
-                fkv[n] = fkv[n-1]*n;   /*Z=11172*/
-                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=11173*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=11174*/
-                /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=11175*/
-                xln[n] = -xln[n-1]*xl2z;   /*Z=11176*/
-                xrn[n] = -xrn[n-1]*xr2z;   /*Z=11177*/
-                xrmn_n = -xrmn_n*xrm2z;   /*Z=11178*/
-                pn[n] = pn[n-1]*p*p;   /*Z=11179*/
-                /*** cylinder ***/   /*Z=11180*/
+            {/*4*/  //Z=11670
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=11671
+                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11672
+                b1sv_n = b1sv_n*(b1s-1+n);  //Z=11673
+                fkv[n] = fkv[n-1]*n;  //Z=11674
+                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=11675
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=11676
+                /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=11677 */
+                xln[n] = -xln[n-1]*xl2z;  //Z=11678
+                xrn[n] = -xrn[n-1]*xr2z;  //Z=11679
+                xrmn_n = -xrmn_n*xrm2z;  //Z=11680
+                pn[n] = pn[n-1]*p*p;  //Z=11681
+                /* ** cylinder ** */  //Z=11682
                 if ( dim==1 )
-                {   /*Z=11181*/
-                    /* longitudinal P(q) */   /*Z=11182*/
-                    CR->carr1p[n] = sqrt(M_PI)*pow(4.,1.0*n)*z12vl[n]*xln[n]/(2*(2*n+1)*(n+1)*gam3[n]*fkv[n]);   /*Z=11183*/
+                {/*5*/  //Z=11683
+                    /*  longitudinal P(q)  */  //Z=11684
+                    CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(2*n+1)*(n+1)*gam3[n]*fkv[n]);  //Z=11685
 
-                    /* cross-sectional P(q) */   /*Z=11185*/
-                    CR->carr4p[n] = pow(4.,n+1.)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);   /*Z=11186*/
-                    sump = 0.0;   /*Z=11187*/
-                    sump1 = 0.0;   /*Z=11188*/
+                    /*  cross-sectional P(q)  */  //Z=11687
+                    CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=11688
+                    sump = 0.0;  //Z=11689
+                    sump1 = 0.0;  //Z=11690
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11189*/
-                        sumi = 1/((m+1-alfa/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);   /*Z=11190*/
-                        sump = sump+pn[n-m]*sumi;   /*Z=11191*/
-                        sump1 = sump1+sumi;   /*Z=11192*/
-                    }   /*Z=11193*/
-                    CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;   /*Z=11194*/
-                    CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n-1]*sump1;   /*Z=11195*/
-                    sump = 0.0;   /*Z=11196*/
-                    sump1 = 0.0;   /*Z=11197*/
+                    {/*6*/  //Z=11691
+                        sumi = 1/((m+1-alfa/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=11692
+                        sump = sump+pn[n-m]*sumi;  //Z=11693
+                        sump1 = sump1+sumi;  //Z=11694
+                    }/*6*/  //Z=11695
+                    CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;  //Z=11696
+                    CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n]*sump1;  //Z=11697
+                    sump = 0.0;  //Z=11698
+                    sump1 = 0.0;  //Z=11699
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11198*/
-                        sumi = 1/((n-m+1-alfa/2.0)*(m+1-alfa/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);   /*Z=11199*/
-                        sump = sump+sumi;   /*Z=11200*/
-                        sump1 = sump1+pn[n-m]*sumi;   /*Z=11201*/
-                    }   /*Z=11202*/
-                    CR->carr7p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump;   /*Z=11203*/
-                    CR->carr8p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump1;   /*Z=11204*/
-                    CR->carr9p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrn[n-1]*sump;   /*Z=11205*/
+                    {/*6*/  //Z=11700
+                        sumi = 1/((n-m+1-alfa/2.0)*(m+1-alfa/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=11701
+                        sump = sump+sumi;  //Z=11702
+                        sump1 = sump1+pn[n-m]*sumi;  //Z=11703
+                    }/*6*/  //Z=11704
+                    CR->carr7p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump;  //Z=11705
+                    CR->carr8p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump1;  //Z=11706
+                    CR->carr9p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrn[n]*sump;  //Z=11707
 
-                    /* longitudinal F(q) */   /*Z=11220*/
-                    binsum = 0.0;   /*Z=11221*/
-                    for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=11222*/
-                    CR->carr1f[n] = M_PI*xln[n]*binsum/(4.*(2*n+1));   /*Z=11223*/
-                    /* cross-sectional F(q) */   /*Z=11224*/
-                    CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);   /*Z=11225*/
-                    CR->carr5f[n] = (1-alfa/2.0)*z12v[n]*xrmn_n/((n+1-alfa/2.0)*fkv[n]*fkv[n]);   /*Z=11226*/
-                    CR->carr6f[n] = (1-alfa/2.0)*z12v[n]*xrn[n]/((n+1-alfa/2.0)*fkv[n]*fkv[n]);   /*Z=11227*/
-                }   /*Z=11229*/
 
-                /*** disk ***/   /*Z=11231*/
+                    /* (* cross-sectional P(q) *)  //Z=11710
+                       (* F121 *)  //Z=11711
+                       carr4p[n]:=4*(n+1/2)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=11712
+                       (* F122 *)  //Z=11713
+                       sump:=0.0;  //Z=11714
+                          for m:=0 to n do begin  //Z=11715
+                          sump:=sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11716
+                       end;  //Z=11717
+                       carr5p[n]:=z12v[n]*xrmn[n]*sump;  //Z=11718
+                       (* F123 *)  //Z=11719
+                       carr6p[n]:=carr4p[n]/pn[n];  */  //Z=11720
+
+                    /*  longitudinal F(q)  */  //Z=11722
+                    binsum = 0.0;  //Z=11723
+                    for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11724
+                    CR->carr1f[n] = M_PI*xln[n]*binsum/(4.0*(2*n+1));  //Z=11725
+                    /*  cross-sectional F(q)  */  //Z=11726
+                    CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);  //Z=11727
+                    CR->carr5f[n] = (1-alfa/2.0)*z12v[n]*xrmn_n/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=11728
+                    CR->carr6f[n] = (1-alfa/2.0)*z12v[n]*xrn[n]/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=11729
+
+                }/*5*/  //Z=11731
+
+                /* ** disk ** */  //Z=11733
                 if ( dim==2 )
-                {   /*Z=11232*/
-                    /* longitudinal */   /*Z=11233*/
-                    CR->carr1p[n] = 2*pow(4.,1.0*n)*z12vl[n]*xln[n]/((n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);   /*Z=11234*/
+                {/*5*/  //Z=11734
+                    /*  longitudinal  */  //Z=11735
+                    CR->carr1p[n] = 2*pow(4.0,n)*z12vl[n]*xln[n]/((n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=11736
 
-                    /* cross-sectional P(q) */   /*Z=11237*/
-                    CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.,1.0*n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);   /*Z=11238*/
-                    sump = 0.0;   /*Z=11239*/
-                    sump1 = 0.0;   /*Z=11240*/
+
+                    /*  cross-sectional P(q)  */  //Z=11739
+                    CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);  //Z=11740
+                    sump = 0.0;  //Z=11741
+                    sump1 = 0.0;  //Z=11742
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11241*/
-                        sumi = (m+1/2.0)/((m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);   /*Z=11242*/
-                        sump = sump+pn[n-m]*sumi;   /*Z=11243*/
-                        sump1 = sump1+sumi;   /*Z=11244*/
-                    }   /*Z=11245*/
-                    CR->carr5p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrmn_n*sump;   /*Z=11246*/
-                    CR->carr6p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrn[n-1]*sump1;   /*Z=11247*/
-                    sump = 0.0;   /*Z=11248*/
-                    sump1 = 0.0;   /*Z=11249*/
+                    {/*6*/  //Z=11743
+                        sumi = (m+1/2.0)/((m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=11744
+                        sump = sump+pn[n-m]*sumi;  //Z=11745
+                        sump1 = sump1+sumi;  //Z=11746
+                    }/*6*/  //Z=11747
+                    CR->carr5p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=11748
+                    CR->carr6p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrn[n]*sump1;  //Z=11749
+                    sump = 0.0;  //Z=11750
+                    sump1 = 0.0;  //Z=11751
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11250*/
-                        sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-alfa/2.0)*(m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);   /*Z=11251*/
-                        sump = sump+sumi;   /*Z=11252*/
-                        sump1 = sump1+pn[n-m]*sumi;   /*Z=11253*/
-                    }   /*Z=11254*/
-                    CR->carr7p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump;   /*Z=11255*/
-                    CR->carr8p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump1;   /*Z=11256*/
-                    CR->carr9p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrn[n-1]*sump;   /*Z=11257*/
+                    {/*6*/  //Z=11752
+                        sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-alfa/2.0)*(m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=11753
+                        sump = sump+sumi;  //Z=11754
+                        sump1 = sump1+pn[n-m]*sumi;  //Z=11755
+                    }/*6*/  //Z=11756
+                    CR->carr7p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=11757
+                    CR->carr8p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump1;  //Z=11758
+                    CR->carr9p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrn[n]*sump;  //Z=11759
 
-                    /* cross-sectional P(q) */   /*Z=11260*/
 
-                    /* longitudinal F(q) */   /*Z=11272*/
-                    binsum = 0.0;   /*Z=11273*/
-                    for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=11274*/
-                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*binsum/(2*gam3[n]);   /*Z=11275*/
-                    /* cross-sectional F(q) */   /*Z=11276*/
-                    CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);   /*Z=11277*/
-                    CR->carr5f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);   /*Z=11278*/
-                    CR->carr6f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrn[n-1]*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);   /*Z=11279*/
-                }   /*Z=11280*/
+                    /*  cross-sectional P(q)  */  //Z=11762
+                    /* (* F121 *)  //Z=11763
+                       carr4p[n]:=power(4,n)*sqrt(pi)*z12v[n]*xrn[n]/(2*(n+1)*gam3[n]*fkv[n]);  //Z=11764
+                       (* F122 *)  //Z=11765
+                       sump:=0.0;  //Z=11766
+                          for m:=0 to n do begin  //Z=11767
+                          sump:=sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11768
+                       end;  //Z=11769
+                       carr5p[n]:=pi*z12v[n]*xrmn[n]*sump/4;  //Z=11770
+                       (* F123 *)  //Z=11771
+                       carr6p[n]:=carr4p[n]/pn[n];   */  //Z=11772
+
+                    /*  longitudinal F(q)  */  //Z=11774
+                    binsum = 0.0;  //Z=11775
+                    for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=11776
+                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*binsum/(2.0*gam3[n]);  //Z=11777
+                    /*  cross-sectional F(q)  */  //Z=11778
+                    CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);  //Z=11779
+                    CR->carr5f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=11780
+                    CR->carr6f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrn[n]*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=11781
+                }/*5*/  //Z=11782
                 if ( fabs(CR->carr1p[n])<min )
-                {   /*Z=11281*/
-                    if ( n<n1 ) n1 = n;   /*Z=11282*/
-                }   /*Z=11283*/
+                {/*5*/  //Z=11783
+                    if ( n<n1 ) n1 = n;  //Z=11784
+                }/*5*/  //Z=11785
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z=11284*/
-                    if ( n<n4 ) n4 = n;   /*Z=11285*/
-                }   /*Z=11286*/
+                {/*5*/  //Z=11786
+                    if ( n<n4 ) n4 = n;  //Z=11787
+                }/*5*/  //Z=11788
                 if ( fabs(CR->carr5p[n])<min )
-                {   /*Z=11287*/
-                    if ( n<n5 ) n5 = n;   /*Z=11288*/
-                }   /*Z=11289*/
+                {/*5*/  //Z=11789
+                    if ( n<n5 ) n5 = n;  //Z=11790
+                }/*5*/  //Z=11791
                 if ( fabs(CR->carr6p[n])<min )
-                {   /*Z=11290*/
-                    if ( n<n6 ) n6 = n;   /*Z=11291*/
-                }   /*Z=11292*/
+                {/*5*/  //Z=11792
+                    if ( n<n6 ) n6 = n;  //Z=11793
+                }/*5*/  //Z=11794
                 if ( fabs(CR->carr7p[n])<min )
-                {   /*Z=11293*/
-                    if ( n<n7 ) n7 = n;   /*Z=11294*/
-                }   /*Z=11295*/
+                {/*5*/  //Z=11795
+                    if ( n<n7 ) n7 = n;  //Z=11796
+                }/*5*/  //Z=11797
                 if ( fabs(CR->carr8p[n])<min )
-                {   /*Z=11296*/
-                    if ( n<n8 ) n8 = n;   /*Z=11297*/
-                }   /*Z=11298*/
+                {/*5*/  //Z=11798
+                    if ( n<n8 ) n8 = n;  //Z=11799
+                }/*5*/  //Z=11800
                 if ( fabs(CR->carr9p[n])<min )
-                {   /*Z=11299*/
-                    if ( n<n9 ) n9 = n;   /*Z=11300*/
-                }   /*Z=11301*/
+                {/*5*/  //Z=11801
+                    if ( n<n9 ) n9 = n;  //Z=11802
+                }/*5*/  //Z=11803
                 if ( fabs(CR->carr1f[n])<min )
-                {   /*Z=11302*/
-                    if ( n<n1f ) n1f = n;   /*Z=11303*/
-                }   /*Z=11304*/
+                {/*5*/  //Z=11804
+                    if ( n<n1f ) n1f = n;  //Z=11805
+                }/*5*/  //Z=11806
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z=11305*/
-                    if ( n<n4f ) n4f = n;   /*Z=11306*/
-                }   /*Z=11307*/
+                {/*5*/  //Z=11807
+                    if ( n<n4f ) n4f = n;  //Z=11808
+                }/*5*/  //Z=11809
                 if ( fabs(CR->carr5f[n])<min )
-                {   /*Z=11308*/
-                    if ( n<n5f ) n5f = n;   /*Z=11309*/
-                }   /*Z=11310*/
+                {/*5*/  //Z=11810
+                    if ( n<n5f ) n5f = n;  //Z=11811
+                }/*5*/  //Z=11812
                 if ( fabs(CR->carr6f[n])<min )
-                {   /*Z=11311*/
-                    if ( n<n6f ) n6f = n;   /*Z=11312*/
-                }   /*Z=11313*/
+                {/*5*/  //Z=11813
+                    if ( n<n6f ) n6f = n;  //Z=11814
+                }/*5*/  //Z=11815
                 if ( fabs(CR->carr7f[n])<min )
-                {   /*Z=11314*/
-                    if ( n<n7f ) n7f = n;   /*Z=11315*/
-                }   /*Z=11316*/
+                {/*5*/  //Z=11816
+                    if ( n<n7f ) n7f = n;  //Z=11817
+                }/*5*/  //Z=11818
                 if ( fabs(CR->carr8f[n])<min )
-                {   /*Z=11317*/
-                    if ( n<n8f ) n8f = n;   /*Z=11318*/
-                }   /*Z=11319*/
+                {/*5*/  //Z=11819
+                    if ( n<n8f ) n8f = n;  //Z=11820
+                }/*5*/  //Z=11821
                 if ( fabs(CR->carr9f[n])<min )
-                {   /*Z=11320*/
-                    if ( n<n9f ) n9f = n;   /*Z=11321*/
-                }   /*Z=11322*/
-            }   /*Z=11323*/
-        } /* of inhomogeneous core/shell */   /*Z=11324*/
+                {/*5*/  //Z=11822
+                    if ( n<n9f ) n9f = n;  //Z=11823
+                }/*5*/  //Z=11824
+            }/*4*/  //Z=11825
+        }/*3*/ /*  of inhomogeneous core/shell  */  //Z=11826
 
-        /* myelin */   /*Z=11327*/
+
+        /*  myelin  */  //Z=11829
         if ( (cs==3) || (cs==4) )
-        {   /*Z=11328*/
-            i = 2;   /*Z=11329*/
+        {/*3*/  //Z=11830
+            i = 2;  //Z=11831
             for ( n=1; n<=nmax; n++ )
-            {   /*Z=11330*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=11331*/
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=11332*/
-                //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=11333*/
-                fkv[n] = fkv[n-1]*n;   /*Z=11334*/
-                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=11335*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=11336*/
-                /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=11337*/
-                xln[n] = -xln[n-1]*xl2z;   /*Z=11338*/
-                /* xrn[n]:=-xrn[n-1]*xr2z; */   /*Z=11339*/
-                xrn[n] = -xrn[n-1]*x12zm;         /* myelin radius */   /*Z=11340*/
-                /* cylinder, ok*/   /*Z=11341*/
+            {/*4*/  //Z=11832
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=11833
+                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11834
+                b1sv_n = b1sv_n*(b1s-1+n);  //Z=11835
+                fkv[n] = fkv[n-1]*n;  //Z=11836
+                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=11837
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=11838
+                /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=11839 */
+                xln[n] = -xln[n-1]*xl2z;  //Z=11840
+                /* xrn[n]:=-xrn[n-1]*xr2z;  //Z=11841 */
+                xrn[n] = -xrn[n-1]*x12zm;         /*  myelin radius  */  //Z=11842
+                /*  cylinder, ok */  //Z=11843
                 if ( dim==1 )
-                {   /*Z=11342*/
-                    /* P(q) */   /*Z=11343*/
-                    CR->carr1p[n] = sqrt(M_PI)*pow(4.,1.0*n)*z12vl[n]*xln[n]/(2*(2*n+1)*(n+1)*gam3[n]*fkv[n]);   /*Z=11344*/
-                    /*Z=11345*/
-                    for ( m=0; m<=n; m++ )
-                    {   /*Z=11346*/
-                        /* carr1pm[i]:=1/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]); */   /*Z=11347*/
-                        /* i:=i+1; */   /*Z=11348*/
-                        CR->carr11pm[n][m] = 1/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=11349, dim=1,cs=3|4,ordis=7*/
-                    }   /*Z=11350*/
-                    CR->carr4p[n] = z12v[n]*xrn[n];   /*Z=11351*/
-                    /* carr4p[n]:=4*(n+1/2)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]); */   /*Z=11352*/
+                {/*5*/  //Z=11844
+                    /*  P(q)  */  //Z=11845
+                    CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(2*n+1)*(n+1)*gam3[n]*fkv[n]);  //Z=11846
 
-                    /* F(q) */   /*Z=11355*/
-                    binsum = 0.0;   /*Z=11356*/
-                    for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=11357*/
-                    CR->carr1f[n] = M_PI*xln[n]*binsum/(4*(2*n+1));   /*Z=11358*/
-                    binsum = 0.0;   /*Z=11359*/
-                    for ( m=0; m<=n; m++ ) binsum = binsum+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=11360*/
-                    CR->carr4f[n] = xrn[n-1]*binsum;   /*Z=11361*/
-                }   /*Z=11362*/
-                /* disk, ok */   /*Z=11363*/
+                    for ( m=0; m<=n; m++ )
+                    {/*6*/  //Z=11848
+                        /* carr1pm[i]:=1/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11849 */
+                        /* i:=i+1;  //Z=11850 */
+                        CR->carr11pm[n][m] = 1/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11851
+                    }/*6*/  //Z=11852
+                    CR->carr4p[n] = z12v[n]*xrn[n];  //Z=11853
+                    /* carr4p[n]:=4*(n+1/2)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=11854 */
+
+
+                    /*  F(q)  */  //Z=11857
+                    binsum = 0.0;  //Z=11858
+                    for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11859
+                    CR->carr1f[n] = M_PI*xln[n]*binsum/(4.0*(2*n+1));  //Z=11860
+                    binsum = 0.0;  //Z=11861
+                    for ( m=0; m<=n; m++ ) binsum = binsum+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11862
+                    CR->carr4f[n] = xrn[n]*binsum;  //Z=11863
+                }/*5*/  //Z=11864
+                /*  disk, ok  */  //Z=11865
                 if ( dim==2 )
-                {   /*Z=11364*/
-                    /* P(q) */   /*Z=11365*/
-                    CR->carr1p[n] = 2*pow(4.,1.0*n)*z12vl[n]*xln[n]/((n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);   /*Z=11366*/
+                {/*5*/  //Z=11866
+                    /*  P(q)  */  //Z=11867
+                    CR->carr1p[n] = 2*pow(4.0,n)*z12vl[n]*xln[n]/((n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=11868
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11367*/
-                        /* carr1pm[i]:=1/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]); */   /*Z=11368*/
-                        /* i:=i+1; */   /*Z=11369*/
-                        CR->carr11pm[n][m] = (M_PI/4.0)*(1/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]));   /*Z=11370, dim=2,cs=3|4,ordis=7*/
-                    }   /*Z=11371*/
-                    CR->carr4p[n] = z12v[n]*xrn[n];   /*Z=11372*/
+                    {/*6*/  //Z=11869
+                        /* carr1pm[i]:=1/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11870 */
+                        /* i:=i+1;  //Z=11871 */
+                        CR->carr11pm[n][m] = (M_PI/4.0)*(1/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]));  //Z=11872
+                    }/*6*/  //Z=11873
+                    CR->carr4p[n] = z12v[n]*xrn[n];  //Z=11874
 
-                    /* carr4p[n]:=power(4,n)*sqrt(pi)*z12v[n]*xrn[n]/(2*(n+1)*gam3[n]*fkv[n]); */   /*Z=11374*/
-                    /* F(q) */   /*Z=11375*/
-                    binsum = 0.0;   /*Z=11376*/
-                    for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=11377*/
-                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*binsum/(2*gam3[n]);   /*Z=11378*/
-                    binsum = 0.0;   /*Z=11379*/
-                    for ( m=0; m<=n; m++ ) binsum = binsum+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=11380*/
-                    CR->carr4f[n] = M_PI*xrn[n-1]*binsum/4.0;   /*Z=11381*/
-                }   /*Z=11382*/
+                    /* carr4p[n]:=power(4,n)*sqrt(pi)*z12v[n]*xrn[n]/(2*(n+1)*gam3[n]*fkv[n]);  //Z=11876 */
+                    /*  F(q)  */  //Z=11877
+                    binsum = 0.0;  //Z=11878
+                    for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=11879
+                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*binsum/(2.0*gam3[n]);  //Z=11880
+                    binsum = 0.0;  //Z=11881
+                    for ( m=0; m<=n; m++ ) binsum = binsum+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11882
+                    CR->carr4f[n] = M_PI*xrn[n]*binsum/4.0;  //Z=11883
+                }/*5*/  //Z=11884
                 if ( fabs(CR->carr1p[n])<min )
-                {   /*Z=11383*/
-                    if ( n<n1 ) n1 = n;   /*Z=11384*/
-                }   /*Z=11385*/
+                {/*5*/  //Z=11885
+                    if ( n<n1 ) n1 = n;  //Z=11886
+                }/*5*/  //Z=11887
                 if ( fabs(CR->carr1f[n])<min )
-                {   /*Z=11386*/
-                    if ( n<n1f ) n1f = n;   /*Z=11387*/
-                }   /*Z=11388*/
+                {/*5*/  //Z=11888
+                    if ( n<n1f ) n1f = n;  //Z=11889
+                }/*5*/  //Z=11890
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z=11389*/
-                    if ( n<n4 ) n4 = n;   /*Z=11390*/
-                }   /*Z=11391*/
+                {/*5*/  //Z=11891
+                    if ( n<n4 ) n4 = n;  //Z=11892
+                }/*5*/  //Z=11893
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z=11392*/
-                    if ( n<n4f ) n4f = n;   /*Z=11393*/
-                }   /*Z=11394*/
-            }   /*Z=11395*/
-        } /* of myelin */   /*Z=11396*/
-    }   /*Z=11398*/
+                {/*5*/  //Z=11894
+                    if ( n<n4f ) n4f = n;  //Z=11895
+                }/*5*/  //Z=11896
+            }/*4*/  //Z=11897
+        }/*3*/ /*  of myelin  */  //Z=11898
 
-    /*** perfect orientation for cylinders and disks ***/  /*Z=11400*/
+    }/*2*/  //Z=11900
+
+
+    /* ** perfect orientation for cylinders and disks ** */  //Z=11902
     if ( (ordis==6) && (dim!=3) )
-    {
-        norm = 1;   /*Z=11402*/
-        order = 1;   /*Z=11403*/
-        /* homogeneous */   /*Z=11404*/
+    {/*2*/  //Z=11903
+        norm = 1;  //Z=11904
+        order = 1;  //Z=11905
+        /*  homogeneous  */  //Z=11906
         if ( cs==0 )
-        {   /*Z=11405*/
+        {/*3*/  //Z=11907
             for ( n=1; n<=nmax; n++ )
-            {   /*Z=11406*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=11407*/
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=11408*/
-                //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=11409*/
-                fkv[n] = fkv[n-1]*n;   /*Z=11410*/
-                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=11411*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=11412*/
-                /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=11413*/
-                xln[n] = -xln[n-1]*xl2z;   /*Z=11414*/
-                xrn[n] = -xrn[n-1]*xr2z;   /*Z=11415*/
+            {/*4*/  //Z=11908
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=11909
+                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11910
+                b1sv_n = b1sv_n*(b1s-1+n);  //Z=11911
+                fkv[n] = fkv[n-1]*n;  //Z=11912
+                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=11913
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=11914
+                /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=11915 */
+                xln[n] = -xln[n-1]*xl2z;  //Z=11916
+                xrn[n] = -xrn[n-1]*xr2z;  //Z=11917
                 if ( dim==1 )
-                { /* cylinder */   /*Z=11416*/
-                    /* P(q)-coefficients */   /*Z=11417*/
-                    CR->carr1p[n] = sqrt(M_PI)*pow(4.,1.0*n)*z12vl[n]*xln[n]/(2*(n+1)*gam3[n]*fkv[n]);       /* P||(q) */   /*Z=11418*/
-                    CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  /* P-(q) */   /*Z=11419*/
-                    /* F(q)-coefficients */   /*Z=11420*/
-                    sump = 0.0;   /*Z=11421*/
+                {/*5*/ /*  cylinder  */  //Z=11918
+                    /*  P(q)-coefficients  */  //Z=11919
+                    CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(n+1)*gam3[n]*fkv[n]);       /*  P||(q)  */  //Z=11920
+                    CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  /*  P-(q)  */  //Z=11921
+                    /*  F(q)-coefficients  */  //Z=11922
+                    sump = 0.0;  //Z=11923
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11422*/
-                        sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=11423*/
-                    }   /*Z=11424*/
-                    CR->carr1f[n] = M_PI*xln[n]*sump/4.0;   /*Z=11425*/
-                    sump = 0.0;   /*Z=11426*/
+                    {/*6*/  //Z=11924
+                        sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11925
+                    }/*6*/  //Z=11926
+                    CR->carr1f[n] = M_PI*xln[n]*sump/4.0;  //Z=11927
+                    sump = 0.0;  //Z=11928
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11427*/
-                        sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=11428*/
-                    }   /*Z=11429*/
-                    CR->carr4f[n] = xrn[n-1]*sump;   /*Z=11430*/
-                }   /*Z=11431*/
+                    {/*6*/  //Z=11929
+                        sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11930
+                    }/*6*/  //Z=11931
+                    CR->carr4f[n] = xrn[n]*sump;  //Z=11932
+                }/*5*/  //Z=11933
                 if ( dim==2 )
-                { /* disk */   /*Z=11432*/
-                    /* P(q)-coefficients */   /*Z=11433*/
-                    CR->carr1p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);    /* P-(q) */   /*Z=11434*/
-                    CR->carr4p[n] = pow(4.,1.0*n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2*(n+1)*gam3[n]*fkv[n]);           /* P||(q) */   /*Z=11435*/
-                    /* F(q)-coefficients */   /*Z=11436*/
-                    sump = 0.0;   /*Z=11437*/
+                {/*5*/ /*  disk  */  //Z=11934
+                    /*  P(q)-coefficients  */  //Z=11935
+                    CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);    /*  P-(q)  */  //Z=11936
+                    CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);           /*  P||(q)  */  //Z=11937
+                    /*  F(q)-coefficients  */  //Z=11938
+                    sump = 0.0;  //Z=11939
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11438*/
-                        sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=11439*/
-                    }   /*Z=11440*/
-                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2*gam3[n]);   /*Z=11441*/
-                    sump = 0.0;   /*Z=11442*/
+                    {/*6*/  //Z=11940
+                        sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11941
+                    }/*6*/  //Z=11942
+                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=11943
+                    sump = 0.0;  //Z=11944
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11443*/
-                        sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=11444*/
-                    }   /*Z=11445*/
-                    CR->carr4f[n] = M_PI*xln[n]*sump/4.0;   /*Z=11446*/
-                }   /*Z=11447*/
-                if ( search1 )
-                {   /*Z=11448*/
-                    if ( fabs(CR->carr1p[n])<1e-50 )
-                    {   /*Z=11449*/
-                        n1 = n;   /*Z=11450*/
-                        search1 = false;   /*Z=11451*/
-                    }   /*Z=11452*/
-                }   /*Z=11453*/
-                if ( search4 )
-                {   /*Z=11454*/
-                    if ( fabs(CR->carr4p[n])<1e-50 )
-                    {   /*Z=11455*/
-                        n4 = n;   /*Z=11456*/
-                        search4 = false;   /*Z=11457*/
-                    }   /*Z=11458*/
-                }   /*Z=11459*/
+                    {/*6*/  //Z=11945
+                        sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11946
+                    }/*6*/  //Z=11947
+                    CR->carr4f[n] = M_PI*xln[n]*sump/4.0;  //Z=11948
+                }/*5*/  //Z=11949
+                if ( fabs(CR->carr1p[n])<min )
+                {/*5*/  //Z=11950
+                    if ( n<n1 ) n1 = n;  //Z=11951
+                }/*5*/  //Z=11952
+                if ( fabs(CR->carr4p[n])<min )
+                {/*5*/  //Z=11953
+                    if ( n<n4 ) n4 = n;  //Z=11954
+                }/*5*/  //Z=11955
                 if ( fabs(CR->carr1f[n])<min )
-                {   /*Z=11460*/
-                    if ( n<n1f ) n1f = n;   /*Z=11461*/
-                }   /*Z=11462*/
+                {/*5*/  //Z=11956
+                    if ( n<n1f ) n1f = n;  //Z=11957
+                }/*5*/  //Z=11958
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z=11463*/
-                    if ( n<n4f ) n4f = n;   /*Z=11464*/
-                }   /*Z=11465*/
-            }   /*Z=11466*/
-        }   /*Z=11467*/
+                {/*5*/  //Z=11959
+                    if ( n<n4f ) n4f = n;  //Z=11960
+                }/*5*/  //Z=11961
+            }/*4*/  //Z=11962
+        }/*3*/  //Z=11963
 
-        /* core/shell */   /*Z=11469*/
+        /*  core/shell  */  //Z=11965
         if ( cs==1 )
-        {   /*Z=11470*/
+        {/*3*/  //Z=11966
             for ( n=1; n<=nmax; n++ )
-            {   /*Z=11471*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=11472*/
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=11473*/
-                //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=11474*/
-                fkv[n] = fkv[n-1]*n;   /*Z=11475*/
-                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=11476*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=11477*/
-                /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=11478*/
-                xln[n] = -xln[n-1]*xl2z;   /*Z=11479*/
-                xrn[n] = -xrn[n-1]*xr2z;   /*Z=11480*/
-                xrmn_n = -xrmn_n*xrm2z;   /*Z=11481*/
-                pn[n] = pn[n-1]*p*p;   /*Z=11482*/
+            {/*4*/  //Z=11967
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=11968
+                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11969
+                b1sv_n = b1sv_n*(b1s-1+n);  //Z=11970
+                fkv[n] = fkv[n-1]*n;  //Z=11971
+                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=11972
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=11973
+                /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=11974 */
+                xln[n] = -xln[n-1]*xl2z;  //Z=11975
+                xrn[n] = -xrn[n-1]*xr2z;  //Z=11976
+                xrmn_n = -xrmn_n*xrm2z;  //Z=11977
+                pn[n] = pn[n-1]*p*p;  //Z=11978
                 if ( dim==1 )
-                { /* cylinder */   /*Z=11483*/
-                    /* P(q)-coefficients */   /*Z=11484*/
-                    /* longitudinal */   /*Z=11485*/
-                    CR->carr1p[n] = sqrt(M_PI)*pow(4.,1.0*n)*z12vl[n]*xln[n]/(2*(n+1)*gam3[n]*fkv[n]);   /*Z=11486*/
-                    /* cross-sectional */   /*Z=11487*/
-                    /* F121 */   /*Z=11488*/
-                    CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);   /*Z=11489*/
-                    /* F122 */   /*Z=11490*/
-                    sump = 0.0;   /*Z=11491*/
+                {/*5*/ /*  cylinder  */  //Z=11979
+                    /*  P(q)-coefficients  */  //Z=11980
+                    /*  longitudinal  */  //Z=11981
+                    CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=11982
+                    /*  cross-sectional  */  //Z=11983
+                    /*  F121  */  //Z=11984
+                    CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=11985
+                    /*  F122  */  //Z=11986
+                    sump = 0.0;  //Z=11987
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11492*/
-                        sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=11493*/
-                    }   /*Z=11494*/
-                    CR->carr5p[n] = z12v[n]*xrmn_n*sump;   /*Z=11495*/
-                    /* F123 */   /*Z=11496*/
-                    CR->carr6p[n] = CR->carr4p[n]/pn[n];   /*Z=11497*/
+                    {/*6*/  //Z=11988
+                        sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=11989
+                    }/*6*/  //Z=11990
+                    CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=11991
+                    /*  F123  */  //Z=11992
+                    CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=11993
 
-                    /* F(q)-coefficients */   /*Z=11499*/
-                    /* longitudinal */   /*Z=11500*/
-                    sump = 0.0;   /*Z=11501*/
+                    /*  F(q)-coefficients  */  //Z=11995
+                    /*  longitudinal  */  //Z=11996
+                    sump = 0.0;  //Z=11997
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11502*/
-                        sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=11503*/
-                    }   /*Z=11504*/
-                    CR->carr1f[n] = M_PI*xln[n]*sump/4.0;   /*Z=11505*/
-                    /* cross-sectional */   /*Z=11506*/
-                    /* F121 */   /*Z=11507*/
-                    sump = 0.0;   /*Z=11508*/
+                    {/*6*/  //Z=11998
+                        sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11999
+                    }/*6*/  //Z=12000
+                    CR->carr1f[n] = M_PI*xln[n]*sump/4.0;  //Z=12001
+                    /*  cross-sectional  */  //Z=12002
+                    /*  F121  */  //Z=12003
+                    sump = 0.0;  //Z=12004
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11509*/
-                        sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=11510*/
-                    }   /*Z=11511*/
-                    CR->carr4f[n] = xrn[n-1]*sump;   /*Z=11512*/
-                    /* F122 */   /*Z=11513*/
-                    sump = 0.0;   /*Z=11514*/
+                    {/*6*/  //Z=12005
+                        sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12006
+                    }/*6*/  //Z=12007
+                    CR->carr4f[n] = xrn[n]*sump;  //Z=12008
+                    /*  F122  */  //Z=12009
+                    sump = 0.0;  //Z=12010
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11515*/
-                        sump = sump+pn[m]*z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=11516*/
-                    }   /*Z=11517*/
-                    CR->carr5f[n] = xrmn_n*sump;   /*Z=11518*/
-                    /* F123 */   /*Z=11519*/
-                    CR->carr6f[n] = CR->carr4f[n]/pn[n];   /*Z=11520*/
-                }   /*Z=11521*/
+                    {/*6*/  //Z=12011
+                        sump = sump+pn[m]*z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12012
+                    }/*6*/  //Z=12013
+                    CR->carr5f[n] = xrmn_n*sump;  //Z=12014
+                    /*  F123  */  //Z=12015
+                    CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=12016
+                }/*5*/  //Z=12017
 
                 if ( dim==2 )
-                { /* disk */   /*Z=11523*/
-                    /* P(q)-coefficients */   /*Z=11524*/
-                    /* longitudinal */   /*Z=11525*/
-                    CR->carr1p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=11526*/
-                    /* cross-sectional */   /*Z=11527*/
-                    /* F121 */   /*Z=11528*/
-                    CR->carr4p[n] = pow(4.,1.0*n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2*(n+1)*gam3[n]*fkv[n]);   /*Z=11529*/
-                    /* F122 */   /*Z=11530*/
-                    /* sump:=0.0; */   /*Z=11531*/
-                    /*    for m:=0 to n do begin */   /*Z=11532*/
-                    /*    sump:=sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]); */   /*Z=11533*/
-                    /* end; */   /*Z=11534*/
-                    /* carr5p[n]:=pi*z12v[n]*xrmn_n*sump/4; */   /*Z=11535*/
+                {/*5*/ /*  disk  */  //Z=12019
+                    /*  P(q)-coefficients  */  //Z=12020
+                    /*  longitudinal  */  //Z=12021
+                    CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12022
+                    /*  cross-sectional  */  //Z=12023
+                    /*  F121  */  //Z=12024
+                    CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=12025
+                    /*  F122  */  //Z=12026
+                    /* sump:=0.0;  //Z=12027 */
+                    /*    for m:=0 to n do begin  //Z=12028 */
+                    /*    sump:=sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12029 */
+                    /* end;  //Z=12030 */
+                    /* carr5p[n]:=pi*z12v[n]*xrmn[n]*sump/4;  //Z=12031 */
 
-                    /* F122 */   /*Z=11537*/
-                    sump = 0.0;   /*Z=11538*/
+                    /*  F122  */  //Z=12033
+                    sump = 0.0;  //Z=12034
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11539*/
-                        sump = sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=11540*/
-                    }   /*Z=11541*/
-                    CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;   /*Z=11542*/
+                    {/*6*/  //Z=12035
+                        sump = sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12036
+                    }/*6*/  //Z=12037
+                    CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=12038
 
-                    /* F123 */   /*Z=11545*/
-                    CR->carr6p[n] = CR->carr4p[n]/pn[n];   /*Z=11546*/
-                    /* F(q)-coefficients */   /*Z=11547*/
-                    /* longitudinal */   /*Z=11548*/
-                    sump = 0.0;   /*Z=11549*/
+                    /*  F123  */  //Z=12041
+                    CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=12042
+                    /*  F(q)-coefficients  */  //Z=12043
+                    /*  longitudinal  */  //Z=12044
+                    sump = 0.0;  //Z=12045
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11550*/
-                        sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=11551*/
-                    }   /*Z=11552*/
-                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2*gam3[n]);   /*Z=11553*/
-                    /* cross-sectional */   /*Z=11554*/
-                    /* F121 */   /*Z=11555*/
-                    sump = 0.0;   /*Z=11556*/
+                    {/*6*/  //Z=12046
+                        sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12047
+                    }/*6*/  //Z=12048
+                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=12049
+                    /*  cross-sectional  */  //Z=12050
+                    /*  F121  */  //Z=12051
+                    sump = 0.0;  //Z=12052
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11557*/
-                        sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=11558*/
-                    }   /*Z=11559*/
-                    CR->carr4f[n] = M_PI*xrn[n-1]*sump/4.0;   /*Z=11560*/
-                    /* F122 */   /*Z=11561*/
-                    sump = 0.0;   /*Z=11562*/
+                    {/*6*/  //Z=12053
+                        sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12054
+                    }/*6*/  //Z=12055
+                    CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=12056
+                    /*  F122  */  //Z=12057
+                    sump = 0.0;  //Z=12058
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11563*/
-                        sump = sump+pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=11564*/
-                    }   /*Z=11565*/
-                    CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;   /*Z=11566*/
-                    /* F123 */   /*Z=11567*/
-                    CR->carr6f[n] = CR->carr4f[n]/pn[n];   /*Z=11568*/
-                }   /*Z=11569*/
+                    {/*6*/  //Z=12059
+                        sump = sump+pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12060
+                    }/*6*/  //Z=12061
+                    CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=12062
+                    /*  F123  */  //Z=12063
+                    CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=12064
+                }/*5*/  //Z=12065
                 if ( fabs(CR->carr1p[n])<min )
-                {   /*Z=11570*/
-                    if ( n<n1 ) n1 = n;   /*Z=11571*/
-                }   /*Z=11572*/
+                {/*5*/  //Z=12066
+                    if ( n<n1 ) n1 = n;  //Z=12067
+                }/*5*/  //Z=12068
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z=11573*/
-                    if ( n<n4 ) n4 = n;   /*Z=11574*/
-                }   /*Z=11575*/
+                {/*5*/  //Z=12069
+                    if ( n<n4 ) n4 = n;  //Z=12070
+                }/*5*/  //Z=12071
                 if ( fabs(CR->carr5p[n])<min )
-                {   /*Z=11576*/
-                    if ( n<n5 ) n5 = n;   /*Z=11577*/
-                }   /*Z=11578*/
+                {/*5*/  //Z=12072
+                    if ( n<n5 ) n5 = n;  //Z=12073
+                }/*5*/  //Z=12074
                 if ( fabs(CR->carr6p[n])<min )
-                {   /*Z=11579*/
-                    if ( n<n6 ) n6 = n;   /*Z=11580*/
-                }   /*Z=11581*/
+                {/*5*/  //Z=12075
+                    if ( n<n6 ) n6 = n;  //Z=12076
+                }/*5*/  //Z=12077
                 if ( fabs(CR->carr1f[n])<min )
-                {   /*Z=11582*/
-                    if ( n<n1f ) n1f = n;   /*Z=11583*/
-                }   /*Z=11584*/
-                if ( abs(CR->carr4f[n])<min )
-                {   /*Z=11585*/
-                    if ( n<n4f ) n4f = n;   /*Z=11586*/
-                }   /*Z=11587*/
+                {/*5*/  //Z=12078
+                    if ( n<n1f ) n1f = n;  //Z=12079
+                }/*5*/  //Z=12080
+                if ( fabs(CR->carr4f[n])<min )
+                {/*5*/  //Z=12081
+                    if ( n<n4f ) n4f = n;  //Z=12082
+                }/*5*/  //Z=12083
                 if ( fabs(CR->carr5f[n])<min )
-                {   /*Z=11588*/
-                    if ( n<n5f ) n5f = n;   /*Z=11589*/
-                }   /*Z=11590*/
+                {/*5*/  //Z=12084
+                    if ( n<n5f ) n5f = n;  //Z=12085
+                }/*5*/  //Z=12086
                 if ( fabs(CR->carr6f[n])<min )
-                {   /*Z=11591*/
-                    if ( n<n6f ) n6f = n;   /*Z=11592*/
-                }   /*Z=11593*/
-            }   /*Z=11594*/
-        }  /* of core/shell */   /*Z=11595*/
+                {/*5*/  //Z=12087
+                    if ( n<n6f ) n6f = n;  //Z=12088
+                }/*5*/  //Z=12089
+            }/*4*/  //Z=12090
+        }/*3*/  /*  of core/shell  */  //Z=12091
 
-        /* inhomogeneous core/shell */   /*Z=11597*/
+        /*  inhomogeneous core/shell  */  //Z=12093
         if ( cs==2 )
-        {   /*Z=11598*/
+        {/*3*/  //Z=12094
             for ( n=1; n<=nmax; n++ )
-            {   /*Z=11599*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=11600*/
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=11601*/
-                //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=11602*/
-                fkv[n] = fkv[n-1]*n;   /*Z=11603*/
-                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=11604*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=11605*/
-                /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=11606*/
-                xln[n] = -xln[n-1]*xl2z;   /*Z=11607*/
-                xrn[n] = -xrn[n-1]*xr2z;   /*Z=11608*/
-                xrmn_n = -xrmn_n*xrm2z;   /*Z=11609*/
-                pn[n] = pn[n-1]*p*p;   /*Z=11610*/
+            {/*4*/  //Z=12095
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=12096
+                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12097
+                b1sv_n = b1sv_n*(b1s-1+n);  //Z=12098
+                fkv[n] = fkv[n-1]*n;  //Z=12099
+                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=12100
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=12101
+                /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=12102 */
+                xln[n] = -xln[n-1]*xl2z;  //Z=12103
+                xrn[n] = -xrn[n-1]*xr2z;  //Z=12104
+                xrmn_n = -xrmn_n*xrm2z;  //Z=12105
+                pn[n] = pn[n-1]*p*p;  //Z=12106
                 if ( dim==1 )
-                { /* cylinder */   /*Z=11611*/
-                    /* P(q)-coefficients */   /*Z=11612*/
-                    /* longitudinal */   /*Z=11613*/
-                    CR->carr1p[n] = sqrt(M_PI)*pow(4.,1.0*n)*z12vl[n]*xln[n]/(2*(n+1)*gam3[n]*fkv[n]);   /*Z=11614*/
+                {/*5*/ /*  cylinder  */  //Z=12107
+                    /*  P(q)-coefficients  */  //Z=12108
+                    /*  longitudinal  */  //Z=12109
+                    CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=12110
 
-                    /* cross-sectional P(q) */   /*Z=11616*/
-                    CR->carr4p[n] = pow(4.,n+1.)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);   /*Z=11617*/
-                    sump = 0.0;   /*Z=11618*/
-                    sump1 = 0.0;   /*Z=11619*/
+                    /*  cross-sectional P(q)  */  //Z=12112
+                    CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=12113
+                    sump = 0.0;  //Z=12114
+                    sump1 = 0.0;  //Z=12115
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11620*/
-                        sumi = 1/((m+1-alfa/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);   /*Z=11621*/
-                        sump = sump+pn[n-m]*sumi;   /*Z=11622*/
-                        sump1 = sump1+sumi;   /*Z=11623*/
-                    }   /*Z=11624*/
-                    CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;   /*Z=11625*/
-                    CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n-1]*sump1;   /*Z=11626*/
-                    sump = 0.0;   /*Z=11627*/
-                    sump1 = 0.0;   /*Z=11628*/
+                    {/*6*/  //Z=12116
+                        sumi = 1/((m+1-alfa/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=12117
+                        sump = sump+pn[n-m]*sumi;  //Z=12118
+                        sump1 = sump1+sumi;  //Z=12119
+                    }/*6*/  //Z=12120
+                    CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;  //Z=12121
+                    CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n]*sump1;  //Z=12122
+                    sump = 0.0;  //Z=12123
+                    sump1 = 0.0;  //Z=12124
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11629*/
-                        sumi = 1/((n-m+1-alfa/2.0)*(m+1-alfa/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);   /*Z=11630*/
-                        sump = sump+sumi;   /*Z=11631*/
-                        sump1 = sump1+pn[n-m]*sumi;   /*Z=11632*/
-                    }   /*Z=11633*/
-                    CR->carr7p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump;   /*Z=11634*/
-                    CR->carr8p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump1;   /*Z=11635*/
-                    CR->carr9p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrn[n-1]*sump;   /*Z=11636*/
+                    {/*6*/  //Z=12125
+                        sumi = 1/((n-m+1-alfa/2.0)*(m+1-alfa/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=12126
+                        sump = sump+sumi;  //Z=12127
+                        sump1 = sump1+pn[n-m]*sumi;  //Z=12128
+                    }/*6*/  //Z=12129
+                    CR->carr7p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump;  //Z=12130
+                    CR->carr8p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump1;  //Z=12131
+                    CR->carr9p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrn[n]*sump;  //Z=12132
 
-                    /* cross-sectional */   /*Z=11638*/
+                    /*  cross-sectional  */  //Z=12134
+                    /*  (* F121 *)  //Z=12135
+                   carr4p[n]:=4*(n+1/2)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=12136
+                   (* F122 *)  //Z=12137
+                   sump:=0.0;  //Z=12138
+                   for m:=0 to n do begin  //Z=12139
+                      sump:=sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=12140
+                   end;  //Z=12141
+                   carr5p[n]:=z12v[n]*xrmn[n]*sump;  //Z=12142
+                   (* F123 *)  //Z=12143
+                   carr6p[n]:=carr4p[n]/pn[n];    */  //Z=12144
 
-                    /* F(q)-coefficients */   /*Z=11650*/
-                    /* longitudinal */   /*Z=11651*/
-                    sump = 0.0;   /*Z=11652*/
+                    /*  F(q)-coefficients  */  //Z=12146
+                    /*  longitudinal  */  //Z=12147
+                    sump = 0.0;  //Z=12148
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11653*/
-                        sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=11654*/
-                    }   /*Z=11655*/
-                    CR->carr1f[n] = M_PI*xln[n]*sump/4.0;   /*Z=11656*/
-                    /* cross-sectional */   /*Z=11657*/
-                    CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);   /*Z=11658*/
-                    CR->carr5f[n] = (1-alfa/2.0)*z12v[n]*xrmn_n/((n+1-alfa/2.0)*fkv[n]*fkv[n]);   /*Z=11659*/
-                    CR->carr6f[n] = (1-alfa/2.0)*z12v[n]*xrn[n]/((n+1-alfa/2.0)*fkv[n]*fkv[n]);   /*Z=11660*/
-                }   /*Z=11661*/
+                    {/*6*/  //Z=12149
+                        sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12150
+                    }/*6*/  //Z=12151
+                    CR->carr1f[n] = M_PI*xln[n]*sump/4.0;  //Z=12152
+                    /*  cross-sectional  */  //Z=12153
+                    CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);  //Z=12154
+                    CR->carr5f[n] = (1-alfa/2.0)*z12v[n]*xrmn_n/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=12155
+                    CR->carr6f[n] = (1-alfa/2.0)*z12v[n]*xrn[n]/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=12156
+                }/*5*/  //Z=12157
 
                 if ( dim==2 )
-                { /* disk */   /*Z=11663*/
-                    /* P(q)-coefficients */   /*Z=11664*/
-                    /* longitudinal */   /*Z=11665*/
-                    CR->carr1p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=11666*/
+                {/*5*/ /*  disk  */  //Z=12159
+                    /*  P(q)-coefficients  */  //Z=12160
+                    /*  longitudinal  */  //Z=12161
+                    CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12162
 
-                    /* cross-sectional P(q) */   /*Z=11668*/
-                    CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.,1.0*n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);   /*Z=11669*/
-                    sump = 0.0;   /*Z=11670*/
-                    sump1 = 0.0;   /*Z=11671*/
+                    /*  cross-sectional P(q)  */  //Z=12164
+                    CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);  //Z=12165
+                    sump = 0.0;  //Z=12166
+                    sump1 = 0.0;  //Z=12167
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11672*/
-                        sumi = (m+1/2.0)/((m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);   /*Z=11673*/
-                        sump = sump+pn[n-m]*sumi;   /*Z=11674*/
-                        sump1 = sump1+sumi;   /*Z=11675*/
-                    }   /*Z=11676*/
-                    CR->carr5p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrmn_n*sump;   /*Z=11677*/
-                    CR->carr6p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrn[n-1]*sump1;   /*Z=11678*/
-                    sump = 0.0;   /*Z=11679*/
-                    sump1 = 0.0;   /*Z=11680*/
+                    {/*6*/  //Z=12168
+                        sumi = (m+1/2.0)/((m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=12169
+                        sump = sump+pn[n-m]*sumi;  //Z=12170
+                        sump1 = sump1+sumi;  //Z=12171
+                    }/*6*/  //Z=12172
+                    CR->carr5p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=12173
+                    CR->carr6p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrn[n]*sump1;  //Z=12174
+                    sump = 0.0;  //Z=12175
+                    sump1 = 0.0;  //Z=12176
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11681*/
-                        sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-alfa/2.0)*(m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);   /*Z=11682*/
-                        sump = sump+sumi;   /*Z=11683*/
-                        sump1 = sump1+pn[n-m]*sumi;   /*Z=11684*/
-                    }   /*Z=11685*/
-                    CR->carr7p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump;   /*Z=11686*/
-                    CR->carr8p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump1;   /*Z=11687*/
-                    CR->carr9p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrn[n-1]*sump;   /*Z=11688*/
+                    {/*6*/  //Z=12177
+                        sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-alfa/2.0)*(m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=12178
+                        sump = sump+sumi;  //Z=12179
+                        sump1 = sump1+pn[n-m]*sumi;  //Z=12180
+                    }/*6*/  //Z=12181
+                    CR->carr7p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=12182
+                    CR->carr8p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump1;  //Z=12183
+                    CR->carr9p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrn[n]*sump;  //Z=12184
 
-                    /* cross-sectional P(q) */   /*Z=11691*/
-                    /* F121 */   /*Z=11692*/
+                    /*  cross-sectional P(q)  */  //Z=12187
+                    /*  F121  */  //Z=12188
+                    /*  carr4p[n]:=power(4,n)*sqrt(pi)*z12v[n]*xrn[n]/(2*(n+1)*gam3[n]*fkv[n]);  //Z=12189
+                        (* F122 *)  //Z=12190
+                    //sump:=0.0;  //Z=12191
+                    //   for m:=0 to n do begin  //Z=12192
+                    //   sump:=sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12193
+                    //end;  //Z=12194
+                    //carr5p[n]:=pi*z12v[n]*xrmn[n]*sump/4;  //Z=12195
 
-                    /* F(q)-coefficients */   /*Z=11710*/
-                    /* longitudinal */   /*Z=11711*/
-                    sump = 0.0;   /*Z=11712*/
+                    (* F122 *)  //Z=12197
+                    sump:=0.0;  //Z=12198
+                    for m:=0 to n do begin  //Z=12199
+                       sump:=sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12200
+                    end;  //Z=12201
+                    carr5p[n]:=pi*z12v[n]*xrmn[n]*sump/4;  //Z=12202
+                    (* F123 *)  //Z=12203
+                    carr6p[n]:=carr4p[n]/pn[n];        */  //Z=12204
+
+                    /*  F(q)-coefficients  */  //Z=12206
+                    /*  longitudinal  */  //Z=12207
+                    sump = 0.0;  //Z=12208
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11713*/
-                        sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=11714*/
-                    }   /*Z=11715*/
-                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2*gam3[n]);   /*Z=11716*/
-                    /* cross-sectional */   /*Z=11717*/
-                    CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);   /*Z=11718*/
-                    CR->carr5f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);   /*Z=11719*/
-                    CR->carr6f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrn[n-1]*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);   /*Z=11720*/
-                }   /*Z=11722*/
+                    {/*6*/  //Z=12209
+                        sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12210
+                    }/*6*/  //Z=12211
+                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=12212
+                    /*  cross-sectional  */  //Z=12213
+                    CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);  //Z=12214
+                    CR->carr5f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=12215
+                    CR->carr6f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrn[n]*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=12216
+
+                }/*5*/  //Z=12218
                 if ( fabs(CR->carr1p[n])<min )
-                {   /*Z=11723*/
-                    if ( n<n1 ) n1 = n;   /*Z=11724*/
-                }   /*Z=11725*/
+                {/*5*/  //Z=12219
+                    if ( n<n1 ) n1 = n;  //Z=12220
+                }/*5*/  //Z=12221
                 if ( fabs(CR->carr4p[n])<min )
-                {   /*Z=11726*/
-                    if ( n<n4 ) n4 = n;   /*Z=11727*/
-                }   /*Z=11728*/
+                {/*5*/  //Z=12222
+                    if ( n<n4 ) n4 = n;  //Z=12223
+                }/*5*/  //Z=12224
                 if ( fabs(CR->carr5p[n])<min )
-                {   /*Z=11729*/
-                    if ( n<n5 ) n5 = n;   /*Z=11730*/
-                }   /*Z=11731*/
+                {/*5*/  //Z=12225
+                    if ( n<n5 ) n5 = n;  //Z=12226
+                }/*5*/  //Z=12227
                 if ( fabs(CR->carr6p[n])<min )
-                {   /*Z=11732*/
-                    if ( n<n6 ) n6 = n;   /*Z=11733*/
-                }   /*Z=11734*/
+                {/*5*/  //Z=12228
+                    if ( n<n6 ) n6 = n;  //Z=12229
+                }/*5*/  //Z=12230
                 if ( fabs(CR->carr7p[n])<min )
-                {   /*Z=11735*/
-                    if ( n<n7 ) n7 = n;   /*Z=11736*/
-                }   /*Z=11737*/
-                if ( abs(CR->carr8p[n])<min )
-                {   /*Z=11738*/
-                    if ( n<n8 ) n8 = n;   /*Z=11739*/
-                }   /*Z=11740*/
+                {/*5*/  //Z=12231
+                    if ( n<n7 ) n7 = n;  //Z=12232
+                }/*5*/  //Z=12233
+                if ( fabs(CR->carr8p[n])<min )
+                {/*5*/  //Z=12234
+                    if ( n<n8 ) n8 = n;  //Z=12235
+                }/*5*/  //Z=12236
                 if ( fabs(CR->carr9p[n])<min )
-                {   /*Z=11741*/
-                    if ( n<n9 ) n9 = n;   /*Z=11742*/
-                }   /*Z=11743*/
+                {/*5*/  //Z=12237
+                    if ( n<n9 ) n9 = n;  //Z=12238
+                }/*5*/  //Z=12239
                 if ( fabs(CR->carr1f[n])<min )
-                {   /*Z=11744*/
-                    if ( n<n1f ) n1f = n;   /*Z=11745*/
-                }   /*Z=11746*/
+                {/*5*/  //Z=12240
+                    if ( n<n1f ) n1f = n;  //Z=12241
+                }/*5*/  //Z=12242
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z=11747*/
-                    if ( n<n4f ) n4f = n;   /*Z=11748*/
-                }   /*Z=11749*/
+                {/*5*/  //Z=12243
+                    if ( n<n4f ) n4f = n;  //Z=12244
+                }/*5*/  //Z=12245
                 if ( fabs(CR->carr5f[n])<min )
-                {   /*Z=11750*/
-                    if ( n<n5f ) n5f = n;   /*Z=11751*/
-                }   /*Z=11752*/
+                {/*5*/  //Z=12246
+                    if ( n<n5f ) n5f = n;  //Z=12247
+                }/*5*/  //Z=12248
                 if ( fabs(CR->carr6f[n])<min )
-                {   /*Z=11753*/
-                    if ( n<n6f ) n6f = n;   /*Z=11754*/
-                }   /*Z=11755*/
+                {/*5*/  //Z=12249
+                    if ( n<n6f ) n6f = n;  //Z=12250
+                }/*5*/  //Z=12251
                 if ( fabs(CR->carr7f[n])<min )
-                {   /*Z=11756*/
-                    if ( n<n7f ) n7f = n;   /*Z=11757*/
-                }   /*Z=11758*/
+                {/*5*/  //Z=12252
+                    if ( n<n7f ) n7f = n;  //Z=12253
+                }/*5*/  //Z=12254
                 if ( fabs(CR->carr8f[n])<min )
-                {   /*Z=11759*/
-                    if ( n<n8f ) n8f = n;   /*Z=11760*/
-                }   /*Z=11761*/
+                {/*5*/  //Z=12255
+                    if ( n<n8f ) n8f = n;  //Z=12256
+                }/*5*/  //Z=12257
                 if ( fabs(CR->carr9f[n])<min )
-                {   /*Z=11762*/
-                    if ( n<n9f ) n9f = n;   /*Z=11763*/
-                }   /*Z=11764*/
-            }   /*Z=11765*/
-        }  /* of inhomogeneous core/shell */   /*Z=11766*/
+                {/*5*/  //Z=12258
+                    if ( n<n9f ) n9f = n;  //Z=12259
+                }/*5*/  //Z=12260
+            }/*4*/  //Z=12261
+        }/*3*/  /*  of inhomogeneous core/shell  */  //Z=12262
 
-        /* myelin */   /*Z=11769*/
+
+        /*  myelin  */  //Z=12265
         if ( (cs==3) || (cs==4) )
-        {   /*Z=11770*/
+        {/*3*/  //Z=12266
             for ( n=1; n<=nmax; n++ )
-            {   /*Z=11771*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=11772*/
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=11773*/
-                //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=11774*/
-                fkv[n] = fkv[n-1]*n;   /*Z=11775*/
-                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=11776*/
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=11777*/
-                /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=11778*/
-                xln[n] = -xln[n-1]*xl2z;   /*Z=11779*/
-                xrn[n] = -xrn[n-1]*x12zm;   /*Z=11780*/
+            {/*4*/  //Z=12267
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=12268
+                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12269
+                b1sv_n = b1sv_n*(b1s-1+n);  //Z=12270
+                fkv[n] = fkv[n-1]*n;  //Z=12271
+                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=12272
+                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=12273
+                /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=12274 */
+                xln[n] = -xln[n-1]*xl2z;  //Z=12275
+                xrn[n] = -xrn[n-1]*x12zm;  //Z=12276
                 if ( dim==1 )
-                { /* cylinder */   /*Z=11781*/
-                    /* P(q)-coefficients */   /*Z=11782*/
-                    CR->carr1p[n] = sqrt(M_PI)*pow(4.,1.0*n)*z12vl[n]*xln[n]/(2*(n+1)*gam3[n]*fkv[n]);   /*Z=11783*/
+                {/*5*/ /*  cylinder  */  //Z=12277
+                    /*  P(q)-coefficients  */  //Z=12278
+                    CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=12279
 
-                    CR->carr4p[n] = z12v[n]*xrn[n];   /*Z=11785*/
+                    CR->carr4p[n] = z12v[n]*xrn[n];  //Z=12281
 
-                    /* F(q)-coefficients */   /*Z=11787*/
-                    sump = 0.0;   /*Z=11788*/
+                    /*  F(q)-coefficients  */  //Z=12283
+                    sump = 0.0;  //Z=12284
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11789*/
-                        sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=11790*/
-                    }   /*Z=11791*/
-                    CR->carr1f[n] = M_PI*xln[n]*sump/4.0;   /*Z=11792*/
-                    sump = 0.0;   /*Z=11793*/
+                    {/*6*/  //Z=12285
+                        sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12286
+                    }/*6*/  //Z=12287
+                    CR->carr1f[n] = M_PI*xln[n]*sump/4.0;  //Z=12288
+                    sump = 0.0;  //Z=12289
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11794*/
-                        sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=11795*/
-                    }   /*Z=11796*/
-                    CR->carr4f[n] = xrn[n-1]*sump;   /*Z=11797*/
-                }   /*Z=11798*/
+                    {/*6*/  //Z=12290
+                        sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12291
+                    }/*6*/  //Z=12292
+                    CR->carr4f[n] = xrn[n]*sump;  //Z=12293
+                }/*5*/  //Z=12294
                 if ( dim==2 )
-                { /* disk */   /*Z=11799*/
-                    /* P(q)-coefficients */   /*Z=11800*/
-                    CR->carr1p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=11801*/
-                    CR->carr4p[n] = pow(4.,1.0*n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2*(n+1)*gam3[n]*fkv[n]);   /*Z=11802*/
-                    /* F(q)-coefficients */   /*Z=11803*/
-                    sump = 0.0;   /*Z=11804*/
+                {/*5*/ /*  disk  */  //Z=12295
+                    /*  P(q)-coefficients  */  //Z=12296
+                    CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12297
+                    CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=12298
+                    /*  F(q)-coefficients  */  //Z=12299
+                    sump = 0.0;  //Z=12300
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11805*/
-                        sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=11806*/
-                    }   /*Z=11807*/
-                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2*gam3[n]);   /*Z=11808*/
-                    sump = 0.0;   /*Z=11809*/
+                    {/*6*/  //Z=12301
+                        sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12302
+                    }/*6*/  //Z=12303
+                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=12304
+                    sump = 0.0;  //Z=12305
                     for ( m=0; m<=n; m++ )
-                    {   /*Z=11810*/
-                        sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=11811*/
-                    }   /*Z=11812*/
-                    CR->carr4f[n] = M_PI*xln[n]*sump/4.0;   /*Z=11813*/
-                }   /*Z=11814*/
-                if ( search1 )
-                {   /*Z=11815*/
-                    if ( fabs(CR->carr1p[n])<1e-50 )
-                    {   /*Z=11816*/
-                        n1 = n;   /*Z=11817*/
-                        search1 = false;   /*Z=11818*/
-                    }   /*Z=11819*/
-                }   /*Z=11820*/
-                if ( search4 )
-                {   /*Z=11821*/
-                    if ( fabs(CR->carr4p[n])<1e-50 )
-                    {   /*Z=11822*/
-                        n4 = n;   /*Z=11823*/
-                        search4 = false;   /*Z=11824*/
-                    }   /*Z=11825*/
-                }   /*Z=11826*/
+                    {/*6*/  //Z=12306
+                        sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12307
+                    }/*6*/  //Z=12308
+                    CR->carr4f[n] = M_PI*xln[n]*sump/4.0;  //Z=12309
+                }/*5*/  //Z=12310
+                if ( fabs(CR->carr1p[n])<min )
+                {/*5*/  //Z=12311
+                    if ( n<n1 ) n1 = n;  //Z=12312
+                }/*5*/  //Z=12313
+                if ( fabs(CR->carr4p[n])<min )
+                {/*5*/  //Z=12314
+                    if ( n<n4 ) n4 = n;  //Z=12315
+                }/*5*/  //Z=12316
                 if ( fabs(CR->carr1f[n])<min )
-                {   /*Z=11827*/
-                    if ( n<n1f ) n1f = n;   /*Z=11828*/
-                }   /*Z=11829*/
+                {/*5*/  //Z=12317
+                    if ( n<n1f ) n1f = n;  //Z=12318
+                }/*5*/  //Z=12319
                 if ( fabs(CR->carr4f[n])<min )
-                {   /*Z=11830*/
-                    if ( n<n4f ) n4f = n;   /*Z=11831*/
-                }   /*Z=11832*/
-            }   /*Z=11833*/
-        }  /* of myelin */   /*Z=11834*/
-    }   /*Z=11838*/
+                {/*5*/  //Z=12320
+                    if ( n<n4f ) n4f = n;  //Z=12321
+                }/*5*/  //Z=12322
+            }/*4*/  //Z=12323
+        }/*3*/  /*  of myelin  */  //Z=12324
 
-    /*** orientational distribution for cylinders and disks ***/  /*Z0311=11509*/ /*Z=11840*/
-    if ( (ordis==0) && (dim!=3) )   /*Z0311=11510*/
-    {
-        qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,2,0,0,0,0,CR->carr1p,norm);  /*Z=11842*/
-        qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,3,0,0,0,0,CR->carr1p,order);  /*Z=11843*/
-        order = order/norm;  /*Z=11844*/
+    }/*2*/  //Z=12328
 
-        DBG( qDebug() << "coefficients()" << "order" << order << "norm" << norm << "cho1"<<cho1; )
 
-        /* use phi=0 and rotate qx/qy-axis */  /*Z=11846*/
+    /* ** orientational distribution for cylinders and disks ** */  //Z=12330
+    if ( (ordis==0) && (dim!=3) )
+    {/*2*/  //Z=12331
+        qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,2,0,0,0,0,CR->carr1p,norm);  //Z=12332
+        qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,3,0,0,0,0,CR->carr1p,order);  //Z=12333
+        order = order/norm;  //Z=12334
+
+        /*  use phi=0 and rotate qx/qy-axis  */  //Z=12336
         if ( cho1==1 )
-        {
-            phi = 0;   /*Z=11848*/
-            p11 = -cos(phi*M_PI/180.0)*cos(theta*M_PI/180.0);       /*  = -cos(theta*pi/180); */   /*Z=11849*/
-            p12 = sin(phi*M_PI/180.0);                          /*  = 0; */   /*Z=11850*/
-            p13 = cos(phi*M_PI/180.0)*sin(theta*M_PI/180.0);        /*  =  sin(theta*pi/180); */   /*Z=11851*/
-            p21 = -cos(phi*M_PI/180.0);                         /*  = -1; */   /*Z=11852*/
-            p22 = -sin(phi*M_PI/180.0)*cos(theta*M_PI/180.0);       /*  = 0; */   /*Z=11853*/
-            p23 = sin(phi*M_PI/180.0)*sin(theta*M_PI/180.0);        /*  = 0; */   /*Z=11854*/
-            p31 = -sin(theta*M_PI/180.0);                       /*  = 0; */   /*Z=11855*/
-            p32 = 0;   /*Z=11856*/
-            p33 = -cos(theta*M_PI/180.0);                       /*  = -cos(theta*pi/180); */   /*Z=11857*/
+        {/*3*/  //Z=12337
+            phi = 0;  //Z=12338
+            params.p11 = -cos(phi*M_PI/180.0)*cos(theta*M_PI/180.0);       /*  = -cos(theta*pi/180);  //Z=12339 */
+            params.p12 = sin(phi*M_PI/180.0);                          /*  = 0;  //Z=12340 */
+            params.p13 = cos(phi*M_PI/180.0)*sin(theta*M_PI/180.0);        /*  =  sin(theta*pi/180);  //Z=12341 */
+            params.p21 = -cos(phi*M_PI/180.0);                         /*  = -1;  //Z=12342 */
+            params.p22 = -sin(phi*M_PI/180.0)*cos(theta*M_PI/180.0);       /*  = 0;  //Z=12343 */
+            params.p23 = sin(phi*M_PI/180.0)*sin(theta*M_PI/180.0);        /*  = 0;  //Z=12344 */
+            params.p31 = -sin(theta*M_PI/180.0);                       /*  = 0;  //Z=12345 */
+            params.p32 = 0;  //Z=12346
+            params.p33 = -cos(theta*M_PI/180.0);                       /*  = -cos(theta*pi/180);  //Z=12347 */
 
             for ( n=0; n<=nmax; n++ )
-            {   /*Z=11859*/
+            {/*4*/  //Z=12349
                 for ( m=0; m<=nmax; m++ )
-                {   /*Z=11860*/
-                    qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,0,0,2*n,2*m,CR->carr1p,intl);   /*Z=11861*/
-                    intlar[n][m] = intl;   /*Z=11862*/
-                }   /*Z=11863*/
-            }   /*Z=11864*/
+                {/*5*/  //Z=12350
+                    qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,0,0,2*n,2*m,CR->carr1p,intl);  //Z=12351
+                    intlar[n][m] = intl;  //Z=12352
+                }/*5*/  //Z=12353
+            }/*4*/  //Z=12354
 
-            /* cylinder form factor coefficients */   /*Z=11875*/
+            /* for n:=1 to nmax do begin  //Z=12356
+                fkv[n]:=fkv[n-1]*n;  //Z=12357
+                fk2v[n]:=fk2v[n-1]*(2*n-1)*(2*n);  //Z=12358
+                if odd(n) then gam1[n]:=fkv[round((n-1)/2)]  //Z=12359
+                   else gam1[n]:=fkv[n]*sqrt(pi)/(fkv[round(n/2)]*power(2,n));  //Z=12360
+                gam2[n]:=(n/2)*fkv[n-1]*sqrt(pi)/(gam1[n]*power(2,n-1));  //Z=12361
+                gam3[n]:=gam3[n-1]*(2*n+1)/2;  //Z=12362
+             end;  */  //Z=12363
+
+            /*  cylinder form factor coefficients  */  //Z=12365
             if ( dim==1 )
-            {   /*Z=11876*/
-                /* homogeneous */   /*Z=11877*/
+            {/*4*/  //Z=12366
+                /*  homogeneous  */  //Z=12367
+                params.p11 = sin(theta*M_PI/180.0);  //Z=12368
+                params.p13 = cos(theta*M_PI/180.0);  //Z=12369
                 if ( cs==0 )
-                {   /*Z=11878*/
-                    i = 2;   /*Z=11879*/
+                {/*5*/  //Z=12370
+                    i = 2;  //Z=12371
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=11880*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=11881*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=11882*/
-                        //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=11883*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=11884*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=11885*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=11886*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=11887*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=11888*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=11889*/
-                        /* longitudinal */   /*Z=11890*/
+                    {/*6*/  //Z=12372
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=12373
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12374
+                        b1sv_n = b1sv_n*(b1s-1+n);  //Z=12375
+                        fkv[n] = fkv[n-1]*n;  //Z=12376
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=12377
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=12378
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=12379 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=12380
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=12381
+                        /*  longitudinal  */  //Z=12382
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=11891*/
-                            sump = 0.0;   /*Z=11892*/
-                            for ( ll=0; ll<=m; ll++ )   /*Z=11893*/
-                                sump = sump+pow(p11*p11,1.0*ll)*pow(p13*p13,1.0*m-ll)*intlar[m-ll][n-m+ll]/(pow(4.,1.0*ll)*fk2v[m-ll]*fkv[n-m+ll]*fkv[ll]*norm);   /*Z=11894*/
-                            /* carr1pm[i]:=power(4,m)*power(p21*p21,n-m)*sump/(fkv[n-m]); */   /*Z=11895*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=11896*/
-                            /* i:=i+1; */   /*Z=11897*/
-                            CR->carr11pm[n][m] = pow(4.,1.0*m)*pow(p21*p21,1.0*n-m)*sump/(fkv[n-m]);   /*Z=11898, cs=0,dim=1,cho1=1*/
-                        }   /*Z=11899*/
-                        /* P(q)-coefficients */   /*Z=11900*/
-                        CR->carr1p[n] = pow(4.,1.0*n)*((z12vl[n]*xln[n])/((2.*n+1)*(n+1)));   /*Z=11901*/
-                        //D1P( std::cerr << "CARR1P(a) " << n << " " << CR->carr1p[n] << " (" << search1 << ") " << n1 << " | "
-                        //               << z12vl[n] << " " << xln[n] << " " << pow(4.,1.0*n) << " " << (2.*n+1)*(n+1) << std::endl; )
-                        CR->carr2p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=11902*/
-                        /* F(q)-coefficients */   /*Z=11903*/
-                        sump = 0.0;   /*Z=11904*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=11905*/
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.,1.0*n));   /*Z=11906*/
-                        CR->carr2f[n] = CR->carr2p[n];   /*Z=11907*/
-                        /* cross-sectional */   /*Z=11908*/
-                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);   /*Z=11909*/
-                        //  carr4p[n]:= 4*(n+1/2  )*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);
-                        D4P( qDebug() << "CARR4P(a)" << n << CR->carr4p[n]; )
-                        sump = 0.0;   /*Z=11910*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=11911*/
-                        CR->carr4f[n] = xrn[n-1]*sump;   /*Z=11912*/
-                        if ( search1 )
-                        {   /*Z=11913*/
-                            if ( fabs(CR->carr1p[n])<1e-50 || fabs(CR->carr1p[n])>1e+50 ) //NEU
-                            {   /*Z=11914*/
-                                n1 = n;   /*Z=11915*/
-                                search1 = false;   /*Z=11916*/
-                            }   /*Z=11917*/
-                        }   /*Z=11918*/
-                        if ( search4 )
-                        {   /*Z=11919*/
-                            if ( fabs(CR->carr4p[n])<1e-50 || fabs(CR->carr4p[n])>1e+50 ) //NEU
-                            {   /*Z=11920*/
-                                n4 = n;   /*Z=11921*/
-                                search4 = false;   /*Z=11922*/
-                            }   /*Z=11923*/
-                        }   /*Z=11924*/
-                        if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=11925*/
-                            if ( n<n1f ) n1f = n;   /*Z=11926*/
-                        }   /*Z=11927*/
-                        if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=11928*/
-                            if ( n<n4f ) n4f = n;   /*Z=11929*/
-                        }   /*Z=11930*/
-                    }   /*Z=11931*/
-                }  /* of homogeneous cylinder */   /*Z=11932*/
+                        {/*7*/  //Z=12383
+                            sump = 0.0;  //Z=12384
+                            for ( ll=0; ll<=m; ll++ )  //Z=12385
+                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*norm);  //Z=12386
+                            /* carr1pm[i]:=power(4,m)*power(p21*p21,n-m)*sump/(fkv[n-m]);  //Z=12387 */
+                            /* carr1fm[i]:=carr1pm[i];  //Z=12388 */
+                            /* i:=i+1;  //Z=12389 */
+                            CR->carr11pm[n][m] = sump/(fkv[n-m]);  //Z=12390
+                        }/*7*/  //Z=12391
+                        /*  P(q)-coefficients  */  //Z=12392
+                        /* carr1p[n]:=power(4,n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=12393 */
 
-                /* core/shell */   /*Z=11934*/
+                        CR->carr1p[n] = (sqrt(M_PI)/2.0)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=12395
+                        /* carr1p[n]:=(1/2)*power(4,n)*z12vl[n]*xln[n]/((n+1)*(n+1/2));  //Z=12396 */
+
+
+                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12399
+                        /*  F(q)-coefficients  */  //Z=12400
+                        sump = 0.0;  //Z=12401
+                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12402
+                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=12403
+                        CR->carr2f[n] = CR->carr2p[n];  //Z=12404
+                        /*  cross-sectional  */  //Z=12405
+                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  //Z=12406
+                        sump = 0.0;  //Z=12407
+                        for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12408
+                        CR->carr4f[n] = xrn[n]*sump;  //Z=12409
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=12410
+                            if ( n<n1 ) n1 = n;  //Z=12411
+                        }/*7*/  //Z=12412
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=12413
+                            if ( n<n4 ) n4 = n;  //Z=12414
+                        }/*7*/  //Z=12415
+                        if ( fabs(CR->carr1f[n])<min )
+                        {/*7*/  //Z=12416
+                            if ( n<n1f ) n1f = n;  //Z=12417
+                        }/*7*/  //Z=12418
+                        if ( fabs(CR->carr4f[n])<min )
+                        {/*7*/  //Z=12419
+                            if ( n<n4f ) n4f = n;  //Z=12420
+                        }/*7*/  //Z=12421
+                    }/*6*/  //Z=12422
+                }/*5*/  /*  of homogeneous cylinder  */  //Z=12423
+
+                /*  core/shell  */  //Z=12425
                 if ( cs==1 )
-                {   /*Z=11935*/
-                    i = 2;   /*Z=11936*/
+                {/*5*/  //Z=12426
+                    i = 2;  //Z=12427
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=11937*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=11938*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=11939*/
-                        //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=11940*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=11941*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=11942*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=11943*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=11944*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=11945*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=11946*/
-                        xrmn_n = -xrmn_n*xrm2z;   /*Z=11947*/
-                        pn[n] = pn[n-1]*p*p;   /*Z=11948*/
-                        /* longitudinal */   /*Z=11949*/
+                    {/*6*/  //Z=12428
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=12429
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12430
+                        b1sv_n = b1sv_n*(b1s-1+n);  //Z=12431
+                        fkv[n] = fkv[n-1]*n;  //Z=12432
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=12433
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=12434
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=12435 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=12436
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=12437
+                        xrmn_n = -xrmn_n*xrm2z;  //Z=12438
+                        pn[n] = pn[n-1]*p*p;  //Z=12439
+                        /*  longitudinal  */  //Z=12440
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=11950*/
-                            sump = 0.0;   /*Z=11951*/
-                            for ( ll=0; ll<=m; ll++ )   /*Z=11952*/
-                                sump = sump+pow(p11*p11,1.0*ll)*pow(p13*p13,1.0*m-ll)*intlar[m-ll][n-m+ll]/(pow(4.,1.0*ll)*fk2v[m-ll]*fkv[n-m+ll]*fkv[ll]*norm);   /*Z=11953*/
-                            /* carr1pm[i]:=power(4,m)*sump/(fkv[n-m]); */   /*Z=11954*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=11955*/
-                            /* i:=i+1; */   /*Z=11956*/
-                            CR->carr11pm[n][m] = pow(4.,1.0*m)*sump/(fkv[n-m]);   /*Z=11957, cs=1,dim=1,cho1=1*/
-                        }   /*Z=11958*/
-                        /* P(q)-coefficients */   /*Z=11959*/
-                        CR->carr1p[n] = pow(4.,1.0*n)*z12vl[n]*xln[n]/((2.*n+1)*(n+1));   /*Z=11960*/
-                        D1P( qDebug() << "CARR1P(b)" << n << CR->carr1p[n]; )
-                        CR->carr2p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=11961*/
-                        /* F(q)-coefficients */   /*Z=11962*/
-                        sump = 0.0;   /*Z=11963*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=11964*/
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.,1.0*n));   /*Z=11965*/
-                        CR->carr2f[n] = CR->carr2p[n];   /*Z=11966*/
+                        {/*7*/  //Z=12441
+                            sump = 0.0;  //Z=12442
+                            for ( ll=0; ll<=m; ll++ )  //Z=12443
+                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*norm);  //Z=12444
+                            /* carr1pm[i]:=power(4,m)*power(p21*p21,n-m)*sump/(fkv[n-m]);  //Z=12445 */
+                            /* carr1fm[i]:=carr1pm[i];  //Z=12446 */
+                            /* i:=i+1;  //Z=12447 */
+                            CR->carr11pm[n][m] = sump/(fkv[n-m]);  //Z=12448
+                        }/*7*/  //Z=12449
+                        /*  P(q)-coefficients  */  //Z=12450
+                        /* carr1p[n]:=power(4,n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=12451 */
 
-                        /* P(q)-coefficients */   /*Z=11968*/
-                        /* cross-sectional */   /*Z=11969*/
-                        /* F121 */   /*Z=11970*/
-                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);   /*Z=11971*/
-                        //  carr4p[n]:= 4*(n+1/2  )*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);
-                        //D4P( qDebug() << "CARR4P(b)" << n << CR->carr4p[n]; )
-                        /* F122 */   /*Z=11972*/
-                        sump = 0.0;   /*Z=11973*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=11974*/
-                            sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=11975*/
-                        }   /*Z=11976*/
-                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;   /*Z=11977*/
-                        /* F123 */   /*Z=11978*/
-                        CR->carr6p[n] = CR->carr4p[n]/pn[n];   /*Z=11979*/
+                        CR->carr1p[n] = (sqrt(M_PI)/2.0)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=12453
+                        /* carr1p[n]:=(1/2)*power(4,n)*z12vl[n]*xln[n]/((n+1)*(n+1/2));  //Z=12454 */
 
-                        /* F(q)-coefficients */   /*Z=11981*/
-                        /* cross-sectional */   /*Z=11982*/
-                        /* F121 */   /*Z=11983*/
-                        sump = 0.0;   /*Z=11984*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=11985*/
-                            sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=11986*/
-                        }   /*Z=11987*/
-                        CR->carr4f[n] = xrn[n-1]*sump;   /*Z=11988*/
-                        /* F122 */   /*Z=11989*/
-                        sump = 0.0;   /*Z=11990*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=11991*/
-                            sump = sump+pn[m]*z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=11992*/
-                        }   /*Z=11993*/
-                        CR->carr5f[n] = xrmn_n*sump;   /*Z=11994*/
-                        /* F123 */   /*Z=11995*/
-                        CR->carr6f[n] = CR->carr4f[n]/pn[n];   /*Z=11996*/
+                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12456
+                        /*  F(q)-coefficients  */  //Z=12457
+                        sump = 0.0;  //Z=12458
+                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12459
+                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=12460
+                        CR->carr2f[n] = CR->carr2p[n];  //Z=12461
 
-                        if ( search1 )
-                        {   /*Z=11998*/
-                            if ( fabs(CR->carr1p[n])<1e-50 || fabs(CR->carr1p[n])>1e+50 ) //NEU
-                            {   /*Z=11999*/
-                                n1 = n;   /*Z=12000*/
-                                search1 = false;   /*Z=12001*/
-                            }   /*Z=12002*/
-                        }   /*Z=12003*/
-                        if ( search4 )
-                        {   /*Z=12004*/
-                            if ( fabs(CR->carr4p[n])<1e-50 || fabs(CR->carr4p[n])>1e+50 ) //NEU
-                            {   /*Z=12005*/
-                                n4 = n;   /*Z=12006*/
-                                search4 = false;   /*Z=12007*/
-                            }   /*Z=12008*/
-                        }   /*Z=12009*/
-                        if ( search5 )
-                        {   /*Z=12010*/
-                            if ( fabs(CR->carr5p[n])<1e-50 || fabs(CR->carr5p[n])>1e+50 ) //NEU
-                            {   /*Z=12011*/
-                                n5 = n;   /*Z=12012*/
-                                search5 = false;   /*Z=12013*/
-                            }   /*Z=12014*/
-                        }   /*Z=12015*/
-                        if ( search6 )
-                        {   /*Z=12016*/
-                            if ( fabs(CR->carr6p[n])<1e-50 || fabs(CR->carr6p[n])>1e+50 ) //NEU
-                            {   /*Z=12017*/
-                                n6 = n;   /*Z=12018*/
-                                search6 = false;   /*Z=12019*/
-                            }   /*Z=12020*/
-                        }   /*Z=12021*/
+                        /*  P(q)-coefficients  */  //Z=12463
+                        /*  cross-sectional  */  //Z=12464
+                        /*  F121  */  //Z=12465
+                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=12466
+                        /*  F122  */  //Z=12467
+                        sump = 0.0;  //Z=12468
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=12469
+                            sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=12470
+                        }/*7*/  //Z=12471
+                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=12472
+                        /*  F123  */  //Z=12473
+                        CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=12474
+
+                        /*  F(q)-coefficients  */  //Z=12476
+                        /*  cross-sectional  */  //Z=12477
+                        /*  F121  */  //Z=12478
+                        sump = 0.0;  //Z=12479
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=12480
+                            sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=12481
+                        }/*7*/  //Z=12482
+                        CR->carr4f[n] = xrn[n]*sump;  //Z=12483
+                        /*  F122  */  //Z=12484
+                        sump = 0.0;  //Z=12485
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=12486
+                            sump = sump+pn[m]*z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=12487
+                        }/*7*/  //Z=12488
+                        CR->carr5f[n] = xrmn_n*sump;  //Z=12489
+                        /*  F123  */  //Z=12490
+                        CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=12491
+
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=12493
+                            if ( n<n1 ) n1 = n;  //Z=12494
+                        }/*7*/  //Z=12495
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=12496
+                            if ( n<n4 ) n4 = n;  //Z=12497
+                        }/*7*/  //Z=12498
+                        if ( fabs(CR->carr5p[n])<min )
+                        {/*7*/  //Z=12499
+                            if ( n<n5 ) n5 = n;  //Z=12500
+                        }/*7*/  //Z=12501
+                        if ( fabs(CR->carr6p[n])<min )
+                        {/*7*/  //Z=12502
+                            if ( n<n6 ) n6 = n;  //Z=12503
+                        }/*7*/  //Z=12504
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=12022*/
-                            if ( n<n1f ) n1f = n;   /*Z=12023*/
-                        }   /*Z=12024*/
+                        {/*7*/  //Z=12505
+                            if ( n<n1f ) n1f = n;  //Z=12506
+                        }/*7*/  //Z=12507
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=12025*/
-                            if ( n<n4f ) n4f = n;   /*Z=12026*/
-                        }   /*Z=12027*/
+                        {/*7*/  //Z=12508
+                            if ( n<n4f ) n4f = n;  //Z=12509
+                        }/*7*/  //Z=12510
                         if ( fabs(CR->carr5f[n])<min )
-                        {   /*Z=12028*/
-                            if ( n<n5f ) n5f = n;   /*Z=12029*/
-                        }   /*Z=12030*/
-                        if ( abs(CR->carr6f[n])<min )
-                        {   /*Z=12031*/
-                            if ( n<n6f ) n6f = n;   /*Z=12032*/
-                        }   /*Z=12033*/
-                    }  /* n-loop */   /*Z=12034*/
-                }  /* homogeneous loop */   /*Z=12035*/
-
-                /* inhomogeneous core/shell */   /*Z=12039*/
-                if ( cs==2 )
-                {   /*Z=12040*/
-                    i = 2;   /*Z=12041*/
-                    for ( n=1; n<=nmax; n++ )
-                    {   /*Z=12042*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=12043*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=12044*/
-                        //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=12045*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=12046*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=12047*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=12048*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=12049*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=12050*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=12051*/
-                        xrmn_n = -xrmn_n*xrm2z;   /*Z=12052*/
-                        pn[n] = pn[n-1]*p*p;   /*Z=12053*/
-                        /* longitudinal */   /*Z=12054*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=12055*/
-                            sump = 0.0;   /*Z=12056*/
-                            for ( ll=0; ll<=m; ll++ )   /*Z=12057*/
-                                sump = sump+pow(p11*p11,1.0*ll)*pow(p13*p13,1.0*m-ll)*intlar[m-ll][n-m+ll]/(pow(4.,1.0*ll)*fk2v[m-ll]*fkv[n-m+ll]*fkv[ll]*norm);   /*Z=12058*/
-                            /* carr1pm[i]:=power(4,m)*sump/(fkv[n-m]); */   /*Z=12059*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=12060*/
-                            /* i:=i+1; */   /*Z=12061*/
-                            CR->carr11pm[n][m] = pow(4.,1.0*m)*sump/(fkv[n-m]);   /*Z=12062, cs=2,dim=1,cho1=1*/
-                        }   /*Z=12063*/
-                        /* P(q)-coefficients */   /*Z=12064*/
-                        CR->carr1p[n] = pow(4.,1.0*n)*z12vl[n]*xln[n]/((2.*n+1)*(n+1));   /*Z=12065*/
-                        D1P( qDebug() << "CARR1P(c)" << n << CR->carr1p[n]; )
-                        CR->carr2p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=12066*/
-                        /* F(q)-coefficients */   /*Z=12067*/
-                        sump = 0.0;   /*Z=12068*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=12069*/
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.,1.0*n));   /*Z=12070*/
-                        CR->carr2f[n] = CR->carr2p[n];   /*Z=12071*/
-
-                        /* cross-sectional P(q) */   /*Z=12074*/
-                        CR->carr4p[n] = pow(4.,n+1.)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);   /*Z=12075*/
-                        //  carr4p[n]:=power(4,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(pi)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);
-                        //D4P( qDebug() << "CARR4P(c)" << n << CR->carr4p[n]; )
-                        sump = 0.0;   /*Z=12076*/
-                        sump1 = 0.0;   /*Z=12077*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=12078*/
-                            sumi = 1/((m+1-alfa/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);   /*Z=12079*/
-                            sump = sump+pn[n-m]*sumi;   /*Z=12080*/
-                            sump1 = sump1+sumi;   /*Z=12081*/
-                        }   /*Z=12082*/
-                        CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;   /*Z=12083*/
-                        CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n-1]*sump1;   /*Z=12084*/
-                        sump = 0.0;   /*Z=12085*/
-                        sump1 = 0.0;   /*Z=12086*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=12087*/
-                            sumi = 1/((n-m+1-alfa/2.0)*(m+1-alfa/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);   /*Z=12088*/
-                            sump = sump+sumi;   /*Z=12089*/
-                            sump1 = sump1+pn[n-m]*sumi;   /*Z=12090*/
-                        }   /*Z=12091*/
-                        CR->carr7p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump;   /*Z=12092*/
-                        CR->carr8p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump1;   /*Z=12093*/
-                        CR->carr9p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrn[n-1]*sump;   /*Z=12094*/
-
-                        /* F(q)-coefficients */   /*Z=12111*/
-                        CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);   /*Z=12112*/
-                        CR->carr5f[n] = (1-alfa/2.0)*z12v[n]*xrmn_n/((n+1-alfa/2.0)*fkv[n]*fkv[n]);   /*Z=12113*/
-                        CR->carr6f[n] = (1-alfa/2.0)*z12v[n]*xrn[n]/((n+1-alfa/2.0)*fkv[n]*fkv[n]);   /*Z=12114*/
-
-                        if ( search1 )
-                        {   /*Z=12116*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=12117*/
-                                n1 = n;   /*Z=12118*/
-                                search1 = false;   /*Z=12119*/
-                            }   /*Z=12120*/
-                        }   /*Z=12121*/
-                        if ( search4 )
-                        {   /*Z=12122*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=12123*/
-                                n4 = n;   /*Z=12124*/
-                                search4 = false;   /*Z=12125*/
-                            }   /*Z=12126*/
-                        }   /*Z=12127*/
-                        if ( search5 )
-                        {   /*Z=12128*/
-                            if ( fabs(CR->carr5p[n])<1e-50 )
-                            {   /*Z=12129*/
-                                n5 = n;   /*Z=12130*/
-                                search5 = false;   /*Z=12131*/
-                            }   /*Z=12132*/
-                        }   /*Z=12133*/
-                        if ( search6 )
-                        {   /*Z=12134*/
-                            if ( fabs(CR->carr6p[n])<1e-50 )
-                            {   /*Z=12135*/
-                                n6 = n;   /*Z=12136*/
-                                search6 = false;   /*Z=12137*/
-                            }   /*Z=12138*/
-                        }   /*Z=12139*/
-                        if ( fabs(CR->carr7p[n])<min )
-                        {   /*Z=12140*/
-                            if ( n<n7 ) n7 = n;   /*Z=12141*/
-                        }   /*Z=12142*/
-                        if ( fabs(CR->carr8p[n])<min )
-                        {   /*Z=12143*/
-                            if ( n<n8 ) n8 = n;   /*Z=12144*/
-                        }   /*Z=12145*/
-                        if ( fabs(CR->carr9p[n])<min )
-                        {   /*Z=12146*/
-                            if ( n<n9 ) n9 = n;   /*Z=12147*/
-                        }   /*Z=12148*/
-                        if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=12149*/
-                            if ( n<n1f ) n1f = n;   /*Z=12150*/
-                        }   /*Z=12151*/
-                        if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=12152*/
-                            if ( n<n4f ) n4f = n;   /*Z=12153*/
-                        }   /*Z=12154*/
-                        if ( fabs(CR->carr5f[n])<min )
-                        {   /*Z=12155*/
-                            if ( n<n5f ) n5f = n;   /*Z=12156*/
-                        }   /*Z=12157*/
+                        {/*7*/  //Z=12511
+                            if ( n<n5f ) n5f = n;  //Z=12512
+                        }/*7*/  //Z=12513
                         if ( fabs(CR->carr6f[n])<min )
-                        {   /*Z=12158*/
-                            if ( n<n6f ) n6f = n;   /*Z=12159*/
-                        }   /*Z=12160*/
-                        if ( fabs(CR->carr7f[n])<min )
-                        {   /*Z=12161*/
-                            if ( n<n7f ) n7f = n;   /*Z=12162*/
-                        }   /*Z=12163*/
-                        if ( fabs(CR->carr8f[n])<min )
-                        {   /*Z=12164*/
-                            if ( n<n8f ) n8f = n;   /*Z=12165*/
-                        }   /*Z=12166*/
-                        if ( fabs(CR->carr9f[n])<min )
-                        {   /*Z=12167*/
-                            if ( n<n9f ) n9f = n;   /*Z=12168*/
-                        }   /*Z=12169*/
-                    }   /* of n-loop */   /*Z=12170*/
-                }  /* of inhomogeneous core/shell */   /*Z=12171*/
+                        {/*7*/  //Z=12514
+                            if ( n<n6f ) n6f = n;  //Z=12515
+                        }/*7*/  //Z=12516
+                    }/*6*/  /*  n-loop  */  //Z=12517
+                }/*5*/  /*  homogeneous loop  */  //Z=12518
 
-                /* myelin */   /*Z=12173*/
+                /*  inhomogeneous core/shell  */  //Z=12522
+                if ( cs==2 )
+                {/*5*/  //Z=12523
+                    i = 2;  //Z=12524
+                    for ( n=1; n<=nmax; n++ )
+                    {/*6*/  //Z=12525
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=12526
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12527
+                        b1sv_n = b1sv_n*(b1s-1+n);  //Z=12528
+                        fkv[n] = fkv[n-1]*n;  //Z=12529
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=12530
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=12531
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=12532 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=12533
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=12534
+                        xrmn_n = -xrmn_n*xrm2z;  //Z=12535
+                        pn[n] = pn[n-1]*p*p;  //Z=12536
+                        /*  longitudinal  */  //Z=12537
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=12538
+                            sump = 0.0;  //Z=12539
+                            for ( ll=0; ll<=m; ll++ )  //Z=12540
+                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*norm);  //Z=12541
+                            /* carr1pm[i]:=power(4,m)*power(p21*p21,n-m)*sump/(fkv[n-m]);  //Z=12542 */
+                            /* carr1fm[i]:=carr1pm[i];  //Z=12543 */
+                            /* i:=i+1;  //Z=12544 */
+                            CR->carr11pm[n][m] = sump/(fkv[n-m]);  //Z=12545
+                        }/*7*/  //Z=12546
+                        /*  P(q)-coefficients  */  //Z=12547
+                        /* carr1p[n]:=power(4,n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=12548 */
+
+                        CR->carr1p[n] = (sqrt(M_PI)/2.0)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=12550
+                        /* carr1p[n]:=(1/2)*power(4,n)*z12vl[n]*xln[n]/((n+1)*(n+1/2));  //Z=12551 */
+
+                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12553
+                        /*  F(q)-coefficients  */  //Z=12554
+                        sump = 0.0;  //Z=12555
+                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12556
+                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=12557
+                        CR->carr2f[n] = CR->carr2p[n];  //Z=12558
+
+
+                        /*  cross-sectional P(q)  */  //Z=12561
+                        CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=12562
+                        sump = 0.0;  //Z=12563
+                        sump1 = 0.0;  //Z=12564
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=12565
+                            sumi = 1/((m+1-alfa/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=12566
+                            sump = sump+pn[n-m]*sumi;  //Z=12567
+                            sump1 = sump1+sumi;  //Z=12568
+                        }/*7*/  //Z=12569
+                        CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;  //Z=12570
+                        CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n]*sump1;  //Z=12571
+                        sump = 0.0;  //Z=12572
+                        sump1 = 0.0;  //Z=12573
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=12574
+                            sumi = 1/((n-m+1-alfa/2.0)*(m+1-alfa/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=12575
+                            sump = sump+sumi;  //Z=12576
+                            sump1 = sump1+pn[n-m]*sumi;  //Z=12577
+                        }/*7*/  //Z=12578
+                        CR->carr7p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump;  //Z=12579
+                        CR->carr8p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump1;  //Z=12580
+                        CR->carr9p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrn[n]*sump;  //Z=12581
+
+                        /*  (* P(q)-coefficients *)  //Z=12585
+                            (* cross-sectional *)  //Z=12586
+                            (* F121 *)  //Z=12587
+                            carr4p[n]:=4*(n+1/2)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=12588
+                            (* F122 *)  //Z=12589
+                            sump:=0.0;  //Z=12590
+                               for m:=0 to n do begin  //Z=12591
+                               sump:=sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=12592
+                            end;  //Z=12593
+                            carr5p[n]:=z12v[n]*xrmn[n]*sump;  //Z=12594
+                            (* F123 *)  //Z=12595
+                            carr6p[n]:=carr4p[n]/pn[n];   */  //Z=12596
+
+                        /*  F(q)-coefficients  */  //Z=12598
+                        CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);  //Z=12599
+                        CR->carr5f[n] = (1-alfa/2.0)*z12v[n]*xrmn_n/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=12600
+                        CR->carr6f[n] = (1-alfa/2.0)*z12v[n]*xrn[n]/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=12601
+
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=12603
+                            if ( n<n1 ) n1 = n;  //Z=12604
+                        }/*7*/  //Z=12605
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=12606
+                            if ( n<n4 ) n4 = n;  //Z=12607
+                        }/*7*/  //Z=12608
+                        if ( fabs(CR->carr5p[n])<min )
+                        {/*7*/  //Z=12609
+                            if ( n<n5 ) n5 = n;  //Z=12610
+                        }/*7*/  //Z=12611
+                        if ( fabs(CR->carr6p[n])<min )
+                        {/*7*/  //Z=12612
+                            if ( n<n6 ) n6 = n;  //Z=12613
+                        }/*7*/  //Z=12614
+                        if ( fabs(CR->carr7p[n])<min )
+                        {/*7*/  //Z=12615
+                            if ( n<n7 ) n7 = n;  //Z=12616
+                        }/*7*/  //Z=12617
+                        if ( fabs(CR->carr8p[n])<min )
+                        {/*7*/  //Z=12618
+                            if ( n<n8 ) n8 = n;  //Z=12619
+                        }/*7*/  //Z=12620
+                        if ( fabs(CR->carr9p[n])<min )
+                        {/*7*/  //Z=12621
+                            if ( n<n9 ) n9 = n;  //Z=12622
+                        }/*7*/  //Z=12623
+                        if ( fabs(CR->carr1f[n])<min )
+                        {/*7*/  //Z=12624
+                            if ( n<n1f ) n1f = n;  //Z=12625
+                        }/*7*/  //Z=12626
+                        if ( fabs(CR->carr4f[n])<min )
+                        {/*7*/  //Z=12627
+                            if ( n<n4f ) n4f = n;  //Z=12628
+                        }/*7*/  //Z=12629
+                        if ( fabs(CR->carr5f[n])<min )
+                        {/*7*/  //Z=12630
+                            if ( n<n5f ) n5f = n;  //Z=12631
+                        }/*7*/  //Z=12632
+                        if ( fabs(CR->carr6f[n])<min )
+                        {/*7*/  //Z=12633
+                            if ( n<n6f ) n6f = n;  //Z=12634
+                        }/*7*/  //Z=12635
+                        if ( fabs(CR->carr7f[n])<min )
+                        {/*7*/  //Z=12636
+                            if ( n<n7f ) n7f = n;  //Z=12637
+                        }/*7*/  //Z=12638
+                        if ( fabs(CR->carr8f[n])<min )
+                        {/*7*/  //Z=12639
+                            if ( n<n8f ) n8f = n;  //Z=12640
+                        }/*7*/  //Z=12641
+                        if ( fabs(CR->carr9f[n])<min )
+                        {/*7*/  //Z=12642
+                            if ( n<n9f ) n9f = n;  //Z=12643
+                        }/*7*/  //Z=12644
+                    }/*6*/   /*  of n-loop  */  //Z=12645
+                }/*5*/  /*  of inhomogeneous core/shell  */  //Z=12646
+
+                /*  myelin  */  //Z=12648
                 if ( (cs==3) || (cs==4) )
-                {   /*Z=12174*/
-                    i = 2;   /*Z=12175*/
+                {/*5*/  //Z=12649
+                    i = 2;  //Z=12650
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=12176*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=12177*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=12178*/
-                        //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=12179*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=12180*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=12181*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=12182*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=12183*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=12184*/
-                        xrn[n] = -xrn[n-1]*x12zm;   /*Z=12185*/
-                        /* longitudinal */   /*Z=12186*/
+                    {/*6*/  //Z=12651
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=12652
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12653
+                        b1sv_n = b1sv_n*(b1s-1+n);  //Z=12654
+                        fkv[n] = fkv[n-1]*n;  //Z=12655
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=12656
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=12657
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=12658 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=12659
+                        xrn[n] = -xrn[n-1]*x12zm;  //Z=12660
+                        /*  longitudinal  */  //Z=12661
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=12187*/
-                            sump = 0.0;   /*Z=12188*/
-                            for ( ll=0; ll<=m; ll++ )   /*Z=12189*/
-                                sump = sump+pow(p11*p11,1.0*ll)*pow(p13*p13,1.0*m-ll)*intlar[m-ll][n-m+ll]/(pow(4.,1.0*ll)*fk2v[m-ll]*fkv[n-m+ll]*fkv[ll]*norm);   /*Z=12190*/
-                            /* carr1pm[i]:=power(4,m)*sump/(fkv[n-m]); */   /*Z=12191*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=12192*/
-                            /* i:=i+1; */   /*Z=12193*/
-                            CR->carr11pm[n][m] = pow(4.,1.0*m)*sump/(fkv[n-m]);   /*Z=12194, cs=3|4,dim=1,cho1=1*/
-                        }   /*Z=12195*/
-                        /* P(q)-coefficients */   /*Z=12196*/
-                        CR->carr1p[n] = pow(4.,1.0*n)*z12vl[n]*xln[n]/((2.*n+1)*(n+1));   /*Z=12197*/
-                        D1P( qDebug() << "CARR1P(d)" << n << CR->carr1p[n]; )
-                        CR->carr2p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=12198*/
-                        /* F(q)-coefficients */   /*Z=12199*/
-                        sump = 0.0;   /*Z=12200*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=12201*/
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.,1.0*n));   /*Z=12202*/
-                        CR->carr2f[n] = CR->carr2p[n];   /*Z=12203*/
-                        /* cross-sectional */   /*Z=12204*/
-                        CR->carr4p[n] = z12v[n]*xrn[n];   /*Z=12205*/
-                        //D4P( qDebug() << "CARR4P(d)" << n << CR->carr4p[n]; )
+                        {/*7*/  //Z=12662
+                            sump = 0.0;  //Z=12663
+                            for ( ll=0; ll<=m; ll++ )  //Z=12664
+                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*norm);  //Z=12665
+                            /* carr1pm[i]:=power(4,m)*power(p21*p21,n-m)*sump/(fkv[n-m]);  //Z=12666 */
+                            /* carr1fm[i]:=carr1pm[i];  //Z=12667 */
+                            /* i:=i+1;  //Z=12668 */
+                            CR->carr11pm[n][m] = sump/(fkv[n-m]);  //Z=12669
+                        }/*7*/  //Z=12670
+                        /*  P(q)-coefficients  */  //Z=12671
+                        /* carr1p[n]:=power(4,n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=12672 */
 
-                        sump = 0.0;   /*Z=12207*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=12208*/
-                        CR->carr4f[n] = xrn[n-1]*sump;   /*Z=12209*/
-                        if ( search1 )
-                        {   /*Z=12210*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=12211*/
-                                n1 = n;   /*Z=12212*/
-                                search1 = false;   /*Z=12213*/
-                            }   /*Z=12214*/
-                        }   /*Z=12215*/
-                        if ( search4 )
-                        {   /*Z=12216*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=12217*/
-                                n4 = n;   /*Z=12218*/
-                                search4 = false;   /*Z=12219*/
-                            }   /*Z=12220*/
-                        }   /*Z=12221*/
+                        CR->carr1p[n] = (sqrt(M_PI)/2.0)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=12674
+                        /* carr1p[n]:=(1/2)*power(4,n)*z12vl[n]*xln[n]/((n+1)*(n+1/2));  //Z=12675 */
+
+                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12677
+                        /*  F(q)-coefficients  */  //Z=12678
+                        sump = 0.0;  //Z=12679
+                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12680
+                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=12681
+                        CR->carr2f[n] = CR->carr2p[n];  //Z=12682
+                        /*  cross-sectional  */  //Z=12683
+                        CR->carr4p[n] = z12v[n]*xrn[n];  //Z=12684
+
+                        sump = 0.0;  //Z=12686
+                        for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12687
+                        CR->carr4f[n] = xrn[n]*sump;  //Z=12688
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=12689
+                            if ( n<n1 ) n1 = n;  //Z=12690
+                        }/*7*/  //Z=12691
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=12692
+                            if ( n<n4 ) n4 = n;  //Z=12693
+                        }/*7*/  //Z=12694
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=12222*/
-                            if ( n<n1f ) n1f = n;   /*Z=12223*/
-                        }   /*Z=12224*/
+                        {/*7*/  //Z=12695
+                            if ( n<n1f ) n1f = n;  //Z=12696
+                        }/*7*/  //Z=12697
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=12225*/
-                            if ( n<n4f ) n4f = n;   /*Z=12226*/
-                        }   /*Z=12227*/
-                    }   /*Z=12228*/
-                }        /* of myelin */   /*Z=12229*/
-            }   /* of cylinder */   /*Z=12230*/
+                        {/*7*/  //Z=12698
+                            if ( n<n4f ) n4f = n;  //Z=12699
+                        }/*7*/  //Z=12700
+                    }/*6*/  //Z=12701
+                }/*5*/        /*  of myelin  */  //Z=12702
+            }/*4*/   /*  of cylinder  */  //Z=12703
 
-            //if (dim=1) then begin   /*Z=12232*/
+            /* if (dim=1) then begin  //Z=12705
+                for n:=1 to nmax do begin  //Z=12706
+                   z12v[n]:=z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=12707
+                   b1sv[n]:=b1sv[n-1]*(b1s-1+n);  //Z=12708
+                   xln[n]:=-xln[n-1]*xl2z;  //Z=12709
+                   xrn[n]:=-xrn[n-1]*xr2z;  //Z=12710
+                   carr1[n]:=power(4,2*n)*z12v[n]*xln[n]/((2*n+1)*(n+1));  //Z=12711
+                   carr1p[n]:=carr1[n];  //Z=12712
+                   carr3[n]:=4*(n+1/2)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*b1sv[n]*fkv[n]);  //Z=12713
+                   carr3p[n]:=carr3[n];  //Z=12714
+                   if search1 then begin  //Z=12715
+                      if carr1[n]<1e-50 then begin  //Z=12716
+                         n1:=n;  //Z=12717
+                         search1:=false;  //Z=12718
+                      end;  //Z=12719
+                   end;  //Z=12720
+                   if search3 then begin  //Z=12721
+                      if carr3[n]<1e-50 then begin  //Z=12722
+                         n3:=n;  //Z=12723
+                         search3:=false;  //Z=12724
+                      end;  //Z=12725
+                   end;  //Z=12726
+                end;  //Z=12727
+             end;      */  //Z=12728
 
-            /* disk form factor coefficients */   /*Z=12257*/
+            /*  disk form factor coefficients  */  //Z=12730
             if ( dim==2 )
-            {   /*Z=12258*/
-                /* homogeneous */   /*Z=12259*/
+            {/*4*/  //Z=12731
+                /*  homogeneous  */  //Z=12732
+                params.p11 = sin(theta*M_PI/180.0);  //Z=12733
+                params.p13 = cos(theta*M_PI/180.0);  //Z=12734
                 if ( cs==0 )
-                {   /*Z=12260*/
-                    i = 2;   /*Z=12261*/
+                {/*5*/  //Z=12735
+                    i = 2;  //Z=12736
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=12262*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=12263*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=12264*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=12265*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=12266*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=12267*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=12268*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=12269*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=12270*/
-                        /* longitudinal */   /*Z=12271*/
+                    {/*6*/  //Z=12737
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=12738
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12739
+                        fkv[n] = fkv[n-1]*n;  //Z=12740
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=12741
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=12742
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=12743 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=12744
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=12745
+                        /*  longitudinal  */  //Z=12746
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=12272*/
-                            sump = 0.0;   /*Z=12273*/
-                            for ( ll=0; ll<=m; ll++ )   /*Z=12274*/
-                                sump = sump+pow(p11*p11,1.0*ll)*pow(p13*p13,1.0*m-ll)*intlar[m-ll][n-m+ll]/(pow(4.,1.0*ll)*fk2v[m-ll]*fkv[n-m+ll]*fkv[ll]*norm);   /*Z=12275*/
-                            /* carr2pm[i]:=power(4,m)*sump/(fkv[n-m]); */   /*Z=12276*/
-                            CR->carr22pm[n][m] = pow(4.,1.0*m)*sump/(fkv[n-m]);   /*Z=12277*/
-                            /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]); */   /*Z=12278*/
-                            CR->carr11pm[n][m] = pow(-1.,1.0*m)*fk2v[m]/(pow(4.,1.0*m)*fkv[m]*fkv[n-m]);   /*Z=12279, cs=0,dim=2,cho1=1*/
-                            /* carr2fm[i]:=carr2pm[i]; */   /*Z=12280*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=12281*/
-                            i = i+1;   /*Z=12282*/
-                        }   /*Z=12283*/
-                        CR->carr1p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);   /*Z=12284*/
-                        sump1 = 0.0;   /*Z=12285*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=12286*/
-                            sump1 = sump1+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=12287*/
-                        }   /*Z=12288*/
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump1;   /*Z=12289*/
-                        /*Z=12290*/
-                        /* cross-sectional */   /*Z=12291*/
-                        CR->carr4p[n] = pow(4.,1.0*n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2*(n+1)*gam3[n]*fkv[n]);   /*Z=12292*/
-                        sump = 0.0;   /*Z=12293*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=12294*/
-                            sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=12295*/
-                        }   /*Z=12296*/
-                        CR->carr4f[n] = M_PI*xrn[n-1]*sump/4.0;   /*Z=12297*/
-                        /*Z=12298*/
-                        /* series for <...> integration */   /*Z=12299*/
-                        CR->carr2p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=12300*/
-                        sump = 0.0;   /*Z=12301*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=12302*/
-                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=12303*/
-                        }   /*Z=12304*/
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2*gam3[n]);   /*Z=12305*/
-                        /*Z=12306*/
-                        if ( search1 )
-                        {   /*Z=12307*/
-                            if ( fabs(CR->carr1p[n])<1e-50 || fabs(CR->carr1p[n])>1e+50 ) //NEU
-                            {   /*Z=12308*/
-                                n1 = n;   /*Z=12309*/
-                                search1 = false;   /*Z=12310*/
-                            }   /*Z=12311*/
-                        }   /*Z=12312*/
-                        if ( search4 )
-                        {   /*Z=12313*/
-                            if ( fabs(CR->carr4p[n])<1e-50 || fabs(CR->carr4p[n])>1e+50 ) //NEU
-                            {   /*Z=12314*/
-                                n4 = n;   /*Z=12315*/
-                                search4 = false;   /*Z=12316*/
-                            }   /*Z=12317*/
-                        }   /*Z=12318*/
-                        if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=12319*/
-                            if ( n<n1f ) n1f = n;   /*Z=12320*/
-                        }   /*Z=12321*/
-                        if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=12322*/
-                            if ( n<n4f ) n4f = n;   /*Z=12323*/
-                        }   /*Z=12324*/
-                    }   /*Z=12325*/
-                }   /*Z=12326*/
+                        {/*7*/  //Z=12747
+                            sump = 0.0;  //Z=12748
+                            for ( ll=0; ll<=m; ll++ )  //Z=12749
+                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*norm);  //Z=12750
+                            /* carr2pm[i]:=power(4,m)*sump/(fkv[n-m]);  //Z=12751 */
+                            CR->carr11pm[n][m] = sump/(fkv[n-m]);  //Z=12752
+                            /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]);  //Z=12753 */
+                            CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=12754
+                            /* carr2fm[i]:=carr2pm[i];  //Z=12755 */
+                            /* carr1fm[i]:=carr1pm[i];  //Z=12756 */
+                            i = i+1;  //Z=12757
+                        }/*7*/  //Z=12758
+                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=12759
 
-                /* core/shell */   /*Z=12328*/
+                        sump1 = 0.0;  //Z=12761
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=12762
+                            sump1 = sump1+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=12763
+                        }/*7*/  //Z=12764
+                        CR->carr1f[n] = xln[n]*fkv[n]*sump1;  //Z=12765
+
+                        /*  cross-sectional  */  //Z=12767
+                        CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=12768
+                        sump = 0.0;  //Z=12769
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=12770
+                            sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12771
+                        }/*7*/  //Z=12772
+                        CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=12773
+
+                        /*  series for <...> integration  */  //Z=12775
+                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12776
+                        sump = 0.0;  //Z=12777
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=12778
+                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12779
+                        }/*7*/  //Z=12780
+                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=12781
+
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=12783
+                            if ( n<n1 ) n1 = n;  //Z=12784
+                        }/*7*/  //Z=12785
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=12786
+                            if ( n<n4 ) n4 = n;  //Z=12787
+                        }/*7*/  //Z=12788
+                        if ( fabs(CR->carr1f[n])<min )
+                        {/*7*/  //Z=12789
+                            if ( n<n1f ) n1f = n;  //Z=12790
+                        }/*7*/  //Z=12791
+                        if ( fabs(CR->carr4f[n])<min )
+                        {/*7*/  //Z=12792
+                            if ( n<n4f ) n4f = n;  //Z=12793
+                        }/*7*/  //Z=12794
+                    }/*6*/  //Z=12795
+                }/*5*/  //Z=12796
+
+                /*  core/shell  */  //Z=12798
                 if ( cs==1 )
-                {   /*Z=12329*/
-                    i = 2;   /*Z=12330*/
+                {/*5*/  //Z=12799
+                    i = 2;  //Z=12800
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=12331*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=12332*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=12333*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=12334*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=12335*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=12336*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=12337*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=12338*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=12339*/
-                        xrmn_n = -xrmn_n*xrm2z;   /*Z=12340*/
-                        pn[n] = pn[n-1]*p*p;   /*Z=12341*/
-                        /* longitudinal */   /*Z=12342*/
+                    {/*6*/  //Z=12801
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=12802
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12803
+                        fkv[n] = fkv[n-1]*n;  //Z=12804
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=12805
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=12806
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=12807 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=12808
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=12809
+                        xrmn_n = -xrmn_n*xrm2z;  //Z=12810
+                        pn[n] = pn[n-1]*p*p;  //Z=12811
+                        /*  longitudinal  */  //Z=12812
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=12343*/
-                            sump = 0.0;   /*Z=12344*/
-                            for ( ll=0; ll<=m; ll++ )   /*Z=12345*/
-                                sump = sump+pow(p11*p11,1.0*ll)*pow(p13*p13,1.0*m-ll)*intlar[m-ll][n-m+ll]/(pow(4.,1.0*ll)*fk2v[m-ll]*fkv[n-m+ll]*fkv[ll]*norm);   /*Z=12346*/
-                            /* carr2pm[i]:=power(4,m)*sump/(fkv[n-m]); */   /*Z=12347*/
-                            CR->carr22pm[n][m] = pow(4.,1.0*m)*sump/(fkv[n-m]);   /*Z=12348*/
-                            /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]); */   /*Z=12349*/
-                            CR->carr11pm[n][m] = pow(-1.,1.0*m)*fk2v[m]/(pow(4.,1.0*m)*fkv[m]*fkv[n-m]);   /*Z=12350, cs=1,dim=2,cho1=1*/
-                            /* carr2fm[i]:=carr2pm[i]; */   /*Z=12351*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=12352*/
-                            /* i:=i+1; */   /*Z=12353*/
-                        }   /*Z=12354*/
-                        CR->carr1p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=12355*/
-                        sump1 = 0.0;   /*Z=12356*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=12357*/
-                            sump1 = sump1+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=12358*/
-                        }   /*Z=12359*/
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump1;   /*Z=12360*/
+                        {/*7*/  //Z=12813
+                            sump = 0.0;  //Z=12814
+                            for ( ll=0; ll<=m; ll++ )  //Z=12815
+                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*norm);  //Z=12816
+                            /* carr2pm[i]:=power(4,m)*sump/(fkv[n-m]);  //Z=12817 */
+                            CR->carr11pm[n][m] = sump/(fkv[n-m]);  //Z=12818
+                            /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]);  //Z=12819 */
+                            CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=12820
+                            /* carr2fm[i]:=carr2pm[i];  //Z=12821 */
+                            /* carr1fm[i]:=carr1pm[i];  //Z=12822 */
+                            i = i+1;  //Z=12823
+                        }/*7*/  //Z=12824
+                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=12825
 
-                        /* P(q)-coefficients */   /*Z=12362*/
-                        /* cross-sectional */   /*Z=12363*/
-                        /* F121 */   /*Z=12364*/
-                        CR->carr4p[n] = pow(4.,1.0*n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2*(n+1)*gam3[n]*fkv[n]);   /*Z=12365*/
-                        /* F122 */   /*Z=12366*/
-                        sump = 0.0;   /*Z=12367*/
+                        sump1 = 0.0;  //Z=12827
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=12368*/
-                            sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=12369*/
-                        }   /*Z=12370*/
-                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;   /*Z=12371*/
+                        {/*7*/  //Z=12828
+                            sump1 = sump1+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=12829
+                        }/*7*/  //Z=12830
+                        CR->carr1f[n] = xln[n]*fkv[n]*sump1;  //Z=12831
 
-                        /* F122 */   /*Z=12374*/
-                        sump = 0.0;   /*Z=12375*/
+                        /*  P(q)-coefficients  */  //Z=12833
+                        /*  cross-sectional  */  //Z=12834
+                        /*  F121  */  //Z=12835
+                        CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=12836
+                        /*  F122  */  //Z=12837
+                        sump = 0.0;  //Z=12838
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=12376*/
-                            sump = sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=12377*/
-                        }   /*Z=12378*/
-                        CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;   /*Z=12379*/
+                        {/*7*/  //Z=12839
+                            sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12840
+                        }/*7*/  //Z=12841
+                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=12842
 
-                        /* F123 */   /*Z=12382*/
-                        CR->carr6p[n] = CR->carr4p[n]/pn[n];   /*Z=12383*/
-                        /* F121 */   /*Z=12384*/
-                        sump = 0.0;   /*Z=12385*/
+                        /*  F122  */  //Z=12845
+                        sump = 0.0;  //Z=12846
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=12386*/
-                            sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=12387*/
-                        }   /*Z=12388*/
-                        CR->carr4f[n] = M_PI*xrn[n-1]*sump/4.0;   /*Z=12389*/
-                        /* F122 */   /*Z=12390*/
-                        sump = 0.0;   /*Z=12391*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=12392*/
-                            sump = sump+pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=12393*/
-                        }   /*Z=12394*/
-                        CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;   /*Z=12395*/
-                        /* F123 */   /*Z=12396*/
-                        CR->carr6f[n] = CR->carr4f[n]/pn[n];   /*Z=12397*/
+                        {/*7*/  //Z=12847
+                            sump = sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12848
+                        }/*7*/  //Z=12849
+                        CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=12850
 
-                        /* series for <...> integration */   /*Z=12399*/
-                        CR->carr2p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=12400*/
-                        sump = 0.0;   /*Z=12401*/
+                        /*  F123  */  //Z=12853
+                        CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=12854
+                        /*  F121  */  //Z=12855
+                        sump = 0.0;  //Z=12856
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=12402*/
-                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=12403*/
-                        }   /*Z=12404*/
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2*gam3[n]);   /*Z=12405*/
+                        {/*7*/  //Z=12857
+                            sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12858
+                        }/*7*/  //Z=12859
+                        CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=12860
+                        /*  F122  */  //Z=12861
+                        sump = 0.0;  //Z=12862
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=12863
+                            sump = sump+pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12864
+                        }/*7*/  //Z=12865
+                        CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=12866
+                        /*  F123  */  //Z=12867
+                        CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=12868
 
-                        if ( search1 )
-                        {   /*Z=12407*/
-                            if ( fabs(CR->carr1p[n])<1e-50 || fabs(CR->carr1p[n])>1e+50 )
-                            {   /*Z=12408*/
-                                n1 = n;   /*Z=12409*/
-                                search1 = false;   /*Z=12410*/
-                            }   /*Z=12411*/
-                        }   /*Z=12412*/
-                        if ( search4 )
-                        {   /*Z=12413*/
-                            if ( fabs(CR->carr4p[n])<1e-50 || fabs(CR->carr4p[n])>1e+50 ) //NEU
-                            {   /*Z=12414*/
-                                n4 = n;   /*Z=12415*/
-                                search4 = false;   /*Z=12416*/
-                            }   /*Z=12417*/
-                        }   /*Z=12418*/
-                        if ( search5 )
-                        {   /*Z=12419*/
-                            if ( fabs(CR->carr5p[n])<1e-50 || fabs(CR->carr5p[n])>1e+50 ) //NEU
-                            {   /*Z=12420*/
-                                n5 = n;   /*Z=12421*/
-                                search5 = false;   /*Z=12422*/
-                            }   /*Z=12423*/
-                        }   /*Z=12424*/
-                        if ( search6 )
-                        {   /*Z=12425*/
-                            if ( fabs(CR->carr6p[n])<1e-50 || fabs(CR->carr6p[n])>1e+50 ) //NEU
-                            {   /*Z=12426*/
-                                n6 = n;   /*Z=12427*/
-                                search6 = false;   /*Z=12428*/
-                            }   /*Z=12429*/
-                        }   /*Z=12430*/
+                        /*  series for <...> integration  */  //Z=12870
+                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12871
+                        sump = 0.0;  //Z=12872
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=12873
+                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12874
+                        }/*7*/  //Z=12875
+                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=12876
+
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=12878
+                            if ( n<n1 ) n1 = n;  //Z=12879
+                        }/*7*/  //Z=12880
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=12881
+                            if ( n<n4 ) n4 = n;  //Z=12882
+                        }/*7*/  //Z=12883
+                        if ( fabs(CR->carr5p[n])<min )
+                        {/*7*/  //Z=12884
+                            if ( n<n5 ) n5 = n;  //Z=12885
+                        }/*7*/  //Z=12886
+                        if ( fabs(CR->carr6p[n])<min )
+                        {/*7*/  //Z=12887
+                            if ( n<n6 ) n6 = n;  //Z=12888
+                        }/*7*/  //Z=12889
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=12431*/
-                            if ( n<n1f ) n1f = n;   /*Z=12432*/
-                        }   /*Z=12433*/
+                        {/*7*/  //Z=12890
+                            if ( n<n1f ) n1f = n;  //Z=12891
+                        }/*7*/  //Z=12892
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=12434*/
-                            if ( n<n4f ) n4f = n;   /*Z=12435*/
-                        }   /*Z=12436*/
+                        {/*7*/  //Z=12893
+                            if ( n<n4f ) n4f = n;  //Z=12894
+                        }/*7*/  //Z=12895
                         if ( fabs(CR->carr5f[n])<min )
-                        {   /*Z=12437*/
-                            if ( n<n5f ) n5f = n;   /*Z=12438*/
-                        }   /*Z=12439*/
+                        {/*7*/  //Z=12896
+                            if ( n<n5f ) n5f = n;  //Z=12897
+                        }/*7*/  //Z=12898
                         if ( fabs(CR->carr6f[n])<min )
-                        {   /*Z=12440*/
-                            if ( n<n6f ) n6f = n;   /*Z=12441*/
-                        }   /*Z=12442*/
-                    } /* of n-loop */   /*Z=12443*/
-                }  /* of core/shell */   /*Z=12444*/
+                        {/*7*/  //Z=12899
+                            if ( n<n6f ) n6f = n;  //Z=12900
+                        }/*7*/  //Z=12901
+                    }/*6*/ /*  of n-loop  */  //Z=12902
+                }/*5*/  /*  of core/shell  */  //Z=12903
 
-                /* inhomogeneous core/shell */   /*Z=12446*/
+                /*  inhomogeneous core/shell  */  //Z=12905
                 if ( cs==2 )
-                {   /*Z=12447*/
-                    i = 2;   /*Z=12448*/
+                {/*5*/  //Z=12906
+                    i = 2;  //Z=12907
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=12449*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=12450*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=12451*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=12452*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=12453*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=12454*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=12455*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=12456*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=12457*/
-                        xrmn_n = -xrmn_n*xrm2z;   /*Z=12458*/
-                        pn[n] = pn[n-1]*p*p;   /*Z=12459*/
-                        /* longitudinal */   /*Z=12460*/
+                    {/*6*/  //Z=12908
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=12909
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12910
+                        fkv[n] = fkv[n-1]*n;  //Z=12911
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=12912
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=12913
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=12914 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=12915
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=12916
+                        xrmn_n = -xrmn_n*xrm2z;  //Z=12917
+                        pn[n] = pn[n-1]*p*p;  //Z=12918
+                        /*  longitudinal  */  //Z=12919
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=12461*/
-                            sump = 0.0;   /*Z=12462*/
-                            for ( ll=0; ll<=m; ll++ )   /*Z=12463*/
-                                sump = sump+pow(p11*p11,1.0*ll)*pow(p13*p13,1.0*m-ll)*intlar[m-ll][n-m+ll]/(pow(4.,1.0*ll)*fk2v[m-ll]*fkv[n-m+ll]*fkv[ll]*norm);   /*Z=12464*/
-                            /* carr2pm[i]:=power(4,m)*sump/(fkv[n-m]); */   /*Z=12465*/
-                            CR->carr22pm[n][m] = pow(4.,1.0*m)*sump/(fkv[n-m]);   /*Z=12466*/
-                            /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]); */   /*Z=12467*/
-                            CR->carr11pm[n][m] = pow(-1.,1.0*m)*fk2v[m]/(pow(4.,1.0*m)*fkv[m]*fkv[n-m]);   /*Z=12468, cs=2,dim=2,cho1=1*/
-                            /* carr2fm[i]:=carr2pm[i]; */   /*Z=12469*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=12470*/
-                            /* i:=i+1; */   /*Z=12471*/
-                        }   /*Z=12472*/
-                        CR->carr1p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=12473*/
-                        sump1 = 0.0;   /*Z=12474*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=12475*/
-                            sump1 = sump1+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=12476*/
-                        }   /*Z=12477*/
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump1;   /*Z=12478*/
+                        {/*7*/  //Z=12920
+                            sump = 0.0;  //Z=12921
+                            for ( ll=0; ll<=m; ll++ )  //Z=12922
+                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*norm);  //Z=12923
+                            /* carr2pm[i]:=power(4,m)*sump/(fkv[n-m]);  //Z=12924 */
+                            CR->carr11pm[n][m] = sump/(fkv[n-m]);  //Z=12925
+                            /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]);  //Z=12926 */
+                            CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=12927
+                            /* carr2fm[i]:=carr2pm[i];  //Z=12928 */
+                            /* carr1fm[i]:=carr1pm[i];  //Z=12929 */
+                            i = i+1;  //Z=12930
+                        }/*7*/  //Z=12931
+                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=12932
 
-                        /* cross-sectional P(q) */   /*Z=12480*/
-                        CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.,1.0*n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);   /*Z=12481*/
-                        sump = 0.0;   /*Z=12482*/
-                        sump1 = 0.0;   /*Z=12483*/
+                        sump1 = 0.0;  //Z=12934
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=12484*/
-                            sumi = (m+1/2.0)/((m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);   /*Z=12485*/
-                            sump = sump+pn[n-m]*sumi;   /*Z=12486*/
-                            sump1 = sump1+sumi;   /*Z=12487*/
-                        }   /*Z=12488*/
-                        CR->carr5p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrmn_n*sump;   /*Z=12489*/
-                        CR->carr6p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrn[n-1]*sump1;   /*Z=12490*/
-                        sump = 0.0;   /*Z=12491*/
-                        sump1 = 0.0;   /*Z=12492*/
+                        {/*7*/  //Z=12935
+                            sump1 = sump1+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=12936
+                        }/*7*/  //Z=12937
+                        CR->carr1f[n] = xln[n]*fkv[n]*sump1;  //Z=12938
+
+                        /*  cross-sectional P(q)  */  //Z=12940
+                        CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);  //Z=12941
+                        sump = 0.0;  //Z=12942
+                        sump1 = 0.0;  //Z=12943
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=12493*/
-                            sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-alfa/2.0)*(m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);   /*Z=12494*/
-                            sump = sump+sumi;   /*Z=12495*/
-                            sump1 = sump1+pn[n-m]*sumi;   /*Z=12496*/
-                        }   /*Z=12497*/
-                        CR->carr7p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump;   /*Z=12498*/
-                        CR->carr8p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump1;   /*Z=12499*/
-                        CR->carr9p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrn[n-1]*sump;   /*Z=12500*/
-
-                        /* F(q) */   /*Z=12521*/
-                        CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);   /*Z=12522*/
-                        CR->carr5f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);   /*Z=12523*/
-                        CR->carr6f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrn[n-1]*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);   /*Z=12524*/
-
-                        /* series for <...> integration */   /*Z=12526*/
-                        CR->carr2p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=12527*/
-                        sump = 0.0;   /*Z=12528*/
+                        {/*7*/  //Z=12944
+                            sumi = (m+1/2.0)/((m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=12945
+                            sump = sump+pn[n-m]*sumi;  //Z=12946
+                            sump1 = sump1+sumi;  //Z=12947
+                        }/*7*/  //Z=12948
+                        CR->carr5p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=12949
+                        CR->carr6p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrn[n]*sump1;  //Z=12950
+                        sump = 0.0;  //Z=12951
+                        sump1 = 0.0;  //Z=12952
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=12529*/
-                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=12530*/
-                        }   /*Z=12531*/
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2*gam3[n]);   /*Z=12532*/
+                        {/*7*/  //Z=12953
+                            sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-alfa/2.0)*(m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=12954
+                            sump = sump+sumi;  //Z=12955
+                            sump1 = sump1+pn[n-m]*sumi;  //Z=12956
+                        }/*7*/  //Z=12957
+                        CR->carr7p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=12958
+                        CR->carr8p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump1;  //Z=12959
+                        CR->carr9p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrn[n]*sump;  //Z=12960
 
-                        if ( search1 )
-                        {   /*Z=12534*/
-                            if ( fabs(CR->carr1p[n])<1e-50 || fabs(CR->carr1p[n])>1e+50 ) //NEU
-                            {   /*Z=12535*/
-                                n1 = n;   /*Z=12536*/
-                                search1 = false;   /*Z=12537*/
-                            }   /*Z=12538*/
-                        }   /*Z=12539*/
-                        if ( search4 )
-                        {   /*Z=12540*/
-                            if ( fabs(CR->carr4p[n])<1e-50 || fabs(CR->carr4p[n])>1e+50 ) //NEU
-                            {   /*Z=12541*/
-                                n4 = n;   /*Z=12542*/
-                                search4 = false;   /*Z=12543*/
-                            }   /*Z=12544*/
-                        }   /*Z=12545*/
-                        if ( search5 )
-                        {   /*Z=12546*/
-                            if ( fabs(CR->carr5p[n])<1e-50 || fabs(CR->carr5p[n])>1e+50 ) //NEU
-                            {   /*Z=12547*/
-                                n5 = n;   /*Z=12548*/
-                                search5 = false;   /*Z=12549*/
-                            }   /*Z=12550*/
-                        }   /*Z=12551*/
-                        if ( search6 )
-                        {   /*Z=12552*/
-                            if ( fabs(CR->carr6p[n])<1e-50 || fabs(CR->carr6p[n])>1e+50 )
-                            {   /*Z=12553*/
-                                n6 = n;   /*Z=12554*/
-                                search6 = false;   /*Z=12555*/
-                            }   /*Z=12556*/
-                        }   /*Z=12557*/
+                        /*  (* P(q)-coefficients *)  //Z=12962
+                            (* cross-sectional *)  //Z=12963
+                            (* F121 *)  //Z=12964
+                            carr4p[n]:=power(4,n)*sqrt(pi)*z12v[n]*xrn[n]/(2*(n+1)*gam3[n]*fkv[n]);  //Z=12965
+                            (* F122 *)  //Z=12966
+                            sump:=0.0;  //Z=12967
+                               for m:=0 to n do begin  //Z=12968
+                               sump:=sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12969
+                            end;  //Z=12970
+                            carr5p[n]:=z12v[n]*xrmn[n]*sump;  //Z=12971
+                            (* F122 *)  //Z=12972
+                            sump:=0.0;  //Z=12973
+                            for m:=0 to n do begin  //Z=12974
+                               sump:=sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12975
+                            end;  //Z=12976
+                            carr5p[n]:=pi*z12v[n]*xrmn[n]*sump/4;  //Z=12977
+                            (* F123 *)  //Z=12978
+                            carr6p[n]:=carr4p[n]/pn[n];      */  //Z=12979
+
+                        /*  F(q)  */  //Z=12981
+                        CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);  //Z=12982
+                        CR->carr5f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=12983
+                        CR->carr6f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrn[n]*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=12984
+
+                        /*  series for <...> integration  */  //Z=12986
+                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12987
+                        sump = 0.0;  //Z=12988
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=12989
+                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12990
+                        }/*7*/  //Z=12991
+                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=12992
+
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=12994
+                            if ( n<n1 ) n1 = n;  //Z=12995
+                        }/*7*/  //Z=12996
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=12997
+                            if ( n<n4 ) n4 = n;  //Z=12998
+                        }/*7*/  //Z=12999
+                        if ( fabs(CR->carr5p[n])<min )
+                        {/*7*/  //Z=13000
+                            if ( n<n5 ) n5 = n;  //Z=13001
+                        }/*7*/  //Z=13002
+                        if ( fabs(CR->carr6p[n])<min )
+                        {/*7*/  //Z=13003
+                            if ( n<n6 ) n6 = n;  //Z=13004
+                        }/*7*/  //Z=13005
                         if ( fabs(CR->carr7p[n])<min )
-                        {   /*Z=12558*/
-                            if ( n<n7 ) n7 = n;   /*Z=12559*/
-                        }   /*Z=12560*/
+                        {/*7*/  //Z=13006
+                            if ( n<n7 ) n7 = n;  //Z=13007
+                        }/*7*/  //Z=13008
                         if ( fabs(CR->carr8p[n])<min )
-                        {   /*Z=12561*/
-                            if ( n<n8 ) n8 = n;   /*Z=12562*/
-                        }   /*Z=12563*/
+                        {/*7*/  //Z=13009
+                            if ( n<n8 ) n8 = n;  //Z=13010
+                        }/*7*/  //Z=13011
                         if ( fabs(CR->carr9p[n])<min )
-                        {   /*Z=12564*/
-                            if ( n<n9 ) n9 = n;   /*Z=12565*/
-                        }   /*Z=12566*/
+                        {/*7*/  //Z=13012
+                            if ( n<n9 ) n9 = n;  //Z=13013
+                        }/*7*/  //Z=13014
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=12567*/
-                            if ( n<n1f ) n1f = n;   /*Z=12568*/
-                        }   /*Z=12569*/
+                        {/*7*/  //Z=13015
+                            if ( n<n1f ) n1f = n;  //Z=13016
+                        }/*7*/  //Z=13017
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=12570*/
-                            if ( n<n4f ) n4f = n;   /*Z=12571*/
-                        }   /*Z=12572*/
+                        {/*7*/  //Z=13018
+                            if ( n<n4f ) n4f = n;  //Z=13019
+                        }/*7*/  //Z=13020
                         if ( fabs(CR->carr5f[n])<min )
-                        {   /*Z=12573*/
-                            if ( n<n5f ) n5f = n;   /*Z=12574*/
-                        }   /*Z=12575*/
+                        {/*7*/  //Z=13021
+                            if ( n<n5f ) n5f = n;  //Z=13022
+                        }/*7*/  //Z=13023
                         if ( fabs(CR->carr6f[n])<min )
-                        {   /*Z=12576*/
-                            if ( n<n6f ) n6f = n;   /*Z=12577*/
-                        }   /*Z=12578*/
+                        {/*7*/  //Z=13024
+                            if ( n<n6f ) n6f = n;  //Z=13025
+                        }/*7*/  //Z=13026
                         if ( fabs(CR->carr7f[n])<min )
-                        {   /*Z=12579*/
-                            if ( n<n7f ) n7f = n;   /*Z=12580*/
-                        }   /*Z=12581*/
+                        {/*7*/  //Z=13027
+                            if ( n<n7f ) n7f = n;  //Z=13028
+                        }/*7*/  //Z=13029
                         if ( fabs(CR->carr8f[n])<min )
-                        {   /*Z=12582*/
-                            if ( n<n8f ) n8f = n;   /*Z=12583*/
-                        }   /*Z=12584*/
+                        {/*7*/  //Z=13030
+                            if ( n<n8f ) n8f = n;  //Z=13031
+                        }/*7*/  //Z=13032
                         if ( fabs(CR->carr9f[n])<min )
-                        {   /*Z=12585*/
-                            if ( n<n9f ) n9f = n;   /*Z=12586*/
-                        }   /*Z=12587*/
-                    } /* of n-loop */   /*Z=12588*/
-                }  /* of inhomogeneous core/shell */   /*Z=12589*/
-            }   /* of disk */   /*Z=12593*/
+                        {/*7*/  //Z=13033
+                            if ( n<n9f ) n9f = n;  //Z=13034
+                        }/*7*/  //Z=13035
+                    }/*6*/ /*  of n-loop  */  //Z=13036
+                }/*5*/  /*  of inhomogeneous core/shell  */  //Z=13037
 
-        }   /* of cho1=1 */  /*Z=12710*/
+            }/*4*/   /*  of disk  */  //Z=13041
 
+        }/*3*/   /*  of cho1=1  */  //Z=13158
 
-        /*** general orientation case ***/   /*Z=12712*/
-        /* for phi<>0, too slow, only for cylinders */   /*Z=12713*/
+        /* ** general orientation case ** */  //Z=13160
+        /*  for phi<>0, too slow, only for cylinders  */  //Z=13161
         if ( cho1==5 )
-        {   /*Z=12714*/
-            /*Z=12715*/
-            p11 = -cos(phi*M_PI/180.0)*cos(theta*M_PI/180.0);   /*Z=12716*/
-            p12 = sin(phi*M_PI/180.0);   /*Z=12717*/
-            p13 = cos(phi*M_PI/180.0)*sin(theta*M_PI/180.0);   /*Z=12718*/
-            p21 = -cos(phi*M_PI/180.0);   /*Z=12719*/
-            p22 = -sin(phi*M_PI/180.0)*cos(theta*M_PI/180.0);   /*Z=12720*/
-            p23 = sin(phi*M_PI/180.0)*sin(theta*M_PI/180.0);   /*Z=12721*/
-            p31 = -sin(theta*M_PI/180.0);   /*Z=12722*/
-            p32 = 0;   /*Z=12723*/
-            p33 = -cos(theta*M_PI/180.0);   /*Z=12724*/
-            /*Z=12725*/
-            for ( n=1; n<=2*nmax; n++ ) fkv[n] = fkv[n-1]*n;   /*Z=12726*/
-            /*Z=12727*/
-            i = 2;   /*Z=12728*/
+        {/*3*/  //Z=13162
+
+            params.p11 = -cos(phi*M_PI/180.0)*cos(theta*M_PI/180.0);  //Z=13164
+            params.p12 = sin(phi*M_PI/180.0);  //Z=13165
+            params.p13 = cos(phi*M_PI/180.0)*sin(theta*M_PI/180.0);  //Z=13166
+            params.p21 = -cos(phi*M_PI/180.0);  //Z=13167
+            params.p22 = -sin(phi*M_PI/180.0)*cos(theta*M_PI/180.0);  //Z=13168
+            params.p23 = sin(phi*M_PI/180.0)*sin(theta*M_PI/180.0);  //Z=13169
+            params.p31 = -sin(theta*M_PI/180.0);  //Z=13170
+            params.p32 = 0;  //Z=13171
+            params.p33 = -cos(theta*M_PI/180.0);  //Z=13172
+
+            for ( n=1; n<=2*nmax; n++ ) fkv[n] = fkv[n-1]*n;  //Z=13174
+
+            i = 2;  //Z=13176
             for ( n=1; n<=nmax; n++ )
-            {   /*Z=12729*/
+            {/*4*/  //Z=13177
                 for ( m=0; m<=2*n; m++ )
-                {   /*Z=12730*/
-                    qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,5,0,m,2*n-m,CR->carr1p,intl);   /*Z=12731*/
-                    /* carr1pm[i]:=intl/(fkv[m]*fkv[2*n-m]*norm); */   /*Z=12732*/
-                    i = i+1;   /*Z=12733*/
-                }   /*Z=12734*/
-            }   /*Z=12735*/
+                {/*5*/  //Z=13178
+                    qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,5,0,m,2*n-m,CR->carr1p,intl);  //Z=13179
+                    /* carr1pm[i]:=intl/(fkv[m]*fkv[2*n-m]*norm);  //Z=13180 */
+                    i = i+1;  //Z=13181
+                }/*5*/  //Z=13182
+            }/*4*/  //Z=13183
 
-            double b1sv_n = 1;
             for ( n=1; n<=nmax; n++ )
-            {   /*Z=12737*/
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=12738*/
-                b1sv_n = b1sv_n*(b1s-1+n);   /*Z=12739*/
-                xln[n] = -xln[n-1]*xl2z;   /*Z=12740*/
-                xrn[n] = -xrn[n-1]*xr2z;   /*Z=12741*/
-                CR->carr1p[n] = pow(4.,2.*n)*z12v[n]*xln[n]/((2*n+1)*(n+1));   /*Z=12742*/
-                CR->carr3p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*b1sv_n*fkv[n]);   /*Z=12743*/
-                if ( search1 )
-                {   /*Z=12744*/
-                    if ( fabs(CR->carr1p[n])<1e-50 )
-                    {   /*Z=12745*/
-                        n1 = n;   /*Z=12746*/
-                        search1 = false;   /*Z=12747*/
-                    }   /*Z=12748*/
-                }   /*Z=12749*/
-                if ( search3 )
-                {   /*Z=12750*/
-                    if ( fabs(CR->carr3p[n])<1e-50 )
-                    {   /*Z=12751*/
-                        n3 = n;   /*Z=12752*/
-                        search3 = false;   /*Z=12753*/
-                    }   /*Z=12754*/
-                }   /*Z=12755*/
-            }   /*Z=12756*/
-        }   /* of cho1=5 */   /*Z=12757*/
+            {/*4*/  //Z=13185
+                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13186
+                b1sv_n = b1sv_n*(b1s-1+n);  //Z=13187
+                xln[n] = -xln[n-1]*xl2z;  //Z=13188
+                xrn[n] = -xrn[n-1]*xr2z;  //Z=13189
+                CR->carr1p[n] = pow(4.0,2*n)*z12v[n]*xln[n]/((2.0*n+1)*(n+1));  //Z=13190
+                CR->carr3p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*b1sv_n*fkv[n]);  //Z=13191
 
-        /*** x-axis ***/   /*Z=12762*/
+                if ( fabs(CR->carr1p[n])<min )
+                {/*5*/  //Z=13193
+                    if ( n<n1 ) n1 = n;  //Z=13194
+                }/*5*/  //Z=13195
+                if ( fabs(CR->carr3p[n])<min )
+                {/*5*/  //Z=13196
+                    if ( n<n3 ) n3 = n;  //Z=13197
+                }/*5*/  //Z=13198
+            }/*4*/  //Z=13199
+        }/*3*/   /*  of cho1=5  */  //Z=13200
+
+        /* ** x-axis, orientational distribution centered around x-axis ** */  //Z=13205
         if ( (cho1==2) && (dim!=3) )
-        {   /*Z=12763*/
-            /*** cylinders ***/   /*Z=12764*/
+        {/*3*/  //Z=13206
+            /* ** cylinders ** */  //Z=13207
             if ( dim==1 )
-            {   /*Z=12765*/
-                /* homogeneous */   /*Z=12766*/
+            {/*4*/  //Z=13208
+                /*  homogeneous  */  //Z=13209
                 if ( cs==0 )
-                {   /*Z=12767*/
-                    i = 2;   /*Z=12768*/
-
-                    DBG( qDebug() << "sigma" << sigma << "sigmal" << sigmal << "b1s" << b1s << "length" << l
-                                 << "radius" << r << "xlz" << xlz << "xrz" << xrz; )
-
+                {/*5*/  //Z=13210
+                    i = 2;  //Z=13211
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=12769*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=12770*/
-                        z12vl[n] = z12vl[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=12771*/
-                        //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=12772*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=12773*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=12774*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=12775*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=12776*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=12777*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=12778*/
-                        /* longitudinal */   /*Z=12779*/
+                    {/*6*/  //Z=13212
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13213
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13214
+                        b1sv_n = b1sv_n*(b1s-1+n);  //Z=13215
+                        fkv[n] = fkv[n-1]*n;  //Z=13216
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13217
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13218
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13219 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=13220
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=13221
+                        /*  longitudinal  */  //Z=13222
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=12780*/
-                            qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);   /*Z=12781*/
-                            /* carr1pm[i]:=power(4,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm); */   /*Z=12782*/
-                            CR->carr11pm[n][m] = pow(4.,1.0*m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);   /*Z=12783, cs=0,dim=1,cho1=2*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=12784*/
-                            /* i:=i+1; */   /*Z=12785*/
-                        }   /*Z=12786*/
-                        /* P(q)-coefficient */   /*Z=12787*/
-                        //CR->carr1p[n] = pow(4.,1.0*n)*z12vl[n]*xln[n]/((2.*n+1)*(n+1));   /*Z=12788*/
-                        CR->carr1p[n] = (1./2.)*pow(4.,1.0*n)*z12vl[n]*xln[n]/((n+1)*(n+1./2.));   /*Mail 20220809*/
-                        D1P( qDebug() << "CARR1P(A)" << n << CR->carr1p[n]; )
+                        {/*7*/  //Z=13223
+                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);  //Z=13224
+                            CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13225
+                            /* carr1fm[i]:=carr1pm[i];  //Z=13226 */
+                            /* i:=i+1;  //Z=13227 */
+                        }/*7*/  //Z=13228
+                        /*  P(q)-coefficient  */  //Z=13229
+                        /* carr1p[n]:=power(4,n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=13230 */
+                        /* carr1p[n]:=(sqrt(pi)/2)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13231 */
+                        CR->carr1p[n] = (1/2.0)*pow(4.0,n)*z12vl[n]*xln[n]/((n+1)*(n+1/2.0));  //Z=13232
 
-                        /* F(q)-coefficient */   /*Z=12789*/
-                        sump = 0.0;   /*Z=12790*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=12791*/
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.,1.0*n));   /*Z=12792*/
+                        /*  F(q)-coefficient  */  //Z=13235
+                        sump = 0.0;  //Z=13236
+                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13237
+                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=13238
 
-                        /* cross-section */   /*Z=12794*/
-                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);   /*Z=12795*/
-                        //D4P( qDebug() << "CARR4P(A)" << n << CR->carr4p[n]; )
-                        sump = 0.0;   /*Z=12796*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=12797*/
-                        CR->carr4f[n] = xrn[n-1]*sump;   /*Z=12798*/
+                        /*  cross-section  */  //Z=13240
+                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  //Z=13241
+                        sump = 0.0;  //Z=13242
+                        for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13243
+                        CR->carr4f[n] = xrn[n]*sump;  //Z=13244
 
-                        if ( search1 )
-                        {   /*Z=12801*/
-                            if ( fabs(CR->carr1p[n])<1e-50 || fabs(CR->carr1p[n])>1e+50 )
-                            {   /*Z=12802*/
-                                n1 = n;   /*Z=12803*/
-                                search1 = false;   /*Z=12804*/
-                            }   /*Z=12805*/
-                        }   /*Z=12806*/
-                        if ( search4 )
-                        {   /*Z=12807*/
-                            if ( fabs(CR->carr4p[n])<1e-50 || fabs(CR->carr4p[n])>1e+50 )
-                            {   /*Z=12808*/
-                                n4 = n;   /*Z=12809*/
-                                search4 = false;   /*Z=12810*/
-                            }   /*Z=12811*/
-                        }   /*Z=12812*/
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=13246
+                            if ( n<n1 ) n1 = n;  //Z=13247
+                        }/*7*/  //Z=13248
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=13249
+                            if ( n<n4 ) n4 = n;  //Z=13250
+                        }/*7*/  //Z=13251
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=12813*/
-                            if ( n<n1f ) n1f = n;   /*Z=12814*/
-                        }   /*Z=12815*/
+                        {/*7*/  //Z=13252
+                            if ( n<n1f ) n1f = n;  //Z=13253
+                        }/*7*/  //Z=13254
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=12816*/
-                            if ( n<n4f ) n4f = n;   /*Z=12817*/
-                        }   /*Z=12818*/
-                    }  /* of n-loop */   /*Z=12819*/
-                }  /* of cs=0 */   /*Z=12820*/
+                        {/*7*/  //Z=13255
+                            if ( n<n4f ) n4f = n;  //Z=13256
+                        }/*7*/  //Z=13257
+                    }/*6*/  /*  of n-loop  */  //Z=13258
+                }/*5*/  /*  of cs=0  */  //Z=13259
 
-                /* core/shell */   /*Z=12822*/
+                /*  core/shell  */  //Z=13261
                 if ( cs==1 )
-                {   /*Z=12823*/
-                    i = 2;   /*Z=12824*/
+                {/*5*/  //Z=13262
+                    i = 2;  //Z=13263
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=12825*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=12826*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=12827*/
-                        //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=12828*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=12829*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=12830*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=12831*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=12832*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=12833*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=12834*/
-                        xrmn_n = -xrmn_n*xrm2z;   /*Z=12835*/
-                        pn[n] = pn[n-1]*p*p;   /*Z=12836*/
-                        /* longitudinal */   /*Z=12837*/
+                    {/*6*/  //Z=13264
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13265
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13266
+                        b1sv_n = b1sv_n*(b1s-1+n);  //Z=13267
+                        fkv[n] = fkv[n-1]*n;  //Z=13268
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13269
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13270
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13271 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=13272
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=13273
+                        xrmn_n = -xrmn_n*xrm2z;  //Z=13274
+                        pn[n] = pn[n-1]*p*p;  //Z=13275
+                        /*  longitudinal  */  //Z=13276
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=12838*/
-                            qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);   /*Z=12839*/
-                            /* carr1pm[i]:=power(4,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm); */   /*Z=12840*/
-                            CR->carr11pm[n][m] = pow(4.,1.0*m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);   /*Z=12841, cs=1,dim=1,cho1=2*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=12842*/
-                            /* i:=i+1; */   /*Z=12843*/
-                        }   /*Z=12844*/
-                        /* P(q)-coefficient */   /*Z=12845*/
-                        CR->carr1p[n] = pow(4.,1.0*n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));   /*Z=12846*/
-                        D1P( qDebug() << "CARR1P(B)" << n << CR->carr1p[n]; )
-                        /* F(q)-coefficient */   /*Z=12847*/
-                        sump = 0.0;   /*Z=12848*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=12849*/
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.,1.0*n));   /*Z=12850*/
+                        {/*7*/  //Z=13277
+                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);  //Z=13278
+                            CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13279
+                            /* carr1fm[i]:=carr1pm[i];  //Z=13280 */
+                            /* i:=i+1;  //Z=13281 */
+                        }/*7*/  //Z=13282
+                        /*  P(q)-coefficient  */  //Z=13283
+                        /* carr1p[n]:=power(4,n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=13284 */
+                        /* carr1p[n]:=(sqrt(pi)/2)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13285 */
+                        CR->carr1p[n] = (1/2.0)*pow(4.0,n)*z12vl[n]*xln[n]/((n+1)*(n+1/2.0));  //Z=13286
 
-                        /* P(q)-coefficients */   /*Z=12852*/
-                        /* cross-sectional */   /*Z=12853*/
-                        /* F121 */   /*Z=12854*/
-                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);   /*Z=12855*/
-                        //D4P( qDebug() << "CARR4P(B)" << n << CR->carr4p[n]; )
-                        /* F122 */   /*Z=12856*/
-                        sump = 0.0;   /*Z=12857*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=12858*/
-                            sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=12859*/
-                        }   /*Z=12860*/
-                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;   /*Z=12861*/
-                        /* F123 */   /*Z=12862*/
-                        CR->carr6p[n] = CR->carr4p[n]/pn[n];   /*Z=12863*/
+                        /*  F(q)-coefficient  */  //Z=13288
+                        sump = 0.0;  //Z=13289
+                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13290
+                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=13291
 
-                        /* F(q)-coefficients */   /*Z=12865*/
-                        /* cross-sectional */   /*Z=12866*/
-                        /* F121 */   /*Z=12867*/
-                        sump = 0.0;   /*Z=12868*/
+                        /*  P(q)-coefficients  */  //Z=13293
+                        /*  cross-sectional  */  //Z=13294
+                        /*  F121  */  //Z=13295
+                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=13296
+                        /*  F122  */  //Z=13297
+                        sump = 0.0;  //Z=13298
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=12869*/
-                            sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=12870*/
-                        }   /*Z=12871*/
-                        CR->carr4f[n] = xrn[n-1]*sump;   /*Z=12872*/
-                        /* F122 */   /*Z=12873*/
-                        sump = 0.0;   /*Z=12874*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=12875*/
-                            sump = sump+pn[m]*z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=12876*/
-                        }   /*Z=12877*/
-                        CR->carr5f[n] = xrmn_n*sump;   /*Z=12878*/
-                        /* F123 */   /*Z=12879*/
-                        CR->carr6f[n] = CR->carr4f[n]/pn[n];   /*Z=12880*/
+                        {/*7*/  //Z=13299
+                            sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13300
+                        }/*7*/  //Z=13301
+                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=13302
+                        /*  F123  */  //Z=13303
+                        CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=13304
 
-                        if ( search1 )
-                        {   /*Z=12883*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=12884*/
-                                n1 = n;   /*Z=12885*/
-                                search1 = false;   /*Z=12886*/
-                            }   /*Z=12887*/
-                        }   /*Z=12888*/
-                        if ( search4 )
-                        {   /*Z=12889*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=12890*/
-                                n4 = n;   /*Z=12891*/
-                                search4 = false;   /*Z=12892*/
-                            }   /*Z=12893*/
-                        }   /*Z=12894*/
-                        if ( search5 )
-                        {   /*Z=12895*/
-                            if ( fabs(CR->carr5p[n])<1e-50 )
-                            {   /*Z=12896*/
-                                n5 = n;   /*Z=12897*/
-                                search5 = false;   /*Z=12898*/
-                            }   /*Z=12899*/
-                        }   /*Z=12900*/
-                        if ( search6 )
-                        {   /*Z=12901*/
-                            if ( fabs(CR->carr6p[n])<1e-50 )
-                            {   /*Z=12902*/
-                                n6 = n;   /*Z=12903*/
-                                search6 = false;   /*Z=12904*/
-                            }   /*Z=12905*/
-                        }   /*Z=12906*/
+                        /*  F(q)-coefficients  */  //Z=13306
+                        /*  cross-sectional  */  //Z=13307
+                        /*  F121  */  //Z=13308
+                        sump = 0.0;  //Z=13309
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=13310
+                            sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13311
+                        }/*7*/  //Z=13312
+                        CR->carr4f[n] = xrn[n]*sump;  //Z=13313
+                        /*  F122  */  //Z=13314
+                        sump = 0.0;  //Z=13315
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=13316
+                            sump = sump+pn[m]*z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13317
+                        }/*7*/  //Z=13318
+                        CR->carr5f[n] = xrmn_n*sump;  //Z=13319
+                        /*  F123  */  //Z=13320
+                        CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=13321
+
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=13323
+                            if ( n<n1 ) n1 = n;  //Z=13324
+                        }/*7*/  //Z=13325
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=13326
+                            if ( n<n4 ) n4 = n;  //Z=13327
+                        }/*7*/  //Z=13328
+                        if ( fabs(CR->carr5p[n])<min )
+                        {/*7*/  //Z=13329
+                            if ( n<n5 ) n5 = n;  //Z=13330
+                        }/*7*/  //Z=13331
+                        if ( fabs(CR->carr6p[n])<min )
+                        {/*7*/  //Z=13332
+                            if ( n<n6 ) n6 = n;  //Z=13333
+                        }/*7*/  //Z=13334
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=12907*/
-                            if ( n<n1f ) n1f = n;   /*Z=12908*/
-                        }   /*Z=12909*/
+                        {/*7*/  //Z=13335
+                            if ( n<n1f ) n1f = n;  //Z=13336
+                        }/*7*/  //Z=13337
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=12910*/
-                            if ( n<n4f ) n4f = n;   /*Z=12911*/
-                        }   /*Z=12912*/
+                        {/*7*/  //Z=13338
+                            if ( n<n4f ) n4f = n;  //Z=13339
+                        }/*7*/  //Z=13340
                         if ( fabs(CR->carr5f[n])<min )
-                        {   /*Z=12913*/
-                            if ( n<n5f ) n5f = n;   /*Z=12914*/
-                        }   /*Z=12915*/
+                        {/*7*/  //Z=13341
+                            if ( n<n5f ) n5f = n;  //Z=13342
+                        }/*7*/  //Z=13343
                         if ( fabs(CR->carr6f[n])<min )
-                        {   /*Z=12916*/
-                            if ( n<n6f ) n6f = n;   /*Z=12917*/
-                        }   /*Z=12918*/
-                    }  /* of n-loop */   /*Z=12919*/
-                }  /* of cs=1 */   /*Z=12920*/
+                        {/*7*/  //Z=13344
+                            if ( n<n6f ) n6f = n;  //Z=13345
+                        }/*7*/  //Z=13346
+                    }/*6*/  /*  of n-loop  */  //Z=13347
+                }/*5*/  /*  of cs=1  */  //Z=13348
 
-                /* inhomogeneous core/shell */   /*Z=12922*/
+                /*  inhomogeneous core/shell  */  //Z=13350
                 if ( cs==2 )
-                {   /*Z=12923*/
-                    i = 2;   /*Z=12924*/
+                {/*5*/  //Z=13351
+                    i = 2;  //Z=13352
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=12925*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=12926*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=12927*/
-                        //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=12928*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=12929*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=12930*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=12931*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=12932*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=12933*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=12934*/
-                        xrmn_n = -xrmn_n*xrm2z;   /*Z=12935*/
-                        pn[n] = pn[n-1]*p*p;   /*Z=12936*/
-                        /* longitudinal */   /*Z=12937*/
+                    {/*6*/  //Z=13353
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13354
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13355
+                        b1sv_n = b1sv_n*(b1s-1+n);  //Z=13356
+                        fkv[n] = fkv[n-1]*n;  //Z=13357
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13358
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13359
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13360 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=13361
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=13362
+                        xrmn_n = -xrmn_n*xrm2z;  //Z=13363
+                        pn[n] = pn[n-1]*p*p;  //Z=13364
+                        /*  longitudinal  */  //Z=13365
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=12938*/
-                            qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);   /*Z=12939*/
-                            /* carr1pm[i]:=power(4,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm); */   /*Z=12940*/
-                            CR->carr11pm[n][m] = pow(4.,1.0*m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);   /*Z=12941, cs=2,dim=1,cho1=2*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=12942*/
-                            /* i:=i+1; */   /*Z=12943*/
-                        }   /*Z=12944*/
-                        /* P(q)-coefficient */   /*Z=12945*/
-                        CR->carr1p[n] = pow(4.,1.0*n)*z12vl[n]*xln[n]/((2.*n+1)*(n+1));   /*Z=12946*/
-                        D1P( qDebug() << "CARR1P(C)" << n << CR->carr1p[n]; )
-                        /* F(q)-coefficient */   /*Z=12947*/
-                        sump = 0.0;   /*Z=12948*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=12949*/
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.,1.0*n));   /*Z=12950*/
+                        {/*7*/  //Z=13366
+                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);  //Z=13367
+                            CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13368
+                            /* carr1fm[i]:=carr1pm[i];  //Z=13369 */
+                            /* i:=i+1;  //Z=13370 */
+                        }/*7*/  //Z=13371
+                        /*  P(q)-coefficient  */  //Z=13372
+                        /* carr1p[n]:=power(4,n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=13373 */
+                        /* carr1p[n]:=(sqrt(pi)/2)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13374 */
+                        CR->carr1p[n] = (1/2.0)*pow(4.0,n)*z12vl[n]*xln[n]/((n+1)*(n+1/2.0));  //Z=13375
 
-                        /* cross-sectional P(q) */   /*Z=12953*/
-                        CR->carr4p[n] = pow(4.,n+1.)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);   /*Z=12954*/
-                        //D4P( qDebug() << "CARR4P(C)" << n << CR->carr4p[n]; )
-                        sump = 0.0;   /*Z=12955*/
-                        sump1 = 0.0;   /*Z=12956*/
+                        /*  F(q)-coefficient  */  //Z=13377
+                        sump = 0.0;  //Z=13378
+                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13379
+                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=13380
+
+                        /*  cross-sectional P(q)  */  //Z=13383
+                        CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=13384
+                        sump = 0.0;  //Z=13385
+                        sump1 = 0.0;  //Z=13386
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=12957*/
-                            sumi = 1/((m+1-alfa/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);   /*Z=12958*/
-                            sump = sump+pn[n-m]*sumi;   /*Z=12959*/
-                            sump1 = sump1+sumi;   /*Z=12960*/
-                        }   /*Z=12961*/
-                        CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;   /*Z=12962*/
-                        CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n-1]*sump1;   /*Z=12963*/
-                        sump = 0.0;   /*Z=12964*/
-                        sump1 = 0.0;   /*Z=12965*/
+                        {/*7*/  //Z=13387
+                            sumi = 1/((m+1-alfa/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=13388
+                            sump = sump+pn[n-m]*sumi;  //Z=13389
+                            sump1 = sump1+sumi;  //Z=13390
+                        }/*7*/  //Z=13391
+                        CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;  //Z=13392
+                        CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n]*sump1;  //Z=13393
+                        sump = 0.0;  //Z=13394
+                        sump1 = 0.0;  //Z=13395
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=12966*/
-                            sumi = 1/((n-m+1-alfa/2.0)*(m+1-alfa/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);   /*Z=12967*/
-                            sump = sump+sumi;   /*Z=12968*/
-                            sump1 = sump1+pn[n-m]*sumi;   /*Z=12969*/
-                        }   /*Z=12970*/
-                        CR->carr7p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump;   /*Z=12971*/
-                        CR->carr8p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump1;   /*Z=12972*/
-                        CR->carr9p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrn[n-1]*sump;   /*Z=12973*/
+                        {/*7*/  //Z=13396
+                            sumi = 1/((n-m+1-alfa/2.0)*(m+1-alfa/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=13397
+                            sump = sump+sumi;  //Z=13398
+                            sump1 = sump1+pn[n-m]*sumi;  //Z=13399
+                        }/*7*/  //Z=13400
+                        CR->carr7p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump;  //Z=13401
+                        CR->carr8p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump1;  //Z=13402
+                        CR->carr9p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrn[n]*sump;  //Z=13403
 
-                        /* F(q)-coefficients */   /*Z=12988*/
-                        /* cross-sectional */   /*Z=12989*/
-                        CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);   /*Z=12990*/
-                        CR->carr5f[n] = (1-alfa/2.0)*z12v[n]*xrmn_n/((n+1-alfa/2.0)*fkv[n]*fkv[n]);   /*Z=12991*/
-                        CR->carr6f[n] = (1-alfa/2.0)*z12v[n]*xrn[n]/((n+1-alfa/2.0)*fkv[n]*fkv[n]);   /*Z=12992*/
+                        /*  F(q)-coefficients  */  //Z=13418
+                        /*  cross-sectional  */  //Z=13419
+                        CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);  //Z=13420
+                        CR->carr5f[n] = (1-alfa/2.0)*z12v[n]*xrmn_n/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=13421
+                        CR->carr6f[n] = (1-alfa/2.0)*z12v[n]*xrn[n]/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=13422
 
-                        if ( search1 )
-                        {   /*Z=12995*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=12996*/
-                                n1 = n;   /*Z=12997*/
-                                search1 = false;   /*Z=12998*/
-                            }   /*Z=12999*/
-                        }   /*Z=13000*/
-                        if ( search4 )
-                        {   /*Z=13001*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=13002*/
-                                n4 = n;   /*Z=13003*/
-                                search4 = false;   /*Z=13004*/
-                            }   /*Z=13005*/
-                        }   /*Z=13006*/
-                        if ( search5 )
-                        {   /*Z=13007*/
-                            if ( fabs(CR->carr5p[n])<1e-50 )
-                            {   /*Z=13008*/
-                                n5 = n;   /*Z=13009*/
-                                search5 = false;   /*Z=13010*/
-                            }   /*Z=13011*/
-                        }   /*Z=13012*/
-                        if ( search6 )
-                        {   /*Z=13013*/
-                            if ( fabs(CR->carr6p[n])<1e-50 )
-                            {   /*Z=13014*/
-                                n6 = n;   /*Z=13015*/
-                                search6 = false;   /*Z=13016*/
-                            }   /*Z=13017*/
-                        }   /*Z=13018*/
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=13424
+                            if ( n<n1 ) n1 = n;  //Z=13425
+                        }/*7*/  //Z=13426
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=13427
+                            if ( n<n4 ) n4 = n;  //Z=13428
+                        }/*7*/  //Z=13429
+                        if ( fabs(CR->carr5p[n])<min )
+                        {/*7*/  //Z=13430
+                            if ( n<n5 ) n5 = n;  //Z=13431
+                        }/*7*/  //Z=13432
+                        if ( fabs(CR->carr6p[n])<min )
+                        {/*7*/  //Z=13433
+                            if ( n<n6 ) n6 = n;  //Z=13434
+                        }/*7*/  //Z=13435
                         if ( fabs(CR->carr7p[n])<min )
-                        {   /*Z=13019*/
-                            if ( n<n7 ) n7 = n;   /*Z=13020*/
-                        }   /*Z=13021*/
+                        {/*7*/  //Z=13436
+                            if ( n<n7 ) n7 = n;  //Z=13437
+                        }/*7*/  //Z=13438
                         if ( fabs(CR->carr8p[n])<min )
-                        {   /*Z=13022*/
-                            if ( n<n8 ) n8 = n;   /*Z=13023*/
-                        }   /*Z=13024*/
+                        {/*7*/  //Z=13439
+                            if ( n<n8 ) n8 = n;  //Z=13440
+                        }/*7*/  //Z=13441
                         if ( fabs(CR->carr9p[n])<min )
-                        {   /*Z=13025*/
-                            if ( n<n9 ) n9 = n;   /*Z=13026*/
-                        }   /*Z=13027*/
+                        {/*7*/  //Z=13442
+                            if ( n<n9 ) n9 = n;  //Z=13443
+                        }/*7*/  //Z=13444
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=13028*/
-                            if ( n<n1f ) n1f = n;   /*Z=13029*/
-                        }   /*Z=13030*/
+                        {/*7*/  //Z=13445
+                            if ( n<n1f ) n1f = n;  //Z=13446
+                        }/*7*/  //Z=13447
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=13031*/
-                            if ( n<n4f ) n4f = n;   /*Z=13032*/
-                        }   /*Z=13033*/
+                        {/*7*/  //Z=13448
+                            if ( n<n4f ) n4f = n;  //Z=13449
+                        }/*7*/  //Z=13450
                         if ( fabs(CR->carr5f[n])<min )
-                        {   /*Z=13034*/
-                            if ( n<n5f ) n5f = n;   /*Z=13035*/
-                        }   /*Z=13036*/
+                        {/*7*/  //Z=13451
+                            if ( n<n5f ) n5f = n;  //Z=13452
+                        }/*7*/  //Z=13453
                         if ( fabs(CR->carr6f[n])<min )
-                        {   /*Z=13037*/
-                            if ( n<n6f ) n6f = n;   /*Z=13038*/
-                        }   /*Z=13039*/
+                        {/*7*/  //Z=13454
+                            if ( n<n6f ) n6f = n;  //Z=13455
+                        }/*7*/  //Z=13456
                         if ( fabs(CR->carr7f[n])<min )
-                        {   /*Z=13040*/
-                            if ( n<n7f ) n7f = n;   /*Z=13041*/
-                        }   /*Z=13042*/
+                        {/*7*/  //Z=13457
+                            if ( n<n7f ) n7f = n;  //Z=13458
+                        }/*7*/  //Z=13459
                         if ( fabs(CR->carr8f[n])<min )
-                        {   /*Z=13043*/
-                            if ( n<n8f ) n8f = n;   /*Z=13044*/
-                        }   /*Z=13045*/
+                        {/*7*/  //Z=13460
+                            if ( n<n8f ) n8f = n;  //Z=13461
+                        }/*7*/  //Z=13462
                         if ( fabs(CR->carr9f[n])<min )
-                        {   /*Z=13046*/
-                            if ( n<n9f ) n9f = n;   /*Z=13047*/
-                        }   /*Z=13048*/
-                    }  /* of n-loop */   /*Z=13049*/
-                }  /* of cs=1 */   /*Z=13050*/
+                        {/*7*/  //Z=13463
+                            if ( n<n9f ) n9f = n;  //Z=13464
+                        }/*7*/  //Z=13465
+                    }/*6*/  /*  of n-loop  */  //Z=13466
+                }/*5*/  /*  of cs=1  */  //Z=13467
 
-                /* myelin */   /*Z=13052*/
+                /*  myelin  */  //Z=13469
                 if ( (cs==3) || (cs==4) )
-                {   /*Z=13053*/
-                    i = 2;   /*Z=13054*/
+                {/*5*/  //Z=13470
+                    i = 2;  //Z=13471
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=13055*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=13056*/
-                        z12vl[n] = z12vl[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=13057*/
-                        //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=13058*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=13059*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=13060*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=13061*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=13062*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=13063*/
-                        xrn[n] = -xrn[n-1]*x12zm;   /*Z=13064*/
-                        /* longitudinal */   /*Z=13065*/
+                    {/*6*/  //Z=13472
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13473
+                        z12vl[n] = z12vl[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13474
+                        b1sv_n = b1sv_n*(b1s-1+n);  //Z=13475
+                        fkv[n] = fkv[n-1]*n;  //Z=13476
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13477
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13478
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13479 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=13480
+                        xrn[n] = -xrn[n-1]*x12zm;  //Z=13481
+                        /*  longitudinal  */  //Z=13482
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13066*/
-                            qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);   /*Z=13067*/
-                            /* carr1pm[i]:=power(4,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm); */   /*Z=13068*/
-                            CR->carr11pm[n][m] = pow(4.,1.0*m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);   /*Z=13069, cs=3|4,dim=1,cho1=2*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=13070*/
-                            /* i:=i+1; */   /*Z=13071*/
-                        }   /*Z=13072*/
-                        /* P(q)-coefficient */   /*Z=13073*/
-                        CR->carr1p[n] = pow(4.,1.0*n)*z12vl[n]*xln[n]/((2.*n+1)*(n+1));   /*Z=13074*/
-                        /* F(q)-coefficient */   /*Z=13075*/
-                        sump = 0.0;   /*Z=13076*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=13077*/
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.,1.0*n));   /*Z=13078*/
+                        {/*7*/  //Z=13483
+                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);  //Z=13484
+                            CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13485
+                            /* carr1fm[i]:=carr1pm[i];  //Z=13486 */
+                            /* i:=i+1;  //Z=13487 */
+                        }/*7*/  //Z=13488
+                        /*  P(q)-coefficient  */  //Z=13489
+                        /* carr1p[n]:=power(4,n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=13490 */
+                        /* carr1p[n]:=(sqrt(pi)/2)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13491 */
+                        CR->carr1p[n] = (1/2.0)*pow(4.0,n)*z12vl[n]*xln[n]/((n+1)*(n+1/2.0));  //Z=13492
 
-                        /* cross-section */   /*Z=13080*/
-                        CR->carr4p[n] = z12v[n]*xrn[n];   /*Z=13081*/
-                        /*Z=13082*/
-                        sump = 0.0;   /*Z=13083*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=13084*/
-                        CR->carr4f[n] = xrn[n-1]*sump;   /*Z=13085*/
+                        /*  F(q)-coefficient  */  //Z=13494
+                        sump = 0.0;  //Z=13495
+                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13496
+                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=13497
 
-                        if ( search1 )
-                        {   /*Z=13088*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=13089*/
-                                n1 = n;   /*Z=13090*/
-                                search1 = false;   /*Z=13091*/
-                            }   /*Z=13092*/
-                        }   /*Z=13093*/
-                        if ( search4 )
-                        {   /*Z=13094*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=13095*/
-                                n4 = n;   /*Z=13096*/
-                                search4 = false;   /*Z=13097*/
-                            }   /*Z=13098*/
-                        }   /*Z=13099*/
+                        /*  cross-section  */  //Z=13499
+                        CR->carr4p[n] = z12v[n]*xrn[n];  //Z=13500
+
+                        sump = 0.0;  //Z=13502
+                        for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13503
+                        CR->carr4f[n] = xrn[n]*sump;  //Z=13504
+
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=13506
+                            if ( n<n1 ) n1 = n;  //Z=13507
+                        }/*7*/  //Z=13508
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=13509
+                            if ( n<n4 ) n4 = n;  //Z=13510
+                        }/*7*/  //Z=13511
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=13100*/
-                            if ( n<n1f ) n1f = n;   /*Z=13101*/
-                        }   /*Z=13102*/
-                        if ( abs(CR->carr4f[n])<min )
-                        {   /*Z=13103*/
-                            if ( n<n4f ) n4f = n;   /*Z=13104*/
-                        }   /*Z=13105*/
-                    }  /* of n-loop */   /*Z=13106*/
-                }  /* of cs=3 */   /*Z=13107*/
-            }  /* of cylinders */   /*Z=13108*/
+                        {/*7*/  //Z=13512
+                            if ( n<n1f ) n1f = n;  //Z=13513
+                        }/*7*/  //Z=13514
+                        if ( fabs(CR->carr4f[n])<min )
+                        {/*7*/  //Z=13515
+                            if ( n<n4f ) n4f = n;  //Z=13516
+                        }/*7*/  //Z=13517
+                    }/*6*/  /*  of n-loop  */  //Z=13518
+                }/*5*/  /*  of cs=3  */  //Z=13519
+            }/*4*/  /*  of cylinders  */  //Z=13520
 
-            /*** disks ***/   /*Z=13110*/
+            /* ** disks ** */  //Z=13522
             if ( dim==2 )
-            {   /*Z=13111*/
-                /* homogeneous */   /*Z=13112*/
+            {/*4*/  //Z=13523
+                /*  homogeneous  */  //Z=13524
                 if ( cs==0 )
-                {   /*Z=13113*/
-                    i = 2;   /*Z=13114*/
+                {/*5*/  //Z=13525
+                    i = 2;  //Z=13526
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=13115*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=13116*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=13117*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=13118*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=13119*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=13120*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=13121*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=13122*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=13123*/
-                        /* longitudinal */   /*Z=13124*/
+                    {/*6*/  //Z=13527
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13528
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13529
+                        fkv[n] = fkv[n-1]*n;  //Z=13530
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13531
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13532
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13533 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=13534
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=13535
+                        /*  longitudinal  */  //Z=13536
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13125*/
-                            qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);   /*Z=13126*/
-                            /* carr2pm[i]:=power(4,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm); */   /*Z=13127*/
-                            CR->carr22pm[n][m] = pow(4.,1.0*m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);   /*Z=13128*/
-                            /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]); */   /*Z=13129*/
-                            CR->carr11pm[n][m] = pow(-1.,1.0*m)*fk2v[m]/(pow(4.,1.0*m)*fkv[m]*fkv[n-m]);   /*Z=13130, cs=0,dim=2,cho1=2*/
-                            /* carr2fm[i]:=carr2pm[i]; */   /*Z=13131*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=13132*/
-                            /* i:=i+1; */   /*Z=13133*/
-                        }   /*Z=13134*/
-                        /* P(q)-coefficient */   /*Z=13135*/
-                        CR->carr1p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);   /*Z=13136*/
+                        {/*7*/  //Z=13537
+                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);  //Z=13538
+                            /* carr2pm[i]:=power(4,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13539 */
+                            CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13540
+                            /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]);  //Z=13541 */
+                            CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=13542
+                            /* carr2fm[i]:=carr2pm[i];  //Z=13543 */
+                            /* carr1fm[i]:=carr1pm[i];  //Z=13544 */
+                            /* i:=i+1;  //Z=13545 */
+                        }/*7*/  //Z=13546
+                        /*  P(q)-coefficient  */  //Z=13547
+                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=13548
 
-                        /* F(q)-coefficient */   /*Z=13138*/
-                        sump = 0.0;   /*Z=13139*/
+                        /*  F(q)-coefficient  */  //Z=13550
+                        sump = 0.0;  //Z=13551
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13140*/
-                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=13141*/
-                        }   /*Z=13142*/
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump;   /*Z=13143*/
+                        {/*7*/  //Z=13552
+                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13553
+                        }/*7*/  //Z=13554
+                        CR->carr1f[n] = xln[n]*fkv[n]*sump;  //Z=13555
 
-                        /* cross-section */   /*Z=13145*/
-                        CR->carr4p[n] = pow(4.,1.0*n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2*(n+1)*gam3[n]*fkv[n]);   /*Z=13146*/
-                        sump = 0.0;   /*Z=13147*/
+                        /*  cross-section  */  //Z=13557
+                        CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=13558
+                        sump = 0.0;  //Z=13559
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13148*/
-                            sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=13149*/
-                        }   /*Z=13150*/
-                        CR->carr4f[n] = M_PI*xln[n]*sump/4.0;   /*Z=13151*/
+                        {/*7*/  //Z=13560
+                            sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13561
+                        }/*7*/  //Z=13562
+                        CR->carr4f[n] = M_PI*xln[n]*sump/4.0;  //Z=13563
 
-                        /* series for <...> integration */   /*Z=13153*/
-                        CR->carr2p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=13154*/
-                        sump = 0.0;   /*Z=13155*/
+                        /*  series for <...> integration  */  //Z=13565
+                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=13566
+                        sump = 0.0;  //Z=13567
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13156*/
-                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=13157*/
-                        }   /*Z=13158*/
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2*gam3[n]);   /*Z=13159*/
+                        {/*7*/  //Z=13568
+                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13569
+                        }/*7*/  //Z=13570
+                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=13571
 
-                        if ( search1 )
-                        {   /*Z=13161*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=13162*/
-                                n1 = n;   /*Z=13163*/
-                                search1 = false;   /*Z=13164*/
-                            }   /*Z=13165*/
-                        }   /*Z=13166*/
-                        if ( search4 )
-                        {   /*Z=13167*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=13168*/
-                                n4 = n;   /*Z=13169*/
-                                search4 = false;   /*Z=13170*/
-                            }   /*Z=13171*/
-                        }   /*Z=13172*/
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=13573
+                            if ( n<n1 ) n1 = n;  //Z=13574
+                        }/*7*/  //Z=13575
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=13576
+                            if ( n<n4 ) n4 = n;  //Z=13577
+                        }/*7*/  //Z=13578
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=13173*/
-                            if ( n<n1f ) n1f = n;   /*Z=13174*/
-                        }   /*Z=13175*/
+                        {/*7*/  //Z=13579
+                            if ( n<n1f ) n1f = n;  //Z=13580
+                        }/*7*/  //Z=13581
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=13176*/
-                            if ( n<n4f ) n4f = n;   /*Z=13177*/
-                        }   /*Z=13178*/
-                    } /* n-loop */   /*Z=13179*/
-                }  /* of cs=0 */   /*Z=13180*/
+                        {/*7*/  //Z=13582
+                            if ( n<n4f ) n4f = n;  //Z=13583
+                        }/*7*/  //Z=13584
+                    }/*6*/ /*  n-loop  */  //Z=13585
+                }/*5*/  /*  of cs=0  */  //Z=13586
 
-                /* core/shell */   /*Z=13182*/
+                /*  core/shell  */  //Z=13588
                 if ( cs==1 )
-                {   /*Z=13183*/
-                    i = 2;   /*Z=13184*/
+                {/*5*/  //Z=13589
+                    i = 2;  //Z=13590
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=13185*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=13186*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=13187*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=13188*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=13189*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=13190*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=13191*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=13192*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=13193*/
-                        xrmn_n = -xrmn_n*xrm2z;   /*Z=13194*/
-                        pn[n] = pn[n-1]*p*p;   /*Z=13195*/
-                        /* longitudinal */   /*Z=13196*/
+                    {/*6*/  //Z=13591
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13592
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13593
+                        fkv[n] = fkv[n-1]*n;  //Z=13594
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13595
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13596
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13597 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=13598
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=13599
+                        xrmn_n = -xrmn_n*xrm2z;  //Z=13600
+                        pn[n] = pn[n-1]*p*p;  //Z=13601
+                        /*  longitudinal  */  //Z=13602
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13197*/
-                            qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);   /*Z=13198*/
-                            /* carr2pm[i]:=power(4,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm); */   /*Z=13199*/
-                            CR->carr22pm[n][m] = pow(4.,1.0*m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);   /*Z=13200*/
-                            /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]); */   /*Z=13201*/
-                            CR->carr11pm[n][m] = pow(-1.,1.0*m)*fk2v[m]/(pow(4.,1.0*m)*fkv[m]*fkv[n-m]);   /*Z=13202, cs=1,dim=2,cho1=2*/
-                            /* carr2fm[i]:=carr2pm[i]; */   /*Z=13203*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=13204*/
-                            /* i:=i+1; */   /*Z=13205*/
-                        }   /*Z=13206*/
-                        /* P(q)-coefficient */   /*Z=13207*/
-                        CR->carr1p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);   /*Z=13208*/
-                        /* F(q)-coefficient */   /*Z=13209*/
-                        sump = 0.0;   /*Z=13210*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=13211*/
-                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=13212*/
-                        }   /*Z=13213*/
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump;   /*Z=13214*/
+                        {/*7*/  //Z=13603
+                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);  //Z=13604
+                            /* carr2pm[i]:=power(4,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13605 */
+                            CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13606
+                            /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]);  //Z=13607 */
+                            CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=13608
+                            /* carr2fm[i]:=carr2pm[i];  //Z=13609 */
+                            /* carr1fm[i]:=carr1pm[i];  //Z=13610 */
+                            /* i:=i+1;  //Z=13611 */
+                        }/*7*/  //Z=13612
+                        /*  P(q)-coefficient  */  //Z=13613
+                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=13614
 
-                        /* F121 */   /*Z=13216*/
-                        CR->carr4p[n] = pow(4.,1.0*n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2*(n+1)*gam3[n]*fkv[n]);   /*Z=13217*/
-                        /* F122 */   /*Z=13218*/
-                        sump = 0.0;   /*Z=13219*/
+                        /*  F(q)-coefficient  */  //Z=13616
+                        sump = 0.0;  //Z=13617
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13220*/
-                            sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=13221*/
-                        }   /*Z=13222*/
-                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;   /*Z=13223*/
+                        {/*7*/  //Z=13618
+                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13619
+                        }/*7*/  //Z=13620
+                        CR->carr1f[n] = xln[n]*fkv[n]*sump;  //Z=13621
 
-                        /* F122 */   /*Z=13225*/
-                        sump = 0.0;   /*Z=13226*/
+                        /*  F121  */  //Z=13623
+                        CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=13624
+                        /*  F122  */  //Z=13625
+                        sump = 0.0;  //Z=13626
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13227*/
-                            sump = sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=13228*/
-                        }   /*Z=13229*/
-                        CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;   /*Z=13230*/
+                        {/*7*/  //Z=13627
+                            sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13628
+                        }/*7*/  //Z=13629
+                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=13630
 
-                        /* F123 */   /*Z=13233*/
-                        CR->carr6p[n] = CR->carr4p[n]/pn[n];   /*Z=13234*/
-                        /* F121 */   /*Z=13235*/
-                        sump = 0.0;   /*Z=13236*/
+                        /*  F122  */  //Z=13632
+                        sump = 0.0;  //Z=13633
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13237*/
-                            sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=13238*/
-                        }   /*Z=13239*/
-                        CR->carr4f[n] = M_PI*xrn[n-1]*sump/4.0;   /*Z=13240*/
-                        /* F122 */   /*Z=13241*/
-                        sump = 0.0;   /*Z=13242*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=13243*/
-                            sump = sump+pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=13244*/
-                        }   /*Z=13245*/
-                        CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;   /*Z=13246*/
-                        /* F123 */   /*Z=13247*/
-                        CR->carr6f[n] = CR->carr4f[n]/pn[n];   /*Z=13248*/
+                        {/*7*/  //Z=13634
+                            sump = sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13635
+                        }/*7*/  //Z=13636
+                        CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=13637
 
-                        /* series for <...> integration */   /*Z=13250*/
-                        CR->carr2p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=13251*/
-                        sump = 0.0;   /*Z=13252*/
+                        /*  F123  */  //Z=13640
+                        CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=13641
+                        /*  F121  */  //Z=13642
+                        sump = 0.0;  //Z=13643
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13253*/
-                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=13254*/
-                        }   /*Z=13255*/
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2*gam3[n]);   /*Z=13256*/
+                        {/*7*/  //Z=13644
+                            sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13645
+                        }/*7*/  //Z=13646
+                        CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=13647
+                        /*  F122  */  //Z=13648
+                        sump = 0.0;  //Z=13649
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=13650
+                            sump = sump+pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13651
+                        }/*7*/  //Z=13652
+                        CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=13653
+                        /*  F123  */  //Z=13654
+                        CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=13655
 
-                        if ( search1 )
-                        {   /*Z=13258*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=13259*/
-                                n1 = n;   /*Z=13260*/
-                                search1 = false;   /*Z=13261*/
-                            }   /*Z=13262*/
-                        }   /*Z=13263*/
-                        if ( search4 )
-                        {   /*Z=13264*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=13265*/
-                                n4 = n;   /*Z=13266*/
-                                search4 = false;   /*Z=13267*/
-                            }   /*Z=13268*/
-                        }   /*Z=13269*/
-                        if ( search5 )
-                        {   /*Z=13270*/
-                            if ( fabs(CR->carr5p[n])<1e-50 )
-                            {   /*Z=13271*/
-                                n5 = n;   /*Z=13272*/
-                                search5 = false;   /*Z=13273*/
-                            }   /*Z=13274*/
-                        }   /*Z=13275*/
-                        if ( search6 )
-                        {   /*Z=13276*/
-                            if ( fabs(CR->carr6p[n])<1e-50 )
-                            {   /*Z=13277*/
-                                n6 = n;   /*Z=13278*/
-                                search6 = false;   /*Z=13279*/
-                            }   /*Z=13280*/
-                        }   /*Z=13281*/
+                        /*  series for <...> integration  */  //Z=13657
+                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=13658
+                        sump = 0.0;  //Z=13659
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=13660
+                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13661
+                        }/*7*/  //Z=13662
+                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=13663
+
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=13665
+                            if ( n<n1 ) n1 = n;  //Z=13666
+                        }/*7*/  //Z=13667
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=13668
+                            if ( n<n4 ) n4 = n;  //Z=13669
+                        }/*7*/  //Z=13670
+                        if ( fabs(CR->carr5p[n])<min )
+                        {/*7*/  //Z=13671
+                            if ( n<n5 ) n5 = n;  //Z=13672
+                        }/*7*/  //Z=13673
+                        if ( fabs(CR->carr6p[n])<min )
+                        {/*7*/  //Z=13674
+                            if ( n<n6 ) n6 = n;  //Z=13675
+                        }/*7*/  //Z=13676
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=13282*/
-                            if ( n<n1f ) n1f = n;   /*Z=13283*/
-                        }   /*Z=13284*/
+                        {/*7*/  //Z=13677
+                            if ( n<n1f ) n1f = n;  //Z=13678
+                        }/*7*/  //Z=13679
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=13285*/
-                            if ( n<n4f ) n4f = n;   /*Z=13286*/
-                        }   /*Z=13287*/
+                        {/*7*/  //Z=13680
+                            if ( n<n4f ) n4f = n;  //Z=13681
+                        }/*7*/  //Z=13682
                         if ( fabs(CR->carr5f[n])<min )
-                        {   /*Z=13288*/
-                            if ( n<n5f ) n5f = n;   /*Z=13289*/
-                        }   /*Z=13290*/
+                        {/*7*/  //Z=13683
+                            if ( n<n5f ) n5f = n;  //Z=13684
+                        }/*7*/  //Z=13685
                         if ( fabs(CR->carr6f[n])<min )
-                        {   /*Z=13291*/
-                            if ( n<n6f ) n6f = n;   /*Z=13292*/
-                        }   /*Z=13293*/
-                    } /* n-loop */   /*Z=13294*/
-                }  /* of cs=1 */   /*Z=13295*/
+                        {/*7*/  //Z=13686
+                            if ( n<n6f ) n6f = n;  //Z=13687
+                        }/*7*/  //Z=13688
+                    }/*6*/ /*  n-loop  */  //Z=13689
+                }/*5*/  /*  of cs=1  */  //Z=13690
 
-                /* inhomogeneous core/shell */   /*Z=13297*/
+                /*  inhomogeneous core/shell  */  //Z=13692
                 if ( cs==2 )
-                {   /*Z=13298*/
-                    i = 2;   /*Z=13299*/
+                {/*5*/  //Z=13693
+                    i = 2;  //Z=13694
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=13300*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=13301*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=13302*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=13303*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=13304*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=13305*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=13306*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=13307*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=13308*/
-                        xrmn_n = -xrmn_n*xrm2z;   /*Z=13309*/
-                        pn[n] = pn[n-1]*p*p;   /*Z=13310*/
-                        /* longitudinal */   /*Z=13311*/
+                    {/*6*/  //Z=13695
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13696
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13697
+                        fkv[n] = fkv[n-1]*n;  //Z=13698
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13699
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13700
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13701 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=13702
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=13703
+                        xrmn_n = -xrmn_n*xrm2z;  //Z=13704
+                        pn[n] = pn[n-1]*p*p;  //Z=13705
+                        /*  longitudinal  */  //Z=13706
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13312*/
-                            qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);   /*Z=13313*/
-                            /* carr2pm[i]:=power(4,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm); */   /*Z=13314*/
-                            CR->carr22pm[n][m] = pow(4.,1.0*m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);   /*Z=13315*/
-                            /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]); */   /*Z=13316*/
-                            CR->carr11pm[n][m] = pow(-1.,1.0*m)*fk2v[m]/(pow(4.,1.0*m)*fkv[m]*fkv[n-m]);   /*Z=13317, cs=2,dim=2,cho1=2*/
-                            /* carr2fm[i]:=carr2pm[i]; */   /*Z=13318*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=13319*/
-                            /* i:=i+1; */   /*Z=13320*/
-                        }   /*Z=13321*/
-                        /* P(q)-coefficient */   /*Z=13322*/
-                        CR->carr1p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);   /*Z=13323*/
-                        /* F(q)-coefficient */   /*Z=13324*/
-                        sump = 0.0;   /*Z=13325*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=13326*/
-                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=13327*/
-                        }   /*Z=13328*/
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump;   /*Z=13329*/
+                        {/*7*/  //Z=13707
+                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);  //Z=13708
+                            /* carr2pm[i]:=power(4,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13709 */
+                            CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13710
+                            /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]);  //Z=13711 */
+                            CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=13712
+                            /* carr2fm[i]:=carr2pm[i];  //Z=13713 */
+                            /* carr1fm[i]:=carr1pm[i];  //Z=13714 */
+                            /* i:=i+1;  //Z=13715 */
+                        }/*7*/  //Z=13716
+                        /*  P(q)-coefficient  */  //Z=13717
+                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=13718
 
-                        /* cross-sectional P(q) */   /*Z=13331*/
-                        CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.,1.0*n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);   /*Z=13332*/
-                        sump = 0.0;   /*Z=13333*/
-                        sump1 = 0.0;   /*Z=13334*/
+                        /*  F(q)-coefficient  */  //Z=13720
+                        sump = 0.0;  //Z=13721
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13335*/
-                            sumi = (m+1/2.0)/((m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);   /*Z=13336*/
-                            sump = sump+pn[n-m]*sumi;   /*Z=13337*/
-                            sump1 = sump1+sumi;   /*Z=13338*/
-                        }   /*Z=13339*/
-                        CR->carr5p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrmn_n*sump;   /*Z=13340*/
-                        CR->carr6p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrn[n-1]*sump1;   /*Z=13341*/
-                        sump = 0.0;   /*Z=13342*/
-                        sump1 = 0.0;   /*Z=13343*/
+                        {/*7*/  //Z=13722
+                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13723
+                        }/*7*/  //Z=13724
+                        CR->carr1f[n] = xln[n]*fkv[n]*sump;  //Z=13725
+
+                        /*  cross-sectional P(q)  */  //Z=13727
+                        CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13728
+                        sump = 0.0;  //Z=13729
+                        sump1 = 0.0;  //Z=13730
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13344*/
-                            sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-alfa/2.0)*(m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);   /*Z=13345*/
-                            sump = sump+sumi;   /*Z=13346*/
-                            sump1 = sump1+pn[n-m]*sumi;   /*Z=13347*/
-                        }   /*Z=13348*/
-                        CR->carr7p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump;   /*Z=13349*/
-                        CR->carr8p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump1;   /*Z=13350*/
-                        CR->carr9p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrn[n-1]*sump;   /*Z=13351*/
-
-                        /* F(q)  */   /*Z=13371*/
-                        CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);   /*Z=13372*/
-                        CR->carr5f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);   /*Z=13373*/
-                        CR->carr6f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrn[n-1]*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);   /*Z=13374*/
-
-                        /* series for <...> integration */   /*Z=13376*/
-                        CR->carr2p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=13377*/
-                        sump = 0.0;   /*Z=13378*/
+                        {/*7*/  //Z=13731
+                            sumi = (m+1/2.0)/((m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=13732
+                            sump = sump+pn[n-m]*sumi;  //Z=13733
+                            sump1 = sump1+sumi;  //Z=13734
+                        }/*7*/  //Z=13735
+                        CR->carr5p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=13736
+                        CR->carr6p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrn[n]*sump1;  //Z=13737
+                        sump = 0.0;  //Z=13738
+                        sump1 = 0.0;  //Z=13739
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13379*/
-                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=13380*/
-                        }   /*Z=13381*/
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2*gam3[n]);   /*Z=13382*/
+                        {/*7*/  //Z=13740
+                            sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-alfa/2.0)*(m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=13741
+                            sump = sump+sumi;  //Z=13742
+                            sump1 = sump1+pn[n-m]*sumi;  //Z=13743
+                        }/*7*/  //Z=13744
+                        CR->carr7p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=13745
+                        CR->carr8p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump1;  //Z=13746
+                        CR->carr9p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrn[n]*sump;  //Z=13747
 
-                        if ( search1 )
-                        {   /*Z=13384*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=13385*/
-                                n1 = n;   /*Z=13386*/
-                                search1 = false;   /*Z=13387*/
-                            }   /*Z=13388*/
-                        }   /*Z=13389*/
-                        if ( search4 )
-                        {   /*Z=13390*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=13391*/
-                                n4 = n;   /*Z=13392*/
-                                search4 = false;   /*Z=13393*/
-                            }   /*Z=13394*/
-                        }   /*Z=13395*/
-                        if ( search5 )
-                        {   /*Z=13396*/
-                            if ( fabs(CR->carr5p[n])<1e-50 )
-                            {   /*Z=13397*/
-                                n5 = n;   /*Z=13398*/
-                                search5 = false;   /*Z=13399*/
-                            }   /*Z=13400*/
-                        }   /*Z=13401*/
-                        if ( search6 )
-                        {   /*Z=13402*/
-                            if ( fabs(CR->carr6p[n])<1e-50 )
-                            {   /*Z=13403*/
-                                n6 = n;   /*Z=13404*/
-                                search6 = false;   /*Z=13405*/
-                            }   /*Z=13406*/
-                        }   /*Z=13407*/
+                        /*  F(q)   */  //Z=13767
+                        CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);  //Z=13768
+                        CR->carr5f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=13769
+                        CR->carr6f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrn[n]*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=13770
+
+                        /*  series for <...> integration  */  //Z=13772
+                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=13773
+                        sump = 0.0;  //Z=13774
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=13775
+                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13776
+                        }/*7*/  //Z=13777
+                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=13778
+
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=13780
+                            if ( n<n1 ) n1 = n;  //Z=13781
+                        }/*7*/  //Z=13782
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=13783
+                            if ( n<n4 ) n4 = n;  //Z=13784
+                        }/*7*/  //Z=13785
+                        if ( fabs(CR->carr5p[n])<min )
+                        {/*7*/  //Z=13786
+                            if ( n<n5 ) n5 = n;  //Z=13787
+                        }/*7*/  //Z=13788
+                        if ( fabs(CR->carr6p[n])<min )
+                        {/*7*/  //Z=13789
+                            if ( n<n6 ) n6 = n;  //Z=13790
+                        }/*7*/  //Z=13791
                         if ( fabs(CR->carr7p[n])<min )
-                        {   /*Z=13408*/
-                            if ( n<n7 ) n7 = n;   /*Z=13409*/
-                        }   /*Z=13410*/
+                        {/*7*/  //Z=13792
+                            if ( n<n7 ) n7 = n;  //Z=13793
+                        }/*7*/  //Z=13794
                         if ( fabs(CR->carr8p[n])<min )
-                        {   /*Z=13411*/
-                            if ( n<n8 ) n8 = n;   /*Z=13412*/
-                        }   /*Z=13413*/
+                        {/*7*/  //Z=13795
+                            if ( n<n8 ) n8 = n;  //Z=13796
+                        }/*7*/  //Z=13797
                         if ( fabs(CR->carr9p[n])<min )
-                        {   /*Z=13414*/
-                            if ( n<n9 ) n9 = n;   /*Z=13415*/
-                        }   /*Z=13416*/
+                        {/*7*/  //Z=13798
+                            if ( n<n9 ) n9 = n;  //Z=13799
+                        }/*7*/  //Z=13800
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=13417*/
-                            if ( n<n1f ) n1f = n;   /*Z=13418*/
-                        }   /*Z=13419*/
+                        {/*7*/  //Z=13801
+                            if ( n<n1f ) n1f = n;  //Z=13802
+                        }/*7*/  //Z=13803
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=13420*/
-                            if ( n<n4f ) n4f = n;   /*Z=13421*/
-                        }   /*Z=13422*/
+                        {/*7*/  //Z=13804
+                            if ( n<n4f ) n4f = n;  //Z=13805
+                        }/*7*/  //Z=13806
                         if ( fabs(CR->carr5f[n])<min )
-                        {   /*Z=13423*/
-                            if ( n<n5f ) n5f = n;   /*Z=13424*/
-                        }   /*Z=13425*/
+                        {/*7*/  //Z=13807
+                            if ( n<n5f ) n5f = n;  //Z=13808
+                        }/*7*/  //Z=13809
                         if ( fabs(CR->carr6f[n])<min )
-                        {   /*Z=13426*/
-                            if ( n<n6f ) n6f = n;   /*Z=13427*/
-                        }   /*Z=13428*/
+                        {/*7*/  //Z=13810
+                            if ( n<n6f ) n6f = n;  //Z=13811
+                        }/*7*/  //Z=13812
                         if ( fabs(CR->carr7f[n])<min )
-                        {   /*Z=13429*/
-                            if ( n<n7f ) n7f = n;   /*Z=13430*/
-                        }   /*Z=13431*/
+                        {/*7*/  //Z=13813
+                            if ( n<n7f ) n7f = n;  //Z=13814
+                        }/*7*/  //Z=13815
                         if ( fabs(CR->carr8f[n])<min )
-                        {   /*Z=13432*/
-                            if ( n<n8f ) n8f = n;   /*Z=13433*/
-                        }   /*Z=13434*/
+                        {/*7*/  //Z=13816
+                            if ( n<n8f ) n8f = n;  //Z=13817
+                        }/*7*/  //Z=13818
                         if ( fabs(CR->carr9f[n])<min )
-                        {   /*Z=13435*/
-                            if ( n<n9f ) n9f = n;   /*Z=13436*/
-                        }   /*Z=13437*/
-                    } /* n-loop */   /*Z=13438*/
-                }  /* of inhomogeneous core/shell */   /*Z=13439*/
-            }  /* of disk */   /*Z=13441*/
-        } // if ( (cho1==2) && (dim!=3) )    /*Z=13442*/
+                        {/*7*/  //Z=13819
+                            if ( n<n9f ) n9f = n;  //Z=13820
+                        }/*7*/  //Z=13821
+                    }/*6*/ /*  n-loop  */  //Z=13822
+                }/*5*/  /*  of inhomogeneous core/shell  */  //Z=13823
 
+            }/*4*/  /*  of disk  */  //Z=13825
+        }/*3*/  //Z=13826
 
-
-        /*** y-axis ***/   /*Z=13446*/
+        /* ** y-axis, orientational distribution centered around y-axis ** */  //Z=13830
         if ( (cho1==3) && (dim!=3) )
-        {   /*Z=13447*/
+        {/*3*/  //Z=13831
 
-            /*** cylinder ***/   /*Z=13449*/
+            /* ** cylinder ** */  //Z=13833
             if ( dim==1 )
-            {   /*Z=13450*/
-                /* homogeneous */   /*Z=13451*/
+            {/*4*/  //Z=13834
+                /*  homogeneous  */  //Z=13835
                 if ( cs==0 )
-                {   /*Z=13452*/
-                    i = 2;   /*Z=13453*/
+                {/*5*/  //Z=13836
+                    i = 2;  //Z=13837
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=13454*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=13455*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=13456*/
-                        //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=13457*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=13458*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=13459*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=13460*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=13461*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=13462*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=13463*/
-                        /* longitudinal */   /*Z=13464*/
+                    {/*6*/  //Z=13838
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13839
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13840
+                        b1sv_n = b1sv_n*(b1s-1+n);  //Z=13841
+                        fkv[n] = fkv[n-1]*n;  //Z=13842
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13843
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13844
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13845 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=13846
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=13847
+                        /*  longitudinal  */  //Z=13848
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13465*/
-                            qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);   /*Z=13466*/
-                            /* carr1pm[i]:=intl/(power(4,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm); */   /*Z=13467*/
-                            CR->carr11pm[n][m] = intl/(pow(4.,1.0*m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);   /*Z=13468, cs=0,dim=1,cho1=3*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=13469*/
-                            /* i:=i+1; */   /*Z=13470*/
-                        }   /*Z=13471*/
-                        /* P(q)-coefficient */   /*Z=13472*/
-                        CR->carr1p[n] = pow(4.,2.*n)*z12vl[n]*xln[n]/((2.*n+1)*(n+1));   /*Z=13473*/
-                        D1P( qDebug() << "CARR1P(D)" << n << CR->carr1p[n]; )
-                        /* F(q)-coefficient */   /*Z=13474*/
-                        sump = 0.0;   /*Z=13475*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=13476*/
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump;   /*Z=13477*/
-                        //if ( n<2 ) std::cerr << "CARR11PM - C " << norm << std::endl;
+                        {/*7*/  //Z=13849
+                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);  //Z=13850
+                            CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=13851
 
-                        /* cross-section */   /*Z=13479*/
-                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);   /*Z=13480*/
-                        //CR->carr4p[n] = 4*(n+1/2.0)*(fk2v[n]/fkv[n])*(z12v[n]*xrn[n])/((n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]);   /*Z=13480*/
-                        //D4P( std::cerr << "CARR4P(D) " << n<<" " << CR->carr4p[n]<<" " << fk2v[n]<<" " << z12v[n]<<" " << xrn[n]<<" " << fkv[n] << std::endl; )
-                        sump = 0.0;   /*Z=13481*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=13482*/
-                        CR->carr4f[n] = xrn[n-1]*sump;   /*Z=13483*/
+                            /* carr1fm[i]:=carr1pm[i];  //Z=13853 */
+                            /* i:=i+1;  //Z=13854 */
+                        }/*7*/  //Z=13855
+                        /*  P(q)-coefficient  */  //Z=13856
+                        /* carr1p[n]:=power(4,2*n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=13857 */
+                        CR->carr1p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13858
+                        /* carr1p[n]:=(sqrt(pi)/2)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13859 */
+                        /* carr1p[n]:=(1/2)*power(4,2*n)*z12vl[n]*xln[n]/((n+1)*(n+1/2));  //Z=13860 */
 
-                        if ( search1 )
-                        {   /*Z=13485*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )    // fabs
-                            {   /*Z=13486*/
-                                n1 = n;   /*Z=13487*/
-                                search1 = false;   /*Z=13488*/
-                            }   /*Z=13489*/
-                        }   /*Z=13490*/
-                        if ( search4 )
-                        {   /*Z=13491*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )    // fabs
-                            {   /*Z=13492*/
-                                n4 = n;   /*Z=13493*/
-                                search4 = false;   /*Z=13494*/
-                            }   /*Z=13495*/
-                        }   /*Z=13496*/
+                        /*  F(q)-coefficient  */  //Z=13862
+                        sump = 0.0;  //Z=13863
+                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13864
+                        CR->carr1f[n] = fk2v[n]*xln[n]*sump;  //Z=13865
+
+                        /*  cross-section  */  //Z=13867
+                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  //Z=13868
+
+                        /* carr4p[n]:=power(4,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(pi)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=13870 */
+
+                        sump = 0.0;  //Z=13872
+                        for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13873
+                        CR->carr4f[n] = xrn[n]*sump;  //Z=13874
+
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=13876
+                            if ( n<n1 ) n1 = n;  //Z=13877
+                        }/*7*/  //Z=13878
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=13879
+                            if ( n<n4 ) n4 = n;  //Z=13880
+                        }/*7*/  //Z=13881
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=13497*/
-                            if ( n<n1f ) n1f = n;   /*Z=13498*/
-                        }   /*Z=13499*/
+                        {/*7*/  //Z=13882
+                            if ( n<n1f ) n1f = n;  //Z=13883
+                        }/*7*/  //Z=13884
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=13500*/
-                            if ( n<n4f ) n4f = n;   /*Z=13501*/
-                        }   /*Z=13502*/
-                    }  /* of n-loop */   /*Z=13503*/
-                }  /* cs=0 */   /*Z=13504*/
+                        {/*7*/  //Z=13885
+                            if ( n<n4f ) n4f = n;  //Z=13886
+                        }/*7*/  //Z=13887
+                    }/*6*/  /*  of n-loop  */  //Z=13888
+                }/*5*/  /*  cs=0  */  //Z=13889
 
-                /* core/shell */   /*Z=13506*/
+                /*  core/shell  */  //Z=13891
                 if ( cs==1 )
-                {   /*Z=13507*/
-                    i = 2;   /*Z=13508*/
+                {/*5*/  //Z=13892
+                    i = 2;  //Z=13893
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=13509*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=13510*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=13511*/
-                        //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=13512*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=13513*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=13514*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=13515*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=13516*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=13517*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=13518*/
-                        xrmn_n = -xrmn_n*xrm2z;   /*Z=13519*/
-                        pn[n] = pn[n-1]*p*p;   /*Z=13520*/
-                        /* longitudinal */   /*Z=13521*/
+                    {/*6*/  //Z=13894
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13895
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13896
+                        b1sv_n = b1sv_n*(b1s-1+n);  //Z=13897
+                        fkv[n] = fkv[n-1]*n;  //Z=13898
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13899
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13900
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13901 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=13902
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=13903
+                        xrmn_n = -xrmn_n*xrm2z;  //Z=13904
+                        pn[n] = pn[n-1]*p*p;  //Z=13905
+                        /*  longitudinal  */  //Z=13906
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13522*/
-                            qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);   /*Z=13523*/
-                            /* carr1pm[i]:=intl/(power(4,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm); */   /*Z=13524*/
-                            CR->carr11pm[n][m] = intl/(pow(4.,1.0*m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);   /*Z=13525, cs=1,dim=1,cho1=3*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=13526*/
-                            /* i:=i+1; */   /*Z=13527*/
-                        }   /*Z=13528*/
-                        /* P(q)-coefficient */   /*Z=13529*/
-                        CR->carr1p[n] = pow(4.,2.*n)*z12vl[n]*xln[n]/((2.*n+1)*(n+1));   /*Z=13530*/
-                        /* F(q)-coefficient */   /*Z=13531*/
-                        sump = 0.0;   /*Z=13532*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=13533*/
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump;   /*Z=13534*/
+                        {/*7*/  //Z=13907
+                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);  //Z=13908
+                            CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=13909
 
-                        /* P(q)-coefficients */   /*Z=13536*/
-                        /* cross-sectional */   /*Z=13537*/
-                        /* F121 */   /*Z=13538*/
-                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);   /*Z=13539*/
-                        /* F122 */   /*Z=13540*/
-                        sump = 0.0;   /*Z=13541*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=13542*/
-                            sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=13543*/
-                        }   /*Z=13544*/
-                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;   /*Z=13545*/
-                        /* F123 */   /*Z=13546*/
-                        CR->carr6p[n] = CR->carr4p[n]/pn[n];   /*Z=13547*/
+                            /* carr1fm[i]:=carr1pm[i];  //Z=13911 */
+                            /* i:=i+1;  //Z=13912 */
+                        }/*7*/  //Z=13913
+                        /*  P(q)-coefficient  */  //Z=13914
+                        /* carr1p[n]:=power(4,2*n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=13915 */
+                        CR->carr1p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13916
+                        /* carr1p[n]:=(sqrt(pi)/2)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13917 */
+                        /* carr1p[n]:=(1/2)*power(4,2*n)*z12vl[n]*xln[n]/((n+1)*(n+1/2));  //Z=13918 */
 
-                        /* F(q)-coefficients */   /*Z=13549*/
-                        /* cross-sectional */   /*Z=13550*/
-                        /* F121 */   /*Z=13551*/
-                        sump = 0.0;   /*Z=13552*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=13553*/
-                            sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=13554*/
-                        }   /*Z=13555*/
-                        CR->carr4f[n] = xrn[n-1]*sump;   /*Z=13556*/
-                        /* F122 */   /*Z=13557*/
-                        sump = 0.0;   /*Z=13558*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=13559*/
-                            sump = sump+pn[m]*z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=13560*/
-                        }   /*Z=13561*/
-                        CR->carr5f[n] = xrmn_n*sump;   /*Z=13562*/
-                        /* F123 */   /*Z=13563*/
-                        CR->carr6f[n] = CR->carr4f[n]/pn[n];   /*Z=13564*/
+                        /*  F(q)-coefficient  */  //Z=13920
+                        sump = 0.0;  //Z=13921
+                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13922
+                        CR->carr1f[n] = fk2v[n]*xln[n]*sump;  //Z=13923
 
-                        if ( search1 )
-                        {   /*Z=13566*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=13567*/
-                                n1 = n;   /*Z=13568*/
-                                search1 = false;   /*Z=13569*/
-                            }   /*Z=13570*/
-                        }   /*Z=13571*/
-                        if ( search4 )
-                        {   /*Z=13572*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=13573*/
-                                n4 = n;   /*Z=13574*/
-                                search4 = false;   /*Z=13575*/
-                            }   /*Z=13576*/
-                        }   /*Z=13577*/
-                        if ( search5 )
-                        {   /*Z=13578*/
-                            if ( fabs(CR->carr5p[n])<1e-50 )
-                            {   /*Z=13579*/
-                                n5 = n;   /*Z=13580*/
-                                search5 = false;   /*Z=13581*/
-                            }   /*Z=13582*/
-                        }   /*Z=13583*/
-                        if ( search6 )
-                        {   /*Z=13584*/
-                            if ( fabs(CR->carr6p[n])<1e-50 )
-                            {   /*Z=13585*/
-                                n6 = n;   /*Z=13586*/
-                                search6 = false;   /*Z=13587*/
-                            }   /*Z=13588*/
-                        }   /*Z=13589*/
+                        /*  P(q)-coefficients  */  //Z=13925
+                        /*  cross-sectional  */  //Z=13926
+                        /*  F121  */  //Z=13927
+                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=13928
+                        /*  F122  */  //Z=13929
+                        sump = 0.0;  //Z=13930
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=13931
+                            sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13932
+                        }/*7*/  //Z=13933
+                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=13934
+                        /*  F123  */  //Z=13935
+                        CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=13936
+
+                        /*  F(q)-coefficients  */  //Z=13938
+                        /*  cross-sectional  */  //Z=13939
+                        /*  F121  */  //Z=13940
+                        sump = 0.0;  //Z=13941
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=13942
+                            sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13943
+                        }/*7*/  //Z=13944
+                        CR->carr4f[n] = xrn[n]*sump;  //Z=13945
+                        /*  F122  */  //Z=13946
+                        sump = 0.0;  //Z=13947
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=13948
+                            sump = sump+pn[m]*z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13949
+                        }/*7*/  //Z=13950
+                        CR->carr5f[n] = xrmn_n*sump;  //Z=13951
+                        /*  F123  */  //Z=13952
+                        CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=13953
+
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=13955
+                            if ( n<n1 ) n1 = n;  //Z=13956
+                        }/*7*/  //Z=13957
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=13958
+                            if ( n<n4 ) n4 = n;  //Z=13959
+                        }/*7*/  //Z=13960
+                        if ( fabs(CR->carr5p[n])<min )
+                        {/*7*/  //Z=13961
+                            if ( n<n5 ) n5 = n;  //Z=13962
+                        }/*7*/  //Z=13963
+                        if ( fabs(CR->carr6p[n])<min )
+                        {/*7*/  //Z=13964
+                            if ( n<n6 ) n6 = n;  //Z=13965
+                        }/*7*/  //Z=13966
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=13590*/
-                            if ( n<n1f ) n1f = n;   /*Z=13591*/
-                        }   /*Z=13592*/
+                        {/*7*/  //Z=13967
+                            if ( n<n1f ) n1f = n;  //Z=13968
+                        }/*7*/  //Z=13969
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=13593*/
-                            if ( n<n4f ) n4f = n;   /*Z=13594*/
-                        }   /*Z=13595*/
+                        {/*7*/  //Z=13970
+                            if ( n<n4f ) n4f = n;  //Z=13971
+                        }/*7*/  //Z=13972
                         if ( fabs(CR->carr5f[n])<min )
-                        {   /*Z=13596*/
-                            if ( n<n5f ) n5f = n;   /*Z=13597*/
-                        }   /*Z=13598*/
+                        {/*7*/  //Z=13973
+                            if ( n<n5f ) n5f = n;  //Z=13974
+                        }/*7*/  //Z=13975
                         if ( fabs(CR->carr6f[n])<min )
-                        {   /*Z=13599*/
-                            if ( n<n6f ) n6f = n;   /*Z=13600*/
-                        }   /*Z=13601*/
-                    }  /* of n-loop */   /*Z=13602*/
-                }  /* cs=1 */   /*Z=13603*/
+                        {/*7*/  //Z=13976
+                            if ( n<n6f ) n6f = n;  //Z=13977
+                        }/*7*/  //Z=13978
+                    }/*6*/  /*  of n-loop  */  //Z=13979
+                }/*5*/  /*  cs=1  */  //Z=13980
 
-                /* inhomogeneous core/shell */   /*Z=13605*/
+                /*  inhomogeneous core/shell  */  //Z=13982
                 if ( cs==2 )
-                {   /*Z=13606*/
-                    i = 2;   /*Z=13607*/
+                {/*5*/  //Z=13983
+                    i = 2;  //Z=13984
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=13608*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=13609*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=13610*/
-                        //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=13611*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=13612*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=13613*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=13614*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=13615*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=13616*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=13617*/
-                        xrmn_n = -xrmn_n*xrm2z;   /*Z=13618*/
-                        pn[n] = pn[n-1]*p*p;   /*Z=13619*/
-                        /* longitudinal */   /*Z=13620*/
+                    {/*6*/  //Z=13985
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13986
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13987
+                        b1sv_n = b1sv_n*(b1s-1+n);  //Z=13988
+                        fkv[n] = fkv[n-1]*n;  //Z=13989
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13990
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13991
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13992 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=13993
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=13994
+                        xrmn_n = -xrmn_n*xrm2z;  //Z=13995
+                        pn[n] = pn[n-1]*p*p;  //Z=13996
+                        /*  longitudinal  */  //Z=13997
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13621*/
-                            qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);   /*Z=13622*/
-                            /* carr1pm[i]:=intl/(power(4,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm); */   /*Z=13623*/
-                            CR->carr11pm[n][m] = intl/(pow(4.,1.0*m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);   /*Z=13624, cs=2,dim=1,cho1=3*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=13625*/
-                            /* i:=i+1; */   /*Z=13626*/
-                        }   /*Z=13627*/
-                        /* P(q)-coefficient */   /*Z=13628*/
-                        CR->carr1p[n] = pow(4.,2.*n)*z12vl[n]*xln[n]/((2.*n+1)*(n+1));   /*Z=13629*/
-                        /* F(q)-coefficient */   /*Z=13630*/
-                        sump = 0.0;   /*Z=13631*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=13632*/
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump;   /*Z=13633*/
+                        {/*7*/  //Z=13998
+                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);  //Z=13999
+                            CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=14000
 
-                        /* cross-sectional P(q) */   /*Z=13635*/
-                        CR->carr4p[n] = pow(4.,n+1.)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);   /*Z=13636*/
-                        sump = 0.0;   /*Z=13637*/
-                        sump1 = 0.0;   /*Z=13638*/
+                            /* carr1fm[i]:=carr1pm[i];  //Z=14002 */
+                            /* i:=i+1;  //Z=14003 */
+                        }/*7*/  //Z=14004
+                        /*  P(q)-coefficient  */  //Z=14005
+                        /* carr1p[n]:=power(4,2*n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=14006 */
+                        CR->carr1p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=14007
+                        /* carr1p[n]:=(sqrt(pi)/2)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=14008 */
+                        /* carr1p[n]:=(1/2)*power(4,2*n)*z12vl[n]*xln[n]/((n+1)*(n+1/2));  //Z=14009 */
+
+                        /*  F(q)-coefficient  */  //Z=14011
+                        sump = 0.0;  //Z=14012
+                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14013
+                        CR->carr1f[n] = fk2v[n]*xln[n]*sump;  //Z=14014
+
+                        /*  cross-sectional P(q)  */  //Z=14016
+                        CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=14017
+                        sump = 0.0;  //Z=14018
+                        sump1 = 0.0;  //Z=14019
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13639*/
-                            sumi = 1/((m+1-alfa/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);   /*Z=13640*/
-                            sump = sump+pn[n-m]*sumi;   /*Z=13641*/
-                            sump1 = sump1+sumi;   /*Z=13642*/
-                        }   /*Z=13643*/
-                        CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;   /*Z=13644*/
-                        CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n-1]*sump1;   /*Z=13645*/
-                        sump = 0.0;   /*Z=13646*/
-                        sump1 = 0.0;   /*Z=13647*/
+                        {/*7*/  //Z=14020
+                            sumi = 1/((m+1-alfa/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=14021
+                            sump = sump+pn[n-m]*sumi;  //Z=14022
+                            sump1 = sump1+sumi;  //Z=14023
+                        }/*7*/  //Z=14024
+                        CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;  //Z=14025
+                        CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n]*sump1;  //Z=14026
+                        sump = 0.0;  //Z=14027
+                        sump1 = 0.0;  //Z=14028
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13648*/
-                            sumi = 1/((n-m+1-alfa/2.0)*(m+1-alfa/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);   /*Z=13649*/
-                            sump = sump+sumi;   /*Z=13650*/
-                            sump1 = sump1+pn[n-m]*sumi;   /*Z=13651*/
-                        }   /*Z=13652*/
-                        CR->carr7p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump;   /*Z=13653*/
-                        CR->carr8p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump1;   /*Z=13654*/
-                        CR->carr9p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrn[n-1]*sump;   /*Z=13655*/
+                        {/*7*/  //Z=14029
+                            sumi = 1/((n-m+1-alfa/2.0)*(m+1-alfa/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=14030
+                            sump = sump+sumi;  //Z=14031
+                            sump1 = sump1+pn[n-m]*sumi;  //Z=14032
+                        }/*7*/  //Z=14033
+                        CR->carr7p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump;  //Z=14034
+                        CR->carr8p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump1;  //Z=14035
+                        CR->carr9p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrn[n]*sump;  //Z=14036
 
-                        /* F(q)-coefficients */   /*Z=13670*/
-                        /* cross-sectional */   /*Z=13671*/
-                        CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);   /*Z=13672*/
-                        CR->carr5f[n] = (1-alfa/2.0)*z12v[n]*xrmn_n/((n+1-alfa/2.0)*fkv[n]*fkv[n]);   /*Z=13673*/
-                        CR->carr6f[n] = (1-alfa/2.0)*z12v[n]*xrn[n]/((n+1-alfa/2.0)*fkv[n]*fkv[n]);   /*Z=13674*/
+                        /*  F(q)-coefficients  */  //Z=14051
+                        /*  cross-sectional  */  //Z=14052
+                        CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);  //Z=14053
+                        CR->carr5f[n] = (1-alfa/2.0)*z12v[n]*xrmn_n/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=14054
+                        CR->carr6f[n] = (1-alfa/2.0)*z12v[n]*xrn[n]/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=14055
 
-                        if ( search1 )
-                        {   /*Z=13676*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=13677*/
-                                n1 = n;   /*Z=13678*/
-                                search1 = false;   /*Z=13679*/
-                            }   /*Z=13680*/
-                        }   /*Z=13681*/
-                        if ( search4 )
-                        {   /*Z=13682*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=13683*/
-                                n4 = n;   /*Z=13684*/
-                                search4 = false;   /*Z=13685*/
-                            }   /*Z=13686*/
-                        }   /*Z=13687*/
-                        if ( search5 )
-                        {   /*Z=13688*/
-                            if ( fabs(CR->carr5p[n])<1e-50 )
-                            {   /*Z=13689*/
-                                n5 = n;   /*Z=13690*/
-                                search5 = false;   /*Z=13691*/
-                            }   /*Z=13692*/
-                        }   /*Z=13693*/
-                        if ( search6 )
-                        {   /*Z=13694*/
-                            if ( fabs(CR->carr6p[n])<1e-50 )
-                            {   /*Z=13695*/
-                                n6 = n;   /*Z=13696*/
-                                search6 = false;   /*Z=13697*/
-                            }   /*Z=13698*/
-                        }   /*Z=13699*/
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=14057
+                            if ( n<n1 ) n1 = n;  //Z=14058
+                        }/*7*/  //Z=14059
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=14060
+                            if ( n<n4 ) n4 = n;  //Z=14061
+                        }/*7*/  //Z=14062
+                        if ( fabs(CR->carr5p[n])<min )
+                        {/*7*/  //Z=14063
+                            if ( n<n5 ) n5 = n;  //Z=14064
+                        }/*7*/  //Z=14065
+                        if ( fabs(CR->carr6p[n])<min )
+                        {/*7*/  //Z=14066
+                            if ( n<n6 ) n6 = n;  //Z=14067
+                        }/*7*/  //Z=14068
                         if ( fabs(CR->carr7p[n])<min )
-                        {   /*Z=13700*/
-                            if ( n<n7 ) n7 = n;   /*Z=13701*/
-                        }   /*Z=13702*/
+                        {/*7*/  //Z=14069
+                            if ( n<n7 ) n7 = n;  //Z=14070
+                        }/*7*/  //Z=14071
                         if ( fabs(CR->carr8p[n])<min )
-                        {   /*Z=13703*/
-                            if ( n<n8 ) n8 = n;   /*Z=13704*/
-                        }   /*Z=13705*/
+                        {/*7*/  //Z=14072
+                            if ( n<n8 ) n8 = n;  //Z=14073
+                        }/*7*/  //Z=14074
                         if ( fabs(CR->carr9p[n])<min )
-                        {   /*Z=13706*/
-                            if ( n<n9 ) n9 = n;   /*Z=13707*/
-                        }   /*Z=13708*/
+                        {/*7*/  //Z=14075
+                            if ( n<n9 ) n9 = n;  //Z=14076
+                        }/*7*/  //Z=14077
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=13709*/
-                            if ( n<n1f ) n1f = n;   /*Z=13710*/
-                        }   /*Z=13711*/
+                        {/*7*/  //Z=14078
+                            if ( n<n1f ) n1f = n;  //Z=14079
+                        }/*7*/  //Z=14080
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=13712*/
-                            if ( n<n4f ) n4f = n;   /*Z=13713*/
-                        }   /*Z=13714*/
+                        {/*7*/  //Z=14081
+                            if ( n<n4f ) n4f = n;  //Z=14082
+                        }/*7*/  //Z=14083
                         if ( fabs(CR->carr5f[n])<min )
-                        {   /*Z=13715*/
-                            if ( n<n5f ) n5f = n;   /*Z=13716*/
-                        }   /*Z=13717*/
+                        {/*7*/  //Z=14084
+                            if ( n<n5f ) n5f = n;  //Z=14085
+                        }/*7*/  //Z=14086
                         if ( fabs(CR->carr6f[n])<min )
-                        {   /*Z=13718*/
-                            if ( n<n6f ) n6f = n;   /*Z=13719*/
-                        }   /*Z=13720*/
+                        {/*7*/  //Z=14087
+                            if ( n<n6f ) n6f = n;  //Z=14088
+                        }/*7*/  //Z=14089
                         if ( fabs(CR->carr7f[n])<min )
-                        {   /*Z=13721*/
-                            if ( n<n7f ) n7f = n;   /*Z=13722*/
-                        }   /*Z=13723*/
+                        {/*7*/  //Z=14090
+                            if ( n<n7f ) n7f = n;  //Z=14091
+                        }/*7*/  //Z=14092
                         if ( fabs(CR->carr8f[n])<min )
-                        {   /*Z=13724*/
-                            if ( n<n8f ) n8f = n;   /*Z=13725*/
-                        }   /*Z=13726*/
+                        {/*7*/  //Z=14093
+                            if ( n<n8f ) n8f = n;  //Z=14094
+                        }/*7*/  //Z=14095
                         if ( fabs(CR->carr9f[n])<min )
-                        {   /*Z=13727*/
-                            if ( n<n9f ) n9f = n;   /*Z=13728*/
-                        }   /*Z=13729*/
-                    }  /* of n-loop */   /*Z=13730*/
-                }  /* cs=2 */   /*Z=13731*/
+                        {/*7*/  //Z=14096
+                            if ( n<n9f ) n9f = n;  //Z=14097
+                        }/*7*/  //Z=14098
+                    }/*6*/  /*  of n-loop  */  //Z=14099
+                }/*5*/  /*  cs=2  */  //Z=14100
 
-                /* myelin */   /*Z=13734*/
+                /*  myelin  */  //Z=14103
                 if ( (cs==3) || (cs==4) )
-                {   /*Z=13735*/
-                    i = 2;   /*Z=13736*/
+                {/*5*/  //Z=14104
+                    i = 2;  //Z=14105
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=13737*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=13738*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=13739*/
-                        //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=13740*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=13741*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=13742*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=13743*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=13744*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=13745*/
-                        xrn[n] = -xrn[n-1]*x12zm;   /*Z=13746*/
-                        /* longitudinal */   /*Z=13747*/
+                    {/*6*/  //Z=14106
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=14107
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14108
+                        b1sv_n = b1sv_n*(b1s-1+n);  //Z=14109
+                        fkv[n] = fkv[n-1]*n;  //Z=14110
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14111
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=14112
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=14113 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=14114
+                        xrn[n] = -xrn[n-1]*x12zm;  //Z=14115
+                        /*  longitudinal  */  //Z=14116
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13748*/
-                            qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);   /*Z=13749*/
-                            /* carr1pm[i]:=intl/(power(4,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm); */   /*Z=13750*/
-                            CR->carr11pm[n][m] = intl/(pow(4.,1.0*m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);   /*Z=13751, cs=3|4,dim=1,cho1=3*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=13752*/
-                            /* i:=i+1; */   /*Z=13753*/
-                        }   /*Z=13754*/
-                        /* P(q)-coefficient */   /*Z=13755*/
-                        CR->carr1p[n] = pow(4.,2.*n)*z12vl[n]*xln[n]/((2.*n+1)*(n+1));   /*Z=13756*/
-                        /* F(q)-coefficient */   /*Z=13757*/
-                        sump = 0.0;   /*Z=13758*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=13759*/
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump;   /*Z=13760*/
+                        {/*7*/  //Z=14117
+                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);  //Z=14118
+                            CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=14119
 
-                        /* cross-section */   /*Z=13762*/
-                        CR->carr4p[n] = z12v[n]*xrn[n];   /*Z=13763*/
+                            /* carr1fm[i]:=carr1pm[i];  //Z=14121 */
+                            /* i:=i+1;  //Z=14122 */
+                        }/*7*/  //Z=14123
+                        /*  P(q)-coefficient  */  //Z=14124
+                        /* carr1p[n]:=power(4,2*n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=14125 */
+                        CR->carr1p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=14126
+                        /* carr1p[n]:=(sqrt(pi)/2)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=14127 */
+                        /* carr1p[n]:=(1/2)*power(4,2*n)*z12vl[n]*xln[n]/((n+1)*(n+1/2));  //Z=14128 */
 
-                        sump = 0.0;   /*Z=13765*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=13766*/
-                        CR->carr4f[n] = xrn[n-1]*sump;   /*Z=13767*/
+                        /*  F(q)-coefficient  */  //Z=14130
+                        sump = 0.0;  //Z=14131
+                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14132
+                        CR->carr1f[n] = fk2v[n]*xln[n]*sump;  //Z=14133
 
-                        if ( search1 )
-                        {   /*Z=13769*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=13770*/
-                                n1 = n;   /*Z=13771*/
-                                search1 = false;   /*Z=13772*/
-                            }   /*Z=13773*/
-                        }   /*Z=13774*/
-                        if ( search4 )
-                        {   /*Z=13775*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=13776*/
-                                n4 = n;   /*Z=13777*/
-                                search4 = false;   /*Z=13778*/
-                            }   /*Z=13779*/
-                        }   /*Z=13780*/
+                        /*  cross-section  */  //Z=14135
+                        CR->carr4p[n] = z12v[n]*xrn[n];  //Z=14136
+
+                        sump = 0.0;  //Z=14138
+                        for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14139
+                        CR->carr4f[n] = xrn[n]*sump;  //Z=14140
+
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=14142
+                            if ( n<n1 ) n1 = n;  //Z=14143
+                        }/*7*/  //Z=14144
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=14145
+                            if ( n<n4 ) n4 = n;  //Z=14146
+                        }/*7*/  //Z=14147
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=13781*/
-                            if ( n<n1f ) n1f = n;   /*Z=13782*/
-                        }   /*Z=13783*/
+                        {/*7*/  //Z=14148
+                            if ( n<n1f ) n1f = n;  //Z=14149
+                        }/*7*/  //Z=14150
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=13784*/
-                            if ( n<n4f ) n4f = n;   /*Z=13785*/
-                        }   /*Z=13786*/
-                    }  /* of n-loop */   /*Z=13787*/
-                }  /* cs=3 */   /*Z=13788*/
+                        {/*7*/  //Z=14151
+                            if ( n<n4f ) n4f = n;  //Z=14152
+                        }/*7*/  //Z=14153
+                    }/*6*/  /*  of n-loop  */  //Z=14154
+                }/*5*/  /*  cs=3  */  //Z=14155
 
-            }  /* of cylinders */   /*Z=13790*/
+            }/*4*/  /*  of cylinders  */  //Z=14157
 
-            /*** disks ***/   /*Z=13793*/
+
+            /* ** disks ** */  //Z=14160
             if ( dim==2 )
-            {   /*Z=13794*/
-                /* homogeneous */   /*Z=13795*/
+            {/*4*/  //Z=14161
+                /*  homogeneous  */  //Z=14162
                 if ( cs==0 )
-                {   /*Z=13796*/
-                    i = 2;   /*Z=13797*/
+                {/*5*/  //Z=14163
+                    i = 2;  //Z=14164
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=13798*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=13799*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=13800*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=13801*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=13802*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=13803*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=13804*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=13805*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=13806*/
-                        /* longitudinal */   /*Z=13807*/
+                    {/*6*/  //Z=14165
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=14166
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14167
+                        fkv[n] = fkv[n-1]*n;  //Z=14168
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14169
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=14170
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=14171 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=14172
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=14173
+                        /*  longitudinal  */  //Z=14174
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13808*/
-                            qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);   /*Z=13809*/
-                            /* carr2pm[i]:=intl/(power(4,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm); */   /*Z=13810*/
-                            CR->carr22pm[n][m] = intl/(pow(4.,1.0*m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);   /*Z=13811*/
-                            /* carr1pm[i]:=power(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]); */   /*Z=13812*/
-                            CR->carr11pm[n][m] = pow(-1.,1.0*m)*fk2v[m]/(fkv[m]*fkv[n-m]);   /*Z=13813, cs=0,dim=2,cho1=3*/
-                            /* carr2fm[i]:=carr2pm[i]; */   /*Z=13814*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=13815*/
-                            /* i:=i+1; */   /*Z=13816*/
-                        }   /*Z=13817*/
-                        /* P(q)-coefficient */   /*Z=13818*/
-                        CR->carr1p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);   /*Z=13819*/
-                        /* F(q)-coefficient */   /*Z=13820*/
-                        sump = 0.0;   /*Z=13821*/
+                        {/*7*/  //Z=14175
+                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);  //Z=14176
+                            /* carr2pm[i]:=intl/(power(4,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=14177 */
+                            CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=14178
+                            /* carr1pm[i]:=power(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=14179 */
+                            CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=14180
+                            /* carr2fm[i]:=carr2pm[i];  //Z=14181 */
+                            /* carr1fm[i]:=carr1pm[i];  //Z=14182 */
+                            /* i:=i+1;  //Z=14183 */
+                        }/*7*/  //Z=14184
+                        /*  P(q)-coefficient  */  //Z=14185
+                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14186
+                        /*  F(q)-coefficient  */  //Z=14187
+                        sump = 0.0;  //Z=14188
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13822*/
-                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=13823*/
-                        }   /*Z=13824*/
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump;   /*Z=13825*/
+                        {/*7*/  //Z=14189
+                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14190
+                        }/*7*/  //Z=14191
+                        CR->carr1f[n] = xln[n]*fkv[n]*sump;  //Z=14192
 
-                        /* cross-section */   /*Z=13827*/
-                        CR->carr4p[n] = pow(4.,1.0*n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2*(n+1)*gam3[n]*fkv[n]);   /*Z=13828*/
-                        sump = 0.0;   /*Z=13829*/
+                        /*  cross-section  */  //Z=14194
+                        CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=14195
+                        sump = 0.0;  //Z=14196
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13830*/
-                            sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=13831*/
-                        }   /*Z=13832*/
-                        CR->carr4f[n] = M_PI*xln[n]*sump/4.0;   /*Z=13833*/
+                        {/*7*/  //Z=14197
+                            sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14198
+                        }/*7*/  //Z=14199
+                        CR->carr4f[n] = M_PI*xln[n]*sump/4.0;  //Z=14200
 
-                        /* series for <...> integration */   /*Z=13835*/
-                        CR->carr2p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=13836*/
-                        sump = 0.0;   /*Z=13837*/
+                        /*  series for <...> integration  */  //Z=14202
+                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14203
+                        sump = 0.0;  //Z=14204
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13838*/
-                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=13839*/
-                        }   /*Z=13840*/
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2*gam3[n]);   /*Z=13841*/
+                        {/*7*/  //Z=14205
+                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14206
+                        }/*7*/  //Z=14207
+                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=14208
 
-                        if ( search1 )
-                        {   /*Z=13843*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=13844*/
-                                n1 = n;   /*Z=13845*/
-                                search1 = false;   /*Z=13846*/
-                            }   /*Z=13847*/
-                        }   /*Z=13848*/
-                        if ( search4 )
-                        {   /*Z=13849*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=13850*/
-                                n4 = n;   /*Z=13851*/
-                                search4 = false;   /*Z=13852*/
-                            }   /*Z=13853*/
-                        }   /*Z=13854*/
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=14210
+                            if ( n<n1 ) n1 = n;  //Z=14211
+                        }/*7*/  //Z=14212
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=14213
+                            if ( n<n4 ) n4 = n;  //Z=14214
+                        }/*7*/  //Z=14215
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=13855*/
-                            if ( n<n1f ) n1f = n;   /*Z=13856*/
-                        }   /*Z=13857*/
+                        {/*7*/  //Z=14216
+                            if ( n<n1f ) n1f = n;  //Z=14217
+                        }/*7*/  //Z=14218
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=13858*/
-                            if ( n<n4f ) n4f = n;   /*Z=13859*/
-                        }   /*Z=13860*/
-                    }  /* of n-loop */   /*Z=13861*/
-                }  /* of cs=0 */   /*Z=13862*/
+                        {/*7*/  //Z=14219
+                            if ( n<n4f ) n4f = n;  //Z=14220
+                        }/*7*/  //Z=14221
+                    }/*6*/  /*  of n-loop  */  //Z=14222
+                }/*5*/  /*  of cs=0  */  //Z=14223
 
-                /* core/shell */   /*Z=13864*/
+                /*  core/shell  */  //Z=14225
                 if ( cs==1 )
-                {   /*Z=13865*/
-                    i = 2;   /*Z=13866*/
+                {/*5*/  //Z=14226
+                    i = 2;  //Z=14227
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=13867*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=13868*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=13869*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=13870*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=13871*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=13872*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=13873*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=13874*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=13875*/
-                        xrmn_n = -xrmn_n*xrm2z;   /*Z=13876*/
-                        pn[n] = pn[n-1]*p*p;   /*Z=13877*/
-                        /* longitudinal */   /*Z=13878*/
+                    {/*6*/  //Z=14228
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=14229
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14230
+                        fkv[n] = fkv[n-1]*n;  //Z=14231
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14232
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=14233
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=14234 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=14235
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=14236
+                        xrmn_n = -xrmn_n*xrm2z;  //Z=14237
+                        pn[n] = pn[n-1]*p*p;  //Z=14238
+                        /*  longitudinal  */  //Z=14239
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13879*/
-                            qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);   /*Z=13880*/
-                            /* carr2pm[i]:=intl/(power(4,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm); */   /*Z=13881*/
-                            CR->carr22pm[n][m] = intl/(pow(4.,1.0*m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);   /*Z=13882*/
-                            /* carr1pm[i]:=power(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]); */   /*Z=13883*/
-                            CR->carr11pm[n][m] = pow(-1.,1.0*m)*fk2v[m]/(fkv[m]*fkv[n-m]);   /*Z=13884, cs=1,dim=2,cho1=3*/
-                            /* carr2fm[i]:=carr2pm[i]; */   /*Z=13885*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=13886*/
-                            /* i:=i+1; */   /*Z=13887*/
-                        }   /*Z=13888*/
-                        /* P(q)-coefficient */   /*Z=13889*/
-                        CR->carr1p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);   /*Z=13890*/
-                        /* F(q)-coefficient */   /*Z=13891*/
-                        sump = 0.0;   /*Z=13892*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=13893*/
-                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=13894*/
-                        }   /*Z=13895*/
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump;   /*Z=13896*/
+                        {/*7*/  //Z=14240
+                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);  //Z=14241
+                            /* carr2pm[i]:=intl/(power(4,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=14242 */
+                            CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=14243
+                            /* carr1pm[i]:=power(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=14244 */
+                            CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=14245
+                            /* carr2fm[i]:=carr2pm[i];  //Z=14246 */
+                            /* carr1fm[i]:=carr1pm[i];  //Z=14247 */
+                            /* i:=i+1;  //Z=14248 */
+                        }/*7*/  //Z=14249
+                        /*  P(q)-coefficient  */  //Z=14250
+                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14251
 
-                        /* cross-sectional */   /*Z=13898*/
-                        /* F121 */   /*Z=13899*/
-                        CR->carr4p[n] = pow(4.,1.0*n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2*(n+1)*gam3[n]*fkv[n]);   /*Z=13900*/
-                        /* F122 */   /*Z=13901*/
-                        sump = 0.0;   /*Z=13902*/
+                        /*  F(q)-coefficient  */  //Z=14253
+                        sump = 0.0;  //Z=14254
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13903*/
-                            sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=13904*/
-                        }   /*Z=13905*/
-                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;   /*Z=13906*/
-                        /* F122 */   /*Z=13907*/
-                        sump = 0.0;   /*Z=13908*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=13909*/
-                            sump = sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=13910*/
-                        }   /*Z=13911*/
-                        CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;   /*Z=13912*/
-                        /* F123 */   /*Z=13913*/
-                        CR->carr6p[n] = CR->carr4p[n]/pn[n];   /*Z=13914*/
-                        /* F121 */   /*Z=13915*/
-                        sump = 0.0;   /*Z=13916*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=13917*/
-                            sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=13918*/
-                        }   /*Z=13919*/
-                        CR->carr4f[n] = M_PI*xrn[n-1]*sump/4.0;   /*Z=13920*/
-                        /* F122 */   /*Z=13921*/
-                        sump = 0.0;   /*Z=13922*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=13923*/
-                            sump = sump+pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=13924*/
-                        }   /*Z=13925*/
-                        CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;   /*Z=13926*/
-                        /* F123 */   /*Z=13927*/
-                        CR->carr6f[n] = CR->carr4f[n]/pn[n];   /*Z=13928*/
+                        {/*7*/  //Z=14255
+                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14256
+                        }/*7*/  //Z=14257
+                        CR->carr1f[n] = xln[n]*fkv[n]*sump;  //Z=14258
 
-                        /* series for <...> integration */   /*Z=13930*/
-                        CR->carr2p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=13931*/
-                        sump = 0.0;   /*Z=13932*/
+                        /*  cross-sectional  */  //Z=14260
+                        /*  F121  */  //Z=14261
+                        CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=14262
+                        /*  F122  */  //Z=14263
+                        sump = 0.0;  //Z=14264
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13933*/
-                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=13934*/
-                        }   /*Z=13935*/
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2*gam3[n]);   /*Z=13936*/
+                        {/*7*/  //Z=14265
+                            sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14266
+                        }/*7*/  //Z=14267
+                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=14268
+                        /*  F122  */  //Z=14269
+                        sump = 0.0;  //Z=14270
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=14271
+                            sump = sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14272
+                        }/*7*/  //Z=14273
+                        CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=14274
+                        /*  F123  */  //Z=14275
+                        CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=14276
+                        /*  F121  */  //Z=14277
+                        sump = 0.0;  //Z=14278
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=14279
+                            sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14280
+                        }/*7*/  //Z=14281
+                        CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=14282
+                        /*  F122  */  //Z=14283
+                        sump = 0.0;  //Z=14284
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=14285
+                            sump = sump+pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14286
+                        }/*7*/  //Z=14287
+                        CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=14288
+                        /*  F123  */  //Z=14289
+                        CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=14290
 
-                        if ( search1 )
-                        {   /*Z=13938*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=13939*/
-                                n1 = n;   /*Z=13940*/
-                                search1 = false;   /*Z=13941*/
-                            }   /*Z=13942*/
-                        }   /*Z=13943*/
-                        if ( search4 )
-                        {   /*Z=13944*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=13945*/
-                                n4 = n;   /*Z=13946*/
-                                search4 = false;   /*Z=13947*/
-                            }   /*Z=13948*/
-                        }   /*Z=13949*/
-                        if ( search5 )
-                        {   /*Z=13950*/
-                            if ( fabs(CR->carr5p[n])<1e-50 )
-                            {   /*Z=13951*/
-                                n5 = n;   /*Z=13952*/
-                                search5 = false;   /*Z=13953*/
-                            }   /*Z=13954*/
-                        }   /*Z=13955*/
-                        if ( search6 )
-                        {   /*Z=13956*/
-                            if ( fabs(CR->carr6p[n])<1e-50 )
-                            {   /*Z=13957*/
-                                n6 = n;   /*Z=13958*/
-                                search6 = false;   /*Z=13959*/
-                            }   /*Z=13960*/
-                        }   /*Z=13961*/
+                        /*  series for <...> integration  */  //Z=14292
+                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14293
+                        sump = 0.0;  //Z=14294
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=14295
+                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14296
+                        }/*7*/  //Z=14297
+                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=14298
+
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=14300
+                            if ( n<n1 ) n1 = n;  //Z=14301
+                        }/*7*/  //Z=14302
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=14303
+                            if ( n<n4 ) n4 = n;  //Z=14304
+                        }/*7*/  //Z=14305
+                        if ( fabs(CR->carr5p[n])<min )
+                        {/*7*/  //Z=14306
+                            if ( n<n5 ) n5 = n;  //Z=14307
+                        }/*7*/  //Z=14308
+                        if ( fabs(CR->carr6p[n])<min )
+                        {/*7*/  //Z=14309
+                            if ( n<n6 ) n6 = n;  //Z=14310
+                        }/*7*/  //Z=14311
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=13962*/
-                            if ( n<n1f ) n1f = n;   /*Z=13963*/
-                        }   /*Z=13964*/
+                        {/*7*/  //Z=14312
+                            if ( n<n1f ) n1f = n;  //Z=14313
+                        }/*7*/  //Z=14314
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=13965*/
-                            if ( n<n4f ) n4f = n;   /*Z=13966*/
-                        }   /*Z=13967*/
+                        {/*7*/  //Z=14315
+                            if ( n<n4f ) n4f = n;  //Z=14316
+                        }/*7*/  //Z=14317
                         if ( fabs(CR->carr5f[n])<min )
-                        {   /*Z=13968*/
-                            if ( n<n5f ) n5f = n;   /*Z=13969*/
-                        }   /*Z=13970*/
+                        {/*7*/  //Z=14318
+                            if ( n<n5f ) n5f = n;  //Z=14319
+                        }/*7*/  //Z=14320
                         if ( fabs(CR->carr6f[n])<min )
-                        {   /*Z=13971*/
-                            if ( n<n6f ) n6f = n;   /*Z=13972*/
-                        }   /*Z=13973*/
-                    }  /* of n-loop */   /*Z=13974*/
-                }  /* of cs=1 */   /*Z=13975*/
+                        {/*7*/  //Z=14321
+                            if ( n<n6f ) n6f = n;  //Z=14322
+                        }/*7*/  //Z=14323
+                    }/*6*/  /*  of n-loop  */  //Z=14324
+                }/*5*/  /*  of cs=1  */  //Z=14325
 
-                /* inhomogeneous core/shell */   /*Z=13977*/
+                /*  inhomogeneous core/shell  */  //Z=14327
                 if ( cs==2 )
-                {   /*Z=13978*/
-                    i = 2;   /*Z=13979*/
+                {/*5*/  //Z=14328
+                    i = 2;  //Z=14329
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=13980*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=13981*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=13982*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=13983*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=13984*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=13985*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=13986*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=13987*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=13988*/
-                        xrmn_n = -xrmn_n*xrm2z;   /*Z=13989*/
-                        pn[n] = pn[n-1]*p*p;   /*Z=13990*/
-                        /* longitudinal */   /*Z=13991*/
+                    {/*6*/  //Z=14330
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=14331
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14332
+                        fkv[n] = fkv[n-1]*n;  //Z=14333
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14334
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=14335
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=14336 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=14337
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=14338
+                        xrmn_n = -xrmn_n*xrm2z;  //Z=14339
+                        pn[n] = pn[n-1]*p*p;  //Z=14340
+                        /*  longitudinal  */  //Z=14341
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=13992*/
-                            qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);   /*Z=13993*/
-                            /* carr2pm[i]:=intl/(power(4,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm); */   /*Z=13994*/
-                            CR->carr22pm[n][m] = intl/(pow(4.,1.0*m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);   /*Z=13995*/
-                            /* carr1pm[i]:=power(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]); */   /*Z=13996*/
-                            CR->carr11pm[n][m] = pow(-1.,1.0*m)*fk2v[m]/(fkv[m]*fkv[n-m]);   /*Z=13997, cs=2,dim=2,cho1=3*/
-                            /* carr2fm[i]:=carr2pm[i]; */   /*Z=13998*/
-                            /* carr1fm[i]:=carr1pm[i]; */   /*Z=13999*/
-                            /* i:=i+1; */   /*Z=14000*/
-                        }   /*Z=14001*/
-                        /* P(q)-coefficient */   /*Z=14002*/
-                        CR->carr1p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);   /*Z=14003*/
-                        /* F(q)-coefficient */   /*Z=14004*/
-                        sump = 0.0;   /*Z=14005*/
-                        for ( m=0; m<=n; m++ )
-                        {   /*Z=14006*/
-                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=14007*/
-                        }   /*Z=14008*/
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump;   /*Z=14009*/
+                        {/*7*/  //Z=14342
+                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);  //Z=14343
+                            /* carr2pm[i]:=intl/(power(4,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=14344 */
+                            CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=14345
+                            /* carr1pm[i]:=power(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=14346 */
+                            CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=14347
+                            /* carr2fm[i]:=carr2pm[i];  //Z=14348 */
+                            /* carr1fm[i]:=carr1pm[i];  //Z=14349 */
+                            /* i:=i+1;  //Z=14350 */
+                        }/*7*/  //Z=14351
+                        /*  P(q)-coefficient  */  //Z=14352
+                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14353
 
-                        /* cross-sectional P(q) */   /*Z=14011*/
-                        CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.,1.0*n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);   /*Z=14012*/
-                        sump = 0.0;   /*Z=14013*/
-                        sump1 = 0.0;   /*Z=14014*/
+                        /*  F(q)-coefficient  */  //Z=14355
+                        sump = 0.0;  //Z=14356
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14015*/
-                            sumi = (m+1/2.0)/((m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);   /*Z=14016*/
-                            sump = sump+pn[n-m]*sumi;   /*Z=14017*/
-                            sump1 = sump1+sumi;   /*Z=14018*/
-                        }   /*Z=14019*/
-                        CR->carr5p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrmn_n*sump;   /*Z=14020*/
-                        CR->carr6p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrn[n-1]*sump1;   /*Z=14021*/
-                        sump = 0.0;   /*Z=14022*/
-                        sump1 = 0.0;   /*Z=14023*/
+                        {/*7*/  //Z=14357
+                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14358
+                        }/*7*/  //Z=14359
+                        CR->carr1f[n] = xln[n]*fkv[n]*sump;  //Z=14360
+
+                        /*  cross-sectional P(q)  */  //Z=14362
+                        CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);  //Z=14363
+                        sump = 0.0;  //Z=14364
+                        sump1 = 0.0;  //Z=14365
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14024*/
-                            sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-alfa/2.0)*(m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);   /*Z=14025*/
-                            sump = sump+sumi;   /*Z=14026*/
-                            sump1 = sump1+pn[n-m]*sumi;   /*Z=14027*/
-                        }   /*Z=14028*/
-                        CR->carr7p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump;   /*Z=14029*/
-                        CR->carr8p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump1;   /*Z=14030*/
-                        CR->carr9p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrn[n-1]*sump;   /*Z=14031*/
-
-                        /* F(q) */   /*Z=14050*/
-                        CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);   /*Z=14051*/
-                        CR->carr5f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);   /*Z=14052*/
-                        CR->carr6f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrn[n-1]*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);   /*Z=14053*/
-
-                        /* series for <...> integration */   /*Z=14055*/
-                        CR->carr2p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=14056*/
-                        sump = 0.0;   /*Z=14057*/
+                        {/*7*/  //Z=14366
+                            sumi = (m+1/2.0)/((m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=14367
+                            sump = sump+pn[n-m]*sumi;  //Z=14368
+                            sump1 = sump1+sumi;  //Z=14369
+                        }/*7*/  //Z=14370
+                        CR->carr5p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=14371
+                        CR->carr6p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrn[n]*sump1;  //Z=14372
+                        sump = 0.0;  //Z=14373
+                        sump1 = 0.0;  //Z=14374
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14058*/
-                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=14059*/
-                        }   /*Z=14060*/
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2*gam3[n]);   /*Z=14061*/
+                        {/*7*/  //Z=14375
+                            sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-alfa/2.0)*(m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=14376
+                            sump = sump+sumi;  //Z=14377
+                            sump1 = sump1+pn[n-m]*sumi;  //Z=14378
+                        }/*7*/  //Z=14379
+                        CR->carr7p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=14380
+                        CR->carr8p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump1;  //Z=14381
+                        CR->carr9p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrn[n]*sump;  //Z=14382
 
-                        if ( search1 )
-                        {   /*Z=14063*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=14064*/
-                                n1 = n;   /*Z=14065*/
-                                search1 = false;   /*Z=14066*/
-                            }   /*Z=14067*/
-                        }   /*Z=14068*/
-                        if ( search4 )
-                        {   /*Z=14069*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=14070*/
-                                n4 = n;   /*Z=14071*/
-                                search4 = false;   /*Z=14072*/
-                            }   /*Z=14073*/
-                        }   /*Z=14074*/
-                        if ( search5 )
-                        {   /*Z=14075*/
-                            if ( fabs(CR->carr5p[n])<1e-50 )
-                            {   /*Z=14076*/
-                                n5 = n;   /*Z=14077*/
-                                search5 = false;   /*Z=14078*/
-                            }   /*Z=14079*/
-                        }   /*Z=14080*/
-                        if ( search6 )
-                        {   /*Z=14081*/
-                            if ( fabs(CR->carr6p[n])<1e-50 )
-                            {   /*Z=14082*/
-                                n6 = n;   /*Z=14083*/
-                                search6 = false;   /*Z=14084*/
-                            }   /*Z=14085*/
-                        }   /*Z=14086*/
+                        /*  F(q)  */  //Z=14401
+                        CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);  //Z=14402
+                        CR->carr5f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=14403
+                        CR->carr6f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrn[n]*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=14404
+
+                        /*  series for <...> integration  */  //Z=14406
+                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14407
+                        sump = 0.0;  //Z=14408
+                        for ( m=0; m<=n; m++ )
+                        {/*7*/  //Z=14409
+                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14410
+                        }/*7*/  //Z=14411
+                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=14412
+
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=14414
+                            if ( n<n1 ) n1 = n;  //Z=14415
+                        }/*7*/  //Z=14416
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=14417
+                            if ( n<n4 ) n4 = n;  //Z=14418
+                        }/*7*/  //Z=14419
+                        if ( fabs(CR->carr5p[n])<min )
+                        {/*7*/  //Z=14420
+                            if ( n<n5 ) n5 = n;  //Z=14421
+                        }/*7*/  //Z=14422
+                        if ( fabs(CR->carr6p[n])<min )
+                        {/*7*/  //Z=14423
+                            if ( n<n6 ) n6 = n;  //Z=14424
+                        }/*7*/  //Z=14425
                         if ( fabs(CR->carr7p[n])<min )
-                        {   /*Z=14087*/
-                            if ( n<n7 ) n7 = n;   /*Z=14088*/
-                        }   /*Z=14089*/
+                        {/*7*/  //Z=14426
+                            if ( n<n7 ) n7 = n;  //Z=14427
+                        }/*7*/  //Z=14428
                         if ( fabs(CR->carr8p[n])<min )
-                        {   /*Z=14090*/
-                            if ( n<n8 ) n8 = n;   /*Z=14091*/
-                        }   /*Z=14092*/
+                        {/*7*/  //Z=14429
+                            if ( n<n8 ) n8 = n;  //Z=14430
+                        }/*7*/  //Z=14431
                         if ( fabs(CR->carr9p[n])<min )
-                        {   /*Z=14093*/
-                            if ( n<n9 ) n9 = n;   /*Z=14094*/
-                        }   /*Z=14095*/
+                        {/*7*/  //Z=14432
+                            if ( n<n9 ) n9 = n;  //Z=14433
+                        }/*7*/  //Z=14434
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=14096*/
-                            if ( n<n1f ) n1f = n;   /*Z=14097*/
-                        }   /*Z=14098*/
+                        {/*7*/  //Z=14435
+                            if ( n<n1f ) n1f = n;  //Z=14436
+                        }/*7*/  //Z=14437
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=14099*/
-                            if ( n<n4f ) n4f = n;   /*Z=14100*/
-                        }   /*Z=14101*/
+                        {/*7*/  //Z=14438
+                            if ( n<n4f ) n4f = n;  //Z=14439
+                        }/*7*/  //Z=14440
                         if ( fabs(CR->carr5f[n])<min )
-                        {   /*Z=14102*/
-                            if ( n<n5f ) n5f = n;   /*Z=14103*/
-                        }   /*Z=14104*/
+                        {/*7*/  //Z=14441
+                            if ( n<n5f ) n5f = n;  //Z=14442
+                        }/*7*/  //Z=14443
                         if ( fabs(CR->carr6f[n])<min )
-                        {   /*Z=14105*/
-                            if ( n<n6f ) n6f = n;   /*Z=14106*/
-                        }   /*Z=14107*/
-                    }  /* of n-loop */   /*Z=14108*/
-                }  /* of cs=2 */   /*Z=14109*/
+                        {/*7*/  //Z=14444
+                            if ( n<n6f ) n6f = n;  //Z=14445
+                        }/*7*/  //Z=14446
+                    }/*6*/  /*  of n-loop  */  //Z=14447
+                }/*5*/  /*  of cs=2  */  //Z=14448
 
-            }  /* of disks */   /*Z=14111*/
-        }   /*Z=14112*/
+            }/*4*/  /*  of disks  */  //Z=14450
+        }/*3*/  //Z=14451
 
-        /*** z-axis ***/   /*Z=14114*/
+        /* ** z-axis ** */  //Z=14453
         if ( (cho1==4) && (dim!=3) )
-        {   /*Z=14115*/
-            /*** cylinders ***/   /*Z=14116*/
+        {/*3*/  //Z=14454
+            /* ** cylinders ** */  //Z=14455
             if ( dim==1 )
-            {   /*Z=14117*/
-                /* homogeneous */   /*Z=14118*/
+            {/*4*/  //Z=14456
+                /*  homogeneous  */  //Z=14457
                 if ( cs==0 )
-                {   /*Z=14119*/
-                    i = 2;   /*Z=14120*/
+                {/*5*/  //Z=14458
+                    i = 2;  //Z=14459
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=14121*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=14122*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=14123*/
-                        //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=14124*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=14125*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=14126*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=14127*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=14128*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=14129*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=14130*/
-                        /* longitudinal */   /*Z=14131*/
-                        qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);   /*Z=14132*/
-                        /* P(q)-coefficient */   /*Z=14133*/
-                        CR->carr1p[n] = pow(4.,1.0*n)*z12vl[n]*xln[n]*intl/((2*n+1)*(n+1)*fkv[n]*fkv[n]*norm);   /*Z=14134*/
-                        /* F(q)-coefficient */   /*Z=14135*/
-                        sump = 0.0;   /*Z=14136*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=14137*/
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump*intl/(pow(4.,1.0*n)*fkv[n]*fkv[n]*norm);   /*Z=14138*/
-                        /* cross-sectional */   /*Z=14139*/
-                        /* P(q)-coefficient */   /*Z=14140*/
-                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);   /*Z=14141*/
-                        /* F(q)-coefficient */   /*Z=14142*/
-                        sump = 0.0;   /*Z=14143*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=14144*/
-                        CR->carr4f[n] = xrn[n-1]*sump;   /*Z=14145*/
+                    {/*6*/  //Z=14460
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=14461
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14462
+                        b1sv_n = b1sv_n*(b1s-1+n);  //Z=14463
+                        fkv[n] = fkv[n-1]*n;  //Z=14464
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14465
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=14466
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=14467 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=14468
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=14469
+                        /*  longitudinal  */  //Z=14470
+                        qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);  //Z=14471
+                        /*  P(q)-coefficient  */  //Z=14472
+                        CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln[n]*intl/((2.0*n+1)*(n+1)*fkv[n]*fkv[n]*norm);  //Z=14473
+                        /*  F(q)-coefficient  */  //Z=14474
+                        sump = 0.0;  //Z=14475
+                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14476
+                        CR->carr1f[n] = fk2v[n]*xln[n]*sump*intl/(pow(4.0,n)*fkv[n]*fkv[n]*norm);  //Z=14477
+                        /*  cross-sectional  */  //Z=14478
+                        /*  P(q)-coefficient  */  //Z=14479
+                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  //Z=14480
+                        /*  F(q)-coefficient  */  //Z=14481
+                        sump = 0.0;  //Z=14482
+                        for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14483
+                        CR->carr4f[n] = xrn[n]*sump;  //Z=14484
 
-                        if ( search1 )
-                        {   /*Z=14147*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=14148*/
-                                n1 = n;   /*Z=14149*/
-                                search1 = false;   /*Z=14150*/
-                            }   /*Z=14151*/
-                        }   /*Z=14152*/
-                        if ( search4 )
-                        {   /*Z=14153*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=14154*/
-                                n4 = n;   /*Z=14155*/
-                                search4 = false;   /*Z=14156*/
-                            }   /*Z=14157*/
-                        }   /*Z=14158*/
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=14486
+                            if ( n<n1 ) n1 = n;  //Z=14487
+                        }/*7*/  //Z=14488
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=14489
+                            if ( n<n4 ) n4 = n;  //Z=14490
+                        }/*7*/  //Z=14491
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=14159*/
-                            if ( n<n1f ) n1f = n;   /*Z=14160*/
-                        }   /*Z=14161*/
+                        {/*7*/  //Z=14492
+                            if ( n<n1f ) n1f = n;  //Z=14493
+                        }/*7*/  //Z=14494
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=14162*/
-                            if ( n<n4f ) n4f = n;   /*Z=14163*/
-                        }   /*Z=14164*/
-                    }  /* of n-loop */   /*Z=14165*/
-                }  /* of cs=0 */   /*Z=14166*/
+                        {/*7*/  //Z=14495
+                            if ( n<n4f ) n4f = n;  //Z=14496
+                        }/*7*/  //Z=14497
+                    }/*6*/  /*  of n-loop  */  //Z=14498
+                }/*5*/  /*  of cs=0  */  //Z=14499
 
-                /* core/shell */   /*Z=14168*/
+                /*  core/shell  */  //Z=14501
                 if ( cs==1 )
-                {   /*Z=14169*/
-                    i = 2;   /*Z=14170*/
+                {/*5*/  //Z=14502
+                    i = 2;  //Z=14503
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=14171*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=14172*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=14173*/
-                        //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=14174*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=14175*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=14176*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=14177*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=14178*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=14179*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=14180*/
-                        xrmn_n = -xrmn_n*xrm2z;   /*Z=14181*/
-                        pn[n] = pn[n-1]*p*p;   /*Z=14182*/
-                        /* longitudinal */   /*Z=14183*/
-                        qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);   /*Z=14184*/
-                        /* P(q)-coefficient */   /*Z=14185*/
-                        CR->carr1p[n] = pow(4.,1.0*n)*z12vl[n]*xln[n]*intl/((2*n+1)*(n+1)*fkv[n]*fkv[n]*norm);   /*Z=14186*/
-                        /* F(q)-coefficient */   /*Z=14187*/
-                        sump = 0.0;   /*Z=14188*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=14189*/
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump*intl/(pow(4.,n+1.)*fkv[n]*fkv[n]*norm);   /*Z=14190*/
-                        /* P(q)-coefficients */   /*Z=14191*/
-                        /* cross-sectional */   /*Z=14192*/
-                        /* F121 */   /*Z=14193*/
-                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);   /*Z=14194*/
-                        /* F122 */   /*Z=14195*/
-                        sump = 0.0;   /*Z=14196*/
+                    {/*6*/  //Z=14504
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=14505
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14506
+                        b1sv_n = b1sv_n*(b1s-1+n);  //Z=14507
+                        fkv[n] = fkv[n-1]*n;  //Z=14508
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14509
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=14510
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=14511 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=14512
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=14513
+                        xrmn_n = -xrmn_n*xrm2z;  //Z=14514
+                        pn[n] = pn[n-1]*p*p;  //Z=14515
+                        /*  longitudinal  */  //Z=14516
+                        qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);  //Z=14517
+                        /*  P(q)-coefficient  */  //Z=14518
+                        CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln[n]*intl/((2.0*n+1)*(n+1)*fkv[n]*fkv[n]*norm);  //Z=14519
+                        /*  F(q)-coefficient  */  //Z=14520
+                        sump = 0.0;  //Z=14521
+                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14522
+                        CR->carr1f[n] = fk2v[n]*xln[n]*sump*intl/(pow(4.0,n+1)*fkv[n]*fkv[n]*norm);  //Z=14523
+                        /*  P(q)-coefficients  */  //Z=14524
+                        /*  cross-sectional  */  //Z=14525
+                        /*  F121  */  //Z=14526
+                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=14527
+                        /*  F122  */  //Z=14528
+                        sump = 0.0;  //Z=14529
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14197*/
-                            sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=14198*/
-                        }   /*Z=14199*/
-                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;   /*Z=14200*/
-                        /* F123 */   /*Z=14201*/
-                        CR->carr6p[n] = CR->carr4p[n]/pn[n];   /*Z=14202*/
+                        {/*7*/  //Z=14530
+                            sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14531
+                        }/*7*/  //Z=14532
+                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=14533
+                        /*  F123  */  //Z=14534
+                        CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=14535
 
-                        /* F(q)-coefficients */   /*Z=14204*/
-                        /* cross-sectional */   /*Z=14205*/
-                        /* F121 */   /*Z=14206*/
-                        sump = 0.0;   /*Z=14207*/
+                        /*  F(q)-coefficients  */  //Z=14537
+                        /*  cross-sectional  */  //Z=14538
+                        /*  F121  */  //Z=14539
+                        sump = 0.0;  //Z=14540
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14208*/
-                            sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=14209*/
-                        }   /*Z=14210*/
-                        CR->carr4f[n] = xrn[n-1]*sump;   /*Z=14211*/
-                        /* F122 */   /*Z=14212*/
-                        sump = 0.0;   /*Z=14213*/
+                        {/*7*/  //Z=14541
+                            sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14542
+                        }/*7*/  //Z=14543
+                        CR->carr4f[n] = xrn[n]*sump;  //Z=14544
+                        /*  F122  */  //Z=14545
+                        sump = 0.0;  //Z=14546
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14214*/
-                            sump = sump+pn[m]*z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=14215*/
-                        }   /*Z=14216*/
-                        CR->carr5f[n] = xrmn_n*sump;   /*Z=14217*/
-                        /* F123 */   /*Z=14218*/
-                        CR->carr6f[n] = CR->carr4f[n]/pn[n];   /*Z=14219*/
+                        {/*7*/  //Z=14547
+                            sump = sump+pn[m]*z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14548
+                        }/*7*/  //Z=14549
+                        CR->carr5f[n] = xrmn_n*sump;  //Z=14550
+                        /*  F123  */  //Z=14551
+                        CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=14552
 
-                        if ( search1 )
-                        {   /*Z=14221*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=14222*/
-                                n1 = n;   /*Z=14223*/
-                                search1 = false;   /*Z=14224*/
-                            }   /*Z=14225*/
-                        }   /*Z=14226*/
-                        if ( search4 )
-                        {   /*Z=14227*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=14228*/
-                                n4 = n;   /*Z=14229*/
-                                search4 = false;   /*Z=14230*/
-                            }   /*Z=14231*/
-                        }   /*Z=14232*/
-                        if ( search5 )
-                        {   /*Z=14233*/
-                            if ( fabs(CR->carr5p[n])<1e-50 )
-                            {   /*Z=14234*/
-                                n5 = n;   /*Z=14235*/
-                                search5 = false;   /*Z=14236*/
-                            }   /*Z=14237*/
-                        }   /*Z=14238*/
-                        if ( search6 )
-                        {   /*Z=14239*/
-                            if ( fabs(CR->carr6p[n])<1e-50 )
-                            {   /*Z=14240*/
-                                n6 = n;   /*Z=14241*/
-                                search6 = false;   /*Z=14242*/
-                            }   /*Z=14243*/
-                        }   /*Z=14244*/
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=14554
+                            if ( n<n1 ) n1 = n;  //Z=14555
+                        }/*7*/  //Z=14556
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=14557
+                            if ( n<n4 ) n4 = n;  //Z=14558
+                        }/*7*/  //Z=14559
+                        if ( fabs(CR->carr5p[n])<min )
+                        {/*7*/  //Z=14560
+                            if ( n<n5 ) n5 = n;  //Z=14561
+                        }/*7*/  //Z=14562
+                        if ( fabs(CR->carr6p[n])<min )
+                        {/*7*/  //Z=14563
+                            if ( n<n6 ) n6 = n;  //Z=14564
+                        }/*7*/  //Z=14565
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=14245*/
-                            if ( n<n1f ) n1f = n;   /*Z=14246*/
-                        }   /*Z=14247*/
+                        {/*7*/  //Z=14566
+                            if ( n<n1f ) n1f = n;  //Z=14567
+                        }/*7*/  //Z=14568
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=14248*/
-                            if ( n<n4f ) n4f = n;   /*Z=14249*/
-                        }   /*Z=14250*/
+                        {/*7*/  //Z=14569
+                            if ( n<n4f ) n4f = n;  //Z=14570
+                        }/*7*/  //Z=14571
                         if ( fabs(CR->carr5f[n])<min )
-                        {   /*Z=14251*/
-                            if ( n<n5f ) n5f = n;   /*Z=14252*/
-                        }   /*Z=14253*/
+                        {/*7*/  //Z=14572
+                            if ( n<n5f ) n5f = n;  //Z=14573
+                        }/*7*/  //Z=14574
                         if ( fabs(CR->carr6f[n])<min )
-                        {   /*Z=14254*/
-                            if ( n<n6f ) n6f = n;   /*Z=14255*/
-                        }   /*Z=14256*/
-                    }  /* of n-loop */   /*Z=14257*/
-                }  /* of cs=1 */   /*Z=14258*/
+                        {/*7*/  //Z=14575
+                            if ( n<n6f ) n6f = n;  //Z=14576
+                        }/*7*/  //Z=14577
+                    }/*6*/  /*  of n-loop  */  //Z=14578
+                }/*5*/  /*  of cs=1  */  //Z=14579
 
-                /* inhomogeneous core/shell */   /*Z=14261*/
+                /*  inhomogeneous core/shell  */  //Z=14582
                 if ( cs==2 )
-                {   /*Z=14262*/
-                    i = 2;   /*Z=14263*/
+                {/*5*/  //Z=14583
+                    i = 2;  //Z=14584
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=14264*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=14265*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=14266*/
-                        //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=14267*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=14268*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=14269*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=14270*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=14271*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=14272*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=14273*/
-                        xrmn_n = -xrmn_n*xrm2z;   /*Z=14274*/
-                        pn[n] = pn[n-1]*p*p;   /*Z=14275*/
-                        /* longitudinal */   /*Z=14276*/
-                        qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);   /*Z=14277*/
-                        /* P(q)-coefficient */   /*Z=14278*/
-                        CR->carr1p[n] = pow(4.,1.0*n)*z12vl[n]*xln[n]*intl/((2*n+1)*(n+1)*fkv[n]*fkv[n]*norm);   /*Z=14279*/
-                        /* F(q)-coefficient */   /*Z=14280*/
-                        sump = 0.0;   /*Z=14281*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=14282*/
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump*intl/(pow(4.,n+1.)*fkv[n]*fkv[n]*norm);   /*Z=14283*/
+                    {/*6*/  //Z=14585
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=14586
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14587
+                        b1sv_n = b1sv_n*(b1s-1+n);  //Z=14588
+                        fkv[n] = fkv[n-1]*n;  //Z=14589
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14590
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=14591
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=14592 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=14593
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=14594
+                        xrmn_n = -xrmn_n*xrm2z;  //Z=14595
+                        pn[n] = pn[n-1]*p*p;  //Z=14596
+                        /*  longitudinal  */  //Z=14597
+                        qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);  //Z=14598
+                        /*  P(q)-coefficient  */  //Z=14599
+                        CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln[n]*intl/((2.0*n+1)*(n+1)*fkv[n]*fkv[n]*norm);  //Z=14600
+                        /*  F(q)-coefficient  */  //Z=14601
+                        sump = 0.0;  //Z=14602
+                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14603
+                        CR->carr1f[n] = fk2v[n]*xln[n]*sump*intl/(pow(4.0,n+1)*fkv[n]*fkv[n]*norm);  //Z=14604
 
-                        /* cross-sectional P(q) */   /*Z=14285*/
-                        CR->carr4p[n] = pow(4.,n+1.)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);   /*Z=14286*/
-                        sump = 0.0;   /*Z=14287*/
-                        sump1 = 0.0;   /*Z=14288*/
+                        /*  cross-sectional P(q)  */  //Z=14606
+                        CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=14607
+                        sump = 0.0;  //Z=14608
+                        sump1 = 0.0;  //Z=14609
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14289*/
-                            sumi = 1/((m+1-alfa/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);   /*Z=14290*/
-                            sump = sump+pn[n-m]*sumi;   /*Z=14291*/
-                            sump1 = sump1+sumi;   /*Z=14292*/
-                        }   /*Z=14293*/
-                        CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;   /*Z=14294*/
-                        CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n-1]*sump1;   /*Z=14295*/
-                        sump = 0.0;   /*Z=14296*/
-                        sump1 = 0.0;   /*Z=14297*/
+                        {/*7*/  //Z=14610
+                            sumi = 1/((m+1-alfa/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=14611
+                            sump = sump+pn[n-m]*sumi;  //Z=14612
+                            sump1 = sump1+sumi;  //Z=14613
+                        }/*7*/  //Z=14614
+                        CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;  //Z=14615
+                        CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n]*sump1;  //Z=14616
+                        sump = 0.0;  //Z=14617
+                        sump1 = 0.0;  //Z=14618
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14298*/
-                            sumi = 1/((n-m+1-alfa/2.0)*(m+1-alfa/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);   /*Z=14299*/
-                            sump = sump+sumi;   /*Z=14300*/
-                            sump1 = sump1+pn[n-m]*sumi;   /*Z=14301*/
-                        }   /*Z=14302*/
-                        CR->carr7p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump;   /*Z=14303*/
-                        CR->carr8p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump1;   /*Z=14304*/
-                        CR->carr9p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrn[n-1]*sump;   /*Z=14305*/
+                        {/*7*/  //Z=14619
+                            sumi = 1/((n-m+1-alfa/2.0)*(m+1-alfa/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=14620
+                            sump = sump+sumi;  //Z=14621
+                            sump1 = sump1+pn[n-m]*sumi;  //Z=14622
+                        }/*7*/  //Z=14623
+                        CR->carr7p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump;  //Z=14624
+                        CR->carr8p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump1;  //Z=14625
+                        CR->carr9p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrn[n]*sump;  //Z=14626
 
-                        /* F(q)-coefficients */   /*Z=14320*/
-                        /* cross-sectional */   /*Z=14321*/
-                        CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);   /*Z=14322*/
-                        CR->carr5f[n] = (1-alfa/2.0)*z12v[n]*xrmn_n/((n+1-alfa/2.0)*fkv[n]*fkv[n]);   /*Z=14323*/
-                        CR->carr6f[n] = (1-alfa/2.0)*z12v[n]*xrn[n]/((n+1-alfa/2.0)*fkv[n]*fkv[n]);   /*Z=14324*/
+                        /*  F(q)-coefficients  */  //Z=14641
+                        /*  cross-sectional  */  //Z=14642
+                        CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);  //Z=14643
+                        CR->carr5f[n] = (1-alfa/2.0)*z12v[n]*xrmn_n/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=14644
+                        CR->carr6f[n] = (1-alfa/2.0)*z12v[n]*xrn[n]/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=14645
 
-                        if ( search1 )
-                        {   /*Z=14326*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=14327*/
-                                n1 = n;   /*Z=14328*/
-                                search1 = false;   /*Z=14329*/
-                            }   /*Z=14330*/
-                        }   /*Z=14331*/
-                        if ( search4 )
-                        {   /*Z=14332*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=14333*/
-                                n4 = n;   /*Z=14334*/
-                                search4 = false;   /*Z=14335*/
-                            }   /*Z=14336*/
-                        }   /*Z=14337*/
-                        if ( search5 )
-                        {   /*Z=14338*/
-                            if ( fabs(CR->carr5p[n])<1e-50 )
-                            {   /*Z=14339*/
-                                n5 = n;   /*Z=14340*/
-                                search5 = false;   /*Z=14341*/
-                            }   /*Z=14342*/
-                        }   /*Z=14343*/
-                        if ( search6 )
-                        {   /*Z=14344*/
-                            if ( fabs(CR->carr6p[n])<1e-50 )
-                            {   /*Z=14345*/
-                                n6 = n;   /*Z=14346*/
-                                search6 = false;   /*Z=14347*/
-                            }   /*Z=14348*/
-                        }   /*Z=14349*/
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=14647
+                            if ( n<n1 ) n1 = n;  //Z=14648
+                        }/*7*/  //Z=14649
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=14650
+                            if ( n<n4 ) n4 = n;  //Z=14651
+                        }/*7*/  //Z=14652
+                        if ( fabs(CR->carr5p[n])<min )
+                        {/*7*/  //Z=14653
+                            if ( n<n5 ) n5 = n;  //Z=14654
+                        }/*7*/  //Z=14655
+                        if ( fabs(CR->carr6p[n])<min )
+                        {/*7*/  //Z=14656
+                            if ( n<n6 ) n6 = n;  //Z=14657
+                        }/*7*/  //Z=14658
                         if ( fabs(CR->carr7p[n])<min )
-                        {   /*Z=14350*/
-                            if ( n<n7 ) n7 = n;   /*Z=14351*/
-                        }   /*Z=14352*/
+                        {/*7*/  //Z=14659
+                            if ( n<n7 ) n7 = n;  //Z=14660
+                        }/*7*/  //Z=14661
                         if ( fabs(CR->carr8p[n])<min )
-                        {   /*Z=14353*/
-                            if ( n<n8 ) n8 = n;   /*Z=14354*/
-                        }   /*Z=14355*/
+                        {/*7*/  //Z=14662
+                            if ( n<n8 ) n8 = n;  //Z=14663
+                        }/*7*/  //Z=14664
                         if ( fabs(CR->carr9p[n])<min )
-                        {   /*Z=14356*/
-                            if ( n<n9 ) n9 = n;   /*Z=14357*/
-                        }   /*Z=14358*/
+                        {/*7*/  //Z=14665
+                            if ( n<n9 ) n9 = n;  //Z=14666
+                        }/*7*/  //Z=14667
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=14359*/
-                            if ( n<n1f ) n1f = n;   /*Z=14360*/
-                        }   /*Z=14361*/
+                        {/*7*/  //Z=14668
+                            if ( n<n1f ) n1f = n;  //Z=14669
+                        }/*7*/  //Z=14670
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=14362*/
-                            if ( n<n4f ) n4f = n;   /*Z=14363*/
-                        }   /*Z=14364*/
+                        {/*7*/  //Z=14671
+                            if ( n<n4f ) n4f = n;  //Z=14672
+                        }/*7*/  //Z=14673
                         if ( fabs(CR->carr5f[n])<min )
-                        {   /*Z=14365*/
-                            if ( n<n5f ) n5f = n;   /*Z=14366*/
-                        }   /*Z=14367*/
+                        {/*7*/  //Z=14674
+                            if ( n<n5f ) n5f = n;  //Z=14675
+                        }/*7*/  //Z=14676
                         if ( fabs(CR->carr6f[n])<min )
-                        {   /*Z=14368*/
-                            if ( n<n6f ) n6f = n;   /*Z=14369*/
-                        }   /*Z=14370*/
-                    }  /* of n-loop */   /*Z=14371*/
-                }  /* of cs=2 */   /*Z=14372*/
+                        {/*7*/  //Z=14677
+                            if ( n<n6f ) n6f = n;  //Z=14678
+                        }/*7*/  //Z=14679
+                    }/*6*/  /*  of n-loop  */  //Z=14680
+                }/*5*/  /*  of cs=2  */  //Z=14681
 
-                /* myelin */   /*Z=14374*/
+                /*  myelin  */  //Z=14683
                 if ( (cs==3) || (cs==4) )
-                {   /*Z=14375*/
-                    i = 2;   /*Z=14376*/
+                {/*5*/  //Z=14684
+                    i = 2;  //Z=14685
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=14377*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=14378*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=14379*/
-                        //b1sv[n] = b1sv[n-1]*(b1s-1+n);   /*Z=14380*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=14381*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=14382*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=14383*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=14384*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=14385*/
-                        xrn[n] = -xrn[n-1]*x12zm;   /*Z=14386*/
-                        /* longitudinal */   /*Z=14387*/
-                        qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);   /*Z=14388*/
-                        /* P(q)-coefficient */   /*Z=14389*/
-                        CR->carr1p[n] = pow(4.,1.0*n)*z12vl[n]*xln[n]*intl/((2*n+1)*(n+1)*fkv[n]*fkv[n]*norm);   /*Z=14390*/
-                        /* F(q)-coefficient */   /*Z=14391*/
-                        sump = 0.0;   /*Z=14392*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=14393*/
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump*intl/(pow(4.,1.0*n)*fkv[n]*fkv[n]*norm);   /*Z=14394*/
-                        /* cross-sectional */   /*Z=14395*/
-                        /* P(q)-coefficient */   /*Z=14396*/
-                        CR->carr4p[n] = z12v[n]*xrn[n];   /*Z=14397*/
+                    {/*6*/  //Z=14686
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=14687
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14688
+                        b1sv_n = b1sv_n*(b1s-1+n);  //Z=14689
+                        fkv[n] = fkv[n-1]*n;  //Z=14690
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14691
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=14692
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=14693 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=14694
+                        xrn[n] = -xrn[n-1]*x12zm;  //Z=14695
+                        /*  longitudinal  */  //Z=14696
+                        qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);  //Z=14697
+                        /*  P(q)-coefficient  */  //Z=14698
+                        CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln[n]*intl/((2.0*n+1)*(n+1)*fkv[n]*fkv[n]*norm);  //Z=14699
+                        /*  F(q)-coefficient  */  //Z=14700
+                        sump = 0.0;  //Z=14701
+                        for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14702
+                        CR->carr1f[n] = fk2v[n]*xln[n]*sump*intl/(pow(4.0,n)*fkv[n]*fkv[n]*norm);  //Z=14703
+                        /*  cross-sectional  */  //Z=14704
+                        /*  P(q)-coefficient  */  //Z=14705
+                        CR->carr4p[n] = z12v[n]*xrn[n];  //Z=14706
 
-                        /* F(q)-coefficient */   /*Z=14399*/
-                        sump = 0.0;   /*Z=14400*/
-                        for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=14401*/
-                        CR->carr4f[n] = xrn[n-1]*sump;   /*Z=14402*/
+                        /*  F(q)-coefficient  */  //Z=14708
+                        sump = 0.0;  //Z=14709
+                        for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14710
+                        CR->carr4f[n] = xrn[n]*sump;  //Z=14711
 
-                        if ( search1 )
-                        {   /*Z=14404*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=14405*/
-                                n1 = n;   /*Z=14406*/
-                                search1 = false;   /*Z=14407*/
-                            }   /*Z=14408*/
-                        }   /*Z=14409*/
-                        if ( search4 )
-                        {   /*Z=14410*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=14411*/
-                                n4 = n;   /*Z=14412*/
-                                search4 = false;   /*Z=14413*/
-                            }   /*Z=14414*/
-                        }   /*Z=14415*/
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=14713
+                            if ( n<n1 ) n1 = n;  //Z=14714
+                        }/*7*/  //Z=14715
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=14716
+                            if ( n<n4 ) n4 = n;  //Z=14717
+                        }/*7*/  //Z=14718
+
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=14416*/
-                            if ( n<n1f ) n1f = n;   /*Z=14417*/
-                        }   /*Z=14418*/
+                        {/*7*/  //Z=14720
+                            if ( n<n1f ) n1f = n;  //Z=14721
+                        }/*7*/  //Z=14722
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=14419*/
-                            if ( n<n4f ) n4f = n;   /*Z=14420*/
-                        }   /*Z=14421*/
-                    }  /* of n-loop */   /*Z=14422*/
-                }  /* of cs=3 */   /*Z=14423*/
-            }  /* of cylinders */   /*Z=14424*/
+                        {/*7*/  //Z=14723
+                            if ( n<n4f ) n4f = n;  //Z=14724
+                        }/*7*/  //Z=14725
+                    }/*6*/  /*  of n-loop  */  //Z=14726
+                }/*5*/  /*  of cs=3  */  //Z=14727
+            }/*4*/  /*  of cylinders  */  //Z=14728
 
-            /*** disks ***/   /*Z=14426*/
+            /* ** disks ** */  //Z=14730
             if ( dim==2 )
-            {   /*Z=14427*/
-                /* homogeneous */   /*Z=14428*/
+            {/*4*/  //Z=14731
+                /*  homogeneous  */  //Z=14732
                 if ( cs==0 )
-                {   /*Z=14429*/
-                    carr2i[0] = 1;   /*Z=14430*/
+                {/*5*/  //Z=14733
+                    carr2i[0] = 1;  //Z=14734
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=14431*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=14432*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=14433*/
-                        qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);   /*Z=14434*/
-                        carr2i[n] = pow(-1.,1.0*n)*fk2v[n]*intl/(pow(4.,1.0*n)*fkv[n]*fkv[n]*fkv[n]*norm);   /*Z=14435*/
-                    }   /*Z=14436*/
+                    {/*6*/  //Z=14735
+                        fkv[n] = fkv[n-1]*n;  //Z=14736
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14737
+                        qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);  //Z=14738
+                        carr2i[n] = pow(-1,n)*fk2v[n]*intl/(pow(4.0,n)*fkv[n]*fkv[n]*fkv[n]*norm);  //Z=14739
+                    }/*6*/  //Z=14740
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=14437*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=14438*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=14439*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=14440*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=14441*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=14442*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=14443*/
-                        /* longitudinal */   /*Z=14444*/
-                        sump = 0.0;   /*Z=14445*/
+                    {/*6*/  //Z=14741
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=14742
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14743
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=14744
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=14745 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=14746
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=14747
+                        /*  longitudinal  */  //Z=14748
+                        sump = 0.0;  //Z=14749
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14446*/
-                            sump = sump+carr2i[m]/fkv[n-m];   /*Z=14447*/
-                        }   /*Z=14448*/
-                        CR->carr1p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]*sump/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);   /*Z=14449*/
-                        sump1 = 0.0;   /*Z=14450*/
+                        {/*7*/  //Z=14750
+                            sump = sump+carr2i[m]/fkv[n-m];  //Z=14751
+                        }/*7*/  //Z=14752
+                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]*sump/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14753
+                        sump1 = 0.0;  //Z=14754
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14451*/
-                            sump1 = sump1+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=14452*/
-                        }   /*Z=14453*/
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump1*sump;   /*Z=14454*/
+                        {/*7*/  //Z=14755
+                            sump1 = sump1+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14756
+                        }/*7*/  //Z=14757
+                        CR->carr1f[n] = xln[n]*fkv[n]*sump1*sump;  //Z=14758
 
-                        /* cross-sectional */   /*Z=14456*/
-                        CR->carr4p[n] = pow(4.,1.0*n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2*(n+1)*gam3[n]*fkv[n]);   /*Z=14457*/
-                        sump = 0.0;   /*Z=14458*/
+                        /*  cross-sectional  */  //Z=14760
+                        CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=14761
+                        sump = 0.0;  //Z=14762
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14459*/
-                            sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=14460*/
-                        }   /*Z=14461*/
-                        CR->carr4f[n] = M_PI*xln[n]*sump/4.0;   /*Z=14462*/
+                        {/*7*/  //Z=14763
+                            sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14764
+                        }/*7*/  //Z=14765
+                        CR->carr4f[n] = M_PI*xln[n]*sump/4.0;  //Z=14766
 
-                        /* series for <...> integration */   /*Z=14464*/
-                        CR->carr2p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=14465*/
-                        sump = 0.0;   /*Z=14466*/
+                        /*  series for <...> integration  */  //Z=14768
+                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14769
+                        sump = 0.0;  //Z=14770
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14467*/
-                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=14468*/
-                        }   /*Z=14469*/
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2*gam3[n]);   /*Z=14470*/
+                        {/*7*/  //Z=14771
+                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14772
+                        }/*7*/  //Z=14773
+                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=14774
 
-                        if ( search1 )
-                        {   /*Z=14472*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=14473*/
-                                n1 = n;   /*Z=14474*/
-                                search1 = false;   /*Z=14475*/
-                            }   /*Z=14476*/
-                        }   /*Z=14477*/
-                        if ( search4 )
-                        {   /*Z=14478*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=14479*/
-                                n4 = n;   /*Z=14480*/
-                                search4 = false;   /*Z=14481*/
-                            }   /*Z=14482*/
-                        }   /*Z=14483*/
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=14776
+                            if ( n<n1 ) n1 = n;  //Z=14777
+                        }/*7*/  //Z=14778
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=14779
+                            if ( n<n4 ) n4 = n;  //Z=14780
+                        }/*7*/  //Z=14781
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=14484*/
-                            if ( n<n1f ) n1f = n;   /*Z=14485*/
-                        }   /*Z=14486*/
+                        {/*7*/  //Z=14782
+                            if ( n<n1f ) n1f = n;  //Z=14783
+                        }/*7*/  //Z=14784
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=14487*/
-                            if ( n<n4f ) n4f = n;   /*Z=14488*/
-                        }   /*Z=14489*/
-                    }  /* of n-loop */   /*Z=14490*/
-                }  /* of cs=0 */   /*Z=14491*/
+                        {/*7*/  //Z=14785
+                            if ( n<n4f ) n4f = n;  //Z=14786
+                        }/*7*/  //Z=14787
+                    }/*6*/  /*  of n-loop  */  //Z=14788
+                }/*5*/  /*  of cs=0  */  //Z=14789
 
-                /* core/shell */   /*Z=14494*/
+
+                /*  core/shell  */  //Z=14792
                 if ( cs==1 )
-                {   /*Z=14495*/
-                    carr2i[0] = 1;   /*Z=14496*/
+                {/*5*/  //Z=14793
+                    carr2i[0] = 1;  //Z=14794
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=14497*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=14498*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=14499*/
-                        qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);   /*Z=14500*/
-                        carr2i[n] = pow(-1.,1.0*n)*fk2v[n]*intl/(pow(4.,1.0*n)*fkv[n]*fkv[n]*fkv[n]*norm);   /*Z=14501*/
-                    }   /*Z=14502*/
+                    {/*6*/  //Z=14795
+                        fkv[n] = fkv[n-1]*n;  //Z=14796
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14797
+                        qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);  //Z=14798
+                        carr2i[n] = pow(-1,n)*fk2v[n]*intl/(pow(4.0,n)*fkv[n]*fkv[n]*fkv[n]*norm);  //Z=14799
+                    }/*6*/  //Z=14800
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=14503*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=14504*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=14505*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=14506*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=14507*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=14508*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=14509*/
-                        xrmn_n = -xrmn_n*xrm2z;   /*Z=14510*/
-                        pn[n] = pn[n-1]*p*p;   /*Z=14511*/
-                        /* longitudinal */   /*Z=14512*/
-                        sump = 0.0;   /*Z=14513*/
+                    {/*6*/  //Z=14801
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=14802
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14803
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=14804
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=14805 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=14806
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=14807
+                        xrmn_n = -xrmn_n*xrm2z;  //Z=14808
+                        pn[n] = pn[n-1]*p*p;  //Z=14809
+                        /*  longitudinal  */  //Z=14810
+                        sump = 0.0;  //Z=14811
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14514*/
-                            sump = sump+carr2i[m]/fkv[n-m];   /*Z=14515*/
-                        }   /*Z=14516*/
-                        CR->carr1p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]*sump/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);   /*Z=14517*/
-                        sump1 = 0.0;   /*Z=14518*/
+                        {/*7*/  //Z=14812
+                            sump = sump+carr2i[m]/fkv[n-m];  //Z=14813
+                        }/*7*/  //Z=14814
+                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]*sump/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14815
+                        sump1 = 0.0;  //Z=14816
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14519*/
-                            sump1 = sump1+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=14520*/
-                        }   /*Z=14521*/
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump1*sump;   /*Z=14522*/
+                        {/*7*/  //Z=14817
+                            sump1 = sump1+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14818
+                        }/*7*/  //Z=14819
+                        CR->carr1f[n] = xln[n]*fkv[n]*sump1*sump;  //Z=14820
 
-                        /* cross-sectional */   /*Z=14524*/
-                        /* F121 */   /*Z=14525*/
-                        CR->carr4p[n] = pow(4.,1.0*n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2*(n+1)*gam3[n]*fkv[n]);   /*Z=14526*/
-                        /* F122 */   /*Z=14527*/
-                        sump = 0.0;   /*Z=14528*/
+                        /*  cross-sectional  */  //Z=14822
+                        /*  F121  */  //Z=14823
+                        CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=14824
+                        /*  F122  */  //Z=14825
+                        sump = 0.0;  //Z=14826
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14529*/
-                            sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=14530*/
-                        }   /*Z=14531*/
-                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;   /*Z=14532*/
-                        /* F122 */   /*Z=14533*/
-                        sump = 0.0;   /*Z=14534*/
+                        {/*7*/  //Z=14827
+                            sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14828
+                        }/*7*/  //Z=14829
+                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=14830
+                        /*  F122  */  //Z=14831
+                        sump = 0.0;  //Z=14832
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14535*/
-                            sump = sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=14536*/
-                        }   /*Z=14537*/
-                        CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;   /*Z=14538*/
-                        /* F123 */   /*Z=14539*/
-                        CR->carr6p[n] = CR->carr4p[n]/pn[n];   /*Z=14540*/
-                        /* F121 */   /*Z=14541*/
-                        sump = 0.0;   /*Z=14542*/
+                        {/*7*/  //Z=14833
+                            sump = sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14834
+                        }/*7*/  //Z=14835
+                        CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=14836
+                        /*  F123  */  //Z=14837
+                        CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=14838
+                        /*  F121  */  //Z=14839
+                        sump = 0.0;  //Z=14840
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14543*/
-                            sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=14544*/
-                        }   /*Z=14545*/
-                        CR->carr4f[n] = M_PI*xrn[n-1]*sump/4.0;   /*Z=14546*/
-                        /* F122 */   /*Z=14547*/
-                        sump = 0.0;   /*Z=14548*/
+                        {/*7*/  //Z=14841
+                            sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14842
+                        }/*7*/  //Z=14843
+                        CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=14844
+                        /*  F122  */  //Z=14845
+                        sump = 0.0;  //Z=14846
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14549*/
-                            sump = sump+pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);   /*Z=14550*/
-                        }   /*Z=14551*/
-                        CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;   /*Z=14552*/
-                        /* F123 */   /*Z=14553*/
-                        CR->carr6f[n] = CR->carr4f[n]/pn[n];   /*Z=14554*/
+                        {/*7*/  //Z=14847
+                            sump = sump+pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14848
+                        }/*7*/  //Z=14849
+                        CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=14850
+                        /*  F123  */  //Z=14851
+                        CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=14852
 
-                        /* series for <...> integration */   /*Z=14556*/
-                        CR->carr2p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=14557*/
-                        sump = 0.0;   /*Z=14558*/
+                        /*  series for <...> integration  */  //Z=14854
+                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14855
+                        sump = 0.0;  //Z=14856
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14559*/
-                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=14560*/
-                        }   /*Z=14561*/
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2*gam3[n]);   /*Z=14562*/
+                        {/*7*/  //Z=14857
+                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14858
+                        }/*7*/  //Z=14859
+                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=14860
 
-                        if ( search1 )
-                        {   /*Z=14564*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=14565*/
-                                n1 = n;   /*Z=14566*/
-                                search1 = false;   /*Z=14567*/
-                            }   /*Z=14568*/
-                        }   /*Z=14569*/
-                        if ( search4 )
-                        {   /*Z=14570*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=14571*/
-                                n4 = n;   /*Z=14572*/
-                                search4 = false;   /*Z=14573*/
-                            }   /*Z=14574*/
-                        }   /*Z=14575*/
-                        if ( search5 )
-                        {   /*Z=14576*/
-                            if ( fabs(CR->carr5p[n])<1e-50 )
-                            {   /*Z=14577*/
-                                n5 = n;   /*Z=14578*/
-                                search5 = false;   /*Z=14579*/
-                            }   /*Z=14580*/
-                        }   /*Z=14581*/
-                        if ( search6 )
-                        {   /*Z=14582*/
-                            if ( fabs(CR->carr6p[n])<1e-50 )
-                            {   /*Z=14583*/
-                                n6 = n;   /*Z=14584*/
-                                search6 = false;   /*Z=14585*/
-                            }   /*Z=14586*/
-                        }   /*Z=14587*/
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=14862
+                            if ( n<n1 ) n1 = n;  //Z=14863
+                        }/*7*/  //Z=14864
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=14865
+                            if ( n<n4 ) n4 = n;  //Z=14866
+                        }/*7*/  //Z=14867
+                        if ( fabs(CR->carr5p[n])<min )
+                        {/*7*/  //Z=14868
+                            if ( n<n5 ) n5 = n;  //Z=14869
+                        }/*7*/  //Z=14870
+                        if ( fabs(CR->carr6p[n])<min )
+                        {/*7*/  //Z=14871
+                            if ( n<n6 ) n6 = n;  //Z=14872
+                        }/*7*/  //Z=14873
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=14588*/
-                            if ( n<n1f ) n1f = n;   /*Z=14589*/
-                        }   /*Z=14590*/
+                        {/*7*/  //Z=14874
+                            if ( n<n1f ) n1f = n;  //Z=14875
+                        }/*7*/  //Z=14876
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=14591*/
-                            if ( n<n4f ) n4f = n;   /*Z=14592*/
-                        }   /*Z=14593*/
+                        {/*7*/  //Z=14877
+                            if ( n<n4f ) n4f = n;  //Z=14878
+                        }/*7*/  //Z=14879
                         if ( fabs(CR->carr5f[n])<min )
-                        {   /*Z=14594*/
-                            if ( n<n5f ) n5f = n;   /*Z=14595*/
-                        }   /*Z=14596*/
+                        {/*7*/  //Z=14880
+                            if ( n<n5f ) n5f = n;  //Z=14881
+                        }/*7*/  //Z=14882
                         if ( fabs(CR->carr6f[n])<min )
-                        {   /*Z=14597*/
-                            if ( n<n6f ) n6f = n;   /*Z=14598*/
-                        }   /*Z=14599*/
-                    }  /* of n-loop */   /*Z=14600*/
-                }  /* of cs=1 */   /*Z=14601*/
+                        {/*7*/  //Z=14883
+                            if ( n<n6f ) n6f = n;  //Z=14884
+                        }/*7*/  //Z=14885
+                    }/*6*/  /*  of n-loop  */  //Z=14886
+                }/*5*/  /*  of cs=1  */  //Z=14887
 
-                /* inhomogeneous core/shell */   /*Z=14603*/
+                /*  inhomogeneous core/shell  */  //Z=14889
                 if ( cs==2 )
-                {   /*Z=14604*/
-                    carr2i[0] = 1;   /*Z=14605*/
+                {/*5*/  //Z=14890
+                    carr2i[0] = 1;  //Z=14891
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=14606*/
-                        fkv[n] = fkv[n-1]*n;   /*Z=14607*/
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);   /*Z=14608*/
-                        qrombdeltac(l,r,/*p1,sigma,alfa,dbeta,*/theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);   /*Z=14609*/
-                        carr2i[n] = pow(-1.,1.0*n)*fk2v[n]*intl/(pow(4.,1.0*n)*fkv[n]*fkv[n]*fkv[n]*norm);   /*Z=14610*/
-                    }   /*Z=14611*/
+                    {/*6*/  //Z=14892
+                        fkv[n] = fkv[n-1]*n;  //Z=14893
+                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14894
+                        qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);  //Z=14895
+                        carr2i[n] = pow(-1,n)*fk2v[n]*intl/(pow(4.0,n)*fkv[n]*fkv[n]*fkv[n]*norm);  //Z=14896
+                    }/*6*/  //Z=14897
                     for ( n=1; n<=nmax; n++ )
-                    {   /*Z=14612*/
-                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);   /*Z=14613*/
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);   /*Z=14614*/
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;   /*Z=14615*/
-                        /* e1[n]:=e1[n-1]*(epsi*epsi-1); */   /*Z=14616*/
-                        xln[n] = -xln[n-1]*xl2z;   /*Z=14617*/
-                        xrn[n] = -xrn[n-1]*xr2z;   /*Z=14618*/
-                        xrmn_n = -xrmn_n*xrm2z;   /*Z=14619*/
-                        pn[n] = pn[n-1]*p*p;   /*Z=14620*/
-                        /* longitudinal */   /*Z=14621*/
-                        sump = 0.0;   /*Z=14622*/
+                    {/*6*/  //Z=14898
+                        z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=14899
+                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14900
+                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=14901
+                        /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=14902 */
+                        xln[n] = -xln[n-1]*xl2z;  //Z=14903
+                        xrn[n] = -xrn[n-1]*xr2z;  //Z=14904
+                        xrmn_n = -xrmn_n*xrm2z;  //Z=14905
+                        pn[n] = pn[n-1]*p*p;  //Z=14906
+                        /*  longitudinal  */  //Z=14907
+                        sump = 0.0;  //Z=14908
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14623*/
-                            sump = sump+carr2i[m]/fkv[n-m];   /*Z=14624*/
-                        }   /*Z=14625*/
-                        CR->carr1p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]*sump/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);   /*Z=14626*/
-                        sump1 = 0.0;   /*Z=14627*/
+                        {/*7*/  //Z=14909
+                            sump = sump+carr2i[m]/fkv[n-m];  //Z=14910
+                        }/*7*/  //Z=14911
+                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]*sump/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14912
+                        sump1 = 0.0;  //Z=14913
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14628*/
-                            sump1 = sump1+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);   /*Z=14629*/
-                        }   /*Z=14630*/
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump1*sump;   /*Z=14631*/
+                        {/*7*/  //Z=14914
+                            sump1 = sump1+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14915
+                        }/*7*/  //Z=14916
+                        CR->carr1f[n] = xln[n]*fkv[n]*sump1*sump;  //Z=14917
 
-                        /* cross-sectional P(q) */   /*Z=14633*/
-                        CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.,1.0*n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);   /*Z=14634*/
-                        sump = 0.0;   /*Z=14635*/
-                        sump1 = 0.0;   /*Z=14636*/
+                        /*  cross-sectional P(q)  */  //Z=14919
+                        CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);  //Z=14920
+                        sump = 0.0;  //Z=14921
+                        sump1 = 0.0;  //Z=14922
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14637*/
-                            sumi = (m+1/2.0)/((m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);   /*Z=14638*/
-                            sump = sump+pn[n-m]*sumi;   /*Z=14639*/
-                            sump1 = sump1+sumi;   /*Z=14640*/
-                        }   /*Z=14641*/
-                        CR->carr5p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrmn_n*sump;   /*Z=14642*/
-                        CR->carr6p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrn[n-1]*sump1;   /*Z=14643*/
-                        sump = 0.0;   /*Z=14644*/
-                        sump1 = 0.0;   /*Z=14645*/
+                        {/*7*/  //Z=14923
+                            sumi = (m+1/2.0)/((m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=14924
+                            sump = sump+pn[n-m]*sumi;  //Z=14925
+                            sump1 = sump1+sumi;  //Z=14926
+                        }/*7*/  //Z=14927
+                        CR->carr5p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=14928
+                        CR->carr6p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrn[n]*sump1;  //Z=14929
+                        sump = 0.0;  //Z=14930
+                        sump1 = 0.0;  //Z=14931
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14646*/
-                            sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-alfa/2.0)*(m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);   /*Z=14647*/
-                            sump = sump+sumi;   /*Z=14648*/
-                            sump1 = sump1+pn[n-m]*sumi;   /*Z=14649*/
-                        }   /*Z=14650*/
-                        CR->carr7p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump;   /*Z=14651*/
-                        CR->carr8p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump1;   /*Z=14652*/
-                        CR->carr9p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrn[n-1]*sump;   /*Z=14653*/
+                        {/*7*/  //Z=14932
+                            sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-alfa/2.0)*(m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=14933
+                            sump = sump+sumi;  //Z=14934
+                            sump1 = sump1+pn[n-m]*sumi;  //Z=14935
+                        }/*7*/  //Z=14936
+                        CR->carr7p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=14937
+                        CR->carr8p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump1;  //Z=14938
+                        CR->carr9p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrn[n]*sump;  //Z=14939
 
-                        /* F(q) */   /*Z=14673*/
-                        CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);   /*Z=14674*/
-                        CR->carr5f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);   /*Z=14675*/
-                        CR->carr6f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrn[n-1]*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);   /*Z=14676*/
+                        /*  F(q)  */  //Z=14959
+                        CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);  //Z=14960
+                        CR->carr5f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=14961
+                        CR->carr6f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrn[n]*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=14962
 
-                        /* series for <...> integration */   /*Z=14678*/
-                        CR->carr2p[n] = pow(4.,n+1.)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);   /*Z=14679*/
-                        sump = 0.0;   /*Z=14680*/
+                        /*  series for <...> integration  */  //Z=14964
+                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14965
+                        sump = 0.0;  //Z=14966
                         for ( m=0; m<=n; m++ )
-                        {   /*Z=14681*/
-                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);   /*Z=14682*/
-                        }   /*Z=14683*/
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2*gam3[n]);   /*Z=14684*/
+                        {/*7*/  //Z=14967
+                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14968
+                        }/*7*/  //Z=14969
+                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=14970
 
-                        if ( search1 )
-                        {   /*Z=14686*/
-                            if ( fabs(CR->carr1p[n])<1e-50 )
-                            {   /*Z=14687*/
-                                n1 = n;   /*Z=14688*/
-                                search1 = false;   /*Z=14689*/
-                            }   /*Z=14690*/
-                        }   /*Z=14691*/
-                        if ( search4 )
-                        {   /*Z=14692*/
-                            if ( fabs(CR->carr4p[n])<1e-50 )
-                            {   /*Z=14693*/
-                                n4 = n;   /*Z=14694*/
-                                search4 = false;   /*Z=14695*/
-                            }   /*Z=14696*/
-                        }   /*Z=14697*/
-                        if ( search5 )
-                        {   /*Z=14698*/
-                            if ( fabs(CR->carr5p[n])<1e-50 )
-                            {   /*Z=14699*/
-                                n5 = n;   /*Z=14700*/
-                                search5 = false;   /*Z=14701*/
-                            }   /*Z=14702*/
-                        }   /*Z=14703*/
-                        if ( search6 )
-                        {   /*Z=14704*/
-                            if ( fabs(CR->carr6p[n])<1e-50 )
-                            {   /*Z=14705*/
-                                n6 = n;   /*Z=14706*/
-                                search6 = false;   /*Z=14707*/
-                            }   /*Z=14708*/
-                        }   /*Z=14709*/
+                        if ( fabs(CR->carr1p[n])<min )
+                        {/*7*/  //Z=14972
+                            if ( n<n1 ) n1 = n;  //Z=14973
+                        }/*7*/  //Z=14974
+                        if ( fabs(CR->carr4p[n])<min )
+                        {/*7*/  //Z=14975
+                            if ( n<n4 ) n4 = n;  //Z=14976
+                        }/*7*/  //Z=14977
+                        if ( fabs(CR->carr5p[n])<min )
+                        {/*7*/  //Z=14978
+                            if ( n<n5 ) n5 = n;  //Z=14979
+                        }/*7*/  //Z=14980
+                        if ( fabs(CR->carr6p[n])<min )
+                        {/*7*/  //Z=14981
+                            if ( n<n6 ) n6 = n;  //Z=14982
+                        }/*7*/  //Z=14983
                         if ( fabs(CR->carr7p[n])<min )
-                        {   /*Z=14710*/
-                            if ( n<n7 ) n7 = n;   /*Z=14711*/
-                        }   /*Z=14712*/
+                        {/*7*/  //Z=14984
+                            if ( n<n7 ) n7 = n;  //Z=14985
+                        }/*7*/  //Z=14986
                         if ( fabs(CR->carr8p[n])<min )
-                        {   /*Z=14713*/
-                            if ( n<n8 ) n8 = n;   /*Z=14714*/
-                        }   /*Z=14715*/
+                        {/*7*/  //Z=14987
+                            if ( n<n8 ) n8 = n;  //Z=14988
+                        }/*7*/  //Z=14989
                         if ( fabs(CR->carr9p[n])<min )
-                        {   /*Z=14716*/
-                            if ( n<n9 ) n9 = n;   /*Z=14717*/
-                        }   /*Z=14718*/
+                        {/*7*/  //Z=14990
+                            if ( n<n9 ) n9 = n;  //Z=14991
+                        }/*7*/  //Z=14992
                         if ( fabs(CR->carr1f[n])<min )
-                        {   /*Z=14719*/
-                            if ( n<n1f ) n1f = n;   /*Z=14720*/
-                        }   /*Z=14721*/
+                        {/*7*/  //Z=14993
+                            if ( n<n1f ) n1f = n;  //Z=14994
+                        }/*7*/  //Z=14995
                         if ( fabs(CR->carr4f[n])<min )
-                        {   /*Z=14722*/
-                            if ( n<n4f ) n4f = n;   /*Z=14723*/
-                        }   /*Z=14724*/
+                        {/*7*/  //Z=14996
+                            if ( n<n4f ) n4f = n;  //Z=14997
+                        }/*7*/  //Z=14998
                         if ( fabs(CR->carr5f[n])<min )
-                        {   /*Z=14725*/
-                            if ( n<n5f ) n5f = n;   /*Z=14726*/
-                        }   /*Z=14727*/
+                        {/*7*/  //Z=14999
+                            if ( n<n5f ) n5f = n;  //Z=15000
+                        }/*7*/  //Z=15001
                         if ( fabs(CR->carr6f[n])<min )
-                        {   /*Z=14728*/
-                            if ( n<n6f ) n6f = n;   /*Z=14729*/
-                        }   /*Z=14730*/
+                        {/*7*/  //Z=15002
+                            if ( n<n6f ) n6f = n;  //Z=15003
+                        }/*7*/  //Z=15004
                         if ( fabs(CR->carr7f[n])<min )
-                        {   /*Z=14731*/
-                            if ( n<n7f ) n7f = n;   /*Z=14732*/
-                        }   /*Z=14733*/
+                        {/*7*/  //Z=15005
+                            if ( n<n7f ) n7f = n;  //Z=15006
+                        }/*7*/  //Z=15007
                         if ( fabs(CR->carr8f[n])<min )
-                        {   /*Z=14734*/
-                            if ( n<n8f ) n8f = n;   /*Z=14735*/
-                        }   /*Z=14736*/
+                        {/*7*/  //Z=15008
+                            if ( n<n8f ) n8f = n;  //Z=15009
+                        }/*7*/  //Z=15010
                         if ( fabs(CR->carr9f[n])<min )
-                        {   /*Z=14737*/
-                            if ( n<n9f ) n9f = n;   /*Z=14738*/
-                        }   /*Z=14739*/
-                    }  /* of n-loop */   /*Z=14740*/
-                }  /* of cs=2 */   /*Z=14741*/
-            }  /* of disk */   /*Z=14744*/
-        }  /* of z-axis */   /*Z=14745*/
-    }  /* of ordis=0 */   /*Z=14746*/
+                        {/*7*/  //Z=15011
+                            if ( n<n9f ) n9f = n;  //Z=15012
+                        }/*7*/  //Z=15013
+                    }/*6*/  /*  of n-loop  */  //Z=15014
+                }/*5*/  /*  of cs=2  */  //Z=15015
 
-Label99:  /*Z=14794*/
+
+            }/*4*/  /*  of disk  */  //Z=15018
+        }/*3*/  /*  of z-axis  */  //Z=15019
+    }/*2*/  /*  of ordis=0  */  //Z=15020
+
+
+Label99:  //Z=15068
     // Es kommt vor, dass die carr??[] beim genutzten Index (n?) den Wert 'inf' haben. Damit
     // lässt sich aber schlecht weiterrechnen. Daher hier die passenden Indizes verringern auf
     // den letzten gültigen Wert.
 #ifndef __CUDACC__
-    //int n1sav=n1, n2sav=n2, n3sav=n3, n4sav=n4, n5sav=n5, n6sav=n6, n7sav=n7, n8sav=n8, n9sav=n9;
+    int n1sav=n1, n2sav=n2, n3sav=n3, n4sav=n4, n5sav=n5, n6sav=n6, n7sav=n7, n8sav=n8, n9sav=n9;
 #endif
     while ( n1 > 1 && isinf(CR->carr1p[n1]) ) n1--;
     while ( n2 > 1 && isinf(CR->carr2p[n2]) ) n2--;
     while ( n3 > 1 && isinf(CR->carr3p[n3]) ) n3--;
-    while ( n4 > 1 && isinf(CR->carr4p[n4]) ) n4--;
+    while ( n4 > 1 && (isinf(CR->carr4p[n4]) /*|| fabs(CR->carr4p[n4])<1e-50*/) ) n4--; // hängt direkt
     while ( n5 > 1 && isinf(CR->carr5p[n5]) ) n5--;
     while ( n6 > 1 && isinf(CR->carr6p[n6]) ) n6--;
     while ( n7 > 1 && isinf(CR->carr7p[n7]) ) n7--;
@@ -8462,27 +8742,27 @@ Label99:  /*Z=14794*/
     while ( n8 > 1 && isinf(CR->carr8f[n8]) ) n8--;
     while ( n9 > 1 && isinf(CR->carr9f[n9]) ) n9--;
     // Jetzt folgt erst die lim? Berechnung
-    lim1 = pow(fabs(CR->carr1p[n1]),-1/(2.*n1));
-    lim2 = pow(fabs(CR->carr2p[n2]),-1/(2.*n2));
-    lim3 = pow(fabs(CR->carr3p[n3]),-1/(2.*n3));
-    lim4 = pow(fabs(CR->carr4p[n4]),-1/(2.*n4));
-    lim5 = pow(fabs(CR->carr5p[n5]),-1/(2.*n5));
-    lim6 = pow(fabs(CR->carr6p[n6]),-1/(2.*n6));
-    lim7 = pow(fabs(CR->carr7p[n7]),-1/(2.*n7));
-    lim8 = pow(fabs(CR->carr8p[n8]),-1/(2.*n8));
-    lim9 = pow(fabs(CR->carr9p[n9]),-1/(2.*n9));
-    lim1f = pow(fabs(CR->carr1f[n1]),-1/(2.*n1));
-    lim2f = pow(fabs(CR->carr2f[n2]),-1/(2.*n2));
-    lim3f = pow(fabs(CR->carr3f[n3]),-1/(2.*n3));
-    lim4f = pow(fabs(CR->carr4f[n4]),-1/(2.*n4));
-    lim5f = pow(fabs(CR->carr5f[n5]),-1/(2.*n5));
-    lim6f = pow(fabs(CR->carr6f[n6]),-1/(2.*n6));
-    lim7f = pow(fabs(CR->carr7f[n7]),-1/(2.*n7));
-    lim8f = pow(fabs(CR->carr8f[n8]),-1/(2.*n8));
-    lim9f = pow(fabs(CR->carr9f[n9]),-1/(2.*n9));
+    lim1 = pow(fabs(CR->carr1p[n1]),-1/(2.0*n1));  //Z=15070
+    lim2 = pow(fabs(CR->carr2p[n2]),-1/(2.0*n2));  //Z=15071
+    lim3 = pow(fabs(CR->carr3p[n3]),-1/(2.0*n3));  //Z=15072
+    lim4 = pow(fabs(CR->carr4p[n4]),-1/(2.0*n4));  //Z=15073
+    lim5 = pow(fabs(CR->carr5p[n5]),-1/(2.0*n5));  //Z=15074
+    lim6 = pow(fabs(CR->carr6p[n6]),-1/(2.0*n6));  //Z=15075
+    lim7 = pow(fabs(CR->carr7p[n7]),-1/(2.0*n7));  //Z=15076
+    lim8 = pow(fabs(CR->carr8p[n8]),-1/(2.0*n8));  //Z=15077
+    lim9 = pow(fabs(CR->carr9p[n9]),-1/(2.0*n9));  //Z=15078
+    lim1f = pow(fabs(CR->carr1f[n1]),-1/(2.0*n1));  //Z=15079
+    lim2f = pow(fabs(CR->carr2f[n2]),-1/(2.0*n2));  //Z=15080
+    lim3f = pow(fabs(CR->carr3f[n3]),-1/(2.0*n3));  //Z=15081
+    lim4f = pow(fabs(CR->carr4f[n4]),-1/(2.0*n4));  //Z=15082
+    lim5f = pow(fabs(CR->carr5f[n5]),-1/(2.0*n5));  //Z=15083
+    lim6f = pow(fabs(CR->carr6f[n6]),-1/(2.0*n6));  //Z=15084
+    lim7f = pow(fabs(CR->carr7f[n7]),-1/(2.0*n7));  //Z=15085
+    lim8f = pow(fabs(CR->carr8f[n8]),-1/(2.0*n8));  //Z=15086
+    lim9f = pow(fabs(CR->carr9f[n9]),-1/(2.0*n9));  //Z=15087
 
 #ifndef __CUDACC__
-/*
+
     qDebug() << "Label99:" << n1 << n1sav << "1p" << CR->carr1p[n1] << lim1 << "1f" << CR->carr1f[n1] << lim1f;
     qDebug() << "        " << n2 << n2sav << "2p" << CR->carr2p[n2] << lim2 << "2f" << CR->carr2f[n2] << lim2f;
     qDebug() << "        " << n3 << n3sav << "3p" << CR->carr3p[n3] << lim3 << "3f" << CR->carr3f[n3] << lim3f;
@@ -8492,7 +8772,7 @@ Label99:  /*Z=14794*/
     qDebug() << "        " << n7 << n7sav << "7p" << CR->carr7p[n7] << lim7 << "7f" << CR->carr7f[n7] << lim7f;
     qDebug() << "        " << n8 << n8sav << "8p" << CR->carr8p[n8] << lim8 << "8f" << CR->carr8f[n8] << lim8f;
     qDebug() << "        " << n9 << n9sav << "9p" << CR->carr9p[n9] << lim9 << "9f" << CR->carr9f[n9] << lim9f;
-*/
+
 /*
     QFile fout(QString("carr11pm_ordis%1_dim%2_cs%3.csv").arg(ordis).arg(dim).arg(cs));
     if ( fout.open(QIODevice::WriteOnly) )

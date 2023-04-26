@@ -39,7 +39,8 @@ public:
                           int s,                            // Dest. size
                           _outType ot,                      // Output flag
                           bool scaled, bool clip, bool clip40, // Scaling flags
-                          bool swapout );                   // Swap corners
+                          bool swapout,                     // Swap corners
+                          int cutOutX, int cutOutY);        // cut region around center of FFT
 
     void scaleAndClipData(double *data/*In+Out*/, int len, bool scale, bool clip, bool clip40, bool genlog);
 
@@ -76,8 +77,8 @@ private:
 #endif
 
     // Data for the FFT
-    double *_arrFFT;
-    int     _arrFFTdim;
+    double *_arrFFT,   *_arrFFTcutOut;
+    int     _arrFFTdim, _arrFFTcutOutDim;
 #ifdef USE_COMPLEX_WEB
     COMPLEX **_complex;
 #endif
@@ -86,8 +87,6 @@ private:
     double *_arrPol;    // size = _arrPolDim * _arrPolDim
     int     _arrPolDim;
 
-    // Data for the iFFT
-    double *_arrIFFT;
     int calculateIndex( bool swap, int x, int y, int dim );
 
 };

@@ -6,6 +6,8 @@
 #include <QFrame>
 #include <QAbstractItemView>
 #include "sc_maingui.h"
+#include "sc_calc_generic.h"
+
 
 calcHelper *SC_CalcGUI::curMethod = nullptr;
 QHash<QString,Double3> SC_CalcGUI::inpVectors;
@@ -13,50 +15,7 @@ QHash<QString,double>  SC_CalcGUI::inpValues;
 QHash<QString,double>  SC_CalcGUI::inpSingleValueVectors;
 
 
-// ADD NEW METHOD: First, add the include here, ...
-#include "sc_calc_generic.h"
-//#include "sc_calc_fcc.h"
-//#include "sc_calc_bcc.h"  ist schon angefangen...
-//#include "sc_calc_bct.h"
-//#include "sc_calc_sc.h"
-//#include "sc_calc_hcp.h"
-//#include "sc_calc_fd3m.h"
-
 #define D(x)  //x // Debuging...
-
-/* Es wird im Endausbau die folgenden Methoden geben, die Zeilennummern sind aus crystal3d1.pas(16.6./18.8.):
- Ab Zeile X/11204 wird aus 'ComboBoxLattice.ItemIndex' der passende Wert für 'ltype' bestimmt. Aus den
- dortigen Kommentaren und den Kommentaren bei den jeweiligen Startzeile erkenne ich die Methodenbezeichnung.
- 10842/12023: Berechnungen für Lamellae(0). . . . . . . . . . . . . . . . . . . . . . . . . . . . . ==> ?
- 11159/12340: Berechnungen für No Structure(12). Hier per Testmode unterschiedliche Berechnungen. . ==> ?
- 11749/12923: Berechnungen für HEX cylinders(1) . . . . . . . . . . . . . . . . . . . . . . . . . . ==> ?
- 12047/13221: Berechnungen für Square Cylinders(2). . . . . . . . . . . . . . . . . . . . . . . . . ==> ?
- 12339/13513: Berechnungen für Centered Rectangular Cylinders(3). . . . . . . . . . . . . . . . . . ==> ?
- 12658/13832: Berechnungen für CP-Layers(13). . . . . . . . . . . . . . . . . . . . . . . . . . . . ==> ?
- 12962/14136: Berechnungen für Quasicrystal, dodecagonal(19). . . . . . . . . . . . . . . . . . . . ==> ?
- 13279/14453: Berechnungen für BCC Spheres(4) . . . . . . . . . . . . . . . . . . . . . . . . . . . ==> i.A.
- 13700/14874: Berechnungen für FCC Spheres(5) wenn kein Testlauf(=neue Berechnungen) aktiviert ist. ==> ok
- 14391/15564: Berechnungen für Generic(30), ist auch beim Testlauf(=neue Berechnungen FCC)  . . . . ==> ok
- 14703/16755: Berechnungen für SC Spheres(7). . . . . . . . . . . . . . . . . . . . . . . . . . . . ==> ?
- 15025/17077: Berechnungen für HCP Spheres(6) . . . . . . . . . . . . . . . . . . . . . . . . . . . ==> ?
- 15459/17510: Berechnungen für BCT Tetragonal Spheres(8) wenn kein Generic  . . . . . . . . . . . . ==> i.A.
- 15787/17839: Berechnungen für Orthorhombic Spheres(18) wenn kein Generic . . . . . . . . . . . . . ==> ?
- 16126/18178: Berechnungen für Fd3m Spheres = diamond lattice(17) wenn kein Generic . . . . . . . . ==> ?
- 16608/18660: Berechnungen für Ia3d(9) wenn kein Generic  . . . . . . . . . . . . . . . . . . . . . ==> ?
- 17235/19287: Berechnungen für Pn3m(10) wenn kein Generic . . . . . . . . . . . . . . . . . . . . . ==> ?
- 17638/19690: Berechnungen für Im3m(11) wenn kein Generic . . . . . . . . . . . . . . . . . . . . . ==> ?
- 18046/20098: Berechnungen für 2D-Hex, GISAXS(14) . . . . . . . . . . . . . . . . . . . . . . . . . ==> ?
- 18276/20327: Berechnungen für 2D-Square, GISAXS(15). . . . . . . . . . . . . . . . . . . . . . . . ==> ?
- 18471/20523: Berechnungen für 1D-Lam, GISAXS(16) . . . . . . . . . . . . . . . . . . . . . . . . . ==> ?
-
- Achtung: bei 0 wird das lat1d-Flag gesetzt,
-          bei 1,2,3 wird das lat2d-Flag gesetzt,
-          sonst ist das lat3d-Flag gesetzt.
-          Durch diese Flags gibt es andere Vorberechnungen!
-          (ab Zeile 11078)
-*/
-
-QStringList calcHelper::slDisWidgets;
 
 
 /**
@@ -65,32 +24,24 @@ QStringList calcHelper::slDisWidgets;
  */
 SC_CalcGUI::SC_CalcGUI() : QObject()
 {
-    popupMenu = nullptr;
     memory = nullptr;
 
-    // ADD NEW METHOD: ... and add the constructor call here - Thats all!
-    calcHelper *c;
-    c = new calcHelper( new SC_Calc_GENERIC(),  true );   methods.insert( c->subCalc->methodName(), c );
-    //c = new calcHelper( new SC_Calc_FCC(),  true );   methods.insert( c->subCalc->methodName(), c );
-    //c = new calcHelper( new SC_Calc_BCC(),  true );   methods.insert( c->subCalc->methodName(), c );
-    //c = new calcHelper( new SC_Calc_BCT(),  true );   methods.insert( c->subCalc->methodName(), c );
-    //c = new calcHelper( new SC_Calc_SC,   true );   methods.insert( c->subCalc->methodName(), c );
-    //c = new calcHelper( new SC_Calc_HCP,  true );   methods.insert( c->subCalc->methodName(), c );
-    //c = new calcHelper( new SC_Calc_FD3M, true );   methods.insert( c->subCalc->methodName(), c );
+    curMethod = new calcHelper( new SC_Calc_GENERIC() );
 
-    methodNamesSorted = methods.keys();
-    methodNamesSorted.sort();
+    if ( methodNamesSorted.size() == 0 )
+        methodNamesSorted << curMethod->subCalc->methodName();
 }
 
 /**
  * @brief SC_CalcGUI::createTabs
  * @param tab - TabWidget witch will be filled with pages for each method.
  */
-void SC_CalcGUI::createTabs( QTabWidget *tab, QStatusBar *sb )
+void SC_CalcGUI::createTabs( /*QTabWidget *tab,*/ QStatusBar *sb )
 {
     mainStatusBar = sb;
     // Immer alphabetisch sortiert
     QStringList names = getCalcTypes();
+    /*
     for ( int i=0; i<names.size(); i++ )
     {
         QWidget *wid = new QWidget;
@@ -98,11 +49,9 @@ void SC_CalcGUI::createTabs( QTabWidget *tab, QStatusBar *sb )
         frm->setObjectName(names[i]);
         frm->setFrameStyle( QFrame::Box );
         frm->setLayout( methods[names[i]]->subLayout );
-        frm->setContextMenuPolicy( Qt::CustomContextMenu );
-        connect( frm, SIGNAL(customContextMenuRequested(QPoint)),
-                 this, SLOT(customContextMenuRequested(QPoint)) );
         tab->addTab( frm, names[i] );
     }
+    */
     // Reihenfolge eher zufällig
     /*
     QHash<QString,calcHelper*>::iterator im = methods.begin();
@@ -114,76 +63,11 @@ void SC_CalcGUI::createTabs( QTabWidget *tab, QStatusBar *sb )
         ++im;
     }
     */
-    if ( names.size() == 1 )
+    /*if ( names.size() == 1 )
     {
-        tab->tabBar()->hide();
+        //tab->tabBar()->hide();
         curMethod = methods.begin().value();
-    }
-}
-
-void SC_CalcGUI::customContextMenuRequested(const QPoint &pos)
-{
-    if ( popupMenu == nullptr )
-    {
-        popupMenu = new QMenu();
-        actionSetDefault = popupMenu->addAction( "Set to default" );
-        actionCopyToAll  = popupMenu->addAction( "Copy to all methods" );
-    }
-    QWidget *w = static_cast<QWidget*>(sender());
-    QLabel *lbl = static_cast<QLabel*>(w->childAt(pos));
-    if ( lbl == nullptr ) return;   // Nicht auf einem Label geklickt
-    QAction *a = popupMenu->exec( w->mapToGlobal(pos) );
-    if ( a == nullptr ) return;     // ESC oder daneben geklickt
-    // w ist der Frame und w->objectName() ist der Methodenname
-    calcHelper *c = methods[w->objectName()];
-    if ( a == actionSetDefault )
-    {
-        if ( c->params.contains(lbl->text()) )
-        {   // Da der Default-Wert nicht gespeichert wird, muss ich diesen hier suchen
-            QStringList sl = c->subCalc->guiLayout();
-            for ( int i=0; i<sl.size(); i++ )
-            {
-                if ( sl[i].indexOf(";"+lbl->text()+";") > 0 )
-                {
-                    QStringList v = sl[i].split(";");
-                    while ( v.size() < 6 ) v << "";
-                    paramHelper *p = c->params[lbl->text()];
-                    switch ( p->type )
-                    {
-                    /*case paramHelper::text:
-                        // Default ist leerer Text
-                        p->gui.inp->setText( v[5] );
-                        break;*/
-                    case paramHelper::number:
-                        if ( v[5].isEmpty() )
-                            mainStatusBar->showMessage( "No default value known", 5000 );
-                        else
-                            p->gui.num->setValue( v[5].toDouble() );
-                        break;
-                    case paramHelper::select:
-                        if ( v[5].isEmpty() )
-                            p->gui.cbs->setCurrentIndex(0);
-                        else
-                            p->gui.cbs->setCurrentIndex( p->gui.cbs->findText(v[5]) );
-                        break;
-                    case paramHelper::toggle:
-                        if ( v[5].isEmpty() )
-                            p->gui.tog->setChecked(false);
-                        else
-                            p->gui.tog->setChecked( v[5].toInt() != 0 );
-                        break;
-                    }
-                    return;
-                }
-            }
-        }
-    }
-    else if ( a == actionCopyToAll )
-    {
-        QString val = currentParamValueStr( w->objectName(), lbl->text(), false );
-        if ( ! setParamToAllMethods( lbl->text(), val.toDouble() ) )
-            mainStatusBar->showMessage( "No numerical parameter, no copy allowed", 5000 );
-    }
+    }*/
 }
 
 /**
@@ -203,25 +87,27 @@ QStringList SC_CalcGUI::getCalcTypes()
 void SC_CalcGUI::saveParameter( QString fn )
 {
     QSettings sets( fn, QSettings::IniFormat );
-    QHash<QString,calcHelper*>::iterator im = methods.begin();
-    while ( im != methods.end() )
-    {
-        sets.beginGroup( im.key() );
+    //QHash<QString,calcHelper*>::iterator im = methods.begin();
+    //while ( im != methods.end() )
+    //{
+        sets.beginGroup( curMethod->subCalc->methodName() );
         sets.remove(""); // Remove all previous keys in this group to save only the current settings
-        QHash<QString,paramHelper*>::iterator ip = im.value()->params.begin();
-        while ( ip != im.value()->params.end() )
+        QHash<QString,paramHelper*>::iterator ip = curMethod->params.begin();
+        while ( ip != curMethod->params.end() )
         {
             paramHelper *par = ip.value();
             switch ( par->type )
             {
-            /*case paramHelper::text:
+            case paramHelper::undef:
+                break;
+            case paramHelper::numdbl:
                 if ( par->gui.w )
-                    par->value.text = par->gui.inp->text();
-                sets.setValue( par->key, par->value.text );
-                break;*/
-            case paramHelper::number:
+                    par->value.number = par->gui.numd->value();
+                sets.setValue( par->key, par->value.number /*double*/ );
+                break;
+            case paramHelper::numint:
                 if ( par->gui.w )
-                    par->value.number = par->gui.num->value();
+                    par->value.number = par->gui.numi->value();
                 sets.setValue( par->key, par->value.number /*double*/ );
                 break;
             case paramHelper::select:
@@ -235,11 +121,21 @@ void SC_CalcGUI::saveParameter( QString fn )
                 sets.setValue( par->key, par->value.flag /*bool*/ );
                 break;
             }
+            if ( par->gui.w != nullptr && par->togFit != nullptr )
+            {
+                QString s = "00";
+                if ( par->togFit->isChecked() )
+                {
+                    s[0] = '1';
+                    //s[1] = par->used4fit ? '1' : '0';
+                }
+                sets.setValue( "FITFLAG_"+par->key, s );
+            }
             ++ip;
         }
         sets.endGroup();
-        ++im;
-    }
+        //++im;
+    //}
 }
 
 
@@ -254,44 +150,64 @@ void SC_CalcGUI::saveParameter( QString fn )
  * There are no default values if a key is not found.
  * If in GUI mode, the input fields are updated.
  */
-QString SC_CalcGUI::loadParameter( QString fn, QString onlyMethod )
+QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod , bool &hkl, bool &grid)
 {
+    DT( qDebug() << "loadParameter()" << fn );
     QString rv="";
+    hkl  = false;
+    grid = false;
     QSettings sets( fn, QSettings::IniFormat );
-    QHash<QString,calcHelper*>::iterator im = methods.begin();
-    while ( im != methods.end() )
-    {
-        if ( onlyMethod.isEmpty() || im.key() == onlyMethod || onlyMethod[0]=='@' )
+    //QHash<QString,calcHelper*>::iterator im = methods.begin();
+    //while ( im != methods.end() )
+    //{
+        if ( onlyMethod.isEmpty() /*|| im.key() == onlyMethod*/ || onlyMethod[0]=='@' )
         {
             if ( !onlyMethod.isEmpty() && onlyMethod[0] == '@' )
                 sets.beginGroup( onlyMethod.mid(1) );
             else
-                sets.beginGroup( im.key() );
+                sets.beginGroup( curMethod->subCalc->methodName() );
             QStringList slKeys = sets.allKeys();
-            QHash<QString,paramHelper*>::iterator ip = im.value()->params.begin();
-            while ( ip != im.value()->params.end() )
+            QHash<QString,paramHelper*>::iterator ip = curMethod->params.begin();
+            while ( ip != curMethod->params.end() )
             {
                 paramHelper *par = ip.value();
                 slKeys.removeOne( par->key );
+
+                //qDebug() << "LOAD" << par->key;
+                if ( par->key == "EditQmaxPreset" || par->key == "EditQmaxData" )
+                {   // Die RadioButtons für die Qmax Auswahl sind auch in dieser Liste....
+                    ++ip;
+                    continue;
+                }
+                if ( par->key.startsWith("FITFLAG_") )
+                {   // Das Flag zum Fitten wird hier auch gespeichert...
+                    ++ip;
+                    continue;
+                }
+
+                //par->fitparam = false;
                 switch ( par->type )
                 {
-                /*case paramHelper::text:
-                    par->value.text = sets.value( par->key ).toString();
-                    if ( par->gui.w )
-                        par->gui.inp->setText( par->value.text );
-                    break;*/
-                case paramHelper::number:
+                case paramHelper::numdbl:
                     // Damit bei unbekannten Schlüsseln die Daten nicht auf 0 gesetzt werden
                     par->value.number = sets.value( par->key, par->value.number ).toDouble();
                     if ( par->gui.w )
-                        par->gui.num->setValue( par->value.number );
+                        par->gui.numd->setValue( par->value.number );
+                    break;
+                case paramHelper::numint:
+                    // Damit bei unbekannten Schlüsseln die Daten nicht auf 0 gesetzt werden
+                    par->value.number = sets.value( par->key, par->value.number ).toDouble();
+                    if ( par->gui.w )
+                        par->gui.numi->setValue( par->value.number );
+                    //if ( par->key.contains("HKLmex",Qt::CaseInsensitive) ) hkl=true;      TODO
+                    //if ( par->key.contains("GridPoints",Qt::CaseInsensitive) ) grid=true;
                     break;
                 case paramHelper::select:
                     par->value.number = sets.value( par->key, par->value.number ).toDouble();
                     if ( par->gui.w )
                         par->gui.cbs->setCurrentIndex( par->value.number );
-                    if ( par->key.contains("LType",Qt::CaseInsensitive) )
-                        qDebug() << par->key << par->value.number;
+                    //if ( par->key.contains("LType",Qt::CaseInsensitive) )
+                    //    qDebug() << par->key << par->value.number;
                     break;
                 case paramHelper::toggle:
                     par->value.flag = sets.value( par->key, par->value.flag ).toBool();
@@ -301,41 +217,147 @@ QString SC_CalcGUI::loadParameter( QString fn, QString onlyMethod )
                 default:
                     break;
                 }
+                if ( par->gui.w != nullptr && par->togFit != nullptr )
+                {
+                    QString s = sets.value( "FITFLAG_"+par->key, "?" ).toString();
+                    // Wenn kein Wert im INI-File vorhanden ist, dann bleibt der Status des Fit-
+                    //  Toggles in der GUI erhalten.
+                    if ( s[0] == '?' )
+                        s = par->togFit->isChecked() ? "11" : "00";
+                    par->togFit->setChecked(s[0]!='0');
+                    //par->fitparam = s[1]!='0';
+
+                }
                 ++ip;
             }
             if ( slKeys.size() > 0 )
-                rv += "Method: "+im.key()+" Unknown keys in file: "+slKeys.join(", ")+EOL;
+                rv += /*"Method: "+im.key()+*/"Unknown keys in file: "+slKeys.join(", ")+EOL;
             sets.endGroup();
-            if ( !onlyMethod.isEmpty() && onlyMethod[0] == '@' ) break;
+            //if ( !onlyMethod.isEmpty() && onlyMethod[0] == '@' ) break;
         } // if method found
-        ++im;
-    } // while methods
+        //++im;
+    //} // while methods
     return rv;
 }
 
 
+void SC_CalcGUI::saveFitFlags( QSettings &sets )
+{
+    //QHash<QString,calcHelper*>::iterator im = methods.begin();
+    //while ( im != methods.end() )
+    //{
+        sets.beginGroup( curMethod->subCalc->methodName() );
+        QHash<QString,paramHelper*>::iterator ip = curMethod->params.begin();
+        while ( ip != curMethod->params.end() )
+        {
+            paramHelper *par = ip.value();
+            if ( par->gui.w != nullptr && par->togFit != nullptr )
+            {
+                QString s = "00";
+                if ( par->togFit->isChecked() )
+                {
+                    s[0] = '1';
+                    //s[1] = par->used4fit ? '1' : '0';
+                }
+                sets.setValue( "FITFLAG_"+par->key, s );
+            }
+            ++ip;
+        }
+        sets.endGroup();
+        //++im;
+    //}
+}
+
+void SC_CalcGUI::loadFitFlags( QSettings &sets )
+{
+    DT( qDebug() << "loadFitFlags()" );
+    //QHash<QString,calcHelper*>::iterator im = methods.begin();
+    //while ( im != methods.end() )
+    //{
+        sets.beginGroup( curMethod->subCalc->methodName() );
+        QHash<QString,paramHelper*>::iterator ip = curMethod->params.begin();
+        while ( ip != curMethod->params.end() )
+        {
+            paramHelper *par = ip.value();
+            if ( par->key.startsWith("FITFLAG_") )
+            {   // Das Flag zum Fitten wird hier auch gespeichert...
+                ++ip;
+                continue;
+            }
+            if ( par->gui.w != nullptr && par->togFit != nullptr )
+            {
+                QString s = sets.value( "FITFLAG_"+par->key, "00" ).toString();
+                par->togFit->setChecked(s[0]!='0');
+                //par->fitparam = s[1]!='0';
+            }
+            ++ip;
+        }
+        sets.endGroup();
+        //++im;
+    //} // while methods
+}
+
+
+void SC_CalcGUI::updateToolTipForCompare( QWidget *w, QString txt )
+{
+    QString tt = w->toolTip();
+    int p = tt.indexOf("File:");
+    if ( p > 1 )
+    {
+        tt.truncate(p+6);
+        w->setToolTip( tt + txt );
+    }
+    else if ( tt.isEmpty() || p == 0 )
+        w->setToolTip( "File: " + txt );
+    else
+        w->setToolTip( tt + "\nFile: " + txt );
+}
+
 void SC_CalcGUI::compareParameter( QSettings &sets, QHash<QString,_CompValues*> &compWerte )
 {
-    QHash<QString,calcHelper*>::iterator im = methods.begin();
-    while ( im != methods.end() )
-    {
-        sets.beginGroup( im.key() );
-        QHash<QString,paramHelper*>::iterator ip = im.value()->params.begin();
-        while ( ip != im.value()->params.end() )
+    //QHash<QString,calcHelper*>::iterator im = methods.begin();
+    //while ( im != methods.end() )
+    //{
+        sets.beginGroup( curMethod->subCalc->methodName() );
+        QHash<QString,paramHelper*>::iterator ip = curMethod->params.begin();
+        while ( ip != curMethod->params.end() )
         {
             paramHelper *par = ip.value();
             switch ( par->type )
             {
-            case paramHelper::number:
+            case paramHelper::numdbl:
             {
-                double c = par->gui.num->value();
+                double c = par->gui.numd->value();
                 double p = sets.value( par->key ).toDouble();
                 if ( fabs(c-p) > 1e-6 )
                 {
                     _CompValues *cv = new _CompValues;
                     cv->cur = QString::number(c);
                     cv->par = QString::number(p);
-                    compWerte.insert( im.key()+":"+ip.key(), cv );
+                    compWerte.insert( ip.key(), cv );
+                    if ( par->gui.w != nullptr )
+                    {
+                        SETCOL( par->gui.w, SETCOLMARK_PARDIFF );
+                        updateToolTipForCompare( par->gui.w, cv->par );
+                    }
+                }
+                break;
+            }
+            case paramHelper::numint:
+            {
+                int c = par->gui.numi->value();
+                int p = sets.value( par->key ).toInt();
+                if ( c != p )
+                {
+                    _CompValues *cv = new _CompValues;
+                    cv->cur = QString::number(c);
+                    cv->par = QString::number(p);
+                    compWerte.insert( ip.key(), cv );
+                    if ( par->gui.w != nullptr )
+                    {
+                        SETCOL( par->gui.w, SETCOLMARK_PARDIFF );
+                        updateToolTipForCompare( par->gui.w, cv->par );
+                    }
                 }
                 break;
             }
@@ -348,7 +370,12 @@ void SC_CalcGUI::compareParameter( QSettings &sets, QHash<QString,_CompValues*> 
                     _CompValues *cv = new _CompValues;
                     cv->cur = QString::number(c)+" ("+par->gui.cbs->currentText()+")";
                     cv->par = QString::number(p);
-                    compWerte.insert( im.key()+":"+ip.key(), cv );
+                    compWerte.insert( ip.key(), cv );
+                    if ( par->gui.w != nullptr )
+                    {
+                        SETCOL( par->gui.w, SETCOLMARK_PARDIFF );
+                        updateToolTipForCompare( par->gui.w, cv->par );
+                    }
                 }
                 break;
             }
@@ -361,7 +388,12 @@ void SC_CalcGUI::compareParameter( QSettings &sets, QHash<QString,_CompValues*> 
                     _CompValues *cv = new _CompValues;
                     cv->cur = c ? "True" : "False";
                     cv->par = p ? "True" : "False";
-                    compWerte.insert( im.key()+":"+ip.key(), cv );
+                    compWerte.insert( ip.key(), cv );
+                    if ( par->gui.w != nullptr )
+                    {
+                        SETCOL( par->gui.w, SETCOLMARK_PARDIFF );
+                        updateToolTipForCompare( par->gui.w, cv->par );
+                    }
                 }
                 break;
             }
@@ -371,68 +403,37 @@ void SC_CalcGUI::compareParameter( QSettings &sets, QHash<QString,_CompValues*> 
             ++ip;
         }
         sets.endGroup();
-        ++im;
-    }
+        //++im;
+    //}
 }
 
-
-/**
- * @brief SC_CalcGUI::setParamToAllMethods
- * @param key - parameter name
- * @param val - value to set
- * @return true if one or more parameters are set, false if nothing set
- * This will set the value to the given parameter name in all methods, if found.
- * If in GUI mode, the input fields are updated.
- */
-bool SC_CalcGUI::setParamToAllMethods( QString key, double val )
-{
-    bool retval = false;
-    QHash<QString,calcHelper*>::iterator im = methods.begin();
-    while ( im != methods.end() )
-    {
-        if ( im.value()->params.contains(key) )
-        {
-            paramHelper *par = im.value()->params[key];
-            if ( par->type == paramHelper::number )
-            {
-                par->value.number = val;
-                if ( par->gui.w )
-                    par->gui.num->setValue( val );
-                retval = true;
-            }
-        }
-        ++im;
-    }
-    return retval;
-}
-
-QStringList SC_CalcGUI::paramsForMethod( int im, bool num, bool glob, bool fit )
-{
-    return paramsForMethod( methodNamesSorted[im], num, glob, fit );
-}
 
 /**
  * @brief SC_CalcGUI::paramsForMethod
- * @param m    - current method to use
  * @param num  - if true, returns only numerical parameter names (no toggles, no selections)
  * @param glob - if true, add all global variable names to the return list
  * @param fit  - if true, return only fittable parameter names
  * @return Stringlist of all parameter names of this method (no global things)
  */
-QStringList SC_CalcGUI::paramsForMethod( QString m, bool num, bool glob, bool fit )
+QStringList SC_CalcGUI::paramsForMethod(bool num, bool glob, bool fit )
 {
-    if ( m.isEmpty() && curMethod != nullptr ) m = curMethod->subCalc->methodName();
+    DT( qDebug() << "paramsForMethod()" << num << glob << fit );
+    QString m = curMethod->subCalc->methodName();
     QStringList rv;
-    if ( ! methods.contains(m) ) return rv;
-    QHash<QString,paramHelper*>::iterator ip = methods[m]->params.begin();
-    while ( ip != methods[m]->params.end() )
+    QHash<QString,paramHelper*>::iterator ip = curMethod->params.begin();
+    while ( ip != curMethod->params.end() )
     {
         if ( fit )
         {   // Fit Parameter gehen hier vor
-            if ( ip.value()->fitparam )
+            if ( ip.value()->togFit != nullptr && ip.value()->togFit->isChecked() && ip.value()->togFit->isEnabled() )
+            {
+                //ip.value()->fitparam = true;
                 rv << ip.value()->key;
+            }
+            //else
+            //    ip.value()->fitparam = false;
         }
-        else if ( !num || (ip.value()->type == paramHelper::number) )
+        else if ( !num || (ip.value()->type == paramHelper::numdbl) || (ip.value()->type == paramHelper::numint) )
             rv << ip.value()->key;
         ++ip;
     }
@@ -462,22 +463,24 @@ QStringList SC_CalcGUI::paramsForMethod( QString m, bool num, bool glob, bool fi
  *               as text, else as index
  * @return String of the current value of this parameter, "?" if not known.
  */
-QString SC_CalcGUI::currentParamValueStr( QString m, QString p, bool text )
+QString SC_CalcGUI::currentParamValueStr(QString p, bool text )
 {
-    if ( m.isEmpty() && curMethod != nullptr ) m = curMethod->subCalc->methodName();
-    if ( ! methods.contains(m) ) return "?1";
-    if ( methods[m]->params.contains(p) )
+    DT( qDebug() << "currentParamValueStr()" << p );
+    QString m = curMethod->subCalc->methodName();
+    if ( curMethod->params.contains(p) )
     {
-        paramHelper *par = methods[m]->params.value(p);
+        paramHelper *par = curMethod->params.value(p);
         switch ( par->type )
         {
-        /*case paramHelper::text:
+        case paramHelper::undef:
+            break;
+        case paramHelper::numdbl:
             if ( par->gui.w )
-                par->value.text = par->gui.inp->text();
-            return par->value.text;*/
-        case paramHelper::number:
+                par->value.number = par->gui.numd->value();
+            return QString::number(par->value.number);
+        case paramHelper::numint:
             if ( par->gui.w )
-                par->value.number = par->gui.num->value();
+                par->value.number = par->gui.numi->value();
             return QString::number(par->value.number);
         case paramHelper::select:
             if ( par->gui.w )
@@ -502,18 +505,36 @@ QString SC_CalcGUI::currentParamValueStr( QString m, QString p, bool text )
         return QString::number(inpSingleValueVectors[p]);
     return "?3";
 }
-double SC_CalcGUI::currentParamValueDbl( QString m, QString p )
+double SC_CalcGUI::currentParamValueDbl( QString p )
 {
-    if ( m.isEmpty() && curMethod != nullptr ) m = curMethod->subCalc->methodName();
-    if ( ! methods.contains(m) ) return 0.0;
-    if ( methods[m]->params.contains(p) )
+    DT( qDebug() << "currentParamValueDbl()" << p );
+    // Bzgl. der Eingabe von QMax gibt es zwei Wertefelder:
+    //  inpEditQmax (EditQmax) - kommt vom User
+    //  outCalcQmax (CalcQmax) - kommt aus der HeaderData-Tabelle
+    // Unterschieden werden die beiden Eingaben über die Radiobuttons
+    //  radEditQmaxData (EditQmaxData)
+    //  radEditQmaxPreset (EditQmaxPreset)
+
+    QString m = curMethod->subCalc->methodName();
+
+    //if ( p.contains("qmax",Qt::CaseInsensitive) )
+    //    qDebug() << "curParDbl" << p << methods[m]->params.contains(p)
+    //             << inpValues.contains(p) << inpSingleValueVectors.contains(p);
+
+    if ( curMethod->params.contains(p) )
     {
-        paramHelper *par = methods[m]->params.value(p);
+        paramHelper *par = curMethod->params.value(p);
         switch ( par->type )
         {
-        case paramHelper::number:
+        case paramHelper::undef:
+            break;
+        case paramHelper::numdbl:
             if ( par->gui.w )
-                par->value.number = par->gui.num->value();
+                par->value.number = par->gui.numd->value();
+            return par->value.number;
+        case paramHelper::numint:
+            if ( par->gui.w )
+                par->value.number = par->gui.numi->value();
             return par->value.number;
         case paramHelper::select:
             if ( par->gui.w )
@@ -534,18 +555,24 @@ double SC_CalcGUI::currentParamValueDbl( QString m, QString p )
         return inpSingleValueVectors[p];
     return 0.0;
 }
-int SC_CalcGUI::currentParamValueInt( QString m, QString p )
+int SC_CalcGUI::currentParamValueInt( QString p )
 {
-    if ( m.isEmpty() && curMethod != nullptr ) m = curMethod->subCalc->methodName();
-    if ( ! methods.contains(m) ) return 0;
-    if ( methods[m]->params.contains(p) )
+    DT( qDebug() << "currentParamValueInt()" << p );
+    QString m = curMethod->subCalc->methodName();
+    if ( curMethod->params.contains(p) )
     {
-        paramHelper *par = methods[m]->params.value(p);
+        paramHelper *par = curMethod->params.value(p);
         switch ( par->type )
         {
-        case paramHelper::number:
+        case paramHelper::undef:
+            break;
+        case paramHelper::numdbl:
             if ( par->gui.w )
-                par->value.number = par->gui.num->value();
+                par->value.number = par->gui.numd->value();
+            return par->value.number;
+        case paramHelper::numint:
+            if ( par->gui.w )
+                par->value.number = par->gui.numi->value();
             return par->value.number;
         case paramHelper::select:
             if ( par->gui.w )
@@ -566,41 +593,35 @@ int SC_CalcGUI::currentParamValueInt( QString m, QString p )
         return inpSingleValueVectors[p];
     return 0;
 }
-bool SC_CalcGUI::currentParamValueLog( QString m, QString p )
-{
-    if ( m.isEmpty() && curMethod != nullptr ) m = curMethod->subCalc->methodName();
-    if ( ! methods.contains(m) ) return false;
-    if ( methods[m]->params.contains(p) )
-    {
-        paramHelper *par = methods[m]->params.value(p);
-        if ( par->type != paramHelper::toggle ) return false;
-        if ( par->gui.w )
-            par->value.flag = par->gui.tog->isChecked();
-        return par->value.flag;
-    }
-    // Keine globalen Werte, da dort keine bool sind
-    return false;
-}
 
-bool SC_CalcGUI::limitsOfParamValue( QString m, QString p, double &min, double &max, bool &countable )
+bool SC_CalcGUI::limitsOfParamValue(QString p, double &min, double &max, bool &countable )
 {
+    DT( qDebug() << "limitsOfParamValue()" << p );
     min = 0;
     max = 0;
     countable = false;
-    if ( m.isEmpty() && curMethod != nullptr ) m = curMethod->subCalc->methodName();
-    if ( ! methods.contains(m) ) return false;
-    if ( methods[m]->params.contains(p) )
+    QString m = curMethod->subCalc->methodName();
+    //if ( ! methods.contains(m) ) return false;
+    if ( curMethod->params.contains(p) )
     {
-        paramHelper *par = methods[m]->params.value(p);
+        paramHelper *par = curMethod->params.value(p);
         switch ( par->type )
         {
-        //case paramHelper::text:
-        //    return false;
-        case paramHelper::number:
+        case paramHelper::undef:
+            return false;
+        case paramHelper::numdbl:
             if ( par->gui.w )
             {
-                min = par->gui.num->minimum();
-                max = par->gui.num->maximum();
+                min = par->gui.numd->minimum();
+                max = par->gui.numd->maximum();
+                return true;
+            }
+            return false;
+        case paramHelper::numint:
+            if ( par->gui.w )
+            {
+                min = par->gui.numi->minimum();
+                max = par->gui.numi->maximum();
                 return true;
             }
             return false;
@@ -624,37 +645,44 @@ bool SC_CalcGUI::limitsOfParamValue( QString m, QString p, double &min, double &
     return false;
 }
 
-bool SC_CalcGUI::updateParamValue( QString m, QString p, double v, QColor col, bool dbg )
+bool SC_CalcGUI::updateParamValue(QString p, double v, QColor col, bool dbg )
 {
-    if ( m.isEmpty() && curMethod != nullptr ) m = curMethod->subCalc->methodName();
-    if ( ! methods.contains(m) )
-    {
-        if ( dbg ) qDebug() << "updateParamValue: unknown method" << m;
-        return false;
-    }
+    DT( qDebug() << "updateParamValue()" << p );
+    if ( p.contains("Grid",Qt::CaseInsensitive) ) dbg=true;
+    if ( p.contains("BeamPos",Qt::CaseInsensitive) ) dbg=true;
+    if ( p.contains("Beamcenter",Qt::CaseInsensitive) ) dbg=true;
+    if ( p.contains("Debye",Qt::CaseInsensitive) ) dbg=true;
 
-    if ( methods[m]->params.contains(p) )
+    QString m = curMethod->subCalc->methodName();
+    //if ( ! methods.contains(m) )
+    //{
+    //    if ( dbg ) qDebug() << "updateParamValue: unknown method" << m;
+    //    return false;
+    //}
+
+    if ( curMethod->params.contains(p) )
     {
         if ( dbg ) qDebug() << "updateParamValue: update" << m << p << v;
-        paramHelper *par = methods[m]->params[p];
+        paramHelper *par = curMethod->params[p];
 
-        if ( par->gui.w != nullptr && col != Qt::black )
+        if ( par->gui.w != nullptr && col != SETCOLMARK_IGNORED )
         {
-            QPalette pal = par->gui.num->palette();
-            pal.setBrush( QPalette::Base, col );
-            par->gui.num->setPalette(pal);
+            SETCOL( par->gui.w, col );
+            //QPalette pal = par->gui.num->palette();
+            //pal.setBrush( QPalette::Base, col );
+            //par->gui.num->setPalette(pal);
         }
         switch ( par->type )
         {
-        /*case paramHelper::text:
-            par->value.text = v;
-            if ( par->gui.w )
-                par->gui.inp->setText( par->value.text );
-            return true;*/
-        case paramHelper::number:
+        case paramHelper::numdbl:
             par->value.number = v;
             if ( par->gui.w )
-                par->gui.num->setValue( par->value.number );
+                par->gui.numd->setValue( par->value.number );
+            return true;
+        case paramHelper::numint:
+            par->value.number = v;
+            if ( par->gui.w )
+                par->gui.numi->setValue( par->value.number );
             return true;
         case paramHelper::select:
             par->value.number = v;
@@ -675,32 +703,32 @@ bool SC_CalcGUI::updateParamValue( QString m, QString p, double v, QColor col, b
     return false;
 }
 
+bool SC_CalcGUI::updateParamValueColor(QString p, QColor col )
+{
+    DT( qDebug() << "updateParamValueColor()" << p );
+    QString m = curMethod->subCalc->methodName();
+    //if ( ! methods.contains(m) ) return false;
+
+    if ( ! curMethod->params.contains(p) ) return false;
+
+    paramHelper *par = curMethod->params[p];
+    if ( par->gui.w != nullptr && col != Qt::black )
+    {
+        SETCOL( par->gui.w, col );
+        return true;
+    }
+    return false;
+}
+
 bool SC_CalcGUI::updateParamValueForFit( QString p, double v, bool dbg )
 {
-    QString m;
-    if ( curMethod != nullptr )
-        m = curMethod->subCalc->methodName();
-    else
+    if ( curMethod->params.contains(p) )
     {
-        qDebug() << "updateParamValueForFit: method undef.";
-        return false;
-    }
-    if ( ! methods.contains(m) )
-    {
-        qDebug() << "updateParamValueForFit: inv methos" << m;
-        return false;
-    }
-
-    if ( methods[m]->params.contains(p) )
-    {
-        paramHelper *par = methods[m]->params[p];
+        paramHelper *par = curMethod->params[p];
         switch ( par->type )
         {
-        /*case paramHelper::text:
-            if ( dbg ) qDebug() << "updateParamValueForFit:Text" << p << v << "old:" << par->value.text;
-            par->value.text = v;
-            return true;*/
-        case paramHelper::number:
+        case paramHelper::numdbl:
+        case paramHelper::numint:
             if ( dbg && par->value.number != v )
                 qDebug() << "updateParamValueForFit:Number" << p << v << "old:" << par->value.number;
             par->value.number = v;
@@ -724,51 +752,62 @@ bool SC_CalcGUI::updateParamValueForFit( QString p, double v, bool dbg )
 
 void SC_CalcGUI::resetParamColorMarker( QColor col )
 {
-    QHash<QString,calcHelper*>::iterator im = methods.begin();
-    while ( im != methods.end() )
-    {
-        QHash<QString,paramHelper*>::iterator ip = methods[im.key()]->params.begin();
-        while ( ip != methods[im.key()]->params.end() )
+    DT( qDebug() << "resetParamColorMarker()" << col );
+    //QHash<QString,calcHelper*>::iterator im = methods.begin();
+    //while ( im != methods.end() )
+    //{
+        //qDebug() << "resetParamColorMarker im" << im.key();
+        QHash<QString,paramHelper*>::iterator ip = curMethod->params.begin();
+        while ( ip != curMethod->params.end() )
         {
+            //qDebug() << "resetParamColorMarker ip" << ip.key();
             if ( ip.value()->gui.w != nullptr )
             {
-                QPalette pal = ip.value()->gui.num->palette();
-                pal.setBrush( QPalette::Base, col );
-                ip.value()->gui.num->setPalette(pal);
+                SETCOL(ip.value()->gui.w, col);
+                if ( col == SETCOLMARK_CLEARED )
+                {
+                    QString tt = ip.value()->gui.w->toolTip();
+                    int p = tt.indexOf("File:");
+                    if ( p >= 0 ) tt.truncate(p);
+                    ip.value()->gui.w->setToolTip( tt.trimmed() );
+                }
             }
             ++ip;
         }
-        ++im;
-    }
+        //++im;
+    //}
+    //qDebug() << "resetParamColorMarker ENDE";
 }
 
 /**
  * @brief SC_CalcGUI::allNumericalParams
- * @param m - current method to use
  * @return a QHash with all numerical parameter values of this method.
  * If in GUI mode the internal values are updated before returning.
  */
-SC_CalcGUI::_numericalParams SC_CalcGUI::allNumericalParams( QString m )
+SC_CalcGUI::_numericalParams SC_CalcGUI::allNumericalParams()
 {
     _numericalParams rv;
-    if ( ! methods.contains(m) ) return rv;
-    QHash<QString,paramHelper*>::iterator ip = methods[m]->params.begin();
-    while ( ip != methods[m]->params.end() )
+    QHash<QString,paramHelper*>::iterator ip = curMethod->params.begin();
+    while ( ip != curMethod->params.end() )
     {
         paramHelper *par = ip.value();
         switch ( par->type )
         {
-        //case paramHelper::text:
-        default:
-            break; // TODO: text umwandeln in eine Zahl? - wohl eher nicht bzw. Textfelder kommen kaum vor
+        case paramHelper::undef:
+            break;
         case paramHelper::toggle:
             if ( par->gui.w )
                 par->value.flag = par->gui.tog->isChecked();
             rv.insert( par->key, par->value.flag );
             break;
-        case paramHelper::number:
+        case paramHelper::numdbl:
             if ( par->gui.w )
-                par->value.number = par->gui.num->value();
+                par->value.number = par->gui.numd->value();
+            rv.insert( par->key, par->value.number );
+            break;
+        case paramHelper::numint:
+            if ( par->gui.w )
+                par->value.number = par->gui.numi->value();
             rv.insert( par->key, par->value.number );
             break;
         case paramHelper::select:
@@ -799,15 +838,16 @@ SC_CalcGUI::_numericalParams SC_CalcGUI::allNumericalParams( QString m )
     return rv;
 }
 
-bool SC_CalcGUI::isCurrentParameterValid( QString m, QString p, bool forfit )
+bool SC_CalcGUI::isCurrentParameterValid(QString p, bool forfit )
 {
-    // Methode gültig?
-    if ( ! methods.contains(m) ) return false;
     // Methodenspezifischer Parameter?
-    if ( methods[m]->params.contains(p) )
+    if ( curMethod->params.contains(p) )
     {
-        if ( methods[m]->params[p]->disabled ) return false;
-        if ( forfit && !methods[m]->params[p]->fitparam ) return false;
+        if ( forfit )
+        {   // Die Fit-Parameter anders untersuchen
+            if ( curMethod->params[p]->togFit == nullptr ) return false;
+            return curMethod->params[p]->togFit->isEnabled() && curMethod->params[p]->togFit->isChecked();
+        }
         return true;
     }
     // Globaler Wert?
@@ -823,25 +863,18 @@ bool SC_CalcGUI::isCurrentParameterValid( QString m, QString p, bool forfit )
 
 /**
  * @brief SC_CalcGUI::prepareCalculation
- * @param m       - current method to use ("*" during init, "F" during 2D-Fit)
+ * @param fromFit - if true called from the 2d-fit (use other dataGetter)
  * @param getData - if true call the method specific prepare function
  */
-void SC_CalcGUI::prepareCalculation( QString m, bool getData )
+void SC_CalcGUI::prepareCalculation(bool fromFit)
 {
-    if ( m == "F" )
+    if ( fromFit )
     {   // Special call during 2D-Fit to update the parameters
         curMethod->subCalc->prepareData( &dataGetterForFit );
         return;
     }
-    curMethod = methods[m];
-    if ( curMethod == nullptr )
-    {
-        memory = nullptr;
-        return;
-    }
     memory = curMethod->subCalc;
-    if ( getData )
-        curMethod->subCalc->prepareData( &dataGetter );
+    curMethod->subCalc->prepareData( &dataGetter );
 }
 
 /**
@@ -853,23 +886,41 @@ void SC_CalcGUI::prepareCalculation( QString m, bool getData )
  */
 bool SC_CalcGUI::dataGetter( QString p, _valueTypes &v )
 {
+    DT( qDebug() << "dataGetter()" << p );
     if ( curMethod == nullptr ) return false;
+
+    if ( p.contains("qmax",Qt::CaseInsensitive) )
+    {
+        // Bzgl. der Eingabe von QMax gibt es zwei Wertefelder:
+        // "G;0;EditQmax;", -> ist oben schon definiert
+        // "G;0;CalcQmax;inp|4;Qmax calculated from data header above;",
+        // Unterschieden werden die beiden Eingaben über die Radiobuttons
+        //"G;0;EditQmaxData;tog;;",   // auch wenn das Radiobuttons sind
+        //"G;0;EditQmaxPreset;tog;;", // -"-
+        paramHelper *par = curMethod->params["EditQmaxData"];
+        if ( par->gui.w )
+            par->value.flag = par->gui.rad->isChecked();  // RADIOBUTTON !!!
+        if ( par->value.flag )
+            p = "CalcQmax";
+        else
+            p = "EditQmax";
+    }
     if ( curMethod->params.contains(p) )
     {
         paramHelper *par = curMethod->params[p];
         switch ( par->type )
         {
-        /*case paramHelper::text:
+        case paramHelper::numdbl:
             if ( par->gui.w )
-                par->value.text = par->gui.inp->text();
-            v.str = par->value.text;
-            D(qDebug() << "dataGetter() paramHelper::text" << p << v.str;)
-            break;*/
-        case paramHelper::number:
-            if ( par->gui.w )
-                par->value.number = par->gui.num->value();
+                par->value.number = par->gui.numd->value();
             v.value = par->value.number;
-            D(qDebug() << "dataGetter() paramHelper::number" << p << v.value;)
+            D(qDebug() << "dataGetter() paramHelper::numdbl" << p << v.value;)
+            break;
+        case paramHelper::numint:
+            if ( par->gui.w )
+                par->value.number = par->gui.numi->value();
+            v.value = par->value.number;
+            D(qDebug() << "dataGetter() paramHelper::numint" << p << v.value;)
             break;
         case paramHelper::select:
             if ( par->gui.w )
@@ -914,15 +965,33 @@ bool SC_CalcGUI::dataGetter( QString p, _valueTypes &v )
 bool SC_CalcGUI::dataGetterForFit( QString p, _valueTypes &v )
 {
     if ( curMethod == nullptr ) return false;
+
+    if ( p.contains("qmax",Qt::CaseInsensitive) )
+    {
+        //qDebug() << "dataGetter" << p;
+        // Bzgl. der Eingabe von QMax gibt es zwei Wertefelder:
+        // "G;0;EditQmax;", -> ist oben schon definiert
+        // "G;0;CalcQmax;inp|4;Qmax calculated from data header above;",
+        // Unterschieden werden die beiden Eingaben über die Radiobuttons
+        //"G;0;EditQmaxData;tog;;",   // auch wenn das Radiobuttons sind
+        //"G;0;EditQmaxPreset;tog;;", // -"-
+        paramHelper *par = curMethod->params["EditQmaxData"];
+        //if ( par->gui.w )
+        //    par->value.flag = par->gui.rad->isChecked();  // RADIOBUTTON !!!
+        if ( par->value.flag )
+            p = "CalcQmax";
+        else
+            p = "EditQmax";
+        //qDebug() << "dataGetterForFit" << p << par->value.flag;
+    }
+
     if ( curMethod->params.contains(p) )
     {
         paramHelper *par = curMethod->params[p];
         switch ( par->type )
         {
-        /*case paramHelper::text:
-            v.str = par->value.text;
-            return true;*/
-        case paramHelper::number:
+        case paramHelper::numdbl:
+        case paramHelper::numint:
             v.value = par->value.number;
             D(qDebug() << "dataGetterForFit() paramHelper::number" << p << v.value;)
             return true;
@@ -960,11 +1029,10 @@ bool SC_CalcGUI::dataGetterForFit( QString p, _valueTypes &v )
  * @param pa         - function to show the progress and get the abort flag
  * Starts the calculation of the current method.
  */
-void SC_CalcGUI::doCalculation( int numThreads, progressAndAbort pa )
+void SC_CalcGUI::doCalculation( int numThreads )
 {
     if ( curMethod == nullptr ) return;
-    //curMethod->subCalc->tpvPerformRandom(ids); // TODO
-    curMethod->subCalc->doCalculation( numThreads, pa );
+    curMethod->subCalc->doCalculation( numThreads );
 }
 
 /**
@@ -983,7 +1051,8 @@ double SC_CalcGUI::doFitCalculation( int numThreads, int bstop, int border, long
 void SC_CalcGUI::setNoFitRect( int id, int x0, int y0, int x1, int y1 )
 {
     if ( curMethod == nullptr ) return;
-    qDebug() << " SC_CalcGUI::setNoFitRect" << id << x0 << y0 << x1 << y1;
+    if ( x0>=0 || y0>=0 || x1>0 || y1>0 )
+        qDebug() << " SC_CalcGUI::setNoFitRect" << id << x0 << y0 << x1 << y1;
     curMethod->subCalc->setNoFitRect( id, x0, y0, x1, y1 );
 }
 
@@ -1016,14 +1085,10 @@ bool SC_CalcGUI::getLastXY( int &x, int &y )
     return true;
 }
 
-paramHelper *SC_CalcGUI::getParamPtr( QString m, QString p )
+paramHelper *SC_CalcGUI::getParamPtr( QString p )
 {
-    if ( ! methods.contains(m) ) return nullptr;
-    if ( methods[m]->params.contains(p) )
-    {
-        return methods[m]->params.value(p);
-    }
-    return nullptr;
+    DT( qDebug() << "getParamPtr()" << p );
+    return curMethod->params.value(p,nullptr);
 }
 
 
@@ -1033,264 +1098,50 @@ paramHelper *SC_CalcGUI::getParamPtr( QString m, QString p )
 /**
  * @brief calcHelper::calcHelper
  * @param c   - Calculation class pointer
- * @param gui - if true, create all GUI components
  */
-calcHelper::calcHelper( SC_Calc *c, bool gui )
+calcHelper::calcHelper(SC_Calc_GENERIC *c)
 {
-    //qDebug() << "calcHelper" << c->methodName() << gui;
-/* Daten aus dem Config-File zum Überschreiben der Werte aus dem Code:
-# [ <methode> ]
-#
-# Wenn der Parameter fittable ist gilt:
-#
-# <paramname> = <a> : <b> : <c>
-#    <a> ist der Defaultwert
-#    <b> ist der Minimalwert beim Fit
-#    <c> ist der Maximalwert beim Fit
-#
-# Wenn der Parameter nicht zum Fit geeignet ist gilt:
-#
-# <paramname> = <a>
-#    <a> ist der Defaultwert
-*/
-    QSettings globsets(SETT_APP,SETT_GUI);
-    QSettings *cfg = nullptr;
-    if ( ! SC_MainGUI::configParamsFile.isEmpty() )
-    {
-        cfg = new QSettings( SC_MainGUI::configParamsFile, QSettings::IniFormat );
-        cfg->beginGroup( c->methodName() );
-        if ( cfg->allKeys().size() > 0 ) qDebug() << "calcHelper (ext config): " << cfg->group() << cfg->allKeys();
-        globsets.beginGroup( "Fit-"+cfg->group() );
-    }
+    DT( qDebug() << "calcHelper()" << c->methodName() );
     subCalc = c;
     QStringList meta = c->guiLayout();
-    subLayout = new QGridLayout;
-    subLayout->setVerticalSpacing(3);
     for ( int m=0; m<meta.size(); m++ )
     {
         QStringList sl = meta[m].split(";");
-        bool parDis = false;
         if ( sl.size() < 4 )
         {   // x;y;prompt;type müssen immer da sein
             qDebug() << "calcHelper: Ignore" << sl;
             continue;
         }
-        if ( sl[0].at(0) == 'X' )
-        {   // Gesperrtes Feld
-            if ( sl[1].at(0).isDigit() )
-            {   // Normales Feld
-                slDisWidgets << c->methodName()+":"+sl[2];
-                sl[0] = sl[0].mid(1); // bleibt aber erhalten in der Struktur
-                //qDebug() << "DISa" << sl;
-                parDis = true;
-            }
-            else
-            {   // Spezielle Einträge um globale Parameter sperren zu können
-                sl.takeFirst();
-                //qDebug() << "DISb" << sl;
-                slDisWidgets << sl;
-                continue;
-            }
-        }
-        while ( sl.size() < 6 ) sl << " ";  // tooltip;default sind optional
+        //while ( sl.size() < 6 ) sl << " ";  // tooltip;default sind optional
         // "x;y;prompt;type;tooltip;default" with:  ==> sc_calc.h for details
         //  x;y     = index in the grid (0,1,2,....)
         //  prompt  = prompting text label left of the inputfield
         //  type    = Selection : "cbs|...|...|..."
-        //             Fittable : "cbsfit|...|...|..."
-        //            Textinput : "txt|len"
         //            Numericals: "inp|frac|min|max|unit"
-        //              Fittable: "inpfit|frac|min|max|unit"
         //            CheckBox  : "tog"
         //            Infolabel : "lbl"
         //  tooltip = this is the tooltip set to both prompt label and inputfield (optional)
         //  default = the default value (optional)
         paramHelper *e = new paramHelper;
-        e->fitparam = sl[3].mid(3,3) == "fit";
-        e->disabled = parDis;
         e->key = sl[2].trimmed();
-        //e->value.text   = "";
         e->value.number = 0;
         e->value.flag   = false;
         e->gui.w = nullptr;
-        QStringList typval = sl[3].mid( e->fitparam ? 7 : 4 ).split("|",Qt::SkipEmptyParts);
-        if ( sl[0] == "G" )
-        {   // Spezielle Einträge für globale Werte zum Fitten
-            e->lbl1 = nullptr;  // wird im Programm-Konstruktor gefüllt (ebenso wie .gui.w)
-            e->type = paramHelper::number; // nur damit möglich
-            params.insert( e->key, e );
-            continue;
-        }
-        if ( cfg != nullptr && cfg->contains(sl[2]) )
+        switch ( sl[0][0].toLatin1() )
         {
-            globsets.remove( sl[2] );
-            QStringList tmp = cfg->value(sl[2],"").toString().split(":");
-            sl[5] = tmp[0];     // Default
-            if ( tmp.size() > 1 )
-            {   // Fittable
-                e->fitparam = true;
-                if ( typval.size() >= 3 )
-                {
-                    typval[2] = tmp[1]; // Min
-                    typval[3] = tmp[2]; // Max
-                }
-                else
-                {
-                    if ( typval.size() == 0 ) typval << "3"; // Fraction
-                    if ( typval.size() == 1 ) typval << tmp[1]; // Min
-                    if ( typval.size() == 2 ) typval << tmp[2]; // Max
-                }
-            }
-            else
-            {   // Nicht fittable
-                e->fitparam = false;
-            }
-        }
-        if ( gui )
-        {
-            e->lbl1 = new QLabel( e->key );
-            e->lbl1->setObjectName( "lbl_"+e->key );
-            e->lbl1->setAlignment( Qt::AlignVCenter | Qt::AlignRight );
-            e->lbl1->setContextMenuPolicy( Qt::NoContextMenu );
-            if ( e->fitparam )
-            {
-                QFont fnt = e->lbl1->font();
-                fnt.setBold(true);
-                e->lbl1->setFont(fnt);
-            }
-        }
-        if ( sl[3].startsWith("cbs") )
-        {   // ComboBox  : "cbs|...|...|..." mit den jeweiligen Werten
-            e->type = paramHelper::select;
-            if ( gui )
-            {
-                e->gui.cbs = new QComboBox;
-#ifdef CALC_INPUT_MAXWIDTH
-                e->gui.cbs->setMaximumWidth(CALC_INPUT_MAXWIDTH);
-#endif
-                e->gui.cbs->view()->setMinimumWidth(200);
-                /**/
-                for ( int i=0; i<typval.size(); i++ ) typval[i] = typval[i]+QString(" {%1}").arg(i);
-                /**/
-                e->gui.cbs->addItems( typval );
-                if ( !sl[5].isEmpty() )
-                {   // Defaultwert setzen
-                    e->gui.cbs->setCurrentIndex( e->gui.cbs->findText(sl[5],Qt::MatchStartsWith) );
-                }
-                e->gui.cbs->connect( e->gui.cbs, SIGNAL(currentIndexChanged(int)),
-                                     SC_MainGUI::getInst(), SLOT(automaticRecalc()) );
-            }
-            if ( !sl[5].isEmpty() )
-            {   // set default in local variable
-                e->value.number = typval.indexOf(sl[5]);
-            }
-        }
-        /*else if ( sl[3].startsWith("txt") )
-        {   // Textinput : "txt|len" mit maximaler Textlänge (optional)
-            e->type = paramHelper::text;
-            if ( gui )
-            {
-                e->gui.inp = new QLineEdit;
-                if ( typval.size() > 0 )
-                    e->gui.inp->setMaxLength( typval[0].toInt() );
-                if ( !sl[5].isEmpty() )
-                {   // Defaultwert setzen
-                    e->gui.inp->setText( sl[5] );
-                }
-            }
-            if ( !sl[5].isEmpty() )
-            {   // set default in local variable
-                e->value.text = sl[5];
-            }
-        }*/
-        else if ( sl[3].startsWith("inp") )
-        {   // Zahlenwert: "inp|frac|min|max|unit" mit Nachkommastellen, Grenzwerten und Einheit (optional)
-            e->type = paramHelper::number;
-            if ( gui )
-            {
-                e->gui.num = new QDoubleSpinBox;
-#ifdef CALC_INPUT_MAXWIDTH
-                e->gui.num->setMaximumWidth( CALC_INPUT_MAXWIDTH );
-#endif
-                //e->gui.num->setContentsMargins( 0, 0, 0, 0 ); geht nicht wirklich (TODO)
-                if ( typval.size() > 0 )
-                    e->gui.num->setDecimals( typval[0].toInt() );
-                if ( typval.size() > 1 )
-                    e->gui.num->setMinimum( typval[1].toDouble() );
-                else
-                    e->gui.num->setMinimum( -10000.0 );
-                if ( typval.size() > 2 )
-                    e->gui.num->setMaximum( typval[2].toDouble() );
-                else
-                    e->gui.num->setMaximum( 10000.0 );
-                if ( typval.size() > 3 )
-                {
-                    e->gui.num->setSuffix( typval[3] );
-                    if ( typval[3]=="°" && e->gui.num->minimum()==0 && e->gui.num->maximum()==360 )
-                        e->gui.num->setWrapping(true); // Bei Winkeln aktiviert
-                }
-                if ( !sl[5].isEmpty() )
-                {   // Defaultwert setzen
-                    e->gui.num->setValue( sl[5].toDouble() );
-                }
-                e->gui.num->connect( e->gui.num, SIGNAL(valueChanged(double)),
-                                     SC_MainGUI::getInst(), SLOT(automaticRecalc()) );
-            }
-            if ( !sl[5].isEmpty() )
-            {   // set default in local variable
-                e->value.number = sl[5].toDouble();
-            }
-        }
-        else if ( sl[3].startsWith("tog") )
-        {   // CheckBox  : "tog"
+        case 'N':
+            e->type = paramHelper::numdbl;
+            break;
+        case 'I':
+            e->type = paramHelper::numint;
+            break;
+        case 'T':
             e->type = paramHelper::toggle;
-            if ( gui )
-            {
-                e->gui.tog = new QCheckBox;
-                e->gui.tog->connect( e->gui.tog, SIGNAL(stateChanged(int)),
-                                     SC_MainGUI::getInst(), SLOT(automaticRecalc()) );
-                if ( !sl[5].isEmpty() )
-                {   // Defaultwert setzen
-                    e->gui.tog->setChecked( sl[5].toInt() != 0 );
-                }
-            }
-            if ( !sl[5].isEmpty() )
-            {   // set default in local variable
-                e->value.flag = sl[5].toInt() != 0;
-            }
-        }
-        else if ( sl[3].startsWith("lbl") && gui )
-        {   // Infolabel : "lbl" (hier wird der Prompt-Text über beide Spalten gezogen)
-            // und es wird nicht in der Parameter-Struktur gespeichert.
-            subLayout->addWidget( e->lbl1, sl[1].toInt(), sl[0].toInt()*3+0, 1, 2 );
-            continue;
-        }
-        else
-        {
-            qDebug() << "calcHelper: Unknown" << sl;
-            continue;
-        }
-        if ( !sl[4].trimmed().isEmpty() )
-        {
-            //e->lbl1->setToolTip( sl[4].trimmed() ); -> nur Info bzgl. Kontext-Menü
-            e->gui.w->setToolTip( sl[4].trimmed() );
-            //qDebug() << "TOOLTIP:" << c->methodName() << e->lbl1->text() << sl[4];
+            break;
+        case 'C':
+            e->type = paramHelper::select;
+            break;
         }
         params.insert( e->key, e );
-        //qDebug() << "calcHelper: Use" << sl;
-        subLayout->addWidget( e->lbl1,  sl[1].toInt(), sl[0].toInt()*3+0 );
-        subLayout->addWidget( e->gui.w, sl[1].toInt(), sl[0].toInt()*3+1 );
-    }
-    int cmax = subLayout->columnCount();
-    // Die letzte Zeile/Spalte als leeren Stretchbereich einfügen
-    subLayout->setColumnStretch( subLayout->columnCount(), 1 );
-    subLayout->setRowStretch( subLayout->rowCount(), 1 );
-    // Zwischen den Spalten eine vertikale Linie
-    for ( int c=2; c<cmax; c+=3 )
-    {
-        QFrame *frm = new QFrame;
-        frm->setFrameShape( QFrame::VLine );
-        subLayout->addWidget( frm, 0, c, subLayout->rowCount(), 1 );
-    }
-    if ( cfg ) globsets.endGroup();
+    } // for m
 }

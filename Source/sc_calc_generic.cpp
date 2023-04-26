@@ -1,7 +1,7 @@
 #include "sc_calc_generic.h"
 
 
-SC_Calc_GENERIC::SC_Calc_GENERIC() : SC_Calc()
+SC_Calc_GENERIC::SC_Calc_GENERIC()
 {
     calc = new SasCalc_GENERIC_calculation();
 }
@@ -9,143 +9,135 @@ SC_Calc_GENERIC::SC_Calc_GENERIC() : SC_Calc()
 
 QStringList SC_Calc_GENERIC::guiLayout()
 {
-    // Each element must be in the form "x;y;prompt;type;tooltip;default" with:  ==> sc_calc.h for details
+    DT( qDebug() << "guiLayout()" );
+    // Each element must be in the form "x;y;prompt;type;tooltip;default" with:
     //  x;y     = index in the grid (0,1,2,....)
     //  prompt  = prompting text label left of the inputfield
     //  type    = Selection : "cbs|...|...|..."
-    //             Fittable : "cbsfit|...|...|..."
     //            Textinput : "txt|len"
     //            Numericals: "inp|frac|min|max|unit"
-    //              Fittable: "inpfit|frac|min|max|unit"
     //            CheckBox  : "tog"
     //            Infolabel : "lbl"
     //  tooltip = this is the tooltip set to both prompt label and inputfield (optional)
     //  default = the default value (optional)
+
+    // UPDATE März 2023:
+    //   Die GUI wird komplett überarbeitet. Alle Informationen werden aus dem ObjName des GUI-Elements
+    //   bezogen. Diese Liste hier wird nur noch für die Grenzwerte/Einheiten/Listen genutzt. D.h. die
+    //   ersten beiden Felder (x;y) werden nicht mehr genutzt, sollten für eine Übergangszeit aber noch
+    //   eindeutig bleiben.
+    //   Diese Liste wird in der Consolenversion auch genutzt.
+
     static QStringList slFCC =
-    { "0;0;EditBFactor;inpfit|3|0.01|999;;1",
-      "0;1;EditCeff;inpfit|4|0.01|999;;0.01",
-      "0;2;EditQmax;inpfit|4;;2",
-      "0;3;EditRadius;inpfit;Inner radius;20",
-      "0;4;EditRadiusi;inpfit;Outer radius;0",
-      "0;5;EditSigma;inpfit|4;;0.06",
-      "0;6;EditStretch;inp;;1",
-      "0;7;EditDbeta;inpfit|4|0|360|°;;2",
-      "0;8;EditDebyeWaller;inpfit|3|0|100|nm;;1",
-      "X0;9;MaxIter;inp;;1",  // normal :5
-      "0;10;EditPixelNoX;inp;;128",
-      "0;11;EditPixelNoY;inp;;128",
-      "0;12;EditPixelX;inp|4|0.001|1|m;;0.01",
-      "0;13;EditPixelY;inp|4|0.001|1|m;;0.01",
-      "0;14;EditDet;inp|4|0.001|100|m;;10",
-      "0;15;P1;inp;;0",
-      "0;16;Length;inpfit|4|0|1000;;1",
-      "0;17;SigmaL;inpfit|4;;0.06",
-      "0;18;ShellNo;inp;;0",
-      "0;19;reff;inp;;0",
+        {
+            "N;0;EditBFactor;inp|3|0.01|999;;1",
+            "N;0;EditCeff;inp|4|0.01|999;;0.01",
+            "N;0;EditQmax;inp|4;Qmax preset from user;2",
+            "N;0;EditRadius;inp;Inner radius;20",
+            "N;0;EditRadiusi;inp;Outer radius;0",
+            "N;0;EditSigma;inp|4;;0.06",
+            "N;0;EditDbeta;inp|4|0|360|°;;2",
+            "N;0;EditDebyeWaller;inp|3|0|100|nm;;1",
+            "N;0;EditPixelNoX;inp;;128",
+            "N;0;EditPixelNoY;inp;;128",
+            "N;0;EditPixelX;inp|4|0.001|1|m;;0.01",
+            "N;0;EditPixelY;inp|4|0.001|1|m;;0.01",
+            "N;0;EditDet;inp|4|0.001|100|m;;10",
+            "N;0;P1;inp;;0",       // wird in formpq verwendet
+            "N;0;Length;inp|4|0|1000;;1",
+            "N;0;SigmaL;inp|4;;0.06",
+            //"N;0;ShellNo;inp;;0",
+            "N;0;reff;inp;;0",
+            "N;0;EditCeffcyl;inp|4|0|999;;0",
 
-      //---
-      "1;0;Ordis;cbs|Gaussian|Exponential|Onsager|Maier-Saupe|Cut-off|Laguerre|z-dir|isotropic|mirrored Gaussian|mirrored Exponential|mirrored Onsager|mirrored Maier-Saupe|mirrored Cut-off|fiber pattern|TEST:(x²*y³);;isotropic",
-      "1;1;ComboBoxInterior;cbs|homogeneous|core + homogeneous sh|core + inhomogeneous sh;;homogeneous",
-      "1;2;ComboBoxParticle;cbs|Sphere|Cylinder|Disk|Vesicle|Cube|Ellipsoid|Triaxial ellipsoid|Super ellipsoid;;Sphere",
-      "1;3;ComboBoxPeak;cbs|Lorentzian|Gaussian|mod. 1 Lorentzian|mod. 2 Lorentzian|Pseudo-Voigt|Pearson VII|Gamma|Anisotropic Gaussian;;Anisotropic Gaussian",
-      "1;4;EditPeakPar;inp;;0",
-      "1;5;EditAzi;inpfit;;80",
-      "1;6;Rot_X;inp|2|0|360|°;;0",
-      "1;7;Rot_Y;inp|2|0|360|°;;0",
-      "X1;8;Rot_Z;inp|2|0|360|°;;0",
-      "X1;9;Rot_Angle;inp|2|0|360|°;;0",
-      "X1;10;Tilt_Angle;inp|2|0|360|°;;0",
-      "X1;11;Editx;inp;;0",
-      "X1;12;Edity;inp;;0",
-      "X1;13;EditAnglexy;inp;;0",
-            // Achtung: wenn oben das X wegfällt, müssen die beiden nächsten Werte verschoben werden
-      "1;12;EditRelDis;inp|2;;1",
-      "1;13;EditDist;inp|2;;1",
-      "1;14;EditDomainSize;inpfit|2|0|1000|nm;Radial domain size in nm;250",
-      "1;15;EditRho;inp;;0",
-      "1;16;iso;inpfit|5|0|1000;;1",    // Multiplikator für radintensity (generic)
-      "1;17;I0;inpfit|5|0.01|999999;;1000",
-      "1;18;Base;inpfit|5|-10000|10000;;0",
-      "1;19;ifluc;inp|4|0|1000;;0",
-      "1;20;rfluc;inp|4|0|1000;;0",
-      //---
-      "2;0;unit cell definiton;lbl;;",
-      "2;1;uca;inpfit|2|0.01|100|nm;;80",
-      "2;2;ucb;inpfit|2|0.01|100|nm;;21",
-      "2;3;ucc;inpfit|2|0.01|100|nm;;21",
-      "2;4;ucalpha;inp|3|0|360|°;;90",
-      "2;5;ucbeta;inp|3|0|360|°;;90",
-      "2;6;ucgamma;inp|3|0|360|°;;90",
-      "2;7;ucpsi;inpfit|3|0|360|°;;0",
-      "2;8;ucn1;inpfit;;1",
-      "2;9;ucn2;inpfit;;0",
-      "2;10;ucn3;inpfit;;0",
-      "2;11;theta;inpfit|3|0|360|°;;0",
-      "2;12;phi;inpfit|3|0|360|°;;0",
-      "2;13;EditWavelength;inp|5|0.001|200|nm;;0.154",
-      "X2;14;EditWAXSangle;inp;;90",
+            "C;0;Ordis;cbs|Gaussian|Exponential|Onsager|Maier-Saupe|Cut-off|Laguerre|z-dir|isotropic|mirrored Gaussian|mirrored Exponential|mirrored Onsager|mirrored Maier-Saupe|mirrored Cut-off|fiber pattern;;isotropic",
+            "C;0;ComboBoxInterior;cbs|homogeneous|core + homogeneous sh|core + inhomogeneous sh|multi-shell|myelin;;homogeneous",
+            "C;0;ComboBoxParticle;cbs|sphere|cylinder|disk|vesicle|cube|ellipsoid|triaxial ellipsoid|super ellipsoid, barrel|superball|excluded volume chain|Kratky Porod chain;;Sphere",
 
-      "2;15;acpl;inp;;0",
-      "2;16;bcpl;inp;;0",
-      "2;17;por;inp;;0",
+            "C;0;ComboBoxPeak;cbs|Lorentzian|Gaussian|mod. 1 Lorentzian|mod. 2 Lorentzian|Pseudo-Voigt|Pearson VII|Gamma|Anisotropic Gaussian;;",
+            // DEF='Anisotropic Gaussian' sieht blöd aus weil dann 'EditPeakPar' sichtbar ist, aber wegen LType=None diese
+            //          ComboBox disabled (=unsichtbar) gesetzt wird.
 
-      "2;18;LType;cbs|Lam|hex cyl|sq cyl|rec cyl|BCC|FCC|HCP|SC|BCT|Ia3d|Pn3m|Im3m|None|CP-Layers"
-            "|2D-Hex, GISAXS|2D-square, GISAXS|1D-lam, GISAXS|Fd3m, diamond|orthorombic spheres|QC;;None",
-      //if ComboBoxLattice.ItemIndex=0 then ltype:=0;   (* Lam *)
-      //if ComboBoxLattice.ItemIndex=1 then ltype:=1;   (* hex cyl *)
-      //if ComboBoxLattice.ItemIndex=2 then ltype:=2;   (* sq Cyl *)
-      //if ComboBoxLattice.ItemIndex=3 then ltype:=3;   (* rec cyl *)
-      //if ComboBoxLattice.ItemIndex=4 then ltype:=4;   (* BCC *)
-      //if ComboBoxLattice.ItemIndex=5 then ltype:=5;   (* FCC *)
-      //if ComboBoxLattice.ItemIndex=6 then ltype:=6;   (* HCP *)
-      //if ComboBoxLattice.ItemIndex=7 then ltype:=7;   (* SC *)
-      //if ComboBoxLattice.ItemIndex=8 then ltype:=8;   (* BCT *)
-      //if ComboBoxLattice.ItemIndex=9 then ltype:=9;   (* Ia3d *)
-      //if ComboBoxLattice.ItemIndex=10 then ltype:=10; (* Pn3m *)
-      //if ComboBoxLattice.ItemIndex=11 then ltype:=11; (* Im3m *)
-      //if ComboBoxLattice.ItemIndex=12 then ltype:=12;  (* none *)
-      //if ComboBoxLattice.ItemIndex=13 then ltype:=13;  (* CP-layers *)
-      //if ComboBoxLattice.ItemIndex=14 then ltype:=14;  (* 2D-Hex, GISAXS *)
-      //if ComboBoxLattice.ItemIndex=15 then ltype:=15;  (* 2D-square, GISAXS *)
-      //if ComboBoxLattice.ItemIndex=16 then ltype:=16;  (* 1D-lam, GISAXS *)
-      //if ComboBoxLattice.ItemIndex=17 then ltype:=17;  (* Fd3m, diamond *)
-      //if ComboBoxLattice.ItemIndex=18 then ltype:=18;  (* orthorombic spheres *)
-      //if ComboBoxLattice.ItemIndex=19 then ltype:=19;  (* QC *)
+            "C;0;LType;cbs|Lamellae|hex cyl|sq cyl|rec cyl|BCC|FCC|HCP|SC|BCT|Ia3d|Pn3m|Im3m|None|CP-Layers"
+                "|2D-Hex, GISAXS|2D-square, GISAXS|1D-lam, GISAXS|Fd3m, diamond|orthorombic spheres|QC"
+                "|Percus-Yevick|Teubner-Strey|Pm3n, A15;;None",
 
-      //---
-      "X3;0;CheckBoxf2q;tog;;0",
-      "X3;1;RadioButtonCHS;tog;;0",
-      "X3;2;RadioButtonCS;tog;;0",
-      "3;3;RadButDebyeScherrer;tog;;0",
-      "3;4;RadioButtonPara;tog;;0",
-      "X3;5;RadioButtonSolid;tog;;0",
-      //"3;6;RadioButtonVertical;tog;;0",
-      "3;7;CheckBoxTwinned;tog;;0",
-      "3;9;CheckBoxWAXS;tog;;0",
+            "N;0;EditPeakPar;inp;;0",
+            "N;0;EditAzi;inp;;80",
+            //"N;0;RotX;inp|2|0|360|°;;0",
+            //"N;0;RotY;inp|2|0|360|°;;0",
 
-//      "3;11;CheckBox10;tog;;0",
+            "N;0;EditDomainSize;inp|2|0|1000|nm;Radial domain size in nm;250",
+            "N;0;EditRho;inp;;0",
+            "N;0;iso;inp|5|0|1000;;1",    // Multiplikator für radintensity (generic)
+            "N;0;I0;inp|5|0|100000;;0",
+            "N;0;Base;inp|5|-10000|10000;;0",
+            "N;0;ifluc;inp|4|0|1000;;0",
+            "N;0;rfluc;inp|4|0|1000;;0",
+            //---
+            "N;0;uca;inp|2|0.01|100|nm;;80",
+            "N;0;ucb;inp|2|0.01|100|nm;;21",
+            "N;0;ucc;inp|2|0.01|100|nm;;21",
+            "N;0;ucalpha;inp|3|0|360|°;;90",
+            "N;0;ucbeta;inp|3|0|360|°;;90",
+            "N;0;ucgamma;inp|3|0|360|°;;90",
+            "N;0;ucpsi;inp|3|0|360|°;;0",
+            "N;0;ucn1;inp;;1",
+            "N;0;ucn2;inp;;0",
+            "N;0;ucn3;inp;;0",
+            "N;0;theta;inp|3|0|360|°;;0",  // -> PolTheta   Begriffe werden nicht geändert, damit
+            "N;0;phi;inp|3|0|360|°;;0",    // -> PolPhi     die Daten von vorher lesbar bleiben.
+            "N;0;rotTheta;inp|3|0|360|°;;0",
+            "N;0;rotPhi;inp|3|0|360|°;;0",
+            "N;0;EditWavelength;inp|5|0.001|200|nm;;0.154",
 
-      // Spezielle Einträge, die in die Params-Struktur übernommen werden. Die GUI-Elemente sind aber
-      // im Bereich der globalen Eingaben auf der linken Seite zu finden.
-      "G;0;Editdom1;inpfit|3|0.01|9999;;40",
-      "G;0;Editdom2;inpfit|3|0.01|9999;;40",
-      "G;0;Editdom3;inpfit|3|0.01|9999;;40",
+            "N;0;acpl;inp;;0", // Editastack
+            "N;0;bcpl;inp;;0", // Editbstack
 
-      // Spezielle Codierung für gesperrte Elemente aus dem generischen Teil
-      "X;Uvec;Vvec;Nvec",
+            "N;0;Alfa;inp;;0",
 
-        /*
-    params.amax = 10; // TODO, noch kein GUI-Element vorhanden
-    params.bmax = 10;   --> mehr für die Grafik in Scatter
-    params.cmax = 10;
-         */
+            //---
+            "T;0;RadButDebyeScherrer;tog;;0",
+            "T;0;RadioButtonPara;tog;;0",
+            "T;0;CheckBoxTwinned;tog;;0",
+            "T;0;CheckBoxWAXS;tog;;0",
 
-    };
+            // Spezielle Einträge, die in die Params-Struktur übernommen werden. Die GUI-Elemente sind aber
+            // im Bereich der globalen Eingaben auf der linken Seite zu finden.
+            "N;0;SigX;inp|3|0.01|9999;editdom1;40",
+            "N;0;SigY;inp|3|0.01|9999;editdom2;40",
+            "N;0;SigZ;inp|3|0.01|9999;editdom3;40",
+
+            "N;0;VAx1;inp|3|-1000|1000;Ax1;1",
+            "N;0;VAx2;inp|3|-1000|1000;Ax2;0",
+            "N;0;VAx3;inp|3|-1000|1000;Ax3;0",
+            "N;0;Ay1;inp|3|-1000|1000;Ay1;0",
+            "N;0;Ay2;inp|3|-1000|1000;Ay2;1",
+            "N;0;Ay3;inp|3|-1000|1000;Ay3;0",
+            "N;0;Az1;inp|3|-1000|1000;Az1;0",
+            "N;0;Az2;inp|3|-1000|1000;Az2;0",
+            "N;0;Az3;inp|3|-1000|1000;Az3;1",
+
+            "N;0;BeamPosX;inp|3|-1000|1000;;0",
+            "N;0;BeamPosY;inp|3|-1000|1000;;0",
+
+            "I;0;HKLmax;int|0|1|20;;3",
+            "I;0;GridPoints;int|0|16|1024;;64",
+
+            // Bzgl. der Eingabe von QMax gibt es zwei Wertefelder:
+            // "G;0;EditQmax;", -> ist oben schon definiert
+            "N;0;CalcQmax;inp|4;Qmax calculated from data header above;",
+            // Unterschieden werden die beiden Eingaben über die Radiobuttons
+            "T;0;EditQmaxData;tog;;",   // auch wenn das Radiobuttons sind
+            "T;0;EditQmaxPreset;tog;;", // -"-
+
+        };
     return slFCC;
 }
 
 void SC_Calc_GENERIC::prepareData( _dataGetter dg )
 {
+    DT( qDebug() << "prepareData()" );
     _valueTypes val, val1, val2;
 
     // Common settings
@@ -153,14 +145,15 @@ void SC_Calc_GENERIC::prepareData( _dataGetter dg )
     (*dg)( "RadioButtonQ2", val );  calc->setRadQ2( val.value > 0 );
     (*dg)( "RadioButtonQ4", val );  calc->setRadQ4( val.value > 0 );
     (*dg)( "ExpandImage", val );    calc->setExpandImage( val.value > 0 );
-    (*dg)( "EditGridPoints", val ); calc->setGridPoints( val.value );
-    (*dg)( "Edithklmax", val );     calc->setHKLmax( val.value );
-    //xx//(*dg)( "Uvec", val );           calc->setUvec( val.vec );
-    //xx//(*dg)( "Vvec", val );           calc->setVvec( val.vec );
-    //xx//(*dg)( "Nvec", val );           calc->setNvec( val.vec );
-    (*dg)( "Ax1", val );            calc->setAx1( val.vec );
-    (*dg)( "Ax2", val );            calc->setAx2( val.vec );
-    (*dg)( "Ax3", val );            calc->setAx3( val.vec );
+    (*dg)( "GridPoints", val );     calc->setGridPoints( val.value );
+    (*dg)( "HKLmax", val );         calc->setHKLmax( val.value );
+
+    // Diese A?? sind jetzt einzelne Elemente und werden einzeln von der GUI gelesen!
+    // im Main werden diese unter Ax1, Ax2, Ax3 als Vektoren gespeichert.
+    // TODO: die UI-Elemente umbenennen... Dann sollten hier wieder die Arrays genutzt werden können.
+    (*dg)( "Ax1", val );    calc->setAx1( val.vec );
+    (*dg)( "Ax2", val );    calc->setAx2( val.vec );
+    (*dg)( "Ax3", val );    calc->setAx3( val.vec );
     (*dg)( "SigXYZ", val );         calc->setSigXYZ( val.vec );
 
     (*dg)( "BeamPosX", val  );
@@ -168,16 +161,17 @@ void SC_Calc_GENERIC::prepareData( _dataGetter dg )
 
     // specific settings
     (*dg)( "EditRadius", val );      calc->setRadiusF( val.value );
+    (*dg)( "EditRadiusi", val );     calc->setRadiusI( val.value );
     (*dg)( "EditSigma", val );       calc->setSigmaF( val.value );
     (*dg)( "EditQmax", val );        calc->setQMax( val.value );
-    (*dg)( "EditStretch", val );     calc->setStretch( val.value );
     (*dg)( "CheckBoxTwinned", val ); calc->setCheckBoxTwinned( val.checked );
     (*dg)( "Ordis", val );           calc->setOrdis( val.select );
     (*dg)( "EditDebyeWaller", val ); calc->setDisplacement( val.value );
-    //xx//(*dg)( "MaxIter", val );         calc->setMaxIter( val.value );
     (*dg)( "EditCeff", val );        calc->setCeffF( val.value );
     (*dg)( "EditBFactor", val );     calc->setBFactorF( val.value );
     (*dg)( "EditDbeta", val );       calc->setDBetaF( val.value );
+
+    (*dg)( "EditCeffcyl", val );     calc->setCeffCyl( val.value );
 
     (*dg)( "LType", val );            calc->setLType( val.select );
 
@@ -186,8 +180,8 @@ void SC_Calc_GENERIC::prepareData( _dataGetter dg )
     (*dg)( "ComboBoxPeak", val );     calc->setComboBoxPeak( val.select );
     (*dg)( "EditPeakPar", val );      calc->setPeakPar( val.value );
     (*dg)( "EditAzi", val );          calc->setAzi( val.value );
-    (*dg)( "Rot_X", val  );           //
-    (*dg)( "Rot_Y", val1 );           //
+    (*dg)( "RotX", val  );           //
+    (*dg)( "RotY", val1 );           //
     //xx//(*dg)( "Rot_Z", val2 );           calc->setRotation( Double3(val.value,
     //xx//                                                             val1.value,
     //xx//                                                             val2.value) );
@@ -209,7 +203,7 @@ void SC_Calc_GENERIC::prepareData( _dataGetter dg )
     //xx//(*dg)( "RadioButtonSolid", val ); calc->setRadioButtonSolid( val.checked );
     //(*dg)( "RadioButtonVertical", val ); calc->setRadioButtonVertical( val.checked );
 
-//    (*dg)( "CheckBox10", val );     calc->setCheckBox10( val.checked );
+    (*dg)( "Alfa", val );             calc->setAlphash( val.value );
 
     //{NV} - unit cell definiton
     (*dg)( "uca", val );              calc->setUCA( val.value );
@@ -223,8 +217,10 @@ void SC_Calc_GENERIC::prepareData( _dataGetter dg )
     (*dg)( "ucn2", val );             calc->setUCn2( val.value );
     (*dg)( "ucn3", val );             calc->setUCn3( val.value );
 
-    (*dg)( "theta", val );            calc->setTheta( val.value );
-    (*dg)( "phi", val );              calc->setPhi( val.value );
+    (*dg)( "theta", val );            calc->setPolTheta( val.value );
+    (*dg)( "phi", val );              calc->setPolPhi( val.value );
+    (*dg)( "rotTheta", val );         calc->setRotTheta( val.value );
+    (*dg)( "rotPhi", val );           calc->setRotPhi( val.value );
     (*dg)( "EditRho", val );          calc->setRho( val.value );
 
     (*dg)( "iso", val );              calc->setIso( val.value );
@@ -241,28 +237,15 @@ void SC_Calc_GENERIC::prepareData( _dataGetter dg )
     //xx//(*dg)( "EditWAXSangle", val );    calc->setxrdalf( val.value );
     (*dg)( "EditWavelength", val );   calc->setwave( val.value );
 
-    (*dg)( "EditRelDis", val );       calc->setRelDis( val.value );
-    (*dg)( "EditDist", val );         calc->setDist( val.value );
+    //(*dg)( "EditRelDis", val );       calc->setRelDis( val.value );
+    //(*dg)( "EditDist", val );         calc->setDist( val.value );
     (*dg)( "EditDomainSize", val );   calc->setDomainsize( val.value );
 
     (*dg)( "P1", val );               calc->setP1( val.value );
     (*dg)( "SigmaL", val );           calc->setSigmaL( val.value );
     (*dg)( "Length", val );           calc->setLength( val.value );
-    (*dg)( "ShellNo", val );          calc->setShellNo( val.value );
+    //(*dg)( "ShellNo", val );          calc->setShellNo( val.value );
     (*dg)( "reff", val );             calc->setReff( val.value );
-    (*dg)( "por", val );              calc->setPor( val.value );
     (*dg)( "acpl", val );             calc->setAcpl( val.value );
     (*dg)( "bcpl", val );             calc->setBcpl( val.value );
-
-    // Jetzt noch die Lattice-Parameter aus der GUI übertragen (speziell für den 2d-Fit)
-    (*dg)( "LATTcols", val );   int cols        = val.value;
-    (*dg)( "LATTrows", val );   int rows        = val.value;
-    (*dg)( "LATTcenx", val );   double centerx  = val.value;
-    (*dg)( "LATTceny", val );   double centery  = val.value;
-    (*dg)( "LATTwlen", val );   double wavelen  = val.value;
-    (*dg)( "LATTdist", val );   double distance = val.value;
-    (*dg)( "LATTpixx", val );   double pixx     = val.value / 1000.0;   // Anzeige in mm
-    (*dg)( "LATTpixy", val );   double pixy     = val.value / 1000.0;   // Nutzung in m (da so im normalen Calc auch)
-    calc->setLattPar( cols, rows, centerx, centery, wavelen, distance, pixx, pixy );
-
 }

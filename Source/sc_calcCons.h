@@ -3,7 +3,7 @@
 
 #include <QHash>
 
-#include "sc_calc.h"
+#include "sc_calc_generic.h"
 
 
 // Diese Struktur sollte auch alle Daten ohne GUI enthalten können
@@ -21,14 +21,14 @@ typedef struct
     double minNum, maxNum;  // Bei der GUI in der SpinBox für den Fit gebraucht
     //QString str;
 } paramConsHelper;
-// Gleiche Struktur wie in cs_calcgui.h (paramHelper) nur hier ohne Qt-GUI-Elemente
+// Gleiche Struktur wie in sc_calcgui.h (paramHelper) nur hier ohne Qt-GUI-Elemente
 
 
 class calcConsHelper
 {
 public:
-    calcConsHelper( SC_Calc *c );
-    SC_Calc *subCalc;
+    calcConsHelper( SC_Calc_GENERIC *c );
+    SC_Calc_GENERIC *subCalc;
     QHash<QString,paramConsHelper*> params;
 };
 
@@ -54,7 +54,7 @@ public:
     void loadParameter( QString fn );
     void saveParameter( QString fn );
 
-    void prepareCalculation( QString m, bool getData );
+    void prepareCalculation(bool fromFit );
     // Globale Inputs für die Berechnungen
     static QHash<QString,Double3> inpVectors;
     static QHash<QString,double>  inpValues;
@@ -69,7 +69,7 @@ public:
     bool updateParamValue( QString m, QString p, double v );
     bool updateParamValueForFit( QString p, double v, bool /*dbg*/ ) { return updateParamValue("",p,v); }
 
-    void doCalculation( int numThreads, progressAndAbort pa );
+    void doCalculation( int numThreads );
     double doFitCalculation(int numThreads, int bstop, int border, long &cnt, long &nancnt);
     typedef enum { htimPrep, htimCalc, htimBoth } whichHigResTimer;
     double higResTimerElapsed( whichHigResTimer f );
@@ -86,7 +86,9 @@ public:
     int minY() { return (memory!=nullptr) ? memory->minY() : false; }
     int maxY() { return (memory!=nullptr) ? memory->maxY() : false; }
     double *data() { return (memory!=nullptr) ? memory->data() : nullptr; }
-    SC_Calc *getMemPtr() { return memory; }
+    void scaleIntensity(bool linlog) { if ( memory!=nullptr ) memory->scaleIntensity(linlog); }
+
+    SC_Calc_GENERIC *getMemPtr() { return memory; }
 
 #ifdef COPY_FITDATA_TO_GPU
     bool setArrDataForFit( const double *data ) { return (memory!=nullptr) ? memory->setArrDataForFit(data) : false; }
@@ -102,7 +104,7 @@ public:
 private:
     QHash<QString,calcConsHelper*> methods;
 
-    SC_Calc *memory;
+    SC_Calc_GENERIC *memory;
 
     static bool dataGetter( QString p, _valueTypes &v );
 
