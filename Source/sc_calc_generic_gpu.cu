@@ -944,8 +944,6 @@ void SasCalc_GENERIC_calculation::doCalculation( int numThreads )
     if ( gpuAvailable() && numThreads == 0 )    // GPU abschaltbar
     {
         _endThread = false;
-        if ( progAndAbort )
-            progAndAbort( -1 );     // Signal the usage of GPU and disables the progress bar
 
 #ifdef GPU_2D
         // GPU Programming with CUDA @ JSC (Kurs Apr.2022)
@@ -1059,7 +1057,6 @@ void SasCalc_GENERIC_calculation::doCalculation( int numThreads )
  */
 double SasCalc_GENERIC_calculation::doFitCalculation(int numThreads, int bstop, int border, long &cnt, long &nancnt )
 {
-    //if ( pa != nullptr ) progAndAbort = pa;
     numberOfThreads = numThreads;
     fitBStopPixel  = bstop;
     fitBorderPixel = border;
@@ -1092,8 +1089,6 @@ double SasCalc_GENERIC_calculation::doFitCalculation(int numThreads, int bstop, 
     if ( gpuAvailable() && numThreads == 0 )    // GPU abschaltbar
     {
         _endThread = false;
-        if ( progAndAbort )
-            progAndAbort( -1 );     // Signal the usage of GPU and disables the progress bar
 
 #ifdef GPU_2D
         // GPU Programming with CUDA @ JSC (Kurs Apr.2022)
