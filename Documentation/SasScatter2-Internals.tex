@@ -412,7 +412,7 @@ This part is still under development. If you want to extract sone code pieces to
 
 \subsubsection{Spheres}
 
-If you want a simple sphere model for the sample, you can extract some code and implement your own routines or you can call some of the above routines and get the resultant image from this package. Here is a list of routines to be called with some parameter settings for the result. Bold parameter names denotes the values you have to specify, here are the values for the image shown below.
+If you want a simple sphere model for the sample, you can extract some code and implement your own routines (see below) or you can call some of the above routines and get the resultant image from this package. Here is a list of routines to be called with some parameter settings for the result. Bold parameter names denotes the values you have to specify, here are the values for the image shown below.
 \begin{itemize}
 \item group parameter calls
 \begin{itemize}\itemsep0pt
@@ -468,16 +468,94 @@ If you want a simple sphere model for the sample, you can extract some code and 
 \item setBase(base=0)
 \end{itemize}
 \end{itemize}
-With the above settings you will get this image:
+Then a call to doCalculation() starts the calculations and you can retrieve the result with the data() pointer. With the above settings you will get this image:
 \begin{figure}[H]
  \centering
  \includegraphics[width=0.4\textwidth]{Vitess-Sphere.png}
  \caption{Example sphere image.}
 \end{figure}
 
+\clearpage
+If you want to extract the source code for the same result, then you can use the following parts. The values provided as inputs are written in capital letters and the code presented here is cleaned up a little bit.
+\begin{itemize}
+\item First you have to calculate the coefficients. This is done in sc\_calc\_generic\_gpu.cu in the routine SasCalc\_GENERIC\_calculation::coefficients() and is called only once for each image: \\
+{\it Inputs:} RADIUS{\small =16.7}, SIGMA{\small =0.0639} from the user/experiment \\
+{\it Inputs:} dim=3=sphere, cs=0=homogeneous from the gui
+ % , xleftmargin=0.1cm, xrightmargin=0.1cm
+\begin{lstlisting}[frame=single]
+zz = (1-sqr(SIGMA))/sqr(SIGMA); 
+xrz = RADIUS/(2.0*(zz+1));
+xr2z = xrz*xrz;
+xrn[0] = 1;
+z12v[0] = 1;
+fkv[0] = 1;
+gam3[0] = sqrt(M_PI)/2.0;
+n4 = nmax;  // nmax=120, the Dimension of carr4p[]
+/* ** isotropic case for spheres ** */
+if ( dim==3 )
+{ if ( cs==0 )
+  { for ( n=1; n<=nmax; n++ )
+    { z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);
+      fkv[n] = fkv[n-1]*n;
+      gam3[n] = gam3[n-1]*(2*n+1)/2.0;
+      xrn[n] = -xrn[n-1]*xr2z;
+      carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn[n]/
+                  (2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);
+      if ( fabs(carr4p[n])<min ) { if ( n<n4 ) n4 = n; }
+    } // for n
+    limq4 = pow(fabs(carr4p[n4]),-1/(2.0*n4));
+    return;
+  } // if cs==0
+} // if dim==3
+\end{lstlisting}
+{\it Outputs:} limq4, carr4p[] used in the next routine.
 
+\item Then you have to calculate for each pixel the formfactor. This is done in sc\_libs\_gpu.cu in the routine SasCalc\_GENERIC\_calculation::formpq(): \\
+{\it Inputs:} RADIUS{\small =16.7}, SIGMA{\small =0.0639} from the user/experiment \\
+{\it Inputs:} Q calculated from pixelindices, detectorsize, detectordistance and wavelenght \\
+{\it Inputs:} limq4, carr4p[] from the coefficients() routine above \\
+{\it Inputs:} part=0=sphere, cs=0=homogeneous from the gui
+\begin{lstlisting}[frame=single]
+zr = (1-sqr(SIGMA))/(sqr(SIGMA));
+if ( part==0 ) // sphere
+{ if ( cs==0 )
+  { if ( Q<0.4*limq4 )
+    { pqsum = 1.0;
+      oldpqsum = 0.0;
+      qq2 = 1.0;
+      for ( nser=1; nser<=100; nser++ )
+      { qq2 = qq2*q*q;
+        pqsum = pqsum+carr4p[nser]*qq2;
+        delser = fabs((pqsum-oldpqsum)/pqsum);
+        if ( delser<0.0001 ) break;
+        oldpqsum = pqsum;
+      }
+      return pqsum;
+    }
+    else
+    { argq = Q*RADIUS/(zr+1);
+      pqr = (1/(2.0*zr*(zr-1)*(zr-2)*(zr-3)))*pow(argq,-4);
+      pq1 = pqr*(1+cos((zr-3)*atan(2.0*argq))/
+            pow(1.0+4*argq*argq,(zr-3)/2.0));
+      pq2 = (pqr/((zr-4)*argq))*sin((zr-4)*atan(2.0*argq))/
+            pow(1.0+4*argq*argq,(zr-4)/2.0);
+      pq3 = (pqr/((zr-4)*(zr-5)*argq*argq))*(1-cos((zr-5)*atan(2.0*argq))/
+            pow(1.0+4*argq*argq,zr-5)/2.0);
+      return 9*(pq1-2*pq2+pq3);
+    }
+  }
+\end{lstlisting}
+{\it Output:} formpq() return value
 
+\item Finally you have to calculate the pixel value. This is done in sc\_calc\_generic\_gpu.cu at the end of routine SasCalc\_GENERIC\_calculation::doIntCalc\_GENERIC\_q\_xyz(): \\
+{\it Inputs:} formpq() return value \\
+{\it Inputs:} base=0={\it pixelvalue offset}, izero=1={\it pixelvalue factor} from the gui
+\begin{lstlisting}[frame=single]
+//pq = formpq()
+pixelval = base + izero*pq;
+\end{lstlisting}
+{\it Output:} Pixelvalue at the given (radius,sigma,q) position.
 
-
+\end{itemize}
 
 \end{document}
