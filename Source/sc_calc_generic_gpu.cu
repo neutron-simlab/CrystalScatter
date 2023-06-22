@@ -4,6 +4,10 @@
   * to calculate the image.
   * This was originally written in Pascal and translated into C++ by m.wagener@fz-juelich.de
   * During the translation, the variable and type names are preserved.
+  *
+  * Calculation functions:
+  *     09. Jul. 2020:  Only for FCC Spheres with GPU
+  *     FCC Spheres (Face centered cubic)
   */
 
 #include "sc_calc_generic_gpu.h"
@@ -11,7 +15,7 @@
 #include <string.h>
 
 #ifndef __CUDACC__
-#define DBGFILE(x) x
+#define DBGFILE(x) //x
 #include <QFile>
 #else
 #define DBGFILE(x)
@@ -35,7 +39,7 @@ DBGFILE( static QFile *fdbg; )
 
 /*static*/ long SasCalc_GENERIC_calculation::dbgCount;  // Zum Test...
 
-#define USE_CLASSLIB
+
 #include "sc_libs_gpu.cu"
 #include "sc_memory_gpu.cu"
 
@@ -97,7 +101,6 @@ __global__ void doIntFitCalc_GENERIC_kernel( SasCalc_GENERIC_calculation CALC )
 bool SasCalc_GENERIC_calculation::prepareCalculation()
 {
     dbgCount=0;  // Zum Test...
-    retvalHKLClick = chgNone;
 
     /* ******* main program for calculation **** */  //Z=20012
 
@@ -206,7 +209,7 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
     params.CR->myarray[ 2] = params.sigma;      //Z=20164
     params.CR->myarray[ 3] = params.sigmal;     //Z=20165
     params.CR->myarray[ 4] = params.radiusi;    /*  no. of layers  */  //Z=20166
-    params.CR->myarray[ 5] = alphash;           /*  l_ex  */  //Z=20167
+    params.CR->myarray[ 5] = params.alphash1;           /*  l_ex  */  //Z=20167
     params.CR->myarray[ 6] = params.rho;        /*  l_in  */  //Z=20168
     params.CR->myarray[ 7] = acpl;              /*  l_lip_head  */  //Z=20169
     params.CR->myarray[ 8] = bcpl;              /*  l_lip_tail  */  //Z=20170
@@ -221,20 +224,20 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
     params.CR->myarray[17] = iso;               /*  test parameter  */  //Z=20179
 
     /*  polar angles  */  //Z=20182
-    ucphi = polPhi;  //Z=20185
-    uctheta = polTheta;  //Z=20186
-    cosphi = cos(polPhi*M_PI/180.0);  //Z=20189
-    sinphi = sin(polPhi*M_PI/180.0);  //Z=20190
-    costheta = cos(polTheta*M_PI/180.0);  //Z=20191
-    sintheta = sin(polTheta*M_PI/180.0);  //Z=20192
+    ucphi = params.polPhi;  //Z=20185
+    uctheta = params.polTheta;  //Z=20186
+    cosphi = cos(params.polPhi*M_PI/180.0);  //Z=20189
+    sinphi = sin(params.polPhi*M_PI/180.0);  //Z=20190
+    costheta = cos(params.polTheta*M_PI/180.0);  //Z=20191
+    sintheta = sin(params.polTheta*M_PI/180.0);  //Z=20192
 
     /* *************************** */  //Z=20200
     /* ** unit cell definition *** */  //Z=20201
     /* *************************** */  //Z=20202
-    cosa = cos(params.alpha_deg*M_PI/180.0);  //Z=20209
-    cosb = cos(params.beta_deg*M_PI/180.0);  //Z=20210
-    cosg = cos(params.gamma_deg*M_PI/180.0);  //Z=20211
-    ucvol = params.alpha_deg*params.beta_deg*params.gamma_deg*sqrt(1.0-cosa*cosa-cosb*cosb-cosg*cosg+2*cosa*cosb*cosg);  //Z=20212
+    cosa = cos(params.ucalpha_deg*M_PI/180.0);  //Z=20209
+    cosb = cos(params.ucbeta_deg*M_PI/180.0);  //Z=20210
+    cosg = cos(params.ucgamma_deg*M_PI/180.0);  //Z=20211
+    ucvol = params.uca*params.ucb*params.ucc*sqrt(1.0-sqr(cosa)-sqr(cosb)-sqr(cosg)+2*cosa*cosb*cosg);  //Z=20212
 
     /*  crystal orientation  */  //Z=20215
     ucn = sqrt(ucn1*ucn1+ucn2*ucn2+ucn3*ucn3+eps9);  //Z=20219
@@ -244,23 +247,23 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
 
     if ( lat1d )
     {/*2*/ /*  for 1D-lattices  */  //Z=20225
-        polPhi = (180/M_PI)*atan2(ucn2n,(ucn1n+eps9));  //Z=20226
-        polTheta = (180/M_PI)*atan2(sqrt(ucn1n*ucn1n+ucn2n*ucn2n),(ucn3n+eps9));  //Z=20227
-        cosphi = cos(polPhi*M_PI/180.0);  //Z=20230
-        sinphi = sin(polPhi*M_PI/180.0);  //Z=20231
-        costheta = cos(polTheta*M_PI/180.0);  //Z=20232
-        sintheta = sin(polTheta*M_PI/180.0);  //Z=20233
+        params.polPhi = (180/M_PI)*atan2(ucn2n,(ucn1n+eps9));  //Z=20226
+        params.polTheta = (180/M_PI)*atan2(sqrt(ucn1n*ucn1n+ucn2n*ucn2n),(ucn3n+eps9));  //Z=20227
+        cosphi = cos(params.polPhi*M_PI/180.0);  //Z=20230
+        sinphi = sin(params.polPhi*M_PI/180.0);  //Z=20231
+        costheta = cos(params.polTheta*M_PI/180.0);  //Z=20232
+        sintheta = sin(params.polTheta*M_PI/180.0);  //Z=20233
     }/*2*/  //Z=20234
 
     if ( lat2d )
     {/*2*/ /*  for 2D-lattices  */  //Z=20236
-        polPhi = (180/M_PI)*atan2(ucn2n,(ucn1n+eps9));  //Z=20237
-        polTheta = (180/M_PI)*atan2(sqrt(ucn1n*ucn1n+ucn2n*ucn2n),(ucn3n+eps9));  //Z=20238
-        cosphi = cos(polPhi*M_PI/180.0);  //Z=20241
-        sinphi = sin(polPhi*M_PI/180.0);  //Z=20242
-        costheta = cos(polTheta*M_PI/180.0);  //Z=20243
-        sintheta = sin(polTheta*M_PI/180.0);  //Z=20244
-        ucpsi = 90-polPhi;  //Z=20245
+        params.polPhi = (180/M_PI)*atan2(ucn2n,(ucn1n+eps9));  //Z=20237
+        params.polTheta = (180/M_PI)*atan2(sqrt(ucn1n*ucn1n+ucn2n*ucn2n),(ucn3n+eps9));  //Z=20238
+        cosphi = cos(params.polPhi*M_PI/180.0);  //Z=20241
+        sinphi = sin(params.polPhi*M_PI/180.0);  //Z=20242
+        costheta = cos(params.polTheta*M_PI/180.0);  //Z=20243
+        sintheta = sin(params.polTheta*M_PI/180.0);  //Z=20244
+        ucpsi = 90-params.polPhi;  //Z=20245
     }/*2*/  //Z=20247
 
     /* ************************* */  //Z=20249
@@ -406,67 +409,67 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
     switch ( ComboBoxParticle )
     {
     case cbpartSphere/*0*/:      //(* sphere *)  //Z=20673
-        part = 0;      /*  sphere  */  //Z=20674
+        params.part = 0;      /*  sphere  */  //Z=20674
         partsphere = true;  //Z=20675
         partdim = 3;  //Z=20676
         cdim = 3;    /*  sphere  */  //Z=21000
         break;
     case cbpartCylinder/*1*/:    //(* cylinder *)  //Z=20678
-        part = 1;      /*  cylinder  */  //Z=20679
+        params.part = 1;      /*  cylinder  */  //Z=20679
         partcylinder = true;  //Z=20680
         partdim = 2;  //Z=20681
         cdim = 1;    /*  cylinder  */  //Z=21001
         break;
     case cbpartDisk/*2*/:        //(* disk *)  //Z=20683
-        part = 2;      /*  disk  */  //Z=20684
+        params.part = 2;      /*  disk  */  //Z=20684
         partdisk = true;  //Z=20685
         partdim = 1;  //Z=20686
         cdim = 2;    /*  disk  */  //Z=21002
         break;
     case cbpartVesicle/*3*/:     //(* vesicle *)  //Z=20688
-        part = 3;      /*  vesicle  */  //Z=20689
+        params.part = 3;      /*  vesicle  */  //Z=20689
         partvesicle = true;  //Z=20690
         partdim = 3;  //Z=20691
         cdim = 3;    /*  vesicle  */  //Z=21003
         break;
     case cbpartCube/*4*/:        //(* cube *)  //Z=20693
-        part = 4;      /*  cube  */  //Z=20694
+        params.part = 4;      /*  cube  */  //Z=20694
         partcube = true;  //Z=20695
         partdim = 4;  //Z=20696
         cdim = 4;    /*  cube  */  //Z=21004
         break;
     case cbpartEllipsoide/*5*/:  //(* ellipsoid *)  //Z=20698
-        part = 5;      /*  ellipsoid  */  //Z=20699
+        params.part = 5;      /*  ellipsoid  */  //Z=20699
         partellipsoid = true;  //Z=20700
         partdim = 5;  //Z=20701
         cdim = 5;    /*  ellipsoid  */  //Z=21005
         break;
     case cbpartTriaxEllips/*6*/: //(* triaxial ellipsoid *)  //Z=20703
-        part = 6;      /*  triaxial ellipsoid  */  //Z=20704
+        params.part = 6;      /*  triaxial ellipsoid  */  //Z=20704
         parttriellipsoid = true;  //Z=20705
         partdim = 6;  //Z=20706
         cdim = 6;    /*  triaxial ellipsoid  */  //Z=21006
         break;
     case cbpartSuperEllips/*7*/: //(* super ellipsoid, barrel *)  //Z=20708
-        part = 7;      /*  super ellipsoid, barrel  */  //Z=20709
+        params.part = 7;      /*  super ellipsoid, barrel  */  //Z=20709
         partbarrel = true;  //Z=20710
         partdim = 7;  //Z=20711
         cdim = 7;    /*  super ellipsoid, barrel  */  //Z=21007
         break;
     case cbpartSuperball/*8*/: //  //Z=20713
-        part = 8;      /*  superball  */  //Z=20714
+        params.part = 8;      /*  superball  */  //Z=20714
         partball = true;  //Z=20715
         partdim = 8;  //Z=20716
         cdim = 8;    /*  superball  */  //Z=21008
         break;
     case cbpartChain/*9*/:  //Z=20718
-        part = 9;      /*  excluded volume chain  */  //Z=20719
+        params.part = 9;      /*  excluded volume chain  */  //Z=20719
         partchain = true;  //Z=20720
         partdim = 9;  //Z=20721
         cdim = 9;    /*  excluded volume chain  */  //Z=21009
         break;
     case cbpartkpchain/*10*/:  //Z=20724
-        part = 10;      /*  Kratky Porod chain  */  //Z=20725
+        params.part = 10;      /*  Kratky Porod chain  */  //Z=20725
         partkpchain = true;  //Z=20726
         partdim = 10;  //Z=20727
         cdim = 10;  /*  Kratky Porod chain  */  //Z=21010
@@ -477,27 +480,62 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
     switch ( ComboBoxInterior )
     {
     case cbintHomogeneous/*0*/:
-        cs = 0;        /*  homogeneous  */  //Z=20731
+        params.cs = 0;        /*  homogeneous  */  //Z=20731
         homogeneous = true;  //Z=20738
         break;
     case cbintCoreShell/*1*/:
-        cs = 1;        /*  core/homogeneous shell  */  //Z=20732
-        alphash = 0.0001;  //Z=20736
+        params.cs = 1;        /*  core/homogeneous shell  */  //Z=20732
+        params.alphash1 = 0.0001;  //Z=20736
         coreshell = true;  //Z=20739
         break;
     case cbintCoreInShell/*2*/:
-        cs = 2;        /*  core/inhomogeneous shell  */  //Z=20733
+        params.cs = 2;        /*  core/inhomogeneous shell  */  //Z=20733
         coreinshell = true;  //Z=20740
         break;
     case cbintMultiShell/*3*/:
-        cs = 3;        /*  multi-shell  */  //Z=20734
+        params.cs = 3;        /*  multi-shell  */  //Z=20734
         lipo = true;  //Z=20741
         break;
     case cbintMyelin/*4*/:
-        cs = 4;        /*  myelin  */  //Z=20735
+        params.cs = 4;        /*  myelin  */  //Z=20735
         myelin = true;  //Z=20742
         break;
     }
+
+    // Setzen der Variablen 'dist' und 'reldis' abhängig vom LatticeType
+    switch ( ltype )
+    {
+    case  0:    // Lamellae
+    case  1:    // hex cyl
+    case  2:    // sq cyl
+    case  3:    // rec cyl
+    case  6:    // HCP
+    case  7:    // SC
+    case  8:    // BCT
+    case 10:    // Pn3m
+    case 12:    // None
+    case 14:    // 2D-Hex, GISAXS
+    case 15:    // 2D-square, GISAXS
+    case 16:    // 1D-lam, GISAXS
+    case 18:    // orthorombic spheres
+    case 20:    // Percus-Yevick
+    case 21:    // Teubner-Strey
+    case 22:    // Pm3n, A15
+        dist = params.uca;
+        break;
+    case  5:    // FCC
+    case 13:    // CP-Layers
+    case 17:    // Fd3m, diamond
+    case 19:    // QC
+        dist = sqrt(2.0) * params.uca / 2.0;
+        break;
+    case  4:    // BCC
+    case  9:    // Ia3d
+    case 11:    // Im3m
+        dist = sqrt(3.0) * params.uca / 2.0;
+        break;
+    }
+    reldis = displacement / dist;
 
     //? rotnorm = sqrt(rotx*rotx+roty*roty+rotz*rotz);  //Z=20765
     //? xycur = sqrt(xcur*xcur+ycur*ycur);  //Z=20771
@@ -505,15 +543,7 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
 
     if ( (cdim!=9) && (cdim!=10) )
     {/*4*/  //Z=21015
-        coefficients(params.length, params.radius, params.radiusi, params.sigmal, params.sigma, polPhi, alphash,
-                     params.dbeta, polTheta, polPhi, part, cdim, 120, ordis, cs, params.CR->myarray,
-                     orcase, por, order, norm,  //Z=21016
-                     limq1, limq2, limq3, limq4, limq5, limq6, limq7, limq8, limq9,
-                     limq1f, limq2f, limq3f, limq4f, limq5f, limq6f, limq7, limq8, limq9,  //Z=21017
-                     params.CR );  //Z=21019, für GPU ist ein Zeiger besser als viele!
-                     //carr1p^,carr2p^,carr3p^,carr4p^,carr5p^,carr6p^,carr7p^,carr8p^,carr9p^,
-                     //carr1f^,carr2f^,carr3f^,carr4f^,carr5f^,carr6f^,carr7f^,carr8f^,carr9f^,
-                     //carr11pm^,carr22pm^
+        coefficients( cdim, 120, ordis, order );   //Z=21016
     }/*4*/  //Z=21020
 
     zz = (1-sqr(params.sigma))/(sqr(params.sigma));  //Z=21028
@@ -526,13 +556,9 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
     {/*3*/  //Z=21042
 
         /* ** this generates reflection tables latpar1, latpar2, latpar1a,latpar2a ** */  //Z=21044
-        retvalHKLClick = ButtonHKLClick( ltype, latpar1ptr, latpar2ptr );  //Z=21045,  ltype=0..11 und nicht mehr ....
+        ButtonHKLClick( ltype, latpar1ptr, latpar2ptr );  //Z=21045,  ltype=0..11 und nicht mehr ....
         peakmax1 = latpar1(1,0);  //Z=21046
         peakmax2 = latpar2(1,0);  //Z=21047
-//#ifndef __CUDACC__
-//        qDebug() << "PrepareCalculation ButtonHKLClick =" << retval;
-//#endif
-        // TODO: wenn retval != chgNone, dann alle Werte auch in der GUI anpassen
 
         if ( peakmax1 >= latparlen )
         {
@@ -549,7 +575,7 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
             peakmax2 = 0;
         }
 
-        corotations(params.uca,params.ucb,params.ucc,params.alpha_deg,params.beta_deg,params.gamma_deg,
+        corotations(params.uca,params.ucb,params.ucc,params.ucalpha_deg,params.ucbeta_deg,params.ucgamma_deg,
                     ucn1,ucn2,ucn3,ucpsi,lat1d,lat2d,lat3d,ri11,ri12,ri13,ri21,ri22,ri23,ri31,ri32,ri33,  //Z=21049
                     rt11,rt12,rt13,rt21,rt22,rt23,rt31,rt32,rt33,ucvol,  //Z=21050
                     nuvwx,nuvwy,nuvwz,uuvwx,uuvwy,uuvwz,vuvwx,vuvwy,vuvwz,  //Z=21051
@@ -578,8 +604,7 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
             k = latpar1(peakct1,2);  //Z=21123
             l = latpar1(peakct1,3);  //Z=21124
             mhkl = latpar1(peakct1,4);    /*  check  */  //Z=21125
-            fhkl_c(ltype,h,k,l,params.uca,params.ucb,params.ucc,params.alpha_deg,params.beta_deg,params.gamma_deg,
-                   sphno,fhkl,qhkl,qhkl0);  //Z=21126
+            fhkl_c(ltype,h,k,l,sphno,fhkl,qhkl,qhkl0);  //Z=21126
 
             setLatpar1(peakct1,5, round(fhkl) ); //Z=21128, wird danach aber nie wieder gebraucht ...
             latpar[1] = ucvol;  //Z=21129
@@ -600,15 +625,14 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
         //? SetLength(latpar3p^, (peakmax2+1));  //Z=21146
         //? for ( ii=0; ii<=peakmax2; ii++ ) SetLength(latpar3p^[ii], 16);  //Z=21147
 
-        int hkli = 0;  //Z=21149
+        //int hkli = 0;  //Z=21149
         for ( int peakct2=1; peakct2<=peakmax2; peakct2++ )
         {/*4*/  //Z=21150
             h = latpar2(peakct2,1);  //Z=21151
             k = latpar2(peakct2,2);  //Z=21152
             l = latpar2(peakct2,3);  //Z=21153
             mhkl = 1;  //Z=21154
-            fhkl_c(ltype,h,k,l,params.uca,params.ucb,params.ucc,params.alpha_deg,params.beta_deg,params.gamma_deg,
-                   sphno,fhkl,qhkl,qhkl0);  //Z=21155
+            fhkl_c(ltype,h,k,l,sphno,fhkl,qhkl,qhkl0);  //Z=21155
             setLatpar2(peakct2, 5, round(fhkl) );  //Z=21156
             //latpar2p^[peakct2][1] = latpar2[peakct2][1];  //Z=21158
             //latpar2p^[peakct2][2] = latpar2[peakct2][2];  //Z=21159
@@ -708,8 +732,8 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
     }/*3*/  /*  of test or ltype=30  */  //Z=21295
 
     /*Z=24607 Der folgende Code ist direkt vor den ihex/i Schleifen */
-    sinphic=sin(-polPhi*M_PI/180.);
-    cosphic=cos(-polPhi*M_PI/180.);
+    sinphic=sin(-params.polPhi*M_PI/180.);
+    cosphic=cos(-params.polPhi*M_PI/180.);
 
     ucl1 = sintheta*cosphi;
     ucl2 = sintheta*sinphi;
@@ -720,13 +744,9 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
     if ( shp==8 )
     {
         D8( qDebug() << "prepCalc start qrombdeltac, theta phi:" << polTheta << polPhi );
-        //qrombdeltac(params.length, params.radius, params.p1, params.sigma, params.dbeta, theta, phi, 1,1,1,
-        //            9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,
-        //            /*i0=*/2, /*i1=*/0, /*i2=*/0, /*i3=*/0, /*i4=*/0, params.CR->carr1p, /*Erg=*/norm );
-
-        qrombdeltac( params.length, params.radius, params.p1, params.sigma, params.alpha_deg, params.dbeta, polTheta, polPhi, 1,1,1,
+        qrombdeltac( params.p1, params.sigma, params.alpha, params.polTheta, params.polPhi, 1,1,1,
                      9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,
-                     2, 0, 0, 0, 0, params.CR->carr1p, norm );  //Z=25221
+                     2, 0, 0, 0, 0, params.CR->carr1p, params.norm );  //Z=25221
         D8( qDebug() << "prepCalc qrombdeltac fertig" );
     }
 
@@ -808,22 +828,22 @@ std::string SasCalc_GENERIC_calculation::tpvPerformRandom(std::list<std::string>
         return "TPV: clear";
     }
 
-    //    typedef struct
-    //    {
-    //        double *ptr;
-    //        double oldval;
-    //        enum { norm, uca, phi, azi, dw } flag;
-    //    } tpvRandomHelper;
-    //    QHash< QString/*name*/, tpvRandomHelper* > tpvRandomOldValues;
+//    typedef struct
+//    {
+//        double *ptr;
+//        double oldval;
+//        enum { norm, uca, phi, azi, dw } flag;
+//    } tpvRandomHelper;
+//    QHash< QString/*name*/, tpvRandomHelper* > tpvRandomOldValues;
     if ( tpvRandomOldValues.empty() ) // tpvPerformRandom()
     {   // Erster Aufruf, füllen der Daten
         //std::cerr << "     ----- tpvPerformRandom ----- INIT" << std::endl;
         tpvRandomHelper *hlp;
 #define TPVINIT(nam,var,flg) hlp = new tpvRandomHelper; \
-        hlp->ptr = &var; \
-            hlp->oldval = var; \
-            hlp->flag = flg; \
-            tpvRandomOldValues.insert({nam,hlp});
+                             hlp->ptr = &var; \
+                             hlp->oldval = var; \
+                             hlp->flag = flg; \
+                             tpvRandomOldValues.insert({nam,hlp});
         TPVINIT( "I0",              izero,             tpvRandomHelper::norm );
         TPVINIT( "EditRadius",      params.radius,     tpvRandomHelper::norm );
         TPVINIT( "EditSigma",       params.sigma,      tpvRandomHelper::norm );
@@ -837,7 +857,7 @@ std::string SasCalc_GENERIC_calculation::tpvPerformRandom(std::list<std::string>
         TPVINIT( "EditDomainSize",  params.width_zuf,  tpvRandomHelper::norm ); // width ist nur lokal
         TPVINIT( "EditAzi",         phiwidth,          tpvRandomHelper::azi  ); hlp->oldval = aziwidth;
         TPVINIT( "EditDebyeWaller", dwfactor,          tpvRandomHelper::dw   ); hlp->oldval = displacement;
-        TPVINIT( "phi",             polPhi,               tpvRandomHelper::phi  );
+        TPVINIT( "phi",             params.polPhi,               tpvRandomHelper::phi  );
         // TODO: noch nicht in der GUI
         TPVINIT( "Base",            base,              tpvRandomHelper::norm );
         TPVINIT( "EditRho",         params.rho,        tpvRandomHelper::norm );
@@ -847,7 +867,7 @@ std::string SasCalc_GENERIC_calculation::tpvPerformRandom(std::list<std::string>
 #define zuf() (((static_cast<double>(rand())/RAND_MAX * 200.0) - 100.0) / 100.0) // -1 .. 1
 
     std::string retval="";
-    for ( std::string id : ids )
+    for ( const std::string &id : ids )
     {
         int pos = id.find("=");
         std::string key = id.substr(0,pos);
@@ -855,7 +875,7 @@ std::string SasCalc_GENERIC_calculation::tpvPerformRandom(std::list<std::string>
         double dval = std::stod(val);
         if ( dval < 0.00001 && val.length() > 2 )
         {   // Typische Werte sind hier 0.1 bis 0.9 und keine negativen Werte!
-            int pk = val.find(".");
+            std::string::size_type pk = val.find(".");
             if ( pk != std::string::npos )
                 val[pk] = ',';
             else
@@ -895,7 +915,7 @@ std::string SasCalc_GENERIC_calculation::tpvPerformRandom(std::list<std::string>
     }
     // Sicherheitsprüfungen
     if ( (ComboBoxInterior == cbintCoreShell || ComboBoxParticle == cbpartVesicle) &&
-        (params.length <= params.radius) )
+         (params.length <= params.radius) )
         params.length = params.radius + params.length;
     if ( ComboBoxParticle == cbpartDisk && params.length <= 2.*params.radius )
         params.length = 2.*params.radius + params.length;
@@ -944,6 +964,8 @@ void SasCalc_GENERIC_calculation::doCalculation( int numThreads )
     if ( gpuAvailable() && numThreads == 0 )    // GPU abschaltbar
     {
         _endThread = false;
+        if ( progAndAbort )
+            progAndAbort( -1 );     // Signal the usage of GPU and disables the progress bar
 
 #ifdef GPU_2D
         // GPU Programming with CUDA @ JSC (Kurs Apr.2022)
@@ -984,13 +1006,7 @@ void SasCalc_GENERIC_calculation::doCalculation( int numThreads )
             for ( int ihex=zzmin; ihex<zzmax; /*ihex++*/ )  // (***   z-loop  ***)
             {
                 if ( _endThread ) break;
-                for ( int i=iimin; i<iimax; i++ )
-                {
-                    doIntCalc_GENERIC_F( *this, ihex, i );
-                    if ( _endThread ) break;
-                }
-                ihex++;
-                if ( _endThread ) break;
+                doIntCalc_GENERIC( ihex++ );
             } // for ihex
         } // numThreads <= 1
 
@@ -1057,6 +1073,7 @@ void SasCalc_GENERIC_calculation::doCalculation( int numThreads )
  */
 double SasCalc_GENERIC_calculation::doFitCalculation(int numThreads, int bstop, int border, long &cnt, long &nancnt )
 {
+    //if ( pa != nullptr ) progAndAbort = pa;
     numberOfThreads = numThreads;
     fitBStopPixel  = bstop;
     fitBorderPixel = border;
@@ -1079,9 +1096,6 @@ double SasCalc_GENERIC_calculation::doFitCalculation(int numThreads, int bstop, 
             qDebug() << "DBGFILE:" << fdbg->fileName();
             } )
 
-    //std::cerr << "FitParams: [X] pix=" << params.latFit.pixx << ", cols=" << params.latFit.cols << ", center=" << params.latFit.centerx << std::endl;
-    //std::cerr << "           [Y] pix=" << params.latFit.pixy << ", rows=" << params.latFit.rows << ", center=" << params.latFit.centery << std::endl;
-
     // Use a high resolution clock to get the calculation time of the GPUs
     auto start2 = std::chrono::high_resolution_clock::now();
 
@@ -1089,6 +1103,8 @@ double SasCalc_GENERIC_calculation::doFitCalculation(int numThreads, int bstop, 
     if ( gpuAvailable() && numThreads == 0 )    // GPU abschaltbar
     {
         _endThread = false;
+        if ( progAndAbort )
+            progAndAbort( -1 );     // Signal the usage of GPU and disables the progress bar
 
 #ifdef GPU_2D
         // GPU Programming with CUDA @ JSC (Kurs Apr.2022)
@@ -1122,14 +1138,8 @@ double SasCalc_GENERIC_calculation::doFitCalculation(int numThreads, int bstop, 
         {   // Without threading it is simple ...
             for ( int x=0; x<_fitWidth; /*x++*/ )
             {
-                for ( int y=0; y<_fitHeight; y++ )
-                {
-                    doIntFitCalc_GENERIC_F( *this, x, y );
-                    if ( _endThread ) break;
-                }
-                x++;
                 if ( _endThread ) break;
-
+                doIntFitCalc_GENERIC( x++ );
             } // for x
         } // numThreads <= 1
 
@@ -1216,11 +1226,7 @@ void *SasCalc_GENERIC_calculation::doThreadCalculation(void *arg)
     pthread_setcancelstate( PTHREAD_CANCEL_ENABLE, nullptr );
     pthread_setcanceltype( PTHREAD_CANCEL_ASYNCHRONOUS, nullptr );
     int ihex = *(static_cast<int*>(arg));
-    for ( int i=inst->iimin; i<inst->iimax; i++ )
-    {
-        inst->doIntCalc_GENERIC_F( *inst, ihex, i );
-        if ( inst->_endThread ) break;
-    }
+    inst->doIntCalc_GENERIC( ihex );
     return nullptr;
 }
 
@@ -1235,29 +1241,57 @@ void *SasCalc_GENERIC_calculation::doThreadFitCalculation(void *arg)
     pthread_setcancelstate( PTHREAD_CANCEL_ENABLE, nullptr );
     pthread_setcanceltype( PTHREAD_CANCEL_ASYNCHRONOUS, nullptr );
     int x = *(static_cast<int*>(arg));
-    for ( int y=0; y<inst->_fitHeight; y++ )
-    {
-        inst->doIntFitCalc_GENERIC_F( *inst, x, y );
-        if ( inst->_endThread ) break;
-    }
+    inst->doIntFitCalc_GENERIC( x );
     return nullptr;
 }
 
 
 /**
+ * @brief SasCalc_gpu::doIntCalc_GENERIC
+ * @param ihex - vertical pixel index
+ */
+void SasCalc_GENERIC_calculation::doIntCalc_GENERIC(int ihex)
+{
+    for ( int i=iimin; i<iimax; i++ )
+    {
+        doIntCalc_GENERIC_F( *this, ihex, i );
+        if ( _endThread ) break;
+    }
+}
+
+/**
+ * @brief SasCalc_gpu::doIntCalc_GENERIC
+ * @param ihex - vertical pixel index
+ */
+void SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC(int x)
+{
+//#ifndef __CUDACC__
+//    qDebug() << "Fit-x:" << x << _fitWidth << "y-bis" << _fitHeight;
+//#endif
+    for ( int y=0; y<_fitHeight; y++ )
+    {
+        doIntFitCalc_GENERIC_F( *this, x, y );
+        if ( _endThread ) break;
+    }
+}
+
+
+
+
+/**
  * @brief SasCalc_gpu::doIntCalc_GENERIC_F
- * @param CALC - reference to class with parameters and subfunctions
+ * @param CALC  - reference to class with parameters and subfunctions
  * @param ihex - vertical pixel index
  * @param i    - horizontal pixel index
+ * @param lamv - running vertical axis value
  * Calculation from Pascalprogram (20210818-crystal3d1.pas + updates) - only part Generic
  */
 #ifdef __CUDACC__
 __host__ __device__
 #endif
-inline void SasCalc_GENERIC_calculation::doIntCalc_GENERIC_F(const SasCalc_GENERIC_calculation& CALC,
+inline void SasCalc_GENERIC_calculation::doIntCalc_GENERIC_F( const SasCalc_GENERIC_calculation& CALC,
                                                               int ihex, int i )
 {
-
 #ifdef COPY_FITDATA_TO_GPU  // Eckpixeltest
     if ( CALC.arrDataForFitUsed )
     {   // Spezielle Aktionen (Maskieren und FQS) für das Simplex-2D-Fit
@@ -1268,6 +1302,10 @@ inline void SasCalc_GENERIC_calculation::doIntCalc_GENERIC_F(const SasCalc_GENER
         }
     }
 #endif
+
+    //lamu   = (CALC.qmax * i) / CALC.iimax;    // (*** running index for x-axis ***)
+    //{NV} alles mit "RadioButtonSlice.Checked=true" lasse ich weg, da ich hier noch keine
+    //     Schnitte behandele.
 
     // Einrechnen des Beamstops (d.h. Verschiebung des Zentrums)
     //int mdet = ihex + BCT.zmax + 1;     // (* mth pixel *)
@@ -1283,6 +1321,10 @@ inline void SasCalc_GENERIC_calculation::doIntCalc_GENERIC_F(const SasCalc_GENER
     double qx = 2*M_PI*cos(phidet)*sin(thetadet)/CALC.wave;
     double qy = 2*M_PI*sin(phidet)*sin(thetadet)/CALC.wave;
     double qz = 2*M_PI*(1-cos(thetadet))/CALC.wave;
+
+    //double q = sqrt(qx*qx+qy*qy+qz*qz)+eps9;
+    //if ( q < 0.02 )
+    //    qDebug() << "CALC Beam"<<CALC.beamX0<<CALC.beamY0 << "ind"<<ihex<<i;
 
     // Call q(x,y,z) Routine (also from 2dFit)
     double pixval = doIntCalc_GENERIC_q_xyz( CALC, qx, qy, qz,
@@ -1312,7 +1354,7 @@ inline void SasCalc_GENERIC_calculation::doIntCalc_GENERIC_F(const SasCalc_GENER
 #ifdef __CUDACC__
 __host__ __device__
 #endif
-inline void SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F(const SasCalc_GENERIC_calculation& CALC,
+inline void SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F( const SasCalc_GENERIC_calculation& CALC,
                                                         int x, int y )
 {
     for ( int i=0; i<4; i++ )
@@ -1331,8 +1373,8 @@ inline void SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F(const SasCalc_GE
         return;
     }
 
-    int xx = x - CALC.beamX0; // params.beamcenterx;
-    int yy = y - CALC.beamY0; // params.beamcentery;
+    int xx = x - CALC.beamX0;
+    int yy = y - CALC.beamY0;
     if ( CALC.fitBorderPixel > 0 || CALC.fitBStopPixel > 0 )
     {   // Ausblendungen über Pixelangaben an Rand und Mitte
         if ( x < CALC._xmin + CALC.fitBorderPixel || x >= CALC._xmax - CALC.fitBorderPixel ||
@@ -1366,7 +1408,7 @@ inline void SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F(const SasCalc_GE
         if ( CALC.arrFitData[idx] <= CALC.arrFitData[0] )
         {
             CALC.arrFitFqs[idx] = 0.0;
-            DBGFILE( if ( fdbg ) if ( x<3 && y<3 )
+            DBGFILE( if ( fdbg ) //if ( (x<3 && y<3) || fabs(qy-(-1.28525))<0.001 )
                     fdbg->write(qPrintable(QString("%1; %2;   -/-; -/-;   -/-; -/-; -/-;   -/-; %3; 0; Ecke %4 <= %5\n")
                                                .arg(x).arg(y).arg(CALC.arrFitData[idx]).arg(CALC.arrFitData[idx]).arg(CALC.arrFitData[0])
                                            )); )
@@ -1404,7 +1446,7 @@ inline void SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F(const SasCalc_GE
     else
         CALC.arrFitFqs[idx] = 0.0;
 
-    DBGFILE( if ( fdbg ) if ( x<3 && y<3 )
+    DBGFILE( if ( fdbg ) //if ( (x<3 && y<3) || fabs(qy-(-1.28525))<0.001 )
                 fdbg->write(qPrintable(QString("%1; %2;   %3; %4;   %5; %6; %7;   %8; %9; %10\n")
                                            .arg(x).arg(y)
                                            .arg(xdet).arg(ydet)
@@ -1412,13 +1454,18 @@ inline void SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F(const SasCalc_GE
                                            .arg(pixval).arg(CALC.arrFitData[idx]).arg(CALC.arrFitFqs[idx])
                                        )); )
 
+//    if ( (x < 4 /*&& y < 5*/) || (x >= CALC._fitWidth-5 && y >= CALC._fitHeight) )
+//        qDebug() << "Fit-v:" << x << y << idx
+//                 << "val" << pixval << CALC.arrFitData[idx] << CALC.arrFitFqs[idx]
+//                 << "q" << qx << qy << qz;
+
 } /* doIntFitCalc_GENERIC_F() */
 
 
 
 /**
  * @brief SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz
- * @param CALC - reference to class with parameters and subfunctions
+ * @param CALC  - reference to class with parameters and subfunctions
  * @param qx   - Coordinates in the q dimension
  * @param qy   - "
  * @param qz   - "
@@ -1433,7 +1480,7 @@ __host__ __device__
 #endif
 inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc_GENERIC_calculation& CALC,
                                                                    double qx, double qy, double qz,
-                                                                   bool idxCenter, bool beamCenter)
+                                                                   bool idxCenter, bool /*beamCenter*/)
 {
     double /*lamu,*/ /*qabs,*/ pq, fq, intensity, radintensity;
     double /*shkl,*/ /*fhkl,*/ x2;
@@ -1463,22 +1510,12 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
     if ( CALC.partsphere )
     {/*6*/  //Z=25272
 
-        // Hier ist limql noch nicht gesetzt worden !! Es wird aber in formpq nicht verwendet bei 'sphere'
-        pq = CALC.formpq( CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
-                         CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, limql, CALC.limq1, CALC.limq2, CALC.limq3,
-                         CALC.limq4, CALC.limq5, CALC.limq6, CALC.limq7, CALC.limq8, CALC.limq9, qx, qy, qx, qy, q, CALC.norm,
-                         CALC.por, CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1p,
-                         CALC.params.CR->carr2p, CALC.params.CR->carr3p, CALC.params.CR->carr4p, CALC.params.CR->carr5p,
-                         CALC.params.CR->carr6p, CALC.params.CR->carr7p, CALC.params.CR->carr8p, CALC.params.CR->carr9p
-                         /*, CALC.carr11pm, CALC.carr22pm*/ );  //Z=25276
+        limql = 1;
+        pq = CALC.formpq( CALC.params.sigmal, limql, qx, qy, qx, qy, q, CALC.ordis );  //Z=25276
 
         /* fq = pq;  //Z=25277 */
         if ( CALC.lattice )  //Z=25283
-            fq=CALC.formfq( CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
-                            CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, limqlf, CALC.limq1f, CALC.limq2f, CALC.limq3f,
-                            CALC.limq4f, CALC.limq5f, CALC.limq6f, qx, qy, qx, qy, q, CALC.norm,
-                            CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1f, CALC.params.CR->carr2f, CALC.params.CR->carr3f,
-                            CALC.params.CR->carr4f, CALC.params.CR->carr5f, CALC.params.CR->carr6f, CALC.params.CR->carr7f /*, CALC.carr11pm, CALC.carr22pm*/ );  //Z=25285
+            fq=CALC.formfq( limqlf, qx, qy, qx, qy, q, CALC.ordis );  //Z=25285
         pqiso = pq;  //Z=25297
 
     }/*6*/  /*  of part=0  */  //Z=25299
@@ -1493,102 +1530,49 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
         /*  isotropic cases  */  //Z=25307
         if ( CALC.ordis==7 )
         {/*7*/  //Z=25308
-            pq = CALC.formpq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
-                            CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, q, CALC.limq1, CALC.limq2, CALC.limq3,
-                            CALC.limq4, CALC.limq5, CALC.limq6, CALC.limq7, CALC.limq8, CALC.limq9, qx, qy, qx, qy, q,
-                            CALC.norm,
-                            CALC.por, CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1p, CALC.params.CR->carr2p,
-                            CALC.params.CR->carr3p, CALC.params.CR->carr4p, CALC.params.CR->carr5p, CALC.params.CR->carr6p, CALC.params.CR->carr7p, CALC.params.CR->carr8p,
-                            CALC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );
+            pq = CALC.formpq(CALC.params.sigmal, q, qx, qy, qx, qy, q, CALC.ordis);
             /* fq = pq;  //Z=25311 */
             if ( CALC.lattice )  //Z=25312
-                fq = CALC.formfq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
-                                CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, q, CALC.limq1f, CALC.limq2f, CALC.limq3f,
-                                CALC.limq4f, CALC.limq5f, CALC.limq6f, qx, qy, qx, qy, q, CALC.norm,
-                                CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1f, CALC.params.CR->carr2f,
-                                CALC.params.CR->carr3f, CALC.params.CR->carr4f, CALC.params.CR->carr5f, CALC.params.CR->carr6f, CALC.params.CR->carr7f
-                                /*,carr11pm^,carr22pm^*/ );
+                fq = CALC.formfq( q, qx, qy, qx, qy, q, CALC.ordis );
         }/*7*/  //Z=25315
 
         /*  perfect orientation  */               /*  abs((cosphi*qx+sinphi*qy)  //Z=25318 */
         else if ( CALC.ordis==ordis_ZDir /*6*/ )
         {/*7*/  //Z=25319
-            switch ( CALC.orcase )
+            switch ( CALC.params.orcase )
             {
             case 1:     // General: phi!=0 && phi!=90 && theta!=0 && theta!=90
                 //Z=25320
                 limql = sqrt(sqr((qx*CALC.cosphi-qy*CALC.sinphi)*CALC.costheta*CALC.sintheta)
                              +sqr(qx+CALC.sinphi*(-qx*CALC.sinphi+qy*CALC.cosphi)*CALC.sintheta*CALC.sintheta)
                              +sqr(qy-CALC.cosphi*(-qx*CALC.sinphi+qy*CALC.cosphi)*CALC.sintheta*CALC.sintheta));  //Z=25321
-                pq = CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,limql,CALC.limq1,CALC.limq2,CALC.limq3,
-                                CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx*CALC.cosphi*CALC.sintheta,
-                                qy*CALC.sinphi*CALC.sintheta,q,CALC.norm,  //Z=25322
-                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
-                                CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
-                                CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,CALC.params.CR->carr9p
-                                /*,carr11pm^,carr22pm^*/ );  //Z=25323
+                pq = CALC.formpq(CALC.params.sigmal,limql,qx,qy,qx*CALC.cosphi*CALC.sintheta,
+                                qy*CALC.sinphi*CALC.sintheta,q,CALC.ordis);  //Z=25323
                 /* fq = pq;  //Z=25324 */
                 if ( CALC.lattice )  //Z=25325
-                    fq = CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                    CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,sqrt(CALC.cosphi*qx*qx+CALC.sinphi*qy*qy+eps9),
-                                    CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,CALC.limq5f,CALC.limq6f,qx,qy,qx*CALC.cosphi*CALC.sintheta,
-                                    qy*CALC.sinphi*CALC.sintheta,q,CALC.norm,  //Z=25326
-                                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1f,
-                                    CALC.params.CR->carr2f,CALC.params.CR->carr3f,CALC.params.CR->carr4f,CALC.params.CR->carr5f,
-                                    CALC.params.CR->carr6f,CALC.params.CR->carr7f/*,carr11pm^,carr22pm^*/);  //Z=25327
+                    fq = CALC.formfq( sqrt(CALC.cosphi*qx*qx+CALC.sinphi*qy*qy+eps9), qx, qy,
+                                      qx*CALC.cosphi*CALC.sintheta, qy*CALC.sinphi*CALC.sintheta,q, CALC.ordis );  //Z=25327
                 break;   //Z=25328
             case 2:     // X-Axis phi==0 && theta==90
                 //Z=25329
-                limql = fabs(qx);
-                pq = CALC.formpq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
-                                CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, limql, CALC.limq1, CALC.limq2, CALC.limq3,
-                                CALC.limq4, CALC.limq5, CALC.limq6, CALC.limq7, CALC.limq8, CALC.limq9, qx, qy, qx, 0, q, CALC.norm,
-                                CALC.por, CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1p, CALC.params.CR->carr2p,
-                                CALC.params.CR->carr3p, CALC.params.CR->carr4p, CALC.params.CR->carr5p, CALC.params.CR->carr6p, CALC.params.CR->carr7p, CALC.params.CR->carr8p,
-                                CALC.params.CR->carr9p /*, carr11pm^,carr22pm^*/ );   //Z=25331
+                pq = CALC.formpq(CALC.params.sigmal, fabs(qx), qx, qy, qx, 0, q, CALC.ordis);   //Z=25331
                 /* fq = pq;  //Z=25332 */
                 if ( CALC.lattice )
-                    fq = CALC.formfq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
-                                    CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, fabs(qx), CALC.limq1f, CALC.limq2f, CALC.limq3f,
-                                    CALC.limq4f, CALC.limq5f, CALC.limq6f, qx, qy, qx, 0, q, CALC.norm,
-                                    CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1f, CALC.params.CR->carr2f,
-                                    CALC.params.CR->carr3f, CALC.params.CR->carr4f, CALC.params.CR->carr5f, CALC.params.CR->carr6f, CALC.params.CR->carr7f
-                                    /*,carr11pm^,carr22pm^*/ );   //Z=25335
+                    fq = CALC.formfq( fabs(qx), qx, qy, qx, 0, q, CALC.ordis );   //Z=25335
                 break;   //Z=25336
             case 3:     // Y-Axis phi==90 && theta==90
                 /*Z=24733*/
-                pq = CALC.formpq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
-                                CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, fabs(qy), CALC.limq1, CALC.limq2, CALC.limq3,
-                                CALC.limq4, CALC.limq5, CALC.limq6, CALC.limq7, CALC.limq8, CALC.limq9, qx, qy, 0, qy, q, CALC.norm,
-                                CALC.por, CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1p, CALC.params.CR->carr2p,
-                                CALC.params.CR->carr3p, CALC.params.CR->carr4p, CALC.params.CR->carr5p, CALC.params.CR->carr6p, CALC.params.CR->carr7p, CALC.params.CR->carr8p,
-                                CALC.params.CR->carr9p /*, carr11pm^,carr22pm^*/ );   //Z=25339
+                pq = CALC.formpq(CALC.params.sigmal, fabs(qy), qx, qy, 0, qy, q, CALC.ordis);   //Z=25339
                 /* fq = pq;  //Z=25340 */
                 if ( CALC.lattice )
-                    fq = CALC.formfq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
-                                    CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, fabs(qy), CALC.limq1f, CALC.limq2f, CALC.limq3f,
-                                    CALC.limq4f, CALC.limq5f, CALC.limq6f, qx, qy, 0, qy, q, CALC.norm,
-                                    CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1f, CALC.params.CR->carr2f,
-                                    CALC.params.CR->carr3f, CALC.params.CR->carr4f, CALC.params.CR->carr5f, CALC.params.CR->carr6f, CALC.params.CR->carr7f
-                                    /*,carr11pm^,carr22pm^*/ );   //Z=25343
+                    fq = CALC.formfq( fabs(qy), qx, qy, 0, qy, q, CALC.ordis );   //Z=25343
                 break;   //Z=25344
             case 4:     // Z-Axis (phi==0 || phi==90) && theta==0
                 /*Z=24741*/
-                pq = CALC.formpq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
-                                CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, q, CALC.limq1, CALC.limq2, CALC.limq3, CALC.limq4,
-                                CALC.limq5, CALC.limq6, CALC.limq7, CALC.limq8, CALC.limq9, qx, qy, qx, qy, q, CALC.norm,
-                                CALC.por, CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1p, CALC.params.CR->carr2p,
-                                CALC.params.CR->carr3p, CALC.params.CR->carr4p, CALC.params.CR->carr5p, CALC.params.CR->carr6p, CALC.params.CR->carr7p, CALC.params.CR->carr8p,
-                                CALC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );   //Z=25347
+                pq = CALC.formpq(CALC.params.sigmal,  q, qx, qy, qx, qy, q, CALC.ordis);   //Z=25347
                 /* fq = pq;  //Z=25348 */
                 if ( CALC.lattice )
-                    fq = CALC.formfq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
-                                    CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, q, CALC.limq1f, CALC.limq2f, CALC.limq3f,
-                                    CALC.limq4f, CALC.limq5f, CALC.limq6f, qx, qy, qx, qy, q, CALC.norm,
-                                    CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1f, CALC.params.CR->carr2f,
-                                    CALC.params.CR->carr3f, CALC.params.CR->carr4f, CALC.params.CR->carr5f, CALC.params.CR->carr6f, CALC.params.CR->carr7f
-                                    /*,carr11pm^,carr22pm^*/ );   //Z=25351
+                    fq = CALC.formfq( q, qx, qy, qx, qy, q, CALC.ordis );   //Z=25351
                 break;   //Z=25352
             } // switch orcase
         } // if ( CALC.ordis==6 ) //Z=25353
@@ -1596,75 +1580,35 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
         /*  general orientation  */  //Z=25357
         else if ( CALC.ordis==ordis_Gaussian /*0*/ )
         {   //Z=25358
-            switch ( CALC.orcase )
+            switch ( CALC.params.orcase )
             {
             case 1:    /*  general orientation  */  //Z=25359
-                pq = CALC.formpq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
-                                CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, q, CALC.limq1, CALC.limq2, CALC.limq3, CALC.limq4,
-                                CALC.limq5, CALC.limq6, CALC.limq7, CALC.limq8, CALC.limq9, qx, qy, qx*CALC.cosphic-qy*CALC.sinphic,
-                                qx*CALC.sinphic+qy*CALC.cosphic, q, CALC.norm,
-                                CALC.por, CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1p, CALC.params.CR->carr2p,
-                                CALC.params.CR->carr3p, CALC.params.CR->carr4p, CALC.params.CR->carr5p, CALC.params.CR->carr6p, CALC.params.CR->carr7p, CALC.params.CR->carr8p,
-                                CALC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );   //Z=25361
+                pq = CALC.formpq(CALC.params.sigmal,  q, qx, qy, qx*CALC.cosphic-qy*CALC.sinphic,
+                                qx*CALC.sinphic+qy*CALC.cosphic, q, CALC.ordis);   //Z=25361
                 /* fq = pq;  //Z=25362 */
                 if ( CALC.lattice ) /* fq:=pq; */   /*Z=24758*/
-                    fq = CALC.formfq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
-                                    CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, q, CALC.limq1f, CALC.limq2f, CALC.limq3f,
-                                    CALC.limq4f, CALC.limq5f, CALC.limq6f, qx, qy, qx*CALC.cosphic-qy*CALC.sinphic,
-                                    qx*CALC.sinphic+qy*CALC.cosphic, q, CALC.norm,
-                                    CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1f, CALC.params.CR->carr2f,
-                                    CALC.params.CR->carr3f, CALC.params.CR->carr4f, CALC.params.CR->carr5f, CALC.params.CR->carr6f, CALC.params.CR->carr7f
-                                    /*,carr11pm^,carr22pm^*/ );   //Z=25365
+                    fq = CALC.formfq( q, qx, qy, qx*CALC.cosphic-qy*CALC.sinphic,
+                                      qx*CALC.sinphic+qy*CALC.cosphic, q, CALC.ordis );   //Z=25365
                 break;   //Z=25366
             case 2:   /*  x-axis  */  //Z=25367
-                pq = CALC.formpq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
-                                CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, sqrt(qx*qx+(1-CALC.order)*qy*qy), CALC.limq1, CALC.limq2, CALC.limq3, CALC.limq4,
-                                CALC.limq5, CALC.limq6, CALC.limq7, CALC.limq8, CALC.limq9, qx, qy, qx, qy, q, CALC.norm,
-                                CALC.por, CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1p, CALC.params.CR->carr2p,
-                                CALC.params.CR->carr3p, CALC.params.CR->carr4p, CALC.params.CR->carr5p, CALC.params.CR->carr6p, CALC.params.CR->carr7p, CALC.params.CR->carr8p,
-                                CALC.params.CR->carr9p /*,carr11pm^,carr22pm^ */);   //Z=25369
+                pq = CALC.formpq(CALC.params.sigmal, sqrt(qx*qx+(1-CALC.order)*qy*qy), qx, qy, qx, qy, q, CALC.ordis);   //Z=25369
                 /* fq = pq;  //Z=25370 */
                 //ffq = pq;  //Z=25371
                 if ( CALC.lattice )
-                    fq = CALC.formfq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
-                                    CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, sqrt(qx*qx+(1-CALC.order)*qy*qy), CALC.limq1f, CALC.limq2f, CALC.limq3f,
-                                    CALC.limq4f, CALC.limq5f, CALC.limq6f, qx, qy, qx, qy, q, CALC.norm,
-                                    CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1f, CALC.params.CR->carr2f,
-                                    CALC.params.CR->carr3f, CALC.params.CR->carr4f, CALC.params.CR->carr5f, CALC.params.CR->carr6f, CALC.params.CR->carr7f
-                                    /*,carr11pm^,carr22pm^*/ );   //Z=25374
+                    fq = CALC.formfq( sqrt(qx*qx+(1-CALC.order)*qy*qy), qx, qy, qx, qy, q, CALC.ordis );   //Z=25374
                 szq = pq; // ffq;  //Z=25375  TODO das macht hier keinen Sinn
                 break;   //Z=25376
             case 3:  /*  y-axis  */  //Z=25377
-                pq = CALC.formpq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
-                                CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, sqrt((1.0-CALC.order)*qx*qx+qy*qy), CALC.limq1, CALC.limq2, CALC.limq3, CALC.limq4,
-                                CALC.limq5, CALC.limq6, CALC.limq7, CALC.limq8, CALC.limq9, qx, qy, qx, qy, q, CALC.norm,
-                                CALC.por, CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1p, CALC.params.CR->carr2p,
-                                CALC.params.CR->carr3p, CALC.params.CR->carr4p, CALC.params.CR->carr5p, CALC.params.CR->carr6p, CALC.params.CR->carr7p, CALC.params.CR->carr8p,
-                                CALC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );   //Z=25379
+                pq = CALC.formpq(CALC.params.sigmal, sqrt((1.0-CALC.order)*qx*qx+qy*qy), qx, qy, qx, qy, q, CALC.ordis);   //Z=25379
                 /* fq = pq;  //Z=25380 */
                 if ( CALC.lattice ) /* fq:=pq; */   /*Z=24776*/
-                    fq = CALC.formfq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
-                                    CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, sqrt((1.0-CALC.order)*qx*qx+qy*qy), CALC.limq1f, CALC.limq2f, CALC.limq3f,
-                                    CALC.limq4f, CALC.limq5f, CALC.limq6f, qx, qy, qx, qy, q, CALC.norm,
-                                    CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1f, CALC.params.CR->carr2f,
-                                    CALC.params.CR->carr3f, CALC.params.CR->carr4f, CALC.params.CR->carr5f, CALC.params.CR->carr6f, CALC.params.CR->carr7f
-                                    /*,carr11pm^,carr22pm^*/ );   //Z=25383
+                    fq = CALC.formfq( sqrt((1.0-CALC.order)*qx*qx+qy*qy), qx, qy, qx, qy, q, CALC.ordis );   //Z=25383
                 break;   //Z=25384
             case 4:  /*  z-axis  */  //Z=25385
-                pq = CALC.formpq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
-                                CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, q, CALC.limq1, CALC.limq2, CALC.limq3,
-                                CALC.limq4, CALC.limq5, CALC.limq6, CALC.limq7, CALC.limq8, CALC.limq9, qx, qy, qx, qy, q, CALC.norm,
-                                CALC.por, CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1p, CALC.params.CR->carr2p,
-                                CALC.params.CR->carr3p, CALC.params.CR->carr4p, CALC.params.CR->carr5p, CALC.params.CR->carr6p, CALC.params.CR->carr7p, CALC.params.CR->carr8p,
-                                CALC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );   //Z=25387
+                pq = CALC.formpq(CALC.params.sigmal,  q, qx, qy, qx, qy, q, CALC.ordis);   //Z=25387
                 /* fq = pq;  //Z=25388 */
                 if ( CALC.lattice )
-                    fq = CALC.formfq(CALC.params.length, CALC.params.radius, CALC.params.sigmal, CALC.params.sigma, CALC.params.p1,
-                                    CALC.params.rho, CALC.alphash, CALC.polTheta, CALC.polPhi, q, CALC.limq1f, CALC.limq2f, CALC.limq3f,
-                                    CALC.limq4f, CALC.limq5f, CALC.limq6f, qx, qy, qx, qy, q, CALC.norm,
-                                    CALC.part, CALC.cs, CALC.ordis, CALC.orcase, CALC.params.CR->myarray, CALC.params.CR->carr1f, CALC.params.CR->carr2f,
-                                    CALC.params.CR->carr3f, CALC.params.CR->carr4f, CALC.params.CR->carr5f, CALC.params.CR->carr6f, CALC.params.CR->carr7f
-                                    /*,carr11pm^,carr22pm^*/ );   //Z=25391
+                    fq = CALC.formfq( q, qx, qy, qx, qy, q, CALC.ordis );   //Z=25391
                 break;   /*Z=24787*/
             } // switch orcase
 
@@ -1682,18 +1626,12 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
         /*  isotropic cases  */  //Z=25403
         if ( CALC.ordis == 7 )
         {
-            pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                          CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,
-                          CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
-                          CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                          CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
-                          CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
-                          CALC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );   //Z=25406
+            pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);   //Z=25406
             fq = pq;  //Z=25407
             //if ( CALC.lattice )
             //    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-            //                    CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1f,CALC.limq2f,
-            //                    CALC.limq3f,CALC.limq4f,CALC.limq5f,CALC.limq6f,qx,qy,qx,qy,q,CALC.norm,
+            //                    CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi,q,CALC.params.limq1f,CALC.params.limq2f,
+            //                    CALC.params.limq3f,CALC.params.limq4f,CALC.params.limq5f,CALC.params.limq6f,qx,qy,qx,qy,q,CALC.norm,
             //                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1f,
             //                    CALC.params.CR->carr2f,CALC.params.CR->carr3f,CALC.params.CR->carr4f,CALC.params.CR->carr5f,
             //                    CALC.params.CR->carr6f,CALC.params.CR->carr7f /*,carr11pm^,carr22pm^*/ );
@@ -1702,83 +1640,56 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
         /*  perfect orientation  */    //Z=25412
         if ( CALC.ordis==6 ) //Z=25413
         {
-            switch ( CALC.orcase )
+            switch ( CALC.params.orcase )
             {
             case 1:
                 limql = sqrt(  sqr((qx*CALC.sinphi+qy*CALC.cosphi)*CALC.costheta*CALC.sintheta)
                              + sqr(qx-CALC.cosphi*(qx*CALC.cosphi+qy*CALC.sinphi)*CALC.sintheta*CALC.sintheta)
                              + sqr(qy-CALC.sinphi*(qx*CALC.cosphi+qy*CALC.sinphi)*CALC.sintheta*CALC.sintheta));  //Z=25415
-                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, limql,
-                                CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,
-                                qx,qy,qx*CALC.cosphi*CALC.sintheta/q,qy*CALC.sinphi*CALC.sintheta/q,q,CALC.norm,
-                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
-                                CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
-                                CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,CALC.params.CR->carr9p
-                                /*,carr11pm^,carr22pm^*/ );   //Z=25417
+                pq=CALC.formpq(CALC.params.sigmal, limql,
+                                qx,qy,qx*CALC.cosphi*CALC.sintheta/q,qy*CALC.sinphi*CALC.sintheta/q,q,CALC.ordis);   //Z=25417
                 fq = pq;  //Z=25418
                 //if ( CALC.lattice )
                 //    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
                 //                    CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi,
                 //                    sqrt(CALC.sinphi*qx*qx+CALC.cosphi*qy*qy+eps9),
-                //                    CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,CALC.limq5f,CALC.limq6f,
+                //                    CALC.params.limq1f,CALC.params.limq2f,CALC.params.limq3f,CALC.params.limq4f,CALC.params.limq5f,CALC.params.limq6f,
                 //                    qx,qy,qx*CALC.cosphi*CALC.sintheta/q,qy*CALC.sinphi*CALC.sintheta/q,q,CALC.norm,
                 //                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1f,
                 //                    CALC.params.CR->carr2f,CALC.params.CR->carr3f,CALC.params.CR->carr4f,CALC.params.CR->carr5f,
                 //                    CALC.params.CR->carr6f,CALC.params.CR->carr7f /*,carr11pm^,carr22pm^*/ );  //Z=25421
                 break;   //Z=25422
             case 2:
-                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, fabs(qy),
-                                CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,
-                                qx,qy,qx/q,0,q,CALC.norm,
-                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
-                                CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
-                                CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,CALC.params.CR->carr9p
-                                /*,carr11pm^,carr22pm^*/ );   //Z=25425
+                pq=CALC.formpq(CALC.params.sigmal, fabs(qy), qx,qy,qx/q,0,q,CALC.ordis);   //Z=25425
                 fq = pq;  //Z=25426
                 //if ( CALC.lattice )
                 //    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
                 //                    CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, fabs(qy),
-                //                    CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,CALC.limq5f,CALC.limq6f,
+                //                    CALC.params.limq1f,CALC.params.limq2f,CALC.params.limq3f,CALC.params.limq4f,CALC.params.limq5f,CALC.params.limq6f,
                 //                    qx,qy,qx/q,0,q,CALC.norm,
                 //                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1f,
                 //                    CALC.params.CR->carr2f,CALC.params.CR->carr3f,CALC.params.CR->carr4f,CALC.params.CR->carr5f,
                 //                    CALC.params.CR->carr6f,CALC.params.CR->carr7f /*,carr11pm^,carr22pm^*/ );   //Z=25429
                 break;  //Z=25430
             case 3:
-                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi,
-                                fabs(qx),CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,
-                                CALC.limq8,CALC.limq9, qx,qy,0,qy/q,q,CALC.norm,
-                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
-                                CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
-                                CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,CALC.params.CR->carr9p
-                                /*,carr11pm^,carr22pm^*/ );  //Z=25433
+                pq=CALC.formpq(CALC.params.sigmal, fabs(qx), qx,qy,0,qy/q,q,CALC.ordis);  //Z=25433
                 fq = pq;  //Z=25434
                 //if ( CALC.lattice )
                 //    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
                 //                    CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, fabs(qx),
-                //                    CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,CALC.limq5f,CALC.limq6f,
+                //                    CALC.params.limq1f,CALC.params.limq2f,CALC.params.limq3f,CALC.params.limq4f,CALC.params.limq5f,CALC.params.limq6f,
                 //                    qx,qy,0,qy/q,q,CALC.norm,
                 //                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1f, /*TODO: hier stand carr1p*/
                 //                    CALC.params.CR->carr2f,CALC.params.CR->carr3f,CALC.params.CR->carr4f,CALC.params.CR->carr5f,
                 //                    CALC.params.CR->carr6f,CALC.params.CR->carr7f /*,carr11pm^,carr22pm^*/ );  //Z=25437
                 break;  //Z=25438
             case 4:
-                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, q,
-                                CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,
-                                qx,qy,qx,qy,q,CALC.norm,
-                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
-                                CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
-                                CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,CALC.params.CR->carr9p
-                                /*,carr11pm^,carr22pm^*/ );   //Z=25441
+                pq=CALC.formpq(CALC.params.sigmal, q, qx,qy,qx,qy,q,CALC.ordis);   //Z=25441
                 fq = pq;  //Z=25442
                 //if ( CALC.lattice )
                 //    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
                 //                    CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, q,
-                //                    CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,CALC.limq5f,CALC.limq6f,
+                //                    CALC.params.limq1f,CALC.params.limq2f,CALC.params.limq3f,CALC.params.limq4f,CALC.params.limq5f,CALC.params.limq6f,
                 //                    qx,qy,qx,qy,q,CALC.norm,
                 //                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1f, /*TODO ...*/
                 //                    CALC.params.CR->carr2f,CALC.params.CR->carr3f,CALC.params.CR->carr4f,CALC.params.CR->carr5f,
@@ -1789,101 +1700,52 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
 
         /*  isotropic fraction  */  //Z=25449
         if ( CALC.iso>0 )
-            pqiso = CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                               CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, q, CALC.limq1,CALC.limq2,
-                               CALC.limq3,CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,
-                               qx,qy,qx,qy,q,CALC.norm,  //Z=25450
-                               CALC.por,CALC.part,CALC.cs, 7/*ordis*/, CALC.orcase, CALC.params.CR->myarray,
-                               CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
-                               CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
-                               CALC.params.CR->carr9p /*,carr11pm^,carr22pm^*/ );  //Z=25451
+            pqiso = CALC.formpq(CALC.params.sigmal, q, qx,qy,qx,qy,q, 7/*ordis*/);  //Z=25451
         else
             pqiso = 0.0;  //Z=25452
 
-#define nnnorm CALC.norm  /*Z=20467*/
         /*  general orientation  */  //Z=25455
         if ( CALC.ordis==0 )
         {
-            switch ( CALC.orcase )
+            // TODO: bei den folgenden 4 Aufrufen von formfq() stehen die Arrays carr1p anstatt carr1f im Aufruf. Durch meine Parameterlisten-
+            //       Optimierung ist das jetzt natürlich anders. Hoffentlich macht das keine Probleme...
+#ifndef __CUDACC__
+            if ( idxCenter ) qDebug() << "TODO formfq, orcase:"<<CALC.params.orcase
+                         << "ordis:"<<CALC.ordis << "part:"<<CALC.params.part << "cs:"<<CALC.params.cs;
+                //Debug: TODO formfq, orcase: 1 ordis: 0 part: 2 cs: 0
+            //params.limq9 = pow(fabs(params.CR->carr9p[n9]),-1/(2.0*n9));  //Z=15078
+            //params.limq1f = pow(fabs(params.CR->carr1f[n1f]),-1/(2.0*n1f));  //Z=15079 Im Orginal-Pascalprogramm wurden hier
+#endif
+            //CALC.params.CR->carr1f = CALC.params.CR->carr1p;
+
+            switch ( CALC.params.orcase )
             {
             case 1:
-                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi,
-                                q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,
-                                qx,qy,qx*CALC.cosphic/q-qy*CALC.sinphic/q,qx*CALC.sinphic/q+qy*CALC.cosphic/q,q,nnnorm,
-                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
-                                CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
-                                CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,CALC.params.CR->carr9p
-                                /*,carr11pm^,carr22pm^*/ );   //Z=25459
+                pq=CALC.formpq(CALC.params.sigmal,
+                                q,qx,qy,qx*CALC.cosphic/q-qy*CALC.sinphic/q,qx*CALC.sinphic/q+qy*CALC.cosphic/q,q,CALC.ordis);   //Z=25459
                 /* fq = pq;  //Z=25460 */
                 if ( CALC.lattice )
-                    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                    CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi,
-                                    q,CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,CALC.limq5f,CALC.limq6f,
-                                    qx,qy,qx*CALC.cosphic/q-qy*CALC.sinphic/q,qx*CALC.sinphic/q+qy*CALC.cosphic/q,q,nnnorm,
-                                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
-                                    CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
-                                    CALC.params.CR->carr6p,CALC.params.CR->carr7p /*,carr11pm^,carr22pm^*/ );   //Z=25463
+                    fq=CALC.formfq( q, qx, qy, qx*CALC.cosphic/q-qy*CALC.sinphic/q, qx*CALC.sinphic/q+qy*CALC.cosphic/q, q, CALC.ordis );   //Z=25463
                 break;  //Z=25464
             case 2:  //Z=25465
-                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, sqrt((1.0-CALC.order)*qx*qx+qy*qy),
-                                CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,
-                                qx,qy,qx/q,qy/q,q,nnnorm,
-                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
-                                CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
-                                CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,CALC.params.CR->carr9p
-                                /*,carr11pm^,carr22pm^*/ );
+                pq=CALC.formpq(CALC.params.sigmal, sqrt((1.0-CALC.order)*qx*qx+qy*qy), qx,qy,qx/q,qy/q,q,CALC.ordis);
                 /* fq = pq;  //Z=25468 */
                 if ( CALC.lattice ) //fq:=pq;
-                    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                    CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, sqrt((1.0-CALC.order)*qx*qx+qy*qy),
-                                    CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,CALC.limq5f,CALC.limq6f,
-                                    qx,qy,qx/q,qy/q,q,nnnorm,
-                                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
-                                    CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
-                                    CALC.params.CR->carr6p,CALC.params.CR->carr7p /*,carr11pm^,carr22pm^*/ );  //Z=25471
+                    fq=CALC.formfq( sqrt((1.0-CALC.order)*qx*qx+qy*qy), qx, qy, qx/q, qy/q, q, CALC.ordis );  //Z=25471
                 break;  //Z=25472
             case 3:  //Z=25473
-                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, sqrt(qx*qx+(1-CALC.order)*qy*qy),
-                                CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,
-                                qx,qy,qx/q,qy/q,q,nnnorm,
-                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
-                                CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
-                                CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,CALC.params.CR->carr9p
-                                /*,carr11pm^,carr22pm^*/ );  //Z=25475
+                pq=CALC.formpq(CALC.params.sigmal,sqrt(qx*qx+(1-CALC.order)*qy*qy),qx,qy,qx/q,qy/q,q,CALC.ordis );  //Z=25475
                 /* fq = pq;  //Z=25476 */
                 if ( CALC.lattice )
-                    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                    CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi, sqrt(qx*qx+(1-CALC.order)*qy*qy),
-                                    CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,CALC.limq5f,CALC.limq6f,
-                                    qx,qy,qx/q,qy/q,q,nnnorm,
-                                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
-                                    CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
-                                    CALC.params.CR->carr6p,CALC.params.CR->carr7p /*,carr11pm^,carr22pm^*/ );  //Z=25479
+                    fq=CALC.formfq( sqrt(qx*qx+(1-CALC.order)*qy*qy), qx, qy, qx/q, qy/q, q, CALC.ordis );  //Z=25479
                 break;  //Z=25480
             case 4:  //Z=25481
-                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi,
-                                q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,
-                                qx,qy,qx,qy,q,nnnorm,
-                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
-                                CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
-                                CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,CALC.params.CR->carr9p
-                                /*,carr11pm^,carr22pm^*/ );  //Z=25483
+                pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);  //Z=25483
                 /* fq = pq;  //Z=25484 */
                 if ( CALC.lattice ) //fq:=pq;
-                    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                    CALC.params.rho,CALC.params.alphash,CALC.polTheta,CALC.polPhi,
-                                    q,CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,CALC.limq5f,CALC.limq6f,
-                                    qx,qy,qx,qy,q,nnnorm,
-                                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,CALC.params.CR->carr1p,
-                                    CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,CALC.params.CR->carr5p,
-                                    CALC.params.CR->carr6p,CALC.params.CR->carr7p /*,carr11pm^,carr22pm^*/ );  //Z=25487
+                    fq=CALC.formfq( q, qx, qy, qx, qy, q, CALC.ordis );  //Z=25487
                 break;  //Z=25488
             } // switch orcase
-#undef nnnorm
         } // if ( CALC.ordis==0 )  //Z=25489
 
     } /*  of part=2, disk  */  //Z=25490
@@ -1917,13 +1779,7 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
         /*  isotropic cases  */  //Z=25511
         if ( (CALC.ordis==7) && CALC.homogeneous )
         {/*7*/  //Z=25512
-            pq = CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                            CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,CALC.limq5,
-                            CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,  //Z=25513
-                            CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                            CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
-                            CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
-                            CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25514
+            pq = CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);  //Z=25514
             fq = pq;  //Z=25515
             /* if lattice then  //Z=25516 */
             /* fq:=formfq(length,radius,sigmal,sigma,p1,rho,alphash,theta,phi,q,limq1,limq2,limq3,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,qx,qy,q,norm,  //Z=25517 */
@@ -1933,13 +1789,7 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
         /*  perfect orientation  */  //Z=25521
         if ( (CALC.ordis==6) && CALC.homogeneous )
         {/*7*/  //Z=25522
-            pq = CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                            CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,CALC.limq5,
-                            CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,  //Z=25523
-                            CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                            CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
-                            CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
-                            CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25524
+            pq = CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);  //Z=25524
             /* if lattice then fq:=formfq(length,radius,sigmal,sigma,p1,rho,alphash,theta,phi,q,limq1,limq2,limq3,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,qx,qy,q,norm,  //Z=25525 */
             /*          part,cs,ordis,orcase,myarray,carr1f^,carr2f^,carr3f^,carr4f^,carr5f^,carr6f^,carr7f^,carr11pm^,carr22pm^);  //Z=25526 */
             fq = pq;  //Z=25527
@@ -1956,13 +1806,7 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
         /*  isotropic cases  */  //Z=25535
         if ( CALC.ordis==7 && CALC.homogeneous )
         {   /*Z221118=25536*/
-            pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.epsilon,CALC.params.sigma,CALC.params.p1,
-                            CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
-                            CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
-                            CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                            CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
-                            CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
-                            CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25538
+            pq=CALC.formpq(CALC.epsilon,q,qx,qy,qx,qy,q,CALC.ordis);  //Z=25538
             fq = pq;  //Z=25539
             /* if lattice then fq:=formfq(length,radius,sigmal,sigma,p1,rho,alphash,theta,phi,q,limq1,limq2,limq3,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,qx,qy,q,norm,  //Z=25540 */
             /*      part,cs,ordis,orcase,myarray,carr1f^,carr2f^,carr3f^,carr4f^,carr5f^,carr6f^,carr7f^,carr11pm^,carr22pm^);  //Z=25541 */
@@ -1971,43 +1815,19 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
         /* perfect orientation */
         if ( CALC.ordis==6 && CALC.homogeneous )
         {   //Z=25545
-            switch ( CALC.orcase )
+            switch ( CALC.params.orcase )
             {
             case 1:
-                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
-                                CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
-                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                                CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
-                                CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
-                                CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25548
+                pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);  //Z=25548
                 break;
             case 2:
-                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
-                                CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,0,q,CALC.norm,
-                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                                CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
-                                CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
-                                CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25551
+                pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,0,q,CALC.ordis);  //Z=25551
                 break;
             case 3:
-                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
-                                CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qy,qx,q,CALC.norm,
-                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                                CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
-                                CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
-                                CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25554
+                pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qy,qx,q,CALC.ordis);  //Z=25554
                 break;
             case 4:
-                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
-                                CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
-                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                                CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
-                                CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
-                                CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25557
+                pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);  //Z=25557
                 break;
             }
             fq = pq;  //Z=25559
@@ -2016,34 +1836,16 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
         /*  general orientation  */  //Z=25562
         if ( CALC.ordis==0 )
         {   //Z=25563
-            switch ( CALC.orcase )
+            switch ( CALC.params.orcase )
             {
             case 1:   /*  general orientation  */  //Z=25564
-                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
-                                CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,
-                                qx*CALC.cosphic-qy*CALC.sinphic,qx*CALC.sinphic+qy*CALC.cosphic,q,CALC.norm,
-                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                                CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
-                                CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
-                                CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25566
+                pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx*CALC.cosphic-qy*CALC.sinphic,qx*CALC.sinphic+qy*CALC.cosphic,q,CALC.ordis);  //Z=25566
                 /* fq = pq;  //Z=25567 */
                 if ( CALC.lattice )
-                    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                    CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,
-                                    CALC.limq5f,CALC.limq6f,qx,qy,qx*CALC.cosphic-qy*CALC.sinphic,qx*CALC.sinphic+qy*CALC.cosphic,q,CALC.norm,
-                                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                                    CALC.params.CR->carr1f,CALC.params.CR->carr2f,CALC.params.CR->carr3f,CALC.params.CR->carr4f,
-                                    CALC.params.CR->carr5f,CALC.params.CR->carr6f,CALC.params.CR->carr7f/*,carr11pm^,carr22pm^*/);  //Z=25570
+                    fq=CALC.formfq( q, qx, qy, qx*CALC.cosphic-qy*CALC.sinphic, qx*CALC.sinphic+qy*CALC.cosphic, q, CALC.ordis );  //Z=25570
                 break;  //Z=25571
             case 2:  /*  x-axis  */  //Z=25572
-                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
-                                CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
-                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                                CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
-                                CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
-                                CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25574
+                pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);  //Z=25574
                 fq = pq;  //Z=25575
                 /* ffq:=pq;  //Z=25576 */
                 /* if lattice then //fq:=pq;  //Z=25577 */
@@ -2052,38 +1854,16 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
                 /* szq:=ffq;  //Z=25580 */
                 break;  //Z=25581
             case 3:  /*  y-axis  */  //Z=25582
-                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
-                                CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
-                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                                CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
-                                CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
-                                CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25584
+                pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);  //Z=25584
                 /* fq = pq;  //Z=25585 */
                 if ( CALC.lattice )
-                    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                    CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,
-                                    CALC.limq5f,CALC.limq6f,qx,qy,qx,qy,q,CALC.norm,
-                                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                                    CALC.params.CR->carr1f,CALC.params.CR->carr2f,CALC.params.CR->carr3f,CALC.params.CR->carr4f,
-                                    CALC.params.CR->carr5f,CALC.params.CR->carr6f,CALC.params.CR->carr7f/*,carr11pm^,carr22pm^*/);  //Z=25588
+                    fq=CALC.formfq( q, qx, qy, qx, qy, q, CALC.ordis );  //Z=25588
                 break;  //Z=25589
             case 4:  /*  z-axis  */  //Z=25590
-                pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
-                                CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
-                                CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                                CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
-                                CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
-                                CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25592
+                pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);  //Z=25592
                 /* fq = pq;  //Z=25593 */
                 if ( CALC.lattice )
-                    fq=CALC.formfq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                                    CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1f,CALC.limq2f,CALC.limq3f,CALC.limq4f,
-                                    CALC.limq5f,CALC.limq6f,qx,qy,qx,qy,q,CALC.norm,
-                                    CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                                    CALC.params.CR->carr1f,CALC.params.CR->carr2f,CALC.params.CR->carr3f,CALC.params.CR->carr4f,
-                                    CALC.params.CR->carr5f,CALC.params.CR->carr6f,CALC.params.CR->carr7f/*,carr11pm^,carr22pm^*/);  //Z=25596
+                    fq=CALC.formfq( q, qx, qy, qx, qy, q, CALC.ordis );  //Z=25596
                 break;  //Z=25597
             }
 
@@ -2095,20 +1875,11 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
 
     if ( CALC.parttriellipsoid )
     {   //Z=25603
-#ifndef __CUDACC__
-        if ( idxCenter ) qDebug() << "parttriellipsoid" << "ordis"<<CALC.ordis << "part"<<CALC.part << "cs"<<CALC.cs << "limq4"<<CALC.limq4;
-#endif
 
         /*  isotropic cases  */  //Z=25604
         if ( (CALC.ordis==7) && CALC.homogeneous )
         {   //Z=25605
-            pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                            CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
-                            CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
-                            CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                            CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
-                            CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
-                            CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25607
+            pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);  //Z=25607
             //fq = pq;  //Z=25608
             /* if lattice then fq:=formfq(length,radius,sigmal,sigma,p1,rho,alphash,theta,phi,q,limq1,limq2,limq3,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,qx,qy,q,norm,  //Z=25609 */
             /*      part,cs,ordis,orcase,myarray,carr1f^,carr2f^,carr3f^,carr4f^,carr5f^,carr6f^,carr7f^,carr11pm^,carr22pm^);  //Z=25610 */
@@ -2117,13 +1888,7 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
         /*  perfect orientation  */  //Z=25613
         if ( (CALC.ordis==6) && CALC.homogeneous )
         {   //Z=25614
-            pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                            CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
-                            CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
-                            CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                            CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
-                            CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
-                            CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);
+            pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);
             //fq = pq;  //Z=25617
             /* if lattice then  //Z=25618 */
             /* fq:=formfq(length,radius,sigmal,sigma,p1,rho,alphash,theta,phi,q,limq1,limq2,limq3,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,qx,qy,q,norm,  //Z=25619 */
@@ -2142,13 +1907,7 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
         /*  isotropic cases  */  //Z=25630
         if ( (CALC.ordis==7) && CALC.homogeneous )
         {   //Z=25631
-            pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                            CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
-                            CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
-                            CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                            CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
-                            CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
-                            CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25633
+            pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);  //Z=25633
             //fq = pq;  //Z=25634
             /* if lattice then fq:=formfq(length,radius,sigmal,sigma,p1,rho,alphash,theta,phi,q,limq1,limq2,limq3,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,qx,qy,q,norm,  //Z=25635 */
             /*      part,cs,ordis,orcase,myarray,carr1f^ ,carr2f^,carr3f^,carr4f^,carr5f^,carr6f^,carr7f^,carr11pm^,carr22pm^);  //Z=25636 */
@@ -2157,13 +1916,7 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
         /*  perfect orientation  */  //Z=25639
         if ( (CALC.ordis==6) && CALC.homogeneous )
         {   //Z=25640
-            pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                            CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
-                            CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
-                            CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                            CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
-                            CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
-                            CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25642
+            pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);  //Z=25642
             //fq = pq;  //Z=25643
             /* if lattice then  //Z=25644 */
             /* fq:=formfq(length,radius,sigmal,sigma,p1,rho,alphash,theta,phi,q,limq1,limq2,limq3,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,qx,qy,q,norm,  //Z=25645 */
@@ -2182,13 +1935,7 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
         /*  isotropic cases  */  //Z=25655
         if ( (CALC.ordis==7) && CALC.homogeneous )
         {   //Z=25656
-            pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                            CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
-                            CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
-                            CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                            CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
-                            CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
-                            CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25658
+            pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);  //Z=25658
             //fq = pq;  //Z=25659
             /* if lattice then fq:=formfq(length,radius,sigmal,sigma,p1,rho,alphash,theta,phi,q,limq1,limq2,limq3,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,qx,qy,q,norm,  //Z=25660 */
             /*      part,cs,ordis,orcase,myarray,carr1f^ ,carr2f^,carr3f^,carr4f^,carr5f^,carr6f^,carr7f^,carr11pm^,carr22pm^);  //Z=25661 */
@@ -2197,13 +1944,7 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
         /*  perfect orientation  */  //Z=25664
         if ( (CALC.ordis==6) && CALC.homogeneous )
         {   //Z=25665
-            pq=CALC.formpq(CALC.params.length,CALC.params.radius,CALC.params.sigmal,CALC.params.sigma,CALC.params.p1,
-                            CALC.params.rho,CALC.alphash,CALC.polTheta,CALC.polPhi,q,CALC.limq1,CALC.limq2,CALC.limq3,CALC.limq4,
-                            CALC.limq5,CALC.limq6,CALC.limq7,CALC.limq8,CALC.limq9,qx,qy,qx,qy,q,CALC.norm,
-                            CALC.por,CALC.part,CALC.cs,CALC.ordis,CALC.orcase,CALC.params.CR->myarray,
-                            CALC.params.CR->carr1p,CALC.params.CR->carr2p,CALC.params.CR->carr3p,CALC.params.CR->carr4p,
-                            CALC.params.CR->carr5p,CALC.params.CR->carr6p,CALC.params.CR->carr7p,CALC.params.CR->carr8p,
-                            CALC.params.CR->carr9p/*,carr11pm^,carr22pm^*/);  //Z=25667
+            pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);  //Z=25667
             //fq = pq;  //Z=25668
             /* if lattice then  //Z=25669 */
             /* fq:=formfq(length,radius,sigmal,sigma,p1,rho,alphash,theta,phi,q,limq1,limq2,limq3,limq4,limq5,limq6,limq7,limq8,limq9,qx,qy,qx,qy,q,norm,  //Z=25670 */
@@ -2247,7 +1988,13 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
     if ( CALC.RadioButtonDebyeScherrer )
         width = 4.0/CALC.params.domainsize;  //Z=25722
     if ( CALC.RadioButtonPara )
-        width = (4.0/CALC.params.domainsize); // +CALC.reldis*CALC.reldis*CALC.dist*q*q;  //Z=25723
+        width = (4.0/CALC.params.domainsize)+sqr(CALC.reldis)*CALC.dist*sqr(q);  //Z=25723
+    if ( CALC.lattice && CALC.shp==cbpeakAnisotropicGaussian && CALC.ordis==7/*isotropic*/ )
+        width = CALC.params.sig.length() /*sqrt(sigx*sigx+sigy*sigy+sigz*sigz)*/ /3.0;  //Z=25892
+#ifndef __CUDACC__
+    if ( idxCenter && width != 1 )
+        qDebug() << "WIDTH" << width;
+#endif
 
     //if ( ! CALC.tpvRandomOldValues.empty() )   // doIntCalc... - nicht auf der GPU zulässig
     {
@@ -2319,7 +2066,7 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
         } /* of peak loop */  //Z=25769
 
 #ifndef __CUDACC__
-        //int ignHklData = 0;
+        int ignHklData = 0;
 #endif
         for ( int ii=1; ii<=CALC.peakmax2; ii++ )
         {   //Z=25779
@@ -2335,7 +2082,6 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
             qyhkl = CALC.latpar3(ii,3);
             qzhkl = CALC.latpar3(ii,4);
             qhkl  = CALC.latpar3(ii,5);
-            if ( qhkl <= 0 ) continue; // Verkürzt die Rechnung, da diese Daten nicht verwendet werden.
             qxhklt = CALC.latpar3(ii,7);
             qyhklt = CALC.latpar3(ii,8);
             qzhklt = CALC.latpar3(ii,9);
@@ -2360,11 +2106,6 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
                 else if ( CALC.ordis==7/*isotropic*/ )
                 {   /* isotropic orientation */   //Z=25890
                     D8( qDebug() << "CPU: shp=8(B): ihex,i" << ihex << i << "ii" << ii << "/" << CALC.peakmax2 );
-                    width = CALC.params.sig.length() /*sqrt(sigx*sigx+sigy*sigy+sigz*sigz)*/ /3.0;  //Z=25892
-/*#ifndef __CUDACC__
-                    if ( idxCenter && ii==1 )
-                        qDebug() << "WIDTH" << width << "Ordis=7, cbpeakAnisotropicGaussian";
-#endif*/
                     x2 = (q-qhkl)*(q-qhkl)/(width*width);  //Z=25893
                     sq = g3*exp(-4*x2/M_PI)/(M_PI*width/2.0);  //Z=25894
                 }
@@ -2376,8 +2117,8 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
                     // rotaxtheta = CALC.polTheta
 #define sign(x) ((x<0)?-1:1)
                     /* rotated around y-axis */
-                    if ( fabs(CALC.polPhi)<eps9 /*(rotaxphi=0)*/ &&
-                         fabs(CALC.polTheta-90)<eps9 /*(rotaxtheta=90)*/ )
+                    if ( fabs(CALC.params.polPhi)<eps9 /*(rotaxphi=0)*/ &&
+                         fabs(CALC.params.polTheta-90)<eps9 /*(rotaxtheta=90)*/ )
                     {  //Z=25899
                         double signq=sign(qyhkl);
                         qyhkl=signq*sqrt(qyhkl*qyhkl+qzhkl*qzhkl);  //Z=25901
@@ -2392,8 +2133,8 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
                         sq=exp(-4*x2/M_PI)/(sqrt(M_PI*M_PI*M_PI)*CALC.params.sig.x()*CALC.params.sig.y()*CALC.params.sig.z()/8.);
                     }  //Z=25911
                     /* rotated around x-axis */
-                    else if ( fabs(CALC.polPhi-90)<eps9 /*(rotaxphi=90)*/ &&
-                              fabs(CALC.polTheta-90)<eps9 /*(rotaxtheta=90)*/ )
+                    else if ( fabs(CALC.params.polPhi-90)<eps9 /*(rotaxphi=90)*/ &&
+                              fabs(CALC.params.polTheta-90)<eps9 /*(rotaxtheta=90)*/ )
                     {  //Z=25913
                         double signq=sign(qxhkl);
                         qxhkl=signq*sqrt(qxhkl*qxhkl+qzhkl*qzhkl);
@@ -2410,8 +2151,8 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
                     /* rotated round an oblique axis */
                     else // if ((rotaxphi<>0) and (rotaxphi<>90)) then begin
                     {/*10*/  //Z=25927
-                        CALC.qrombchid(CALC.params.length,CALC.ucl1,CALC.params.p1,CALC.ucl2,CALC.params.alpha_deg,CALC.ucl3,
-                                      delta,CALC.polTheta*M_PI/180.0,CALC.polPhi*M_PI/180.0,qx,qy,qz,CALC.ri11,CALC.ri12,CALC.ri13,
+                        CALC.qrombchid(CALC.params.length,CALC.ucl1,CALC.params.p1,CALC.ucl2,CALC.params.alpha,/*CALC.ucl3, (war dbeta)*/
+                                      delta,CALC.params.polTheta*M_PI/180.0,CALC.params.polPhi*M_PI/180.0,qx,qy,qz,CALC.ri11,CALC.ri12,CALC.ri13,
                                       CALC.ri21,CALC.ri22,CALC.ri23,CALC.ri31,CALC.ri32,CALC.ri33,  //Z=25928
                                       qxhkl,qyhkl,qzhkl,qhkl,
                                       CALC.params.ax1.length(),CALC.params.ax2.length(),CALC.params.ax3.length(),
@@ -2430,8 +2171,8 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
                     double theta = atan2(sqrt(qxhkl*qxhkl+qyhkl*qyhkl),(qzhkl+eps6));  //Z=25987
                     phi = phi*180/M_PI;
                     theta = theta*180/M_PI;
-                    CALC.qrombdeltac(CALC.params.length, CALC.params.radius, CALC.params.p1, CALC.params.sigma, CALC.params.alpha_deg,
-                                    CALC.params.dbeta, theta, phi, qx, qy, qz,
+                    CALC.qrombdeltac(CALC.params.p1, CALC.params.sigma, CALC.params.alpha,
+                                    theta, phi, qx, qy, qz,
                                     qxhkl, qyhkl, qzhkl, qhkl,
                                     CALC.params.ax1.length(), CALC.params.ax2.length(), CALC.params.ax3.length(),
                                     CALC.params.ax1.x(), CALC.params.ax1.y(), CALC.params.ax1.z(),
@@ -2439,7 +2180,7 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
                                     CALC.params.ax3.x(), CALC.params.ax3.y(), CALC.params.ax3.z(),
                                     CALC.params.sig.x(), CALC.params.sig.y(), CALC.params.sig.z(),
                                     CALC.ordis,3, /*i0=*/5, /*i1=*/6,0,0,0, CALC.params.CR->carr1p, sq );
-                    sq = sq*2*M_PI*qhkl/CALC.norm;  //Z=25991
+                    sq = sq*2*M_PI*qhkl/CALC.params.norm;  //Z=25991
                 }
 
                 psiord = 1;  //Z=25994
@@ -2574,14 +2315,14 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
 
             if ( qhkl > 0 ) intensity += sq*mhkl*fhkl*psiord;  //Z=26176
 #ifndef __CUDACC__
-            //else ignHklData++;
+            else ignHklData++;
 #endif
 
         }/*2*/  /* of peak-loop */  //Z=26182
 
 #ifndef __CUDACC__
-        //if ( ignHklData > 0 )
-        //    qDebug() << "IgnHklData" << ignHklData << "max" << CALC.peakmax2;
+        if ( ignHklData > 0 )
+            qDebug() << "IgnHklData" << ignHklData << "max" << CALC.peakmax2;
 #endif
 
         szqiso = (1+(1)*(8*M_PI*M_PI*M_PI*radintensity/(4*M_PI*sphno*cubevol)-1)*exp(-CALC.params.ucb/*dwfactoriso*/*q*q));   /*Z0311=24804*/
@@ -2600,12 +2341,12 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
     // retval ist der Pixelwert bei [ihex+zmax][i+zmax]
 
 #ifndef __CUDACC__
-//    if ( retval < -1e9 )
-//        qDebug() << "szq"<<szq << "pq"<<pq <<"fq"<<fq << "szqiso"<<szqiso << "pqiso"<<pqiso << "q"<<q
-//                 << "intens"<<intensity << "radint"<<radintensity << CALC.peakmax1
-//                 << "="<<retval;
+    if ( retval < -1e8 )
+        qDebug() << "szq"<<szq << "pq"<<pq <<"fq"<<fq << "szqiso"<<szqiso << "pqiso"<<pqiso << "q"<<q
+                 << "intens"<<intensity << "radint"<<radintensity << CALC.peakmax1
+                 << "="<<retval;
 #else
-    //if ( retval < -1e9 )
+    //if ( retval < -1e6 )
     //    printf( "szq=%lf pq=%lf fq=%lf szqiso=%lf pqiso=%lf q=%lf intens=%lf radint=%lf erg=%lf\n", szq, pq, fq, szqiso, pqiso, q, intensity, radintensity, retval );
 #endif
 
@@ -2659,13 +2400,13 @@ void SasCalc_GENERIC_calculation::corotations(double a, double b, double c, doub
     double asedxn,asedyn,asedzn,bsedxn,bsedyn,bsedzn,csedxn,csedyn,csedzn;
     double asedxt,asedyt,asedzt,bsedxt,bsedyt,bsedzt,csedxt,csedyt,csedzt;
     double aedxt,aedyt,aedzt,bedxt,bedyt,bedzt,cedxt,cedyt,cedzt;
-    double m11DD,m12DD,m13DD,m21DD,m22DD,m23DD,m31DD,m32DD,m33DD;
+    double m11DD,m12DD,m13DD,m21DD,m22DD,m23DD; //,m31DD,m32DD,m33DD;
     //double mi11DD,mi12DD,mi13DD,mi21DD,mi22DD,mi23DD,mi31DD,mi32DD,mi33DD;
-    double aexDD,aeyDD,aezDD,bexDD,beyDD,bezDD,cexDD,ceyDD,cezDD;
+    double aexDD,aeyDD,/*aezDD,*/bexDD,beyDD; //,bezDD,cexDD,ceyDD,cezDD;
     double asxDD,asyDD,aszDD,bsxDD,bsyDD,bszDD,csxDD,csyDD,cszDD,area;
     //double aedxDD,aedyDD,aedzDD,bedxDD,bedyDD,bedzDD,cedxDD,cedyDD,cedzDD;
     double asedxDD,asedyDD,asedzDD,bsedxDD,bsedyDD,bsedzDD,csedxDD,csedyDD,csedzDD;
-    double m11DL,m12DL,m13DL,m21DL,m22DL,m23DL,m31DL,m32DL,m33DL;
+    //double m11DL,m12DL,m13DL,m21DL,m22DL,m23DL,m31DL,m32DL,m33DL;
     //double mi11DL,mi12DL,mi13DL,mi21DL,mi22DL,mi23DL,mi31DL,mi32DL,mi33DL;
     //double aexDL,aeyDL,aezDL,bexDL,beyDL,bezDL,cexDL,ceyDL,cezDL;
     double asxDL,asyDL,aszDL,bsxDL,bsyDL,bszDL,csxDL,csyDL,cszDL,area1;
@@ -2751,11 +2492,11 @@ void SasCalc_GENERIC_calculation::corotations(double a, double b, double c, doub
 
     m11DD = a;     m12DD = b*cg;    m13DD = 0;   /*Z0311=8831*/
     m21DD = 0;     m22DD = b*sg;    m23DD = 0;   /*Z0311=8832*/
-    m31DD = 0;     m32DD = 0;       m33DD = 1;   /*Z0311=8833*/
+    //m31DD = 0;     m32DD = 0;       m33DD = 1;   /*Z0311=8833*/
 
-    m11DL = a;     m12DL = 0;    m13DL = 0;   /*Z0311=8835*/
-    m21DL = 0;     m22DL = 1;    m23DL = 0;   /*Z0311=8836*/
-    m31DL = 0;     m32DL = 0;    m33DL = 1;   /*Z0311=8837*/
+    //m11DL = a;     m12DL = 0;    m13DL = 0;   /*Z0311=8835*/
+    //m21DL = 0;     m22DL = 1;    m23DL = 0;   /*Z0311=8836*/
+    //m31DL = 0;     m32DL = 0;    m33DL = 1;   /*Z0311=8837*/
 
     /* Mi inverse matrix */   /*Z0311=8840*/
     /* ruvw=Mi rxyz */   /*Z0311=8841*/
@@ -2812,13 +2553,13 @@ void SasCalc_GENERIC_calculation::corotations(double a, double b, double c, doub
 
     aexDD = m11DD*aax+m12DD*aay+m13DD*aaz;   /*Z0311=8894*/
     aeyDD = m21DD*aax+m22DD*aay+m23DD*aaz;   /*Z0311=8895*/
-    aezDD = m31DD*aax+m32DD*aay+m33DD*aaz;   /*Z0311=8896*/
+    //aezDD = m31DD*aax+m32DD*aay+m33DD*aaz;   /*Z0311=8896*/
     bexDD = m11DD*bax+m12DD*bay+m13DD*baz;   /*Z0311=8897*/
     beyDD = m21DD*bax+m22DD*bay+m23DD*baz;   /*Z0311=8898*/
-    bezDD = m31DD*bax+m32DD*bay+m33DD*baz;   /*Z0311=8899*/
-    cexDD = m11DD*cax+m12DD*cay+m13DD*caz;   /*Z0311=8900*/
-    ceyDD = m21DD*cax+m22DD*cay+m23DD*caz;   /*Z0311=8901*/
-    cezDD = m31DD*cax+m32DD*cay+m33DD*caz;   /*Z0311=8902*/
+    //bezDD = m31DD*bax+m32DD*bay+m33DD*baz;   /*Z0311=8899*/
+    //cexDD = m11DD*cax+m12DD*cay+m13DD*caz;   /*Z0311=8900*/
+    //ceyDD = m21DD*cax+m22DD*cay+m23DD*caz;   /*Z0311=8901*/
+    //cezDD = m31DD*cax+m32DD*cay+m33DD*caz;   /*Z0311=8902*/
 
     //aexDL = m11DL*aax+m12DL*aay+m13DL*aaz;   /*Z0311=8904*/
     //aeyDL = m21DL*aax+m22DL*aay+m23DL*aaz;   /*Z0311=8905*/
@@ -3242,26 +2983,8 @@ void SasCalc_GENERIC_calculation::corotations(double a, double b, double c, doub
 
 
 
-// myarray wird genutzt, um diverse Parameter als "Struktur" zu übergeben!
-// Bei einigen Parametern ist in /* */ der Variablenname im rufenden Programm angegeben.
-void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, double r/*params.radius*/, double rm/*params.radiusi*/,
-                             double sigmal/*params.sigmal*/, double sigma/*params.sigma*/, double epsi/*phi*/,
-                             double alfa/*alphash*/, double dbeta/*params.dbeta*/, double theta/*theta*/, double phi/*phi*/,
-                             int part/*part*/, int dim/*cdim*/, int nmax/*120*/, int ordis/*ordis*/, int cs/*cs=coreshell*/,
-                             double *myarray/*params.CR->myarray*/,
-                             int &cho1/*orcase*/,
-                             double &por, double &order, double &norm, double &lim1, double &lim2,
-                             double &lim3, double &lim4, double &lim5, double &lim6, double &lim7,
-                             double &lim8, double &lim9,
-                             double &lim1f, double &lim2f, double &lim3f, double &lim4f, double &lim5f,
-                             double &lim6f, double &lim7f, double &lim8f, double &lim9f,
-                             _carrXX *CR )  // Für GPU ist ein Zeiger besser als viele!
-                             //double *carr1p, double *carr2p, double *carr3p,
-                             //double *carr4p, double *carr5p, double *carr6p,
-                             //double *carr7p, double *carr8p, double *carr9p, //: CoeffArrayType  /*Z0311=9314*/,
-                             //double *carr1f, double *carr2f, double *carr3f,
-                             //double *carr4f, double *carr5f, double *carr6f,
-                             //double *carr7f, double *carr8f, double *carr9f)  //: ArrayImax2D )
+// Bei den Parametern ist in /* */ der Variablenname im rufenden Programm angegeben.
+void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/, int ordis/*ordis*/, double &order/*order*/)
 {/*1*/  //Z=9861
 
     static const int  nnmax = 120; // 500;  //Z=9865
@@ -3278,7 +3001,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
     double /*uell[3*nnmax+1],*/u1ell[3*nnmax+1],u2ell[3*nnmax+1],u3ell[3*nnmax+1],/*vell[3*nnmax+1],*/v1ell[3*nnmax+1],
            v2ell[3*nnmax+1],v3ell[3*nnmax+1],gell[3*nnmax+1],g3ell[3*nnmax+1]; //: Array[0..3*nnmax] of extended;  /*Z=9378*/
     double intlar[2*nnmax+1][2*nnmax+1]; //: Array[0..2*nnmax,0..2*nnmax] of extended;  /*Z0311=9331*/;
-    bool   search1,/*search2,*/search3,search4,search5,search6/*,search7,search8,search9*/;
+    //bool   search1,/*search2,*/search3,search4,search5,search6/*,search7,search8,search9*/;
     float  philiph,philipt,phiax,phiin,phiout,rad,lliph,llipt,lin,lout,len,rmax;  /*Z0311=9333*/;
     float  /*xradm,xrzm,*/x1zm,x12zm;  /*Z0311=9334*/;
 
@@ -3314,28 +3037,28 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
     params.p21=1; params.p22=1; params.p23=1;
     params.p31=1; params.p32=1; params.p33=1;
 
-    z = (1-sqr(sigma))/sqr(sigma);  //Z=9891
-    zl = (1-sqr(sigmal))/sqr(sigmal);  //Z=9892
+    z = (1-sqr(params.sigma))/sqr(params.sigma);  //Z=9891
+    zl = (1-sqr(params.sigmal))/sqr(params.sigmal);  //Z=9892
     zz = z;  //Z=9893
     zzl = zl;  //Z=9894
-    //DBG( qDebug() << "coefficients()" << "z=" << z << "zl=" << zl; )
+    DBG( qDebug() << "coefficients()" << "z=" << z << "zl=" << zl; )
     /* z:=z+2*dim;          (* z-average *)  //Z=9895 */
     /* zl:=zl+2*dim;  //Z=9896 */
     //nmax2 = ceil(nmax/2.0);  //Z=9897
-    p = r/rm;  //Z=9898
-    eps = l/r;  //Z=9899
+    p = params.radius/params.radiusi;  //Z=9898
+    eps = params.length/params.radius;  //Z=9899
 
-    xlz = l/(2.0*(zzl+1));  //Z=9901
+    xlz = params.length/(2.0*(zzl+1));  //Z=9901
     xl2z = xlz*xlz;  //Z=9902
-    xrz = r/(2.0*(zz+1));  //Z=9903
+    xrz = params.radius/(2.0*(zz+1));  //Z=9903
     xr2z = xrz*xrz;  //Z=9904
-    xrmz = rm/(2.0*(zz+1));  //Z=9905
+    xrmz = params.radiusi/(2.0*(zz+1));  //Z=9905
     xrm2z = xrmz*xrmz;  //Z=9906
 
     /*  ellipsoid semiaxis  */  //Z=9908
-    aell = r;  //Z=9909
-    bell = l;  //Z=9910
-    cell = rm;  //Z=9911
+    aell = params.radius;  //Z=9909
+    bell = params.length;  //Z=9910
+    cell = params.radiusi;  //Z=9911
 
     xln[0] = 1;  //Z=9913
     xrn[0] = 1;  //Z=9914
@@ -3367,38 +3090,38 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
     /* end;  //Z=9941 */
     for ( n=0; n<=150; n++ )
     {/*2*/  //Z=9942
-        CR->carr1p[n] = 1;      CR->carr1f[n] = 1;  //Z=9943
-        CR->carr2p[n] = 1;      CR->carr2f[n] = 1;  //Z=9944
-        CR->carr3p[n] = 1;      CR->carr3f[n] = 1;  //Z=9945
-        CR->carr4p[n] = 1;      CR->carr4f[n] = 1;  //Z=9946
-        CR->carr5p[n] = 1;      CR->carr5f[n] = 1;  //Z=9947
-        CR->carr6p[n] = 1;      CR->carr6f[n] = 1;  //Z=9948
-        CR->carr7p[n] = 1;      CR->carr7f[n] = 1;  //Z=9949
-        CR->carr8p[n] = 1;      CR->carr8f[n] = 1;  //Z=9950
-        CR->carr9p[n] = 1;      CR->carr9f[n] = 1;  //Z=9951
+        params.CR->carr1p[n] = 1;      params.CR->carr1f[n] = 1;  //Z=9943
+        params.CR->carr2p[n] = 1;      params.CR->carr2f[n] = 1;  //Z=9944
+        params.CR->carr3p[n] = 1;      params.CR->carr3f[n] = 1;  //Z=9945
+        params.CR->carr4p[n] = 1;      params.CR->carr4f[n] = 1;  //Z=9946
+        params.CR->carr5p[n] = 1;      params.CR->carr5f[n] = 1;  //Z=9947
+        params.CR->carr6p[n] = 1;      params.CR->carr6f[n] = 1;  //Z=9948
+        params.CR->carr7p[n] = 1;      params.CR->carr7f[n] = 1;  //Z=9949
+        params.CR->carr8p[n] = 1;      params.CR->carr8f[n] = 1;  //Z=9950
+        params.CR->carr9p[n] = 1;      params.CR->carr9f[n] = 1;  //Z=9951
         //CR->carr2i[n] = 1;  //Z=9952
     }/*2*/  //Z=9953
     for ( n=0; n<=130; n++ )
     {/*2*/  //Z=9954
         for ( m=0; m<=130; m++ )
         {/*3*/  //Z=9955
-            CR->carr11pm[n][m] = 1;  //Z=9956
-            CR->carr11pm[n][m] = 1;  //Z=9957
+            params.CR->carr11pm[n][m] = 1;  //Z=9956
+            params.CR->carr22pm[n][m] = 1;  //Z=9957
         }/*3*/  //Z=9958
     }/*2*/  //Z=9959
 
     /*  multi-shell or liposome structure parameters  */  //Z=9961
-    if ( cs==3 )
+    if ( params.cs==3 )
     {/*2*/  //Z=9962
-        philiph = myarray[12];     /*  water  */  //Z=9963
-        philipt = myarray[13];     /*  bilayer  */  //Z=9964
+        philiph = params.CR->myarray[12];     /*  water  */  //Z=9963
+        philipt = params.CR->myarray[13];     /*  bilayer  */  //Z=9964
 
-        rad = myarray[1];          /*  vesicle inner radius  */  //Z=9966
-        lliph = myarray[7];        /*  water  */  //Z=9967
-        llipt = myarray[8];        /*  bilayer  */  //Z=9968
+        rad = params.CR->myarray[1];          /*  vesicle inner radius  */  //Z=9966
+        lliph = params.CR->myarray[7];        /*  water  */  //Z=9967
+        llipt = params.CR->myarray[8];        /*  bilayer  */  //Z=9968
 
         len = lliph+llipt;  //Z=9970
-        ncell = round(myarray[4]);  //Z=9971
+        ncell = round(params.CR->myarray[4]);  //Z=9971
         rmax = rad+ncell*len;  //Z=9972
 
         lqm[1] = lliph;  //Z=9974
@@ -3436,34 +3159,34 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
 
         for ( i=1; i<=inmax; i++ )
         {/*3*/  //Z=10006
-            if ( part==0 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],3); /*  spheres  */  //Z=10007
-            if ( part==1 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],2); /*  cylinders  */  //Z=10008
-            if ( part==2 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],1); /*  disks  */  //Z=10009
-            CR->carr7p[i] = ppm[i];  //Z=10010
-            CR->carr3p[i] = llm[i];  //Z=10011
-            CR->carr5p[i] = a1m[i];  //Z=10012
+            if ( params.part==0 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],3); /*  spheres  */  //Z=10007
+            if ( params.part==1 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],2); /*  cylinders  */  //Z=10008
+            if ( params.part==2 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],1); /*  disks  */  //Z=10009
+            params.CR->carr7p[i] = ppm[i];  //Z=10010
+            params.CR->carr3p[i] = llm[i];  //Z=10011
+            params.CR->carr5p[i] = a1m[i];  //Z=10012
         }/*3*/  //Z=10013
 
         fkvm[0] = 1;  //Z=10015
         gam3[0] = sqrt(M_PI)/2.0;  //Z=10016
         for ( n=1; n<=nmax; n++ )
         {/*3*/  //Z=10017
-            if ( part==0 )
+            if ( params.part==0 )
             {/*4*/       /*  spheres  */  //Z=10018
                 fkvm[n] = fkvm[n-1]*n;  //Z=10019
                 gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10020
-                CR->carr6p[n] = (n+3/2.0)*gam3[n]*fkvm[n]*4/(3.0*sqrt(M_PI));  //Z=10021
+                params.CR->carr6p[n] = (n+3/2.0)*gam3[n]*fkvm[n]*4/(3.0*sqrt(M_PI));  //Z=10021
             }/*4*/  //Z=10022
-            if ( part==1 )
+            if ( params.part==1 )
             {/*4*/       /*  cylinders  */  //Z=10023
                 fkvm[n] = fkvm[n-1]*n;  //Z=10024
-                CR->carr6p[n] = (n+1)*fkvm[n]*fkvm[n];  //Z=10025
+                params.CR->carr6p[n] = (n+1)*fkvm[n]*fkvm[n];  //Z=10025
             }/*4*/  //Z=10026
-            if ( part==2 )
+            if ( params.part==2 )
             {/*4*/       /*  disks  */  //Z=10027
                 fkvm[n] = fkvm[n-1]*n;  //Z=10028
                 gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10029
-                CR->carr6p[n] = gam3[n]*fkvm[n]*2/sqrt(M_PI);  //Z=10030
+                params.CR->carr6p[n] = gam3[n]*fkvm[n]*2/sqrt(M_PI);  //Z=10030
             }/*4*/  //Z=10031
         }/*3*/  //Z=10032
 
@@ -3473,29 +3196,29 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
             for ( j=1; j<=inmax; j++ ) vvm = vvm+a1m[i]*a1m[j];  //Z=10036
         }/*3*/  //Z=10037
 
-        myarray[14] = inmax;  //Z=10039
-        myarray[15] = vvm;  //Z=10040
-        myarray[16] = rmax;  //Z=10041
+        params.CR->myarray[14] = inmax;  //Z=10039
+        params.CR->myarray[15] = vvm;  //Z=10040
+        params.CR->myarray[16] = rmax;  //Z=10041
     }/*2*/  //Z=10042
 
 
     /*  myelin structure parameters  */  //Z=10045
-    if ( cs==4 )
+    if ( params.cs==4 )
     {/*2*/  //Z=10046
-        philiph = myarray[12];     /*  head group  */  //Z=10047
-        philipt = myarray[13];     /*  tail  */  //Z=10048
-        phiax = myarray[9];        /*  axon  */  //Z=10049
-        phiin = myarray[10];       /*  intra cell  */  //Z=10050
-        phiout = myarray[11];      /*  extra cell  */  //Z=10051
+        philiph = params.CR->myarray[12];     /*  head group  */  //Z=10047
+        philipt = params.CR->myarray[13];     /*  tail  */  //Z=10048
+        phiax = params.CR->myarray[9];        /*  axon  */  //Z=10049
+        phiin = params.CR->myarray[10];       /*  intra cell  */  //Z=10050
+        phiout = params.CR->myarray[11];      /*  extra cell  */  //Z=10051
 
-        rad = myarray[1];          /*  vesicle inner radius  */  //Z=10053
-        lliph = myarray[7];        /*  head group  */  //Z=10054
-        llipt = myarray[8];        /*  tail  */  //Z=10055
-        lin = myarray[6];          /*  intra cell  */  //Z=10056
-        lout = myarray[5];         /*  extra cell  */  //Z=10057
+        rad = params.CR->myarray[1];          /*  vesicle inner radius  */  //Z=10053
+        lliph = params.CR->myarray[7];        /*  head group  */  //Z=10054
+        llipt = params.CR->myarray[8];        /*  tail  */  //Z=10055
+        lin = params.CR->myarray[6];          /*  intra cell  */  //Z=10056
+        lout = params.CR->myarray[5];         /*  extra cell  */  //Z=10057
 
         len = lout+2*(2*lliph+llipt)+lin;  //Z=10059
-        ncell = round(myarray[4]);  //Z=10060
+        ncell = round(params.CR->myarray[4]);  //Z=10060
         rmax = rad+ncell*len;  //Z=10061
 
         lqm[1] = lout;  //Z=10063
@@ -3575,34 +3298,34 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
 
         for ( i=1; i<=inmax; i++ )
         {/*3*/  //Z=10137
-            if ( part==0 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],3); /*  spheres  */  //Z=10138
-            if ( part==1 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],2); /*  cylinders  */  //Z=10139
-            if ( part==2 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],1); /*  disks  */  //Z=10140
-            CR->carr7p[i] = ppm[i];  //Z=10141
-            CR->carr3p[i] = llm[i];  //Z=10142
-            CR->carr5p[i] = a1m[i];  //Z=10143
+            if ( params.part==0 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],3); /*  spheres  */  //Z=10138
+            if ( params.part==1 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],2); /*  cylinders  */  //Z=10139
+            if ( params.part==2 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],1); /*  disks  */  //Z=10140
+            params.CR->carr7p[i] = ppm[i];  //Z=10141
+            params.CR->carr3p[i] = llm[i];  //Z=10142
+            params.CR->carr5p[i] = a1m[i];  //Z=10143
         }/*3*/  //Z=10144
 
         fkvm[0] = 1;  //Z=10146
         gam3[0] = sqrt(M_PI)/2.0;  //Z=10147
         for ( n=1; n<=nmax; n++ )
         {/*3*/  //Z=10148
-            if ( part==0 )
+            if ( params.part==0 )
             {/*4*/       /*  spheres  */  //Z=10149
                 fkvm[n] = fkvm[n-1]*n;  //Z=10150
                 gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10151
-                CR->carr6p[n] = (n+3/2.0)*gam3[n]*fkvm[n]*4/(3.0*sqrt(M_PI));  //Z=10152
+                params.CR->carr6p[n] = (n+3/2.0)*gam3[n]*fkvm[n]*4/(3.0*sqrt(M_PI));  //Z=10152
             }/*4*/  //Z=10153
-            if ( part==1 )
+            if ( params.part==1 )
             {/*4*/       /*  cylinders  */  //Z=10154
                 fkvm[n] = fkvm[n-1]*n;  //Z=10155
-                CR->carr6p[n] = (n+1)*fkvm[n]*fkvm[n];  //Z=10156
+                params.CR->carr6p[n] = (n+1)*fkvm[n]*fkvm[n];  //Z=10156
             }/*4*/  //Z=10157
-            if ( part==2 )
+            if ( params.part==2 )
             {/*4*/       /*  disks  */  //Z=10158
                 fkvm[n] = fkvm[n-1]*n;  //Z=10159
                 gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10160
-                CR->carr6p[n] = gam3[n]*fkvm[n]*2/sqrt(M_PI);  //Z=10161
+                params.CR->carr6p[n] = gam3[n]*fkvm[n]*2/sqrt(M_PI);  //Z=10161
             }/*4*/  //Z=10162
         }/*3*/  //Z=10163
 
@@ -3612,19 +3335,19 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
             for ( j=1; j<=inmax; j++ ) vvm = vvm+a1m[i]*a1m[j];  //Z=10167
         }/*3*/  //Z=10168
 
-        myarray[14] = inmax;  //Z=10170
-        myarray[15] = vvm;  //Z=10171
-        myarray[16] = rmax;  //Z=10172
+        params.CR->myarray[14] = inmax;  //Z=10170
+        params.CR->myarray[15] = vvm;  //Z=10171
+        params.CR->myarray[16] = rmax;  //Z=10172
     }/*2*/  //Z=10173
 
 
 
-    search1 = true;  //Z=10176
+    //search1 = true;  //Z=10176
     //search2 = true;  //Z=10177
-    search3 = true;  //Z=10178
-    search4 = true;  //Z=10179
-    search5 = true;  //Z=10180
-    search6 = true;  //Z=10181
+    //search3 = true;  //Z=10178
+    //search4 = true;  //Z=10179
+    //search5 = true;  //Z=10180
+    //search6 = true;  //Z=10181
     //search7 = true;  //Z=10182
     //search8 = true;  //Z=10183
     //search9 = true;  //Z=10184
@@ -3638,15 +3361,15 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
     n8 = nmax;      n8f = nmax;  //Z=10192
     n9 = nmax;      n9f = nmax;  //Z=10193
 
-    /*  orientation case  */  //Z=10195
-    cho1 = 1;                                     /*  general  */  //Z=10196
-    if ( (phi== 0) && (theta==90) ) cho1 = 2;     /*  x-axis  */  //Z=10197
-    if ( (phi==90) && (theta==90) ) cho1 = 3;     /*  y-axis  */  //Z=10198
-    if ( (phi== 0) && (theta== 0) ) cho1 = 4;     /*  z-axis  */  //Z=10199
-    if ( (phi==90) && (theta== 0) ) cho1 = 4;     /*  z-axis  */  //Z=10200
+    /*  cho1 = orientation case  */  //Z=10195
+    params.orcase = 1;                                                         /*  general  */  //Z=10196
+    if ( (params.polPhi== 0) && (params.polTheta==90) ) params.orcase = 2;     /*  x-axis  */  //Z=10197
+    if ( (params.polPhi==90) && (params.polTheta==90) ) params.orcase = 3;     /*  y-axis  */  //Z=10198
+    if ( (params.polPhi== 0) && (params.polTheta== 0) ) params.orcase = 4;     /*  z-axis  */  //Z=10199
+    if ( (params.polPhi==90) && (params.polTheta== 0) ) params.orcase = 4;     /*  z-axis  */  //Z=10200
 
 #ifndef __CUDACC__
-    qDebug() << "coefficients()" << "ordis"<<ordis << "dim"<<dim << "part"<<part << "cs"<<cs << "cho1|orcase"<<cho1;
+    qDebug() << "coefficients()" << "ordis"<<ordis << "dim"<<dim << "part"<<params.part << "cs"<<params.cs << "cho1|orcase"<<params.orcase;
 #endif
     //Debug: coefficients ordis 0="CBOrdis.Gaussian"
     //                    dim 1=im Vorfeld aus CBPart.Cylinder bestimmt
@@ -3658,10 +3381,10 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
     /* ** isotropic case for spheres ** */  //Z=10203
     if ( dim==3 )
     {/*2*/  //Z=10204
-        norm = 1;  //Z=10205
+        params.norm = 1;  //Z=10205
         order = 0;  //Z=10206
         /*  homogeneous  */  //Z=10207
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=10208
             for ( n=1; n<=nmax; n++ )
             {/*4*/  //Z=10209
@@ -3671,25 +3394,28 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=10213 */
                 xrn[n] = -xrn[n-1]*xr2z;  //Z=10214
                 /*  P(q)-coefficient  */  //Z=10215
-                CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn[n]/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=10216
+                params.CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn[n]/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=10216
                 /*  F(q)-coefficient  */  //Z=10217
                 binsum = 0.0;  //Z=10218
                 for ( m=0; m<=n; m++ ) binsum = binsum+z12v[m]*z12v[n-m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=10219
-                CR->carr4f[n] = 9*M_PI*xrn[n]*binsum/16.0;  //Z=10220
-                if ( fabs(CR->carr4p[n])<min )
+                params.CR->carr4f[n] = 9*M_PI*xrn[n]*binsum/16.0;  //Z=10220
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=10221
                     if ( n<n4 ) n4 = n;  //Z=10222
                 }/*5*/  //Z=10223
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=10224
                     if ( n<n4f ) n4f = n;  //Z=10225
                 }/*5*/  //Z=10226
             }/*4*/  //Z=10227
+#ifndef __CUDACC__
+            qDebug() << "              " << "n4"<<n4<<params.CR->carr4p[n4] << "n4f"<<n4f<<params.CR->carr4f[n4f] << "#" << params.CR->carr4f[n4];
+#endif
             goto Label99;  //Z=10228
         }/*3*/   /*  of homogeneous  */  //Z=10229
 
         /*  core/shell  */  //Z=10231
-        if ( cs==1 )
+        if ( params.cs==1 )
         {/*3*/  //Z=10232
             for ( n=1; n<=nmax; n++ )
             {/*4*/  //Z=10233
@@ -3706,44 +3432,44 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 {/*5*/  //Z=10243
                     sump = sump+pn[m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=10244
                 }/*5*/  //Z=10245
-                CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn[n]/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=10246
-                CR->carr5p[n] = (9*M_PI/16.0)*z12v[n]*xrmn_n*sump;  //Z=10247
-                CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=10248
+                params.CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn[n]/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=10246
+                params.CR->carr5p[n] = (9*M_PI/16.0)*z12v[n]*xrmn_n*sump;  //Z=10247
+                params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=10248
                 /*  F(q)-coefficients  */  //Z=10249
                 sump = 0.0;  //Z=10250
                 for ( m=0; m<=n; m++ )
                 {/*5*/  //Z=10251
                     sump = sump+z12v[m]*z12v[n-m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=10252
                 }/*5*/  //Z=10253
-                CR->carr4f[n] = (9*M_PI/16.0)*xrn[n]*sump;  //Z=10254
+                params.CR->carr4f[n] = (9*M_PI/16.0)*xrn[n]*sump;  //Z=10254
                 sump = 0.0;  //Z=10255
                 for ( m=0; m<=n; m++ )
                 {/*5*/  //Z=10256
                     sump = sump+pn[m]*z12v[m]*z12v[n-m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=10257
                 }/*5*/  //Z=10258
-                CR->carr5f[n] = (9*M_PI/16.0)*xrmn_n*sump;  //Z=10259
-                CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=10260
-                if ( fabs(CR->carr4p[n])<min )
+                params.CR->carr5f[n] = (9*M_PI/16.0)*xrmn_n*sump;  //Z=10259
+                params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=10260
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=10261
                     if ( n<n4 ) n4 = n;  //Z=10262
                 }/*5*/  //Z=10263
-                if ( fabs(CR->carr5p[n])<min )
+                if ( fabs(params.CR->carr5p[n])<min )
                 {/*5*/  //Z=10264
                     if ( n<n5 ) n5 = n;  //Z=10265
                 }/*5*/  //Z=10266
-                if ( fabs(CR->carr6p[n])<min )
+                if ( fabs(params.CR->carr6p[n])<min )
                 {/*5*/  //Z=10267
                     if ( n<n6 ) n6 = n;  //Z=10268
                 }/*5*/  //Z=10269
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=10270
                     if ( n<n4f ) n4f = n;  //Z=10271
                 }/*5*/  //Z=10272
-                if ( fabs(CR->carr5f[n])<min )
+                if ( fabs(params.CR->carr5f[n])<min )
                 {/*5*/  //Z=10273
                     if ( n<n5f ) n5f = n;  //Z=10274
                 }/*5*/  //Z=10275
-                if ( fabs(CR->carr6f[n])<min )
+                if ( fabs(params.CR->carr6f[n])<min )
                 {/*5*/  //Z=10276
                     if ( n<n6f ) n6f = n;  //Z=10277
                 }/*5*/  //Z=10278
@@ -3752,7 +3478,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
         }/*3*/   /*  of core/shell  */  //Z=10281
 
         /*  inhomogeneous core/shell  */  //Z=10283
-        if ( cs==2 )
+        if ( params.cs==2 )
         {/*3*/  //Z=10284
             for ( n=1; n<=nmax; n++ )
             {/*4*/  //Z=10285
@@ -3764,66 +3490,66 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 xrmn_n = -xrmn_n*xrm2z;  //Z=10291
                 pn[n] = pn[n-1]*p*p;  //Z=10292
                 /*  P(q)-coefficients  */  //Z=10293
-                CR->carr1p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn[n]/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=10294
+                params.CR->carr1p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn[n]/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=10294
                 sump = 0.0;  //Z=10295
                 sump1 = 0.0;  //Z=10296
                 for ( m=0; m<=n; m++ )
                 {/*5*/  //Z=10297
-                    sumi = 1/((n-m+3/2.0)*gam3[n-m]*(m+3/2.0-alfa/2.0)*gam3[m]*fkv[m]*fkv[n-m]);  //Z=10298
+                    sumi = 1/((n-m+3/2.0)*gam3[n-m]*(m+3/2.0-params.alphash1/2.0)*gam3[m]*fkv[m]*fkv[n-m]);  //Z=10298
                     sump = sump+pn[n-m]*sumi;  //Z=10299
                     sump1 = sump1+sumi;  //Z=10300
                 }/*5*/  //Z=10301
-                CR->carr2p[n] = (3*M_PI*(3-alfa)/16.0)*z12v[n]*xrmn_n*sump;  //Z=10302
-                CR->carr3p[n] = (3*M_PI*(3-alfa)/16.0)*z12v[n]*xrn[n]*sump1;  //Z=10303
+                params.CR->carr2p[n] = (3*M_PI*(3-params.alphash1)/16.0)*z12v[n]*xrmn_n*sump;  //Z=10302
+                params.CR->carr3p[n] = (3*M_PI*(3-params.alphash1)/16.0)*z12v[n]*xrn[n]*sump1;  //Z=10303
                 sump = 0.0;  //Z=10304
                 sump1 = 0.0;  //Z=10305
                 for ( m=0; m<=n; m++ )
                 {/*5*/  //Z=10306
-                    sumi = 1/((n-m+3/2.0-alfa/2.0)*(m+3/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=10307
+                    sumi = 1/((n-m+3/2.0-params.alphash1/2.0)*(m+3/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=10307
                     sump = sump+sumi;  //Z=10308
                     sump1 = sump1+pn[n-m]*sumi;  //Z=10309
                 }/*5*/  //Z=10310
-                CR->carr4p[n] = ((3-alfa)*(3-alfa)*M_PI/16.0)*z12v[n]*xrmn_n*sump;  //Z=10311
-                CR->carr5p[n] = ((3-alfa)*(3-alfa)*M_PI/16.0)*z12v[n]*xrmn_n*sump1;  //Z=10312
-                CR->carr6p[n] = ((3-alfa)*(3-alfa)*M_PI/16.0)*z12v[n]*xrn[n]*sump;  //Z=10313
+                params.CR->carr4p[n] = (sqr(3-params.alphash1)*M_PI/16.0)*z12v[n]*xrmn_n*sump;  //Z=10311
+                params.CR->carr5p[n] = (sqr(3-params.alphash1)*M_PI/16.0)*z12v[n]*xrmn_n*sump1;  //Z=10312
+                params.CR->carr6p[n] = (sqr(3-params.alphash1)*M_PI/16.0)*z12v[n]*xrn[n]*sump;  //Z=10313
 
                 /*  F(q)-coefficients  */  //Z=10315
-                CR->carr4f[n] = (3*sqrt(M_PI)/4.0)*z12v[n]*xrn[n]/((n+3/2.0)*gam3[n]*fkv[n]);  //Z=10316
-                CR->carr5f[n] = (sqrt(M_PI)*(3-alfa)/4.0)*z12v[n]*xrmn_n/((n+3/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=10317
-                CR->carr6f[n] = (sqrt(M_PI)*(3-alfa)/4.0)*z12v[n]*xrn[n]/((n+3/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=10318
-                if ( fabs(CR->carr1p[n])<min )
+                params.CR->carr4f[n] = (3*sqrt(M_PI)/4.0)*z12v[n]*xrn[n]/((n+3/2.0)*gam3[n]*fkv[n]);  //Z=10316
+                params.CR->carr5f[n] = (sqrt(M_PI)*(3-params.alphash1)/4.0)*z12v[n]*xrmn_n/((n+3/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=10317
+                params.CR->carr6f[n] = (sqrt(M_PI)*(3-params.alphash1)/4.0)*z12v[n]*xrn[n]/((n+3/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=10318
+                if ( fabs(params.CR->carr1p[n])<min )
                 {/*5*/  //Z=10319
                     if ( n<n1 ) n1 = n;  //Z=10320
                 }/*5*/  //Z=10321
-                if ( fabs(CR->carr2p[n])<min )
+                if ( fabs(params.CR->carr2p[n])<min )
                 {/*5*/  //Z=10322
                     if ( n<n2 ) n2 = n;  //Z=10323
                 }/*5*/  //Z=10324
-                if ( fabs(CR->carr3p[n])<min )
+                if ( fabs(params.CR->carr3p[n])<min )
                 {/*5*/  //Z=10325
                     if ( n<n3 ) n3 = n;  //Z=10326
                 }/*5*/  //Z=10327
-                if ( fabs(CR->carr4p[n])<min )
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=10328
                     if ( n<n4 ) n4 = n;  //Z=10329
                 }/*5*/  //Z=10330
-                if ( fabs(CR->carr5p[n])<min )
+                if ( fabs(params.CR->carr5p[n])<min )
                 {/*5*/  //Z=10331
                     if ( n<n5 ) n5 = n;  //Z=10332
                 }/*5*/  //Z=10333
-                if ( fabs(CR->carr6p[n])<min )
+                if ( fabs(params.CR->carr6p[n])<min )
                 {/*5*/  //Z=10334
                     if ( n<n6 ) n6 = n;  //Z=10335
                 }/*5*/  //Z=10336
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=10337
                     if ( n<n4f ) n4f = n;  //Z=10338
                 }/*5*/  //Z=10339
-                if ( fabs(CR->carr5f[n])<min )
+                if ( fabs(params.CR->carr5f[n])<min )
                 {/*5*/  //Z=10340
                     if ( n<n5f ) n5f = n;  //Z=10341
                 }/*5*/  //Z=10342
-                if ( fabs(CR->carr6f[n])<min )
+                if ( fabs(params.CR->carr6f[n])<min )
                 {/*5*/  //Z=10343
                     if ( n<n6f ) n6f = n;  //Z=10344
                 }/*5*/  //Z=10345
@@ -3832,7 +3558,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
         }/*3*/   /*  of inhomogeneous core/shell  */  //Z=10348
 
         /*  myelin  */  //Z=10350
-        if ( (cs==3) || (cs==4) )
+        if ( (params.cs==3) || (params.cs==4) )
         {/*3*/  //Z=10351
             i = 2;  //Z=10352
             for ( n=1; n<=nmax; n++ )
@@ -3853,32 +3579,32 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 {/*5*/  //Z=10366
                     /* carr1pm[i]:=1/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=10367 */
                     /* i:=i+1;  //Z=10368 */
-                    CR->carr11pm[n][m] = (9*M_PI/16.0)*(1/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]));  //Z=10369
+                    params.CR->carr11pm[n][m] = (9*M_PI/16.0)*(1/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]));  //Z=10369
                 }/*5*/  //Z=10370
-                CR->carr4p[n] = z12v[n]*xrn[n];  //Z=10371
+                params.CR->carr4p[n] = z12v[n]*xrn[n];  //Z=10371
                 /* carr4p[n]:=4*(n+1/2)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=10372 */
 
                 /*  F(q)  */  //Z=10375
                 binsum = 0.0;  //Z=10376
                 for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=10377
-                CR->carr1f[n] = M_PI*xln[n]*binsum/(4.0*(2*n+1));  //Z=10378
+                params.CR->carr1f[n] = M_PI*xln[n]*binsum/(4.0*(2*n+1));  //Z=10378
                 binsum = 0.0;  //Z=10379
                 for ( m=0; m<=n; m++ ) binsum = binsum+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=10380
-                CR->carr4f[n] = xrn[n]*binsum;  //Z=10381
+                params.CR->carr4f[n] = xrn[n]*binsum;  //Z=10381
 
-                if ( fabs(CR->carr1p[n])<min )
+                if ( fabs(params.CR->carr1p[n])<min )
                 {/*5*/  //Z=10384
                     if ( n<n1 ) n1 = n;  //Z=10385
                 }/*5*/  //Z=10386
-                if ( fabs(CR->carr1f[n])<min )
+                if ( fabs(params.CR->carr1f[n])<min )
                 {/*5*/  //Z=10387
                     if ( n<n1f ) n1f = n;  //Z=10388
                 }/*5*/  //Z=10389
-                if ( fabs(CR->carr4p[n])<min )
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=10390
                     if ( n<n4 ) n4 = n;  //Z=10391
                 }/*5*/  //Z=10392
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=10393
                     if ( n<n4f ) n4f = n;  //Z=10394
                 }/*5*/  //Z=10395
@@ -3892,17 +3618,17 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
     /*  isotropic case for cubes  */  //Z=10403
     if ( (ordis==7) && (dim==4) )
     {/*2*/    /*  cubes  */  //Z=10404
-        norm = 1;  //Z=10405
+        params.norm = 1;  //Z=10405
         order = 0;  //Z=10406
         /*  homogeneous  */  //Z=10407
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=10408
-            area = 6*4*r*r;  //Z=10409
-            vol = 8*r*r*r;  //Z=10410
-            por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=10411
+            area = 6*4*sqr(params.radius);  //Z=10409
+            vol = 8*params.radius*sqr(params.radius);  //Z=10410
+            params.por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=10411
 
 #ifndef __CUDACC__
-            qDebug() << "coeff() ordis=7, dim=4, cs=0, por:" << por;
+            qDebug() << "coeff() ordis=7, dim=4, cs=0, por:" << params.por;
 #endif
 
             u1ell[0] = 2;  //Z=10413
@@ -3945,7 +3671,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 for ( m=0; m<=n; m++ ) sump = sump+u1ell[n-m]*v1ell[m];  //Z=10447
 
                 /* carr4p[n]:=sqrt(pi)*power(4,n)*xrn[n]*sump/(16*gam3[n]);  //Z=10449 */
-                CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn[n]*sump/(16.0*gam3[n]);  //Z=10450
+                params.CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn[n]*sump/(16.0*gam3[n]);  //Z=10450
 
                 /*  F(q)-coefficient  */  //Z=10452
                 sump = 0.0;  //Z=10453
@@ -3955,18 +3681,18 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                     for ( k=0; k<=m; k++ ) sump1 = sump1+fsum[m-k]*fsum[k]*gam3[m-k]*gam3[k]/((k+1/2.0)*(m-k+1/2.0));  //Z=10456
                     sump = sump+sump1*fsum[n-m]*gam3[n-m]/(n-m+1/2.0);  //Z=10457
                 }/*5*/  //Z=10458
-                CR->carr4f[n] = M_PI*M_PI*xrn[n]*sump/(128.0*gam3[n]);  //Z=10459
-                if ( fabs(CR->carr4p[n])<min )
+                params.CR->carr4f[n] = M_PI*M_PI*xrn[n]*sump/(128.0*gam3[n]);  //Z=10459
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=10460
                     if ( n<n4 ) n4 = n;  //Z=10461
                 }/*5*/  //Z=10462
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=10463
                     if ( n<n4f ) n4f = n;  //Z=10464
                 }/*5*/  //Z=10465
 
 #ifndef __CUDACC__
-                qDebug() << "coeff() carr4p[]:" << n << CR->carr4p[n] << n4;
+                qDebug() << "coeff() carr4p[]:" << n << params.CR->carr4p[n] << n4;
 #endif
 
             }/*4*/  //Z=10466
@@ -3974,7 +3700,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
         }/*3*/   /*  of homogeneous  */  //Z=10468
 
         /*  core/shell  */          /*  not yet ready  */  //Z=10470
-        if ( cs==1 )
+        if ( params.cs==1 )
         {/*3*/  //Z=10471
             for ( n=1; n<=nmax; n++ )
             {/*4*/  //Z=10472
@@ -3991,20 +3717,20 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 {/*5*/  //Z=10482
                     sump = sump+pn[m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=10483
                 }/*5*/  //Z=10484
-                CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn[n]/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=10485
-                CR->carr5p[n] = (9*M_PI/16.0)*z12v[n]*xrmn_n*sump;  //Z=10486
-                CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=10487
+                params.CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn[n]/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=10485
+                params.CR->carr5p[n] = (9*M_PI/16.0)*z12v[n]*xrmn_n*sump;  //Z=10486
+                params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=10487
                 /*  F(q)-coefficient  */  //Z=10488
                 /* carr3[n]:=3*sqrt(pi)*z12v[n]*xrn[n]/(4*(n+3/2)*gam3[n]*fkv[n]);  //Z=10489 */
-                if ( fabs(CR->carr4p[n])<min )
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=10490
                     if ( n<n4 ) n4 = n;  //Z=10491
                 }/*5*/  //Z=10492
-                if ( fabs(CR->carr5p[n])<min )
+                if ( fabs(params.CR->carr5p[n])<min )
                 {/*5*/  //Z=10493
                     if ( n<n5 ) n5 = n;  //Z=10494
                 }/*5*/  //Z=10495
-                if ( fabs(CR->carr6p[n])<min )
+                if ( fabs(params.CR->carr6p[n])<min )
                 {/*5*/  //Z=10496
                     if ( n<n6 ) n6 = n;  //Z=10497
                 }/*5*/  //Z=10498
@@ -4016,10 +3742,10 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
     /*  perfect orientation case for cubes  */  //Z=10504
     if ( (ordis==6) && (dim==4) )
     {/*2*/    /*  cubes  */  //Z=10505
-        norm = 1;  //Z=10506
+        params.norm = 1;  //Z=10506
         order = 1;  //Z=10507
         /*  homogeneous  */  //Z=10508
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=10509
             i = 2;  //Z=10510
             for ( n=1; n<=nmax; n++ )
@@ -4034,17 +3760,17 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 {/*5*/  //Z=10518
                     /* carr1pm[i]:=(pi/4)*power(4,n)*z12v[n-m]*z12v[m]*xrn[n]/(gam3[n-m]*gam3[m]*(n-m+1)*fkv[n-m]*(m+1)*fkv[m]);  //Z=10519 */
                     /* carr1fm[i]:=carr1pm[i];  //Z=10520 */
-                    CR->carr11pm[n][m] = (M_PI/4.0)*pow(4.0,n)*z12v[n-m]*z12v[m]*xrn[n]/(gam3[n-m]*gam3[m]*(n-m+1)*fkv[n-m]*(m+1)*fkv[m]);  //Z=10521
+                    params.CR->carr11pm[n][m] = (M_PI/4.0)*pow(4.0,n)*z12v[n-m]*z12v[m]*xrn[n]/(gam3[n-m]*gam3[m]*(n-m+1)*fkv[n-m]*(m+1)*fkv[m]);  //Z=10521
                     i = i+1;  //Z=10522
                 }/*5*/  //Z=10523
-                CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*xrn[n]/(16.0*gam3[n]);  //Z=10524
+                params.CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*xrn[n]/(16.0*gam3[n]);  //Z=10524
                 /*  F(q)-coefficient  */  //Z=10525
-                CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128.0*gam3[n]);  //Z=10526
-                if ( fabs(CR->carr4p[n])<min )
+                params.CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128.0*gam3[n]);  //Z=10526
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=10527
                     if ( n<n4 ) n4 = n;  //Z=10528
                 }/*5*/  //Z=10529
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=10530
                     if ( n<n4f ) n4f = n;  //Z=10531
                 }/*5*/  //Z=10532
@@ -4053,7 +3779,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
         }/*3*/   /*  of homogeneous  */  //Z=10535
 
         /*  core/shell  */          /*  not yet ready  */  //Z=10537
-        if ( cs==1 )
+        if ( params.cs==1 )
         {/*3*/  //Z=10538
             for ( n=1; n<=nmax; n++ )
             {/*4*/  //Z=10539
@@ -4070,20 +3796,20 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 {/*5*/  //Z=10549
                     sump = sump+pn[m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=10550
                 }/*5*/  //Z=10551
-                CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn[n]/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=10552
-                CR->carr5p[n] = (9*M_PI/16.0)*z12v[n]*xrmn_n*sump;  //Z=10553
-                CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=10554
+                params.CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn[n]/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=10552
+                params.CR->carr5p[n] = (9*M_PI/16.0)*z12v[n]*xrmn_n*sump;  //Z=10553
+                params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=10554
                 /*  F(q)-coefficient  */  //Z=10555
                 /* carr3[n]:=3*sqrt(pi)*z12v[n]*xrn[n]/(4*(n+3/2)*gam3[n]*fkv[n]);  //Z=10556 */
-                if ( fabs(CR->carr4p[n])<min )
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=10557
                     if ( n<n4 ) n4 = n;  //Z=10558
                 }/*5*/  //Z=10559
-                if ( fabs(CR->carr5p[n])<min )
+                if ( fabs(params.CR->carr5p[n])<min )
                 {/*5*/  //Z=10560
                     if ( n<n5 ) n5 = n;  //Z=10561
                 }/*5*/  //Z=10562
-                if ( fabs(CR->carr6p[n])<min )
+                if ( fabs(params.CR->carr6p[n])<min )
                 {/*5*/  //Z=10563
                     if ( n<n6 ) n6 = n;  //Z=10564
                 }/*5*/  //Z=10565
@@ -4096,16 +3822,16 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
     /*  isotropic case for ellipsoids  */  //Z=10571
     if ( (ordis==7) && (dim==5) )
     {/*2*/    /*  ellipsoids  */  //Z=10572
-        norm = 1;  //Z=10573
+        params.norm = 1;  //Z=10573
         order = 0;  //Z=10574
-        if ( eps==1 ) area = 4*M_PI*r*r;  //Z=10575
-        if ( eps>1 ) area = 2*M_PI*r*(r+(l*l/sqrt(l*l-r*r))*asin(sqrt(l*l-r*r)/l));  //Z=10576
-        if ( eps<1 ) area = 2*M_PI*r*(r+(l*l/sqrt(r*r-l*l))*asinh(sqrt(r*r-l*l)/l));  //Z=10577
-        vol = (4*M_PI/3.0)*r*r*l;  //Z=10578
-        por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=10579
+        if ( eps==1 ) area = 4*M_PI*sqr(params.radius);  //Z=10575
+        if ( eps>1 ) area = 2*M_PI*params.radius*(params.radius+(sqr(params.length)/sqrt(sqr(params.length)-sqr(params.radius)))*asin(sqrt(sqr(params.length)-sqr(params.radius))/params.length));  //Z=10576
+        if ( eps<1 ) area = 2*M_PI*params.radius*(params.radius+(sqr(params.length)/sqrt(sqr(params.radius)-sqr(params.length)))*asinh(sqrt(sqr(params.radius)-sqr(params.length))/params.length));  //Z=10577
+        vol = (4*M_PI/3.0)*sqr(params.radius)*params.length;  //Z=10578
+        params.por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=10579
 
         /*  homogeneous  */  //Z=10581
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=10582
             double e1[nnmax+1];  // lokal angelegt, da nur hier verwendet
             e1[0] = 1;
@@ -4122,7 +3848,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 /* for m:=0 to n do sumf:=sumf+z12v[n-m]*z12v[m]/(gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=10592 */
                 /* fsum[n]:=sumf;  //Z=10593 */
                 /*  P(q)-coefficient  */  //Z=10594
-                CR->carr4p[n] = (9*sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]*sump/((n+3)*(n+2)*(n+3/2.0)*gam3[n]);  //Z=10595
+                params.CR->carr4p[n] = (9*sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]*sump/((n+3)*(n+2)*(n+3/2.0)*gam3[n]);  //Z=10595
                 /*  F(q)-coefficient  */  //Z=10596
                 sump = 0.0;  //Z=10597
                 for ( m=0; m<=n; m++ )
@@ -4131,12 +3857,12 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                     for ( k=0; k<=m; k++ ) sump1 = sump1+fsum[m-k]*fsum[k]*gam3[m-k]*gam3[k]/((k+1/2.0)*(m-k+1/2.0));  //Z=10600
                     sump = sump+sump1*fsum[n-m]*gam3[n-m]/(n-m+1/2.0);  //Z=10601
                 }/*5*/  //Z=10602
-                CR->carr4f[n]  = M_PI*M_PI*xrn[n]*sump/(128.0*gam3[n]);  //Z=10603
-                if ( fabs(CR->carr4p[n])<min )
+                params.CR->carr4f[n]  = M_PI*M_PI*xrn[n]*sump/(128.0*gam3[n]);  //Z=10603
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=10604
                     if ( n<n4 ) n4 = n;  //Z=10605
                 }/*5*/  //Z=10606
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=10607
                     if ( n<n4f ) n4f = n;  //Z=10608
                 }/*5*/  //Z=10609
@@ -4154,10 +3880,10 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
     /*  perfect orientation case for ellipsoids  */  //Z=10648
     if ( (ordis==6) && (dim==5) )
     {/*2*/    /*  ellipsoids  */  //Z=10649
-        norm = 1;  //Z=10650
+        params.norm = 1;  //Z=10650
         order = 1;  //Z=10651
         /*  homogeneous  */  //Z=10652
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=10653
             for ( n=1; n<=2*nmax+2; n++ )
             {/*4*/  //Z=10654
@@ -4185,8 +3911,8 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                     params.CR->carr11pm[n][m] = M_PI*sump1;  //Z=10673
                 }/*5*/  //Z=10674
 
-                CR->carr4p[n] = a1*z12vl[n]*xln[n];  //Z=10676
-                CR->carr5p[n] = z12v[n]*xrn[n];  //Z=10677
+                params.CR->carr4p[n] = a1*z12vl[n]*xln[n];  //Z=10676
+                params.CR->carr5p[n] = z12v[n]*xrn[n];  //Z=10677
 
                 /*  P(q)-coefficient  */  //Z=10679
                 /* for m:=0 to n do begin  //Z=10680 */
@@ -4196,12 +3922,12 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 /* end;  //Z=10684 */
 
                 /*  F(q)-coefficient  */  //Z=10686
-                CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128.0*gam3[n]);  //Z=10687
-                if ( fabs(CR->carr4p[n])<min )
+                params.CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128.0*gam3[n]);  //Z=10687
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=10688
                     if ( n<n4 ) n4 = n;  //Z=10689
                 }/*5*/  //Z=10690
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=10691
                     if ( n<n4f ) n4f = n;  //Z=10692
                 }/*5*/  //Z=10693
@@ -4217,14 +3943,14 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
 
 
     /* ** ellipsoid orientational distribution  */  //Z=10732
-    if ( (ordis==0) && (cho1==2) && (dim==5) )
+    if ( (ordis==0) && (params.orcase==2) && (dim==5) )
     {/*2*/  //Z=10733
 
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=10735
-            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,2,0,0,0,0,CR->carr1p,norm);  //Z=10736
-            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,3,0,0,0,0,CR->carr1p,order);  //Z=10737
-            order = order/norm;  //Z=10738
+            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,2,0,0,0,0,params.CR->carr1p,params.norm);  //Z=10736
+            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,3,0,0,0,0,params.CR->carr1p,order);  //Z=10737
+            order = order/params.norm;  //Z=10738
 
             for ( n=1; n<=2*nmax+2; n++ )
             {/*4*/  //Z=10740
@@ -4249,24 +3975,24 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                             sump2 = sump2+1/(fkv[m-ll]*fkv[ll]*(m-ll+n-k+3/2.0)*(ll+k+3/2.0)*gam3[m-ll+n-k]*gam3[ll+k]);  //Z=10756
                         sump1 = sump1+sump2/(fkv[n-k]*fkv[k]);  //Z=10757
                     }/*6*/  //Z=10758
-                    CR->carr11pm[n][m] = M_PI*sump1;  //Z=10759
+                    params.CR->carr11pm[n][m] = M_PI*sump1;  //Z=10759
                 }/*5*/  //Z=10760
                 sump1 = 0.0;  //Z=10761
                 for ( m=0; m<=n; m++ )
                 {/*5*/  //Z=10762
-                    qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);  //Z=10763
-                    sump1 = sump1+pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=10764
-                    CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=10765
+                    qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);  //Z=10763
+                    sump1 = sump1+pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*params.norm);  //Z=10764
+                    params.CR->carr22pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*params.norm);  //Z=10765
                 }/*5*/  //Z=10766
 
                 /*  all coefficients: Mok  */  //Z=10768
                 /*  integral part  */  //Z=10769
-                CR->carr4p[n] = sump1;  //Z=10770
+                params.CR->carr4p[n] = sump1;  //Z=10770
                 /*  qR-part  */  //Z=10771
-                CR->carr5p[n] = z12v[n]*xrn[n];  //Z=10772
+                params.CR->carr5p[n] = z12v[n]*xrn[n];  //Z=10772
                 /*  qL-part  */  //Z=10773
                 /* carr3p[n]:=sqr(3/4)*fk2v[n]*z12v[n]*xln[n]/power(4,n);  //Z=10774 */
-                CR->carr6p[n] = sqr(3/4.0)*fk2v[n]*z12vl[n]*xln[n];  //Z=10775
+                params.CR->carr6p[n] = sqr(3/4.0)*fk2v[n]*z12vl[n]*xln[n];  //Z=10775
 
                 /* (* P(q)-coefficient *)  //Z=10778
                 //carr1p[n]:=power(4,n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=10779
@@ -4282,27 +4008,27 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 carr4f[n]:=xrn[n]*sump;  //Z=10789
                 */  //Z=10790
 
-                if ( fabs(CR->carr3p[n])<min )
+                if ( fabs(params.CR->carr3p[n])<min )
                 {/*5*/  //Z=10792
                     if ( n<n3 ) n3 = n;  //Z=10793
                 }/*5*/  //Z=10794
-                if ( fabs(CR->carr4p[n])<min )
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=10795
                     if ( n<n4 ) n4 = n;  //Z=10796
                 }/*5*/  //Z=10797
-                if ( fabs(CR->carr5p[n])<min )
+                if ( fabs(params.CR->carr5p[n])<min )
                 {/*5*/  //Z=10798
                     if ( n<n5 ) n5 = n;  //Z=10799
                 }/*5*/  //Z=10800
-                if ( fabs(CR->carr6p[n])<min )
+                if ( fabs(params.CR->carr6p[n])<min )
                 {/*5*/  //Z=10801
                     if ( n<n6 ) n6 = n;  //Z=10802
                 }/*5*/  //Z=10803
-                if ( fabs(CR->carr1f[n])<min )
+                if ( fabs(params.CR->carr1f[n])<min )
                 {/*5*/  //Z=10804
                     if ( n<n1f ) n1f = n;  //Z=10805
                 }/*5*/  //Z=10806
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=10807
                     if ( n<n4f ) n4f = n;  //Z=10808
                 }/*5*/  //Z=10809
@@ -4315,20 +4041,17 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
     /*  isotropic case for triaxial ellipsoids  */  //Z=10817
     if ( (ordis==7) && (dim==6) )
     {/*2*/    /*  triaxial ellipsoids  */  //Z=10818
-        norm = 1;  //Z=10819
+        params.norm = 1;  //Z=10819
         order = 0;  //Z=10820
         if ( (aell==bell) && (bell==cell) )
             area = 4*M_PI*aell*aell;  //Z=10821
         else
             area = 4*M_PI*pow((pow(aell*bell,8/5.0)+pow(bell*cell,8/5.0)+pow(aell*cell,8/5.0))/3.0,5/8.0);  //Z=10822
         vol = (4*M_PI/3.0)*aell*bell*cell;  //Z=10823
-        por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=10824
-
-        std::cerr << "area="<<area << ", por="<<por << ", z="<<z << ", vol="<<vol
-                  << ", aell="<<aell << ", bell="<<bell << ", cell="<<cell << std::endl;
+        params.por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=10824
 
         /*  homogeneous  */  //Z=10826
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=10827
             u1ell[0] = 1;  //Z=10829
             u2ell[0] = 1;  //Z=10830
@@ -4352,28 +4075,23 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
             {/*4*/  //Z=10846
                 sump = 0.0;  //Z=10859
                 for ( m=0; m<=n; m++ )
-                {   //Z=10860
+                {/*5*/  //Z=10860
                     sump1 = 0.0;  //Z=10861
                     for ( k=0; k<=m; k++ )
-                    {   //Z=10862
+                    {/*6*/  //Z=10862
                         sump2 = 0.0;  //Z=10863
                         for ( ll=0; ll<=n-m; ll++ ) sump2 = sump2+gell[k+ll]*v1ell[ll]*v2ell[n-m-ll];  //Z=10864
                         sump1 = sump1+u1ell[k]*u2ell[m-k]*sump2;  //Z=10865
-                    }   //Z=10866
+                    }/*6*/  //Z=10866
                     sump = sump+sump1/((2.0*(n-m))+1);  //Z=10867
-                }   //Z=10868
+                }/*5*/  //Z=10868
 
                 /* fsum[n]:=sumf;  //Z=10870 */
                 sumf = 0.0;  //Z=10871
                 for ( m=0; m<=n; m++ ) sumf = sumf+z12v[n-m]*z12v[m]/(gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=10872
                 fsum[n] = sumf;  //Z=10873
                 /*  P(q)-coefficient  */  //Z=10874
-                CR->carr4p[n] = (9*M_PI)*pow(4.0,n-1)*z12v[n]*pow(-1/(4.0*(z+1)*(z+1)),n)*sump/((n+3.0)*(n+2.0)*(n+3/2.0)*gam3[n]);  //Z=10875
-                //CR->carr4p[n] = (9*M_PI)*pow(4.0,n-1)*pow(-1/(4.0*(z+1)*(z+1)),n)*sump*(z12v[n]/((n+3.0)*(n+2.0)*(n+3/2.0)*gam3[n]));  //Z=10875
-                //std::cerr << "n="<<n << ", "<<pow(4.0,n-1) << ", "<<z12v[n] << ", z="<<z
-                //          << ", "<<pow(-1/(4.0*(z+1)*(z+1)),n) << ", "<<sump << ", "<<gam3[n]
-                //          << " = " << CR->carr4p[n] << std::endl;
-
+                params.CR->carr4p[n] = (9*M_PI)*pow(4.0,n-1)*z12v[n]*pow(-1/(4.0*(z+1)*(z+1)),n)*sump/((n+3)*(n+2)*(n+3/2.0)*gam3[n]);  //Z=10875
                 /*  F(q)-coefficient  */  //Z=10876
                 sump = 0.0;  //Z=10877
                 for ( m=0; m<=n; m++ )
@@ -4382,12 +4100,12 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                     for ( k=0; k<=m; k++ ) sump1 = sump1+fsum[m-k]*fsum[k]*gam3[m-k]*gam3[k]/((k+1/2.0)*(m-k+1/2.0));  //Z=10880
                     sump = sump+sump1*fsum[n-m]*gam3[n-m]/(n-m+1/2.0);  //Z=10881
                 }/*5*/  //Z=10882
-                CR->carr4f[n] = M_PI*M_PI*xrn[n]*sump/(128.0*gam3[n]);  //Z=10883
-                if ( fabs(CR->carr4p[n])<min )
+                params.CR->carr4f[n] = M_PI*M_PI*xrn[n]*sump/(128.0*gam3[n]);  //Z=10883
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=10884
                     if ( n<n4 ) n4 = n;  //Z=10885
                 }/*5*/  //Z=10886
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=10887
                     if ( n<n4f ) n4f = n;  //Z=10888
                 }/*5*/  //Z=10889
@@ -4405,10 +4123,10 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
     /*  perfect orientation case for ellipsoids  */  //Z=10928  TODO: siehe unten | cs==0
     if ( (ordis==6) && (dim==5) )
     {/*2*/    /*  ellipsoids  */  //Z=10929
-        norm = 1;  //Z=10930
+        params.norm = 1;  //Z=10930
         order = 1;  //Z=10931
         /*  homogeneous  */  //Z=10932
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=10933
             i = 2;  //Z=10934
             for ( n=1; n<=nmax; n++ )
@@ -4429,7 +4147,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         for ( ms=0; ms<=m; ms++ ) sump1 = sump1+1/(fkv[ms]*fkv[m-ms]*(ms+ns+3/2.0)*gam3[ms+ns]*(m-ms+n-ns+3/2.0)*gam3[m-ms+n-ns]);  //Z=10947
                         sump = sump+sump1*fsum[n-m]/(fkv[ns]*fkv[n-ns]);  //Z=10948
                     }/*6*/  //Z=10949
-                    CR->carr11pm[n][m] = (9/16.0)*z12vl[n]*z12v[m]*xln[n]*xrn[m]*sump;  //Z=10950
+                    params.CR->carr11pm[n][m] = (9/16.0)*z12vl[n]*z12v[m]*xln[n]*xrn[m]*sump;  //Z=10950
                 }/*5*/  //Z=10951
                 /*  P(q)-coefficient  */  //Z=10952
                 /* for m:=0 to n do begin  //Z=10953 */
@@ -4437,14 +4155,14 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 /* carr1fm[i]:=carr1pm[i];  //Z=10955 */
                 /* i:=i+1;  //Z=10956 */
                 /* end;  //Z=10957 */
-                CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*xrn[n]/(16.0*gam3[n]);  //Z=10958
+                params.CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*xrn[n]/(16.0*gam3[n]);  //Z=10958
                 /*  F(q)-coefficient  */  //Z=10959
-                CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128.0*gam3[n]);  //Z=10960
-                if ( fabs(CR->carr4p[n])<min )
+                params.CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128.0*gam3[n]);  //Z=10960
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=10961
                     if ( n<n4 ) n4 = n;  //Z=10962
                 }/*5*/  //Z=10963
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=10964
                     if ( n<n4f ) n4f = n;  //Z=10965
                 }/*5*/  //Z=10966
@@ -4467,18 +4185,18 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
         double qx=1, qy=1, qz=1, qhkl=1;
         // Diese Variablen sind im Orginal-Pascalprogramm an der Stelle des coefficients() Aufrufes nicht bekannt.
 
-        norm = 1;  //Z=11008
+        params.norm = 1;  //Z=11008
         order = 0;  //Z=11009
-        qrombchid(params.length,params.radius,alfa,sigma,alfa,dbeta,epsi,theta,phi,qx,qy,qz,params.p11,params.p12,params.p13,params.p21,params.p22,params.p23,params.p31,params.p32,params.p33,qx,qy,0,qhkl,
+        qrombchid(params.length,params.radius,params.alphash1,params.sigma,params.alphash1,params.polPhi,params.polTheta,params.polPhi,qx,qy,qz,params.p11,params.p12,params.p13,params.p21,params.p22,params.p23,params.p31,params.p32,params.p33,qx,qy,0,qhkl,
                   params.ax1.length(),params.ax2.length(),params.ax3.length(),
                   params.ax1.x(),params.ax1.y(),params.ax1.z(),
                   params.ax2.x(),params.ax2.y(),params.ax2.z(),
                   params.ax3.x(),params.ax3.y(),params.ax3.z(),
                   params.sig.x(),params.sig.y(),params.sig.z(),
-                  ordis,3,8,15,7,0,0,CR->carr1p,area);   //Z=11010
+                  ordis,3,8,15,7,0,0,params.CR->carr1p,area);   //Z=11010
         area = 2*M_PI*area;  //Z=11011
-        vol = 2*M_PI*r*r*l*gamma((2+alfa)/alfa)*gamma(1/alfa)/(alfa*gamma((3+alfa)/alfa));  //Z=11012
-        por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=11013
+        vol = 2*M_PI*sqr(params.radius)*params.length*gamma((2+params.alphash1)/params.alphash1)*gamma(1/params.alphash1)/(params.alphash1*gamma((3+params.alphash1)/params.alphash1));  //Z=11012
+        params.por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=11013
 
         /*  homogeneous  */  //Z=11015
         u1ell[0] = 1;             /*  for barrel  */  //Z=11016
@@ -4494,17 +4212,17 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
 
         for ( n=0; n<=3*nmax+1; n++ )
         {/*3*/  //Z=11026
-            v1ell[n] = gamma((2*n+1)/alfa)*u1ell[n];         /*  for barrel  */  //Z=11027
-            v2ell[n] = gamma((2*n+2+alfa)/alfa)*u2ell[n];    /*  for barrel  */  //Z=11028
-            gell[n] = gamma((2*n+3+alfa)/alfa);              /*  for barrel  */  //Z=11029
+            v1ell[n] = gamma((2*n+1)/params.alphash1)*u1ell[n];         /*  for barrel  */  //Z=11027
+            v2ell[n] = gamma((2*n+2+params.alphash1)/params.alphash1)*u2ell[n];    /*  for barrel  */  //Z=11028
+            gell[n] = gamma((2*n+3+params.alphash1)/params.alphash1);              /*  for barrel  */  //Z=11029
         }/*3*/  //Z=11030
 
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=11032
             for ( n=0; n<=nmax; n++ )
             {/*4*/  //Z=11033
 
-                if ( alfa==2 )
+                if ( params.alphash1==2 )
                 {/*5*/  //Z=11047
                     a1 = sqr(3/4.0);  //Z=11048
                     for ( m=0; m<=nmax; m++ )
@@ -4517,12 +4235,12 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                                 sump2 = sump2+1/(fkv[m-ll]*fkv[ll]*(m-ll+n-k+3/2.0)*(ll+k+3/2.0)*gam3[m-ll+n-k]*gam3[ll+k]);  //Z=11054
                             sump1 = sump1+sump2/(fkv[n-k]*fkv[k]);  //Z=11055
                         }/*7*/  //Z=11056
-                        CR->carr11pm[n][m] = M_PI*sump1;  //Z=11057
+                        params.CR->carr11pm[n][m] = M_PI*sump1;  //Z=11057
                     }/*6*/  //Z=11058
                 }/*5*/  //Z=11059
                 else
                 {/*5*/  //Z=11060
-                    a1 = gamma((alfa+3)/alfa)/(gamma((alfa+2)/alfa)*gamma(1/alfa));  //Z=11061
+                    a1 = gamma((params.alphash1+3)/params.alphash1)/(gamma((params.alphash1+2)/params.alphash1)*gamma(1/params.alphash1));  //Z=11061
                     a1 = a1*a1;  //Z=11062
                     for ( m=0; m<=nmax; m++ )
                     {/*6*/  //Z=11063
@@ -4534,14 +4252,15 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                                 sump2 = sump2+v2ell[m-ms]*v2ell[ms]/(gell[ns+ms]*gell[n-ns+m-ms]);  //Z=11068
                             sump1 = sump1+v1ell[n-ns]*v1ell[ns]*sump2;  //Z=11069
                         }/*7*/  //Z=11070
-                        CR->carr11pm[n][m] = sump1;  //Z=11071
+                        params.CR->carr11pm[n][m] = sump1;  //Z=11071
                     }/*6*/  //Z=11072
                 }/*5*/  //Z=11073
 
                 /*  orientational average  */  //Z=11075
                 sump = 0.0;  //Z=11076
-                for ( m=0; m<=n; m++ ) sump = sump+gam3[n-m]*z12v[n-m]*z12v[m]*pow(l*l,n-m)*pow(r*r,m)*fkv[m]*params.CR->carr11pm[n-m][m]/(n-m+1/2.0);  //Z=11077
-                CR->carr4p[n] = a1*pow(-1/(4.0*(z+1)*(z+1)),n)*sump/(2.0*gam3[n]);  //Z=11078
+                for ( m=0; m<=n; m++ )
+                    sump += gam3[n-m]*z12v[n-m]*z12v[m]*pow(sqr(params.length),n-m)*pow(sqr(params.radius),m)*fkv[m]*params.CR->carr11pm[n-m][m]/(n-m+1/2.0);  //Z=11077
+                params.CR->carr4p[n] = a1*pow(-1/(4.0*(z+1)*(z+1)),n)*sump/(2.0*gam3[n]);  //Z=11078
 
                 /* fsum[n]:=sumf;  //Z=11081 */
                 /* sumf:=0.0;  //Z=11082 */
@@ -4556,12 +4275,12 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                     for ( k=0; k<=m; k++ ) sump1 = sump1+fsum[m-k]*fsum[k]*gam3[m-k]*gam3[k]/((k+1/2.0)*(m-k+1/2.0));  //Z=11090
                     sump = sump+sump1*fsum[n-m]*gam3[n-m]/(n-m+1/2.0);  //Z=11091
                 }/*5*/  //Z=11092
-                CR->carr4f[n] = M_PI*M_PI*xrn[n]*sump/(128.0*gam3[n]);  //Z=11093
-                if ( fabs(CR->carr4p[n])<min )
+                params.CR->carr4f[n] = M_PI*M_PI*xrn[n]*sump/(128.0*gam3[n]);  //Z=11093
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=11094
                     if ( n<n4 ) n4 = n;  //Z=11095
                 }/*5*/  //Z=11096
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=11097
                     if ( n<n4f ) n4f = n;  //Z=11098
                 }/*5*/  //Z=11099
@@ -4579,10 +4298,10 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
     /*  perfect orientation case for ellipsoids  */  //Z=11138  TODO: gleich wie oben | cs==0
     if ( (ordis==6) && (dim==5) )
     {/*2*/    /*  ellipsoids  */  //Z=11139
-        norm = 1;  //Z=11140
+        params.norm = 1;  //Z=11140
         order = 1;  //Z=11141
         /*  homogeneous  */  //Z=11142
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=11143
             i = 2;  //Z=11144
             for ( n=1; n<=nmax; n++ )
@@ -4603,7 +4322,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         for ( ms=0; ms<=m; ms++ ) sump1 = sump1+1/(fkv[ms]*fkv[m-ms]*(ms+ns+3/2.0)*gam3[ms+ns]*(m-ms+n-ns+3/2.0)*gam3[m-ms+n-ns]);  //Z=11157
                         sump = sump+sump1*fsum[n-m]/(fkv[ns]*fkv[n-ns]);  //Z=11158
                     }/*6*/  //Z=11159
-                    CR->carr11pm[n][m] = (9/16.0)*z12vl[n]*z12v[m]*xln[n]*xrn[m]*sump;  //Z=11160
+                    params.CR->carr11pm[n][m] = (9/16.0)*z12vl[n]*z12v[m]*xln[n]*xrn[m]*sump;  //Z=11160
                 }/*5*/  //Z=11161
                 /*  P(q)-coefficient  */  //Z=11162
                 /* for m:=0 to n do begin  //Z=11163 */
@@ -4611,14 +4330,14 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 /* carr1fm[i]:=carr1pm[i];  //Z=11165 */
                 /* i:=i+1;  //Z=11166 */
                 /* end;  //Z=11167 */
-                CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*xrn[n]/(16.0*gam3[n]);  //Z=11168
+                params.CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*xrn[n]/(16.0*gam3[n]);  //Z=11168
                 /*  F(q)-coefficient  */  //Z=11169
-                CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128.0*gam3[n]);  //Z=11170
-                if ( fabs(CR->carr4p[n])<min )
+                params.CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128.0*gam3[n]);  //Z=11170
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=11171
                     if ( n<n4 ) n4 = n;  //Z=11172
                 }/*5*/  //Z=11173
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=11174
                     if ( n<n4f ) n4f = n;  //Z=11175
                 }/*5*/  //Z=11176
@@ -4651,15 +4370,15 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
         float carr111pm[ardim+1][ardim+1][ardim+1];
 
         nmax = 40;  //Z=11231
-        norm = 1;  //Z=11232
+        params.norm = 1;  //Z=11232
         order = 0;  //Z=11233
         /* l:=r;  //Z=11234 */
 
         /*  radius=a, rm=b, length=c  */  //Z=11236
-        qrombdeltac(l,r,rm,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,8,17,0,0,0,CR->carr1p,area);  //Z=11237
+        qrombdeltac(params.radiusi,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,8,17,0,0,0,params.CR->carr1p,area);  //Z=11237
         area = 8*area;  //Z=11238
-        vol = 8*r*rm*l*pow(gamma(1/alfa),3)/(pow(alfa,3)*gamma(1+3/alfa));  //Z=11239
-        por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=11240
+        vol = 8*params.radius*params.radiusi*params.length*pow(gamma(1/params.alphash1),3)/(pow(params.alphash1,3)*gamma(1+3/params.alphash1));  //Z=11239
+        params.por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=11240
 
         /*  homogeneous  */  //Z=11243
         u3ell[0] = 1;             /*  for superball  */  //Z=11244
@@ -4678,15 +4397,15 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
 
         for ( n=0; n<=3*nmax+1; n++ )
         {/*3*/  //Z=11257
-            v3ell[n] = exp(gammln((2*n+1)/alfa))*u3ell[n];         /*  for superball  */  //Z=11258
-            g3ell[n] = exp(gammln(((2*n+3)/alfa)+1));              /*  for superball  */  //Z=11259
+            v3ell[n] = exp(gammln((2*n+1)/params.alphash1))*u3ell[n];         /*  for superball  */  //Z=11258
+            g3ell[n] = exp(gammln(((2*n+3)/params.alphash1)+1));              /*  for superball  */  //Z=11259
         }/*3*/  //Z=11260
 
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=11262
             for ( n=0; n<=nmax; n++ )
             {/*4*/  //Z=11263
-                if ( alfa==200000 )
+                if ( params.alphash1==200000 )
                 {/*5*/  //Z=11264
                     a1 = sqr(3/4.0);  //Z=11265
                     for ( m=0; m<=nmax; m++ )
@@ -4699,12 +4418,12 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                                 sump2 = sump2+1/(fkv[m-ll]*fkv[ll]*(m-ll+n-k+3/2.0)*(ll+k+3/2.0)*gam3[m-ll+n-k]*gam3[ll+k]);  //Z=11271
                             sump1 = sump1+sump2/(fkv[n-k]*fkv[k]);  //Z=11272
                         }/*7*/  //Z=11273
-                        CR->carr11pm[n][m] = M_PI*sump1;  //Z=11274
+                        params.CR->carr11pm[n][m] = M_PI*sump1;  //Z=11274
                     }/*6*/  //Z=11275
                 }/*5*/  //Z=11276
                 else
                 {/*5*/  //Z=11277
-                    a1 = gamma(1+3/alfa)/pow(gamma(1/alfa),3);  //Z=11278
+                    a1 = gamma(1+3/params.alphash1)/pow(gamma(1/params.alphash1),3);  //Z=11278
                     a1 = a1*a1;  //Z=11279
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=11280
@@ -4735,10 +4454,10 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 {/*5*/  //Z=11301
                     sump1 = 0.0;  //Z=11302
                     for ( k=0; k<=m; k++ )  //Z=11303
-                        sump1 = sump1+z12v[m-k]*z12v[k]*gam3[m-k]*gam3[k]*pow(rm*rm,m-k)*pow(l*l,k)*carr111pm[n-m][m-k][k]/((m-k+1/2.0)*(k+1/2.0));   //Z=11304
-                    sump = sump+z12v[n-m]*gam3[n-m]*pow(r*r,n-m)*sump1/(n-m+1/2.0);  //Z=11305
+                        sump1 += z12v[m-k]*z12v[k]*gam3[m-k]*gam3[k]*pow(sqr(params.radiusi),m-k)*pow(sqr(params.length),k)*carr111pm[n-m][m-k][k]/((m-k+1/2.0)*(k+1/2.0));   //Z=11304
+                    sump = sump+z12v[n-m]*gam3[n-m]*pow(sqr(params.radius),n-m)*sump1/(n-m+1/2.0);  //Z=11305
                 }/*5*/  //Z=11306
-                CR->carr4p[n] = (a1/(2.0*M_PI))*pow(-1/(4.0*(z+1)*(z+1)),n)*sump/gam3[n];  //Z=11307
+                params.CR->carr4p[n] = (a1/(2.0*M_PI))*pow(-1/(4.0*(z+1)*(z+1)),n)*sump/gam3[n];  //Z=11307
 
 
                 /* fsum[n]:=sumf;  //Z=11310 */
@@ -4754,12 +4473,12 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                     for ( k=0; k<=m; k++ ) sump1 = sump1+fsum[m-k]*fsum[k]*gam3[m-k]*gam3[k]/((k+1/2.0)*(m-k+1/2.0));  //Z=11319
                     sump = sump+sump1*fsum[n-m]*gam3[n-m]/(n-m+1/2.0);  //Z=11320
                 }/*5*/  //Z=11321
-                CR->carr4f[n] = M_PI*M_PI*xrn[n]*sump/(128.0*gam3[n]);  //Z=11322
-                if ( fabs(CR->carr4p[n])<min )
+                params.CR->carr4f[n] = M_PI*M_PI*xrn[n]*sump/(128.0*gam3[n]);  //Z=11322
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=11323
                     if ( n<n4 ) n4 = n;  //Z=11324
                 }/*5*/  //Z=11325
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=11326
                     if ( n<n4f ) n4f = n;  //Z=11327
                 }/*5*/  //Z=11328
@@ -4778,10 +4497,10 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
     /*  perfect orientation case for ellipsoids  */  //Z=11368  TODO: gleich wie oben | cs==0
     if ( (ordis==6) && (dim==5) )
     {/*2*/    /*  ellipsoids  */  //Z=11369
-        norm = 1;  //Z=11370
+        params.norm = 1;  //Z=11370
         order = 1;  //Z=11371
         /*  homogeneous  */  //Z=11372
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=11373
             i = 2;  //Z=11374
             for ( n=1; n<=nmax; n++ )
@@ -4802,7 +4521,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         for ( ms=0; ms<=m; ms++ ) sump1 = sump1+1/(fkv[ms]*fkv[m-ms]*(ms+ns+3/2.0)*gam3[ms+ns]*(m-ms+n-ns+3/2.0)*gam3[m-ms+n-ns]);  //Z=11387
                         sump = sump+sump1*fsum[n-m]/(fkv[ns]*fkv[n-ns]);  //Z=11388
                     }/*6*/  //Z=11389
-                    CR->carr11pm[n][m] = (9/16.0)*z12vl[n]*z12v[m]*xln[n]*xrn[m]*sump;  //Z=11390
+                    params.CR->carr11pm[n][m] = (9/16.0)*z12vl[n]*z12v[m]*xln[n]*xrn[m]*sump;  //Z=11390
                 }/*5*/  //Z=11391
                 /*  P(q)-coefficient  */  //Z=11392
                 /* for m:=0 to n do begin  //Z=11393 */
@@ -4810,14 +4529,14 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 /* carr1fm[i]:=carr1pm[i];  //Z=11395 */
                 /* i:=i+1;  //Z=11396 */
                 /* end;  //Z=11397 */
-                CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*xrn[n]/(16.0*gam3[n]);  //Z=11398
+                params.CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*xrn[n]/(16.0*gam3[n]);  //Z=11398
                 /*  F(q)-coefficient  */  //Z=11399
-                CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128.0*gam3[n]);  //Z=11400
-                if ( fabs(CR->carr4p[n])<min )
+                params.CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128.0*gam3[n]);  //Z=11400
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=11401
                     if ( n<n4 ) n4 = n;  //Z=11402
                 }/*5*/  //Z=11403
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=11404
                     if ( n<n4f ) n4f = n;  //Z=11405
                 }/*5*/  //Z=11406
@@ -4835,18 +4554,18 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
     /* ** isotropic case for cylinders and disks ** */  //Z=11447
     if ( (ordis==7) && (dim!=3) )
     {/*2*/  //Z=11448
-        norm = 1;  //Z=11449
+        params.norm = 1;  //Z=11449
         order = 0;  //Z=11450
         /*  homogeneous  */  //Z=11451
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=11452
 
             /*  small axial ratios  */  //Z=11454
-            if ( (l/r)<2 )
+            if ( (params.length/params.radius)<2 )
             {/*4*/  //Z=11455
-                area = 2*M_PI*r*r+2*M_PI*r*(2*l);  //Z=11456
-                vol = M_PI*r*r*(2*l);  //Z=11457
-                por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=11458
+                area = 2*M_PI*sqr(params.radius)+2*M_PI*params.radius*(2*params.length);  //Z=11456
+                vol = M_PI*sqr(params.radius)*(2*params.length);  //Z=11457
+                params.por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=11458
 
                 for ( n=1; n<=nmax; n++ )
                 {/*5*/  //Z=11460
@@ -4866,16 +4585,16 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                     binsum = 0.0;  //Z=11473
                     /* for m:=0 to n do    (* Cauchy sum *)  //Z=11474 */
                     /*       binsum:=binsum+gam3[m]*z12vl[n-m]*z12v[m]*xln[n-m]*xrn[m]/((n-m+1/2)*(n-m+1)*fkv[n-m]*(m+2)*(m+1)*fkv[m]*(m+1)*fkv[m]);  //Z=11475 */
-                    CR->carr11pm[n][0] = sqrt(M_PI)/gam3[n];  //Z=11476
+                    params.CR->carr11pm[n][0] = sqrt(M_PI)/gam3[n];  //Z=11476
                     a1 = sqrt(M_PI)/(2.0*gam3[n]);  //Z=11477
                     for ( m=1; m<=nmax; m++ )
                     {/*6*/    /*  double sum  */  //Z=11478
                         a1 = a1*(m+1/2.0)/(n+m+1/2.0);  //Z=11479
                         /* carr11pm[n,m]:=power(4,m+1)*gam3[m]*z12v[m]*xrn[m]/((m+2)*(m+1)*fkv[m]*(m+1)*fkv[m]*gam3[n+m]);   (* ok *)  //Z=11480 */
-                        CR->carr11pm[n][m] = pow(4.0,m+1)*a1*z12v[m]*xrn[m]/((m+2)*(m+1)*fkv[m]*(m+1)*fkv[m]);       /*  Mok  */  //Z=11481
+                        params.CR->carr11pm[n][m] = pow(4.0,m+1)*a1*z12v[m]*xrn[m]/((m+2)*(m+1)*fkv[m]*(m+1)*fkv[m]);       /*  Mok  */  //Z=11481
                     }/*6*/  //Z=11482
-                    CR->carr2p[n] = pow(4.0,n-1)*z12vl[n]*xln[n]/((n+1/2.0)*(n+1)*fkv[n]);     /*  double sum  */  //Z=11483
-                    CR->carr3p[n] = pow(4.0,n)*binsum/gam3[n];      /*  Cauchy sum  */  //Z=11484
+                    params.CR->carr2p[n] = pow(4.0,n-1)*z12vl[n]*xln[n]/((n+1/2.0)*(n+1)*fkv[n]);     /*  double sum  */  //Z=11483
+                    params.CR->carr3p[n] = pow(4.0,n)*binsum/gam3[n];      /*  Cauchy sum  */  //Z=11484
                 }/*5*/  //Z=11485
 
             }/*4*/  //Z=11487
@@ -4899,53 +4618,53 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                     {/*6*/  //Z=11502
 
                         /*  P(q) factorization  */  //Z=11504
-                        CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(2*n+1)*(n+1)*gam3[n]*fkv[n]);      /*  P||iso(q)  */  //Z=11505
-                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);   /*  P-(q)  */  //Z=11506
+                        params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(2*n+1)*(n+1)*gam3[n]*fkv[n]);      /*  P||iso(q)  */  //Z=11505
+                        params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);   /*  P-(q)  */  //Z=11506
                         /*  F(q)  */  //Z=11507
                         binsum = 0.0;  //Z=11508
                         for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11509
-                        CR->carr1f[n] = M_PI*xln[n]*binsum/(4.0*(2*n+1));  //Z=11510
+                        params.CR->carr1f[n] = M_PI*xln[n]*binsum/(4.0*(2*n+1));  //Z=11510
                         binsum = 0.0;  //Z=11511
                         for ( m=0; m<=n; m++ ) binsum = binsum+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11512
-                        CR->carr4f[n] = xrn[n]*binsum;  //Z=11513
+                        params.CR->carr4f[n] = xrn[n]*binsum;  //Z=11513
                     }/*6*/  //Z=11514
                     /*  disk, ok  */  //Z=11515
                     if ( dim==2 )
                     {/*6*/  //Z=11516
                         /*  P(q)  */  //Z=11517
-                        CR->carr1p[n] = 2*pow(4.0,n)*z12vl[n]*xln[n]/((n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=11518
-                        CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=11519
+                        params.CR->carr1p[n] = 2*pow(4.0,n)*z12vl[n]*xln[n]/((n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=11518
+                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=11519
                         /*  F(q)  */  //Z=11520
                         binsum = 0.0;  //Z=11521
                         for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=11522
-                        CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*binsum/(2.0*gam3[n]);  //Z=11523
+                        params.CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*binsum/(2.0*gam3[n]);  //Z=11523
                         binsum = 0.0;  //Z=11524
                         for ( m=0; m<=n; m++ ) binsum = binsum+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11525
-                        CR->carr4f[n] = M_PI*xrn[n]*binsum/4.0;  //Z=11526
+                        params.CR->carr4f[n] = M_PI*xrn[n]*binsum/4.0;  //Z=11526
                     }/*6*/  //Z=11527
                 }/*5*/  /*  of large axial ratios  */  //Z=11528
 
-                if ( fabs(CR->carr1p[n])<min )
+                if ( fabs(params.CR->carr1p[n])<min )
                 {/*5*/  //Z=11530
                     if ( n<n1 ) n1 = n;  //Z=11531
                 }/*5*/  //Z=11532
-                if ( fabs(CR->carr2p[n])<min )
+                if ( fabs(params.CR->carr2p[n])<min )
                 {/*5*/  //Z=11533
                     if ( n<n2 ) n2 = n;  //Z=11534
                 }/*5*/  //Z=11535
-                if ( fabs(CR->carr3p[n])<min )
+                if ( fabs(params.CR->carr3p[n])<min )
                 {/*5*/  //Z=11536
                     if ( n<n3 ) n3 = n;  //Z=11537
                 }/*5*/  //Z=11538
-                if ( fabs(CR->carr1f[n])<min )
+                if ( fabs(params.CR->carr1f[n])<min )
                 {/*5*/  //Z=11539
                     if ( n<n1f ) n1f = n;  //Z=11540
                 }/*5*/  //Z=11541
-                if ( fabs(CR->carr4p[n])<min )
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=11542
                     if ( n<n4 ) n4 = n;  //Z=11543
                 }/*5*/  //Z=11544
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=11545
                     if ( n<n4f ) n4f = n;  //Z=11546
                 }/*5*/  //Z=11547
@@ -4953,7 +4672,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
         }/*3*/ /*  of homogeneous  */  //Z=11549
 
         /*  core/shell  */  //Z=11551
-        if ( cs==1 )
+        if ( params.cs==1 )
         {/*3*/  //Z=11552
             for ( n=1; n<=nmax; n++ )
             {/*4*/  //Z=11553
@@ -4972,24 +4691,24 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 if ( dim==1 )
                 {/*5*/  //Z=11566
                     /*  longitudinal P(q)  */  //Z=11567
-                    CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(2*n+1)*(n+1)*gam3[n]*fkv[n]);  //Z=11568
+                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(2*n+1)*(n+1)*gam3[n]*fkv[n]);  //Z=11568
                     /*  cross-sectional P(q)  */  //Z=11569
                     /*  F121  */  //Z=11570
-                    CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=11571
+                    params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=11571
                     /*  F122  */  //Z=11572
                     sump = 0.0;  //Z=11573
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=11574
                         sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11575
                     }/*6*/  //Z=11576
-                    CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=11577
+                    params.CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=11577
                     /*  F123  */  //Z=11578
-                    CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=11579
+                    params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=11579
 
                     /*  longitudinal F(q)  */  //Z=11581
                     binsum = 0.0;  //Z=11582
                     for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11583
-                    CR->carr1f[n] = M_PI*xln[n]*binsum/(4.0*(2*n+1));  //Z=11584
+                    params.CR->carr1f[n] = M_PI*xln[n]*binsum/(4.0*(2*n+1));  //Z=11584
                     /*  cross-sectional F(q)  */  //Z=11585
                     /*  F121  */  //Z=11586
                     sump = 0.0;  //Z=11587
@@ -4997,40 +4716,40 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                     {/*6*/  //Z=11588
                         sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11589
                     }/*6*/  //Z=11590
-                    CR->carr4f[n] = xrn[n]*sump;  //Z=11591
+                    params.CR->carr4f[n] = xrn[n]*sump;  //Z=11591
                     /*  F122  */  //Z=11592
                     sump = 0.0;  //Z=11593
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=11594
                         sump = sump+z12v[m]*z12v[n-m]*pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11595
                     }/*6*/  //Z=11596
-                    CR->carr5f[n] = xrmn_n*sump;  //Z=11597
+                    params.CR->carr5f[n] = xrmn_n*sump;  //Z=11597
                     /*  F123  */  //Z=11598
-                    CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=11599
+                    params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=11599
                 }/*5*/  //Z=11600
 
                 /* ** disk ** */  //Z=11602
                 if ( dim==2 )
                 {/*5*/  //Z=11603
                     /*  longitudinal  */  //Z=11604
-                    CR->carr1p[n] = 2*pow(4.0,n)*z12vl[n]*xln[n]/((n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=11605
+                    params.CR->carr1p[n] = 2*pow(4.0,n)*z12vl[n]*xln[n]/((n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=11605
                     /*  cross-sectional P(q)  */  //Z=11606
                     /*  F121  */  //Z=11607
-                    CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=11608
+                    params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=11608
                     /*  F122  */  //Z=11609
                     sump = 0.0;  //Z=11610
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=11611
                         sump = sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11612
                     }/*6*/  //Z=11613
-                    CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=11614
+                    params.CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=11614
                     /*  F123  */  //Z=11615
-                    CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=11616
+                    params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=11616
 
                     /*  longitudinal F(q)  */  //Z=11618
                     binsum = 0.0;  //Z=11619
                     for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=11620
-                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*binsum/(2.0*gam3[n]);  //Z=11621
+                    params.CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*binsum/(2.0*gam3[n]);  //Z=11621
                     /*  cross-sectional F(q)  */  //Z=11622
                     /*  F121  */  //Z=11623
                     sump = 0.0;  //Z=11624
@@ -5038,50 +4757,50 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                     {/*6*/  //Z=11625
                         sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11626
                     }/*6*/  //Z=11627
-                    CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=11628
+                    params.CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=11628
                     /*  F122  */  //Z=11629
                     sump = 0.0;  //Z=11630
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=11631
                         sump = sump+pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11632
                     }/*6*/  //Z=11633
-                    CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=11634
+                    params.CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=11634
                     /*  F123  */  //Z=11635
-                    CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=11636
+                    params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=11636
                 }/*5*/  //Z=11637
-                if ( fabs(CR->carr1p[n])<min )
+                if ( fabs(params.CR->carr1p[n])<min )
                 {/*5*/  //Z=11638
                     if ( n<n1 ) n1 = n;  //Z=11639
                 }/*5*/  //Z=11640
-                if ( fabs(CR->carr3p[n])<min )
+                if ( fabs(params.CR->carr3p[n])<min )
                 {/*5*/  //Z=11641
                     if ( n<n3 ) n3 = n;  //Z=11642
                 }/*5*/  //Z=11643
-                if ( fabs(CR->carr4p[n])<min )
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=11644
                     if ( n<n4 ) n4 = n;  //Z=11645
                 }/*5*/  //Z=11646
-                if ( fabs(CR->carr5p[n])<min )
+                if ( fabs(params.CR->carr5p[n])<min )
                 {/*5*/  //Z=11647
                     if ( n<n5 ) n5 = n;  //Z=11648
                 }/*5*/  //Z=11649
-                if ( fabs(CR->carr6p[n])<min )
+                if ( fabs(params.CR->carr6p[n])<min )
                 {/*5*/  //Z=11650
                     if ( n<n6 ) n6 = n;  //Z=11651
                 }/*5*/  //Z=11652
-                if ( fabs(CR->carr1f[n])<min )
+                if ( fabs(params.CR->carr1f[n])<min )
                 {/*5*/  //Z=11653
                     if ( n<n1f ) n1f = n;  //Z=11654
                 }/*5*/  //Z=11655
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=11656
                     if ( n<n4f ) n4f = n;  //Z=11657
                 }/*5*/  //Z=11658
-                if ( fabs(CR->carr5f[n])<min )
+                if ( fabs(params.CR->carr5f[n])<min )
                 {/*5*/  //Z=11659
                     if ( n<n5f ) n5f = n;  //Z=11660
                 }/*5*/  //Z=11661
-                if ( fabs(CR->carr6f[n])<min )
+                if ( fabs(params.CR->carr6f[n])<min )
                 {/*5*/  //Z=11662
                     if ( n<n6f ) n6f = n;  //Z=11663
                 }/*5*/  //Z=11664
@@ -5089,7 +4808,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
         }/*3*/ /*  of core/shell  */  //Z=11666
 
         /*  inhomogeneous core/shell  */  //Z=11668
-        if ( cs==2 )
+        if ( params.cs==2 )
         {/*3*/  //Z=11669
             for ( n=1; n<=nmax; n++ )
             {/*4*/  //Z=11670
@@ -5108,31 +4827,31 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 if ( dim==1 )
                 {/*5*/  //Z=11683
                     /*  longitudinal P(q)  */  //Z=11684
-                    CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(2*n+1)*(n+1)*gam3[n]*fkv[n]);  //Z=11685
+                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(2*n+1)*(n+1)*gam3[n]*fkv[n]);  //Z=11685
 
                     /*  cross-sectional P(q)  */  //Z=11687
-                    CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=11688
+                    params.CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=11688
                     sump = 0.0;  //Z=11689
                     sump1 = 0.0;  //Z=11690
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=11691
-                        sumi = 1/((m+1-alfa/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=11692
+                        sumi = 1/((m+1-params.alphash1/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=11692
                         sump = sump+pn[n-m]*sumi;  //Z=11693
                         sump1 = sump1+sumi;  //Z=11694
                     }/*6*/  //Z=11695
-                    CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;  //Z=11696
-                    CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n]*sump1;  //Z=11697
+                    params.CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;  //Z=11696
+                    params.CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n]*sump1;  //Z=11697
                     sump = 0.0;  //Z=11698
                     sump1 = 0.0;  //Z=11699
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=11700
-                        sumi = 1/((n-m+1-alfa/2.0)*(m+1-alfa/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=11701
+                        sumi = 1/((n-m+1-params.alphash1/2.0)*(m+1-params.alphash1/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=11701
                         sump = sump+sumi;  //Z=11702
                         sump1 = sump1+pn[n-m]*sumi;  //Z=11703
                     }/*6*/  //Z=11704
-                    CR->carr7p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump;  //Z=11705
-                    CR->carr8p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump1;  //Z=11706
-                    CR->carr9p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrn[n]*sump;  //Z=11707
+                    params.CR->carr7p[n] = (1-params.alphash1/2.0)*(1-params.alphash1/2.0)*z12v[n]*xrmn_n*sump;  //Z=11705
+                    params.CR->carr8p[n] = (1-params.alphash1/2.0)*(1-params.alphash1/2.0)*z12v[n]*xrmn_n*sump1;  //Z=11706
+                    params.CR->carr9p[n] = (1-params.alphash1/2.0)*(1-params.alphash1/2.0)*z12v[n]*xrn[n]*sump;  //Z=11707
 
 
                     /* (* cross-sectional P(q) *)  //Z=11710
@@ -5150,11 +4869,11 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                     /*  longitudinal F(q)  */  //Z=11722
                     binsum = 0.0;  //Z=11723
                     for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11724
-                    CR->carr1f[n] = M_PI*xln[n]*binsum/(4.0*(2*n+1));  //Z=11725
+                    params.CR->carr1f[n] = M_PI*xln[n]*binsum/(4.0*(2*n+1));  //Z=11725
                     /*  cross-sectional F(q)  */  //Z=11726
-                    CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);  //Z=11727
-                    CR->carr5f[n] = (1-alfa/2.0)*z12v[n]*xrmn_n/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=11728
-                    CR->carr6f[n] = (1-alfa/2.0)*z12v[n]*xrn[n]/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=11729
+                    params.CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);  //Z=11727
+                    params.CR->carr5f[n] = (1-params.alphash1/2.0)*z12v[n]*xrmn_n/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=11728
+                    params.CR->carr6f[n] = (1-params.alphash1/2.0)*z12v[n]*xrn[n]/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=11729
 
                 }/*5*/  //Z=11731
 
@@ -5162,32 +4881,32 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 if ( dim==2 )
                 {/*5*/  //Z=11734
                     /*  longitudinal  */  //Z=11735
-                    CR->carr1p[n] = 2*pow(4.0,n)*z12vl[n]*xln[n]/((n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=11736
+                    params.CR->carr1p[n] = 2*pow(4.0,n)*z12vl[n]*xln[n]/((n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=11736
 
 
                     /*  cross-sectional P(q)  */  //Z=11739
-                    CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);  //Z=11740
+                    params.CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);  //Z=11740
                     sump = 0.0;  //Z=11741
                     sump1 = 0.0;  //Z=11742
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=11743
-                        sumi = (m+1/2.0)/((m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=11744
+                        sumi = (m+1/2.0)/((m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=11744
                         sump = sump+pn[n-m]*sumi;  //Z=11745
                         sump1 = sump1+sumi;  //Z=11746
                     }/*6*/  //Z=11747
-                    CR->carr5p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=11748
-                    CR->carr6p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrn[n]*sump1;  //Z=11749
+                    params.CR->carr5p[n] = (M_PI/4.0)*(1-params.alphash1)*z12v[n]*xrmn_n*sump;  //Z=11748
+                    params.CR->carr6p[n] = (M_PI/4.0)*(1-params.alphash1)*z12v[n]*xrn[n]*sump1;  //Z=11749
                     sump = 0.0;  //Z=11750
                     sump1 = 0.0;  //Z=11751
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=11752
-                        sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-alfa/2.0)*(m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=11753
+                        sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-params.alphash1/2.0)*(m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=11753
                         sump = sump+sumi;  //Z=11754
                         sump1 = sump1+pn[n-m]*sumi;  //Z=11755
                     }/*6*/  //Z=11756
-                    CR->carr7p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=11757
-                    CR->carr8p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump1;  //Z=11758
-                    CR->carr9p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrn[n]*sump;  //Z=11759
+                    params.CR->carr7p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrmn_n*sump;   //Z=11757
+                    params.CR->carr8p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrmn_n*sump1;  //Z=11758
+                    params.CR->carr9p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrn[n]*sump;   //Z=11759
 
 
                     /*  cross-sectional P(q)  */  //Z=11762
@@ -5205,65 +4924,65 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                     /*  longitudinal F(q)  */  //Z=11774
                     binsum = 0.0;  //Z=11775
                     for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=11776
-                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*binsum/(2.0*gam3[n]);  //Z=11777
+                    params.CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*binsum/(2.0*gam3[n]);  //Z=11777
                     /*  cross-sectional F(q)  */  //Z=11778
-                    CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);  //Z=11779
-                    CR->carr5f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=11780
-                    CR->carr6f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrn[n]*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=11781
+                    params.CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);  //Z=11779
+                    params.CR->carr5f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=11780
+                    params.CR->carr6f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrn[n]*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=11781
                 }/*5*/  //Z=11782
-                if ( fabs(CR->carr1p[n])<min )
+                if ( fabs(params.CR->carr1p[n])<min )
                 {/*5*/  //Z=11783
                     if ( n<n1 ) n1 = n;  //Z=11784
                 }/*5*/  //Z=11785
-                if ( fabs(CR->carr4p[n])<min )
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=11786
                     if ( n<n4 ) n4 = n;  //Z=11787
                 }/*5*/  //Z=11788
-                if ( fabs(CR->carr5p[n])<min )
+                if ( fabs(params.CR->carr5p[n])<min )
                 {/*5*/  //Z=11789
                     if ( n<n5 ) n5 = n;  //Z=11790
                 }/*5*/  //Z=11791
-                if ( fabs(CR->carr6p[n])<min )
+                if ( fabs(params.CR->carr6p[n])<min )
                 {/*5*/  //Z=11792
                     if ( n<n6 ) n6 = n;  //Z=11793
                 }/*5*/  //Z=11794
-                if ( fabs(CR->carr7p[n])<min )
+                if ( fabs(params.CR->carr7p[n])<min )
                 {/*5*/  //Z=11795
                     if ( n<n7 ) n7 = n;  //Z=11796
                 }/*5*/  //Z=11797
-                if ( fabs(CR->carr8p[n])<min )
+                if ( fabs(params.CR->carr8p[n])<min )
                 {/*5*/  //Z=11798
                     if ( n<n8 ) n8 = n;  //Z=11799
                 }/*5*/  //Z=11800
-                if ( fabs(CR->carr9p[n])<min )
+                if ( fabs(params.CR->carr9p[n])<min )
                 {/*5*/  //Z=11801
                     if ( n<n9 ) n9 = n;  //Z=11802
                 }/*5*/  //Z=11803
-                if ( fabs(CR->carr1f[n])<min )
+                if ( fabs(params.CR->carr1f[n])<min )
                 {/*5*/  //Z=11804
                     if ( n<n1f ) n1f = n;  //Z=11805
                 }/*5*/  //Z=11806
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=11807
                     if ( n<n4f ) n4f = n;  //Z=11808
                 }/*5*/  //Z=11809
-                if ( fabs(CR->carr5f[n])<min )
+                if ( fabs(params.CR->carr5f[n])<min )
                 {/*5*/  //Z=11810
                     if ( n<n5f ) n5f = n;  //Z=11811
                 }/*5*/  //Z=11812
-                if ( fabs(CR->carr6f[n])<min )
+                if ( fabs(params.CR->carr6f[n])<min )
                 {/*5*/  //Z=11813
                     if ( n<n6f ) n6f = n;  //Z=11814
                 }/*5*/  //Z=11815
-                if ( fabs(CR->carr7f[n])<min )
+                if ( fabs(params.CR->carr7f[n])<min )
                 {/*5*/  //Z=11816
                     if ( n<n7f ) n7f = n;  //Z=11817
                 }/*5*/  //Z=11818
-                if ( fabs(CR->carr8f[n])<min )
+                if ( fabs(params.CR->carr8f[n])<min )
                 {/*5*/  //Z=11819
                     if ( n<n8f ) n8f = n;  //Z=11820
                 }/*5*/  //Z=11821
-                if ( fabs(CR->carr9f[n])<min )
+                if ( fabs(params.CR->carr9f[n])<min )
                 {/*5*/  //Z=11822
                     if ( n<n9f ) n9f = n;  //Z=11823
                 }/*5*/  //Z=11824
@@ -5272,7 +4991,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
 
 
         /*  myelin  */  //Z=11829
-        if ( (cs==3) || (cs==4) )
+        if ( (params.cs==3) || (params.cs==4) )
         {/*3*/  //Z=11830
             i = 2;  //Z=11831
             for ( n=1; n<=nmax; n++ )
@@ -5291,61 +5010,61 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 if ( dim==1 )
                 {/*5*/  //Z=11844
                     /*  P(q)  */  //Z=11845
-                    CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(2*n+1)*(n+1)*gam3[n]*fkv[n]);  //Z=11846
+                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(2*n+1)*(n+1)*gam3[n]*fkv[n]);  //Z=11846
 
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=11848
                         /* carr1pm[i]:=1/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11849 */
                         /* i:=i+1;  //Z=11850 */
-                        CR->carr11pm[n][m] = 1/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11851
+                        params.CR->carr11pm[n][m] = 1/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11851
                     }/*6*/  //Z=11852
-                    CR->carr4p[n] = z12v[n]*xrn[n];  //Z=11853
+                    params.CR->carr4p[n] = z12v[n]*xrn[n];  //Z=11853
                     /* carr4p[n]:=4*(n+1/2)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=11854 */
 
 
                     /*  F(q)  */  //Z=11857
                     binsum = 0.0;  //Z=11858
                     for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11859
-                    CR->carr1f[n] = M_PI*xln[n]*binsum/(4.0*(2*n+1));  //Z=11860
+                    params.CR->carr1f[n] = M_PI*xln[n]*binsum/(4.0*(2*n+1));  //Z=11860
                     binsum = 0.0;  //Z=11861
                     for ( m=0; m<=n; m++ ) binsum = binsum+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11862
-                    CR->carr4f[n] = xrn[n]*binsum;  //Z=11863
+                    params.CR->carr4f[n] = xrn[n]*binsum;  //Z=11863
                 }/*5*/  //Z=11864
                 /*  disk, ok  */  //Z=11865
                 if ( dim==2 )
                 {/*5*/  //Z=11866
                     /*  P(q)  */  //Z=11867
-                    CR->carr1p[n] = 2*pow(4.0,n)*z12vl[n]*xln[n]/((n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=11868
+                    params.CR->carr1p[n] = 2*pow(4.0,n)*z12vl[n]*xln[n]/((n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=11868
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=11869
                         /* carr1pm[i]:=1/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11870 */
                         /* i:=i+1;  //Z=11871 */
-                        CR->carr11pm[n][m] = (M_PI/4.0)*(1/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]));  //Z=11872
+                        params.CR->carr11pm[n][m] = (M_PI/4.0)*(1/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]));  //Z=11872
                     }/*6*/  //Z=11873
-                    CR->carr4p[n] = z12v[n]*xrn[n];  //Z=11874
+                    params.CR->carr4p[n] = z12v[n]*xrn[n];  //Z=11874
 
                     /* carr4p[n]:=power(4,n)*sqrt(pi)*z12v[n]*xrn[n]/(2*(n+1)*gam3[n]*fkv[n]);  //Z=11876 */
                     /*  F(q)  */  //Z=11877
                     binsum = 0.0;  //Z=11878
                     for ( m=0; m<=n; m++ ) binsum = binsum+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=11879
-                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*binsum/(2.0*gam3[n]);  //Z=11880
+                    params.CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*binsum/(2.0*gam3[n]);  //Z=11880
                     binsum = 0.0;  //Z=11881
                     for ( m=0; m<=n; m++ ) binsum = binsum+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11882
-                    CR->carr4f[n] = M_PI*xrn[n]*binsum/4.0;  //Z=11883
+                    params.CR->carr4f[n] = M_PI*xrn[n]*binsum/4.0;  //Z=11883
                 }/*5*/  //Z=11884
-                if ( fabs(CR->carr1p[n])<min )
+                if ( fabs(params.CR->carr1p[n])<min )
                 {/*5*/  //Z=11885
                     if ( n<n1 ) n1 = n;  //Z=11886
                 }/*5*/  //Z=11887
-                if ( fabs(CR->carr1f[n])<min )
+                if ( fabs(params.CR->carr1f[n])<min )
                 {/*5*/  //Z=11888
                     if ( n<n1f ) n1f = n;  //Z=11889
                 }/*5*/  //Z=11890
-                if ( fabs(CR->carr4p[n])<min )
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=11891
                     if ( n<n4 ) n4 = n;  //Z=11892
                 }/*5*/  //Z=11893
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=11894
                     if ( n<n4f ) n4f = n;  //Z=11895
                 }/*5*/  //Z=11896
@@ -5358,10 +5077,10 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
     /* ** perfect orientation for cylinders and disks ** */  //Z=11902
     if ( (ordis==6) && (dim!=3) )
     {/*2*/  //Z=11903
-        norm = 1;  //Z=11904
+        params.norm = 1;  //Z=11904
         order = 1;  //Z=11905
         /*  homogeneous  */  //Z=11906
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=11907
             for ( n=1; n<=nmax; n++ )
             {/*4*/  //Z=11908
@@ -5377,54 +5096,54 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 if ( dim==1 )
                 {/*5*/ /*  cylinder  */  //Z=11918
                     /*  P(q)-coefficients  */  //Z=11919
-                    CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(n+1)*gam3[n]*fkv[n]);       /*  P||(q)  */  //Z=11920
-                    CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  /*  P-(q)  */  //Z=11921
+                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(n+1)*gam3[n]*fkv[n]);       /*  P||(q)  */  //Z=11920
+                    params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  /*  P-(q)  */  //Z=11921
                     /*  F(q)-coefficients  */  //Z=11922
                     sump = 0.0;  //Z=11923
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=11924
                         sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11925
                     }/*6*/  //Z=11926
-                    CR->carr1f[n] = M_PI*xln[n]*sump/4.0;  //Z=11927
+                    params.CR->carr1f[n] = M_PI*xln[n]*sump/4.0;  //Z=11927
                     sump = 0.0;  //Z=11928
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=11929
                         sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11930
                     }/*6*/  //Z=11931
-                    CR->carr4f[n] = xrn[n]*sump;  //Z=11932
+                    params.CR->carr4f[n] = xrn[n]*sump;  //Z=11932
                 }/*5*/  //Z=11933
                 if ( dim==2 )
                 {/*5*/ /*  disk  */  //Z=11934
                     /*  P(q)-coefficients  */  //Z=11935
-                    CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);    /*  P-(q)  */  //Z=11936
-                    CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);           /*  P||(q)  */  //Z=11937
+                    params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);    /*  P-(q)  */  //Z=11936
+                    params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);           /*  P||(q)  */  //Z=11937
                     /*  F(q)-coefficients  */  //Z=11938
                     sump = 0.0;  //Z=11939
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=11940
                         sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11941
                     }/*6*/  //Z=11942
-                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=11943
+                    params.CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=11943
                     sump = 0.0;  //Z=11944
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=11945
                         sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11946
                     }/*6*/  //Z=11947
-                    CR->carr4f[n] = M_PI*xln[n]*sump/4.0;  //Z=11948
+                    params.CR->carr4f[n] = M_PI*xln[n]*sump/4.0;  //Z=11948
                 }/*5*/  //Z=11949
-                if ( fabs(CR->carr1p[n])<min )
+                if ( fabs(params.CR->carr1p[n])<min )
                 {/*5*/  //Z=11950
                     if ( n<n1 ) n1 = n;  //Z=11951
                 }/*5*/  //Z=11952
-                if ( fabs(CR->carr4p[n])<min )
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=11953
                     if ( n<n4 ) n4 = n;  //Z=11954
                 }/*5*/  //Z=11955
-                if ( fabs(CR->carr1f[n])<min )
+                if ( fabs(params.CR->carr1f[n])<min )
                 {/*5*/  //Z=11956
                     if ( n<n1f ) n1f = n;  //Z=11957
                 }/*5*/  //Z=11958
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=11959
                     if ( n<n4f ) n4f = n;  //Z=11960
                 }/*5*/  //Z=11961
@@ -5432,7 +5151,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
         }/*3*/  //Z=11963
 
         /*  core/shell  */  //Z=11965
-        if ( cs==1 )
+        if ( params.cs==1 )
         {/*3*/  //Z=11966
             for ( n=1; n<=nmax; n++ )
             {/*4*/  //Z=11967
@@ -5451,19 +5170,19 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 {/*5*/ /*  cylinder  */  //Z=11979
                     /*  P(q)-coefficients  */  //Z=11980
                     /*  longitudinal  */  //Z=11981
-                    CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=11982
+                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=11982
                     /*  cross-sectional  */  //Z=11983
                     /*  F121  */  //Z=11984
-                    CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=11985
+                    params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=11985
                     /*  F122  */  //Z=11986
                     sump = 0.0;  //Z=11987
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=11988
                         sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=11989
                     }/*6*/  //Z=11990
-                    CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=11991
+                    params.CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=11991
                     /*  F123  */  //Z=11992
-                    CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=11993
+                    params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=11993
 
                     /*  F(q)-coefficients  */  //Z=11995
                     /*  longitudinal  */  //Z=11996
@@ -5472,7 +5191,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                     {/*6*/  //Z=11998
                         sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11999
                     }/*6*/  //Z=12000
-                    CR->carr1f[n] = M_PI*xln[n]*sump/4.0;  //Z=12001
+                    params.CR->carr1f[n] = M_PI*xln[n]*sump/4.0;  //Z=12001
                     /*  cross-sectional  */  //Z=12002
                     /*  F121  */  //Z=12003
                     sump = 0.0;  //Z=12004
@@ -5480,26 +5199,26 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                     {/*6*/  //Z=12005
                         sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12006
                     }/*6*/  //Z=12007
-                    CR->carr4f[n] = xrn[n]*sump;  //Z=12008
+                    params.CR->carr4f[n] = xrn[n]*sump;  //Z=12008
                     /*  F122  */  //Z=12009
                     sump = 0.0;  //Z=12010
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=12011
                         sump = sump+pn[m]*z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12012
                     }/*6*/  //Z=12013
-                    CR->carr5f[n] = xrmn_n*sump;  //Z=12014
+                    params.CR->carr5f[n] = xrmn_n*sump;  //Z=12014
                     /*  F123  */  //Z=12015
-                    CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=12016
+                    params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=12016
                 }/*5*/  //Z=12017
 
                 if ( dim==2 )
                 {/*5*/ /*  disk  */  //Z=12019
                     /*  P(q)-coefficients  */  //Z=12020
                     /*  longitudinal  */  //Z=12021
-                    CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12022
+                    params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12022
                     /*  cross-sectional  */  //Z=12023
                     /*  F121  */  //Z=12024
-                    CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=12025
+                    params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=12025
                     /*  F122  */  //Z=12026
                     /* sump:=0.0;  //Z=12027 */
                     /*    for m:=0 to n do begin  //Z=12028 */
@@ -5513,10 +5232,10 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                     {/*6*/  //Z=12035
                         sump = sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12036
                     }/*6*/  //Z=12037
-                    CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=12038
+                    params.CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=12038
 
                     /*  F123  */  //Z=12041
-                    CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=12042
+                    params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=12042
                     /*  F(q)-coefficients  */  //Z=12043
                     /*  longitudinal  */  //Z=12044
                     sump = 0.0;  //Z=12045
@@ -5524,7 +5243,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                     {/*6*/  //Z=12046
                         sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12047
                     }/*6*/  //Z=12048
-                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=12049
+                    params.CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=12049
                     /*  cross-sectional  */  //Z=12050
                     /*  F121  */  //Z=12051
                     sump = 0.0;  //Z=12052
@@ -5532,46 +5251,46 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                     {/*6*/  //Z=12053
                         sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12054
                     }/*6*/  //Z=12055
-                    CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=12056
+                    params.CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=12056
                     /*  F122  */  //Z=12057
                     sump = 0.0;  //Z=12058
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=12059
                         sump = sump+pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12060
                     }/*6*/  //Z=12061
-                    CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=12062
+                    params.CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=12062
                     /*  F123  */  //Z=12063
-                    CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=12064
+                    params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=12064
                 }/*5*/  //Z=12065
-                if ( fabs(CR->carr1p[n])<min )
+                if ( fabs(params.CR->carr1p[n])<min )
                 {/*5*/  //Z=12066
                     if ( n<n1 ) n1 = n;  //Z=12067
                 }/*5*/  //Z=12068
-                if ( fabs(CR->carr4p[n])<min )
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=12069
                     if ( n<n4 ) n4 = n;  //Z=12070
                 }/*5*/  //Z=12071
-                if ( fabs(CR->carr5p[n])<min )
+                if ( fabs(params.CR->carr5p[n])<min )
                 {/*5*/  //Z=12072
                     if ( n<n5 ) n5 = n;  //Z=12073
                 }/*5*/  //Z=12074
-                if ( fabs(CR->carr6p[n])<min )
+                if ( fabs(params.CR->carr6p[n])<min )
                 {/*5*/  //Z=12075
                     if ( n<n6 ) n6 = n;  //Z=12076
                 }/*5*/  //Z=12077
-                if ( fabs(CR->carr1f[n])<min )
+                if ( fabs(params.CR->carr1f[n])<min )
                 {/*5*/  //Z=12078
                     if ( n<n1f ) n1f = n;  //Z=12079
                 }/*5*/  //Z=12080
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=12081
                     if ( n<n4f ) n4f = n;  //Z=12082
                 }/*5*/  //Z=12083
-                if ( fabs(CR->carr5f[n])<min )
+                if ( fabs(params.CR->carr5f[n])<min )
                 {/*5*/  //Z=12084
                     if ( n<n5f ) n5f = n;  //Z=12085
                 }/*5*/  //Z=12086
-                if ( fabs(CR->carr6f[n])<min )
+                if ( fabs(params.CR->carr6f[n])<min )
                 {/*5*/  //Z=12087
                     if ( n<n6f ) n6f = n;  //Z=12088
                 }/*5*/  //Z=12089
@@ -5579,7 +5298,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
         }/*3*/  /*  of core/shell  */  //Z=12091
 
         /*  inhomogeneous core/shell  */  //Z=12093
-        if ( cs==2 )
+        if ( params.cs==2 )
         {/*3*/  //Z=12094
             for ( n=1; n<=nmax; n++ )
             {/*4*/  //Z=12095
@@ -5598,31 +5317,31 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 {/*5*/ /*  cylinder  */  //Z=12107
                     /*  P(q)-coefficients  */  //Z=12108
                     /*  longitudinal  */  //Z=12109
-                    CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=12110
+                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=12110
 
                     /*  cross-sectional P(q)  */  //Z=12112
-                    CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=12113
+                    params.CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=12113
                     sump = 0.0;  //Z=12114
                     sump1 = 0.0;  //Z=12115
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=12116
-                        sumi = 1/((m+1-alfa/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=12117
+                        sumi = 1/((m+1-params.alphash1/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=12117
                         sump = sump+pn[n-m]*sumi;  //Z=12118
                         sump1 = sump1+sumi;  //Z=12119
                     }/*6*/  //Z=12120
-                    CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;  //Z=12121
-                    CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n]*sump1;  //Z=12122
+                    params.CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;  //Z=12121
+                    params.CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n]*sump1;  //Z=12122
                     sump = 0.0;  //Z=12123
                     sump1 = 0.0;  //Z=12124
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=12125
-                        sumi = 1/((n-m+1-alfa/2.0)*(m+1-alfa/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=12126
+                        sumi = 1/((n-m+1-params.alphash1/2.0)*(m+1-params.alphash1/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=12126
                         sump = sump+sumi;  //Z=12127
                         sump1 = sump1+pn[n-m]*sumi;  //Z=12128
                     }/*6*/  //Z=12129
-                    CR->carr7p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump;  //Z=12130
-                    CR->carr8p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump1;  //Z=12131
-                    CR->carr9p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrn[n]*sump;  //Z=12132
+                    params.CR->carr7p[n] = sqr(1-params.alphash1/2.0)*z12v[n]*xrmn_n*sump;  //Z=12130
+                    params.CR->carr8p[n] = sqr(1-params.alphash1/2.0)*z12v[n]*xrmn_n*sump1;  //Z=12131
+                    params.CR->carr9p[n] = sqr(1-params.alphash1/2.0)*z12v[n]*xrn[n]*sump;  //Z=12132
 
                     /*  cross-sectional  */  //Z=12134
                     /*  (* F121 *)  //Z=12135
@@ -5643,42 +5362,42 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                     {/*6*/  //Z=12149
                         sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12150
                     }/*6*/  //Z=12151
-                    CR->carr1f[n] = M_PI*xln[n]*sump/4.0;  //Z=12152
+                    params.CR->carr1f[n] = M_PI*xln[n]*sump/4.0;  //Z=12152
                     /*  cross-sectional  */  //Z=12153
-                    CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);  //Z=12154
-                    CR->carr5f[n] = (1-alfa/2.0)*z12v[n]*xrmn_n/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=12155
-                    CR->carr6f[n] = (1-alfa/2.0)*z12v[n]*xrn[n]/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=12156
+                    params.CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);  //Z=12154
+                    params.CR->carr5f[n] = (1-params.alphash1/2.0)*z12v[n]*xrmn_n/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=12155
+                    params.CR->carr6f[n] = (1-params.alphash1/2.0)*z12v[n]*xrn[n]/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=12156
                 }/*5*/  //Z=12157
 
                 if ( dim==2 )
                 {/*5*/ /*  disk  */  //Z=12159
                     /*  P(q)-coefficients  */  //Z=12160
                     /*  longitudinal  */  //Z=12161
-                    CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12162
+                    params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12162
 
                     /*  cross-sectional P(q)  */  //Z=12164
-                    CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);  //Z=12165
+                    params.CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);  //Z=12165
                     sump = 0.0;  //Z=12166
                     sump1 = 0.0;  //Z=12167
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=12168
-                        sumi = (m+1/2.0)/((m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=12169
+                        sumi = (m+1/2.0)/((m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=12169
                         sump = sump+pn[n-m]*sumi;  //Z=12170
                         sump1 = sump1+sumi;  //Z=12171
                     }/*6*/  //Z=12172
-                    CR->carr5p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=12173
-                    CR->carr6p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrn[n]*sump1;  //Z=12174
+                    params.CR->carr5p[n] = (M_PI/4.0)*(1-params.alphash1)*z12v[n]*xrmn_n*sump;  //Z=12173
+                    params.CR->carr6p[n] = (M_PI/4.0)*(1-params.alphash1)*z12v[n]*xrn[n]*sump1;  //Z=12174
                     sump = 0.0;  //Z=12175
                     sump1 = 0.0;  //Z=12176
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=12177
-                        sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-alfa/2.0)*(m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=12178
+                        sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-params.alphash1/2.0)*(m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=12178
                         sump = sump+sumi;  //Z=12179
                         sump1 = sump1+pn[n-m]*sumi;  //Z=12180
                     }/*6*/  //Z=12181
-                    CR->carr7p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=12182
-                    CR->carr8p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump1;  //Z=12183
-                    CR->carr9p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrn[n]*sump;  //Z=12184
+                    params.CR->carr7p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrmn_n*sump;  //Z=12182
+                    params.CR->carr8p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrmn_n*sump1;  //Z=12183
+                    params.CR->carr9p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrn[n]*sump;  //Z=12184
 
                     /*  cross-sectional P(q)  */  //Z=12187
                     /*  F121  */  //Z=12188
@@ -5706,66 +5425,66 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                     {/*6*/  //Z=12209
                         sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12210
                     }/*6*/  //Z=12211
-                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=12212
+                    params.CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=12212
                     /*  cross-sectional  */  //Z=12213
-                    CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);  //Z=12214
-                    CR->carr5f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=12215
-                    CR->carr6f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrn[n]*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=12216
+                    params.CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);  //Z=12214
+                    params.CR->carr5f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=12215
+                    params.CR->carr6f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrn[n]*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=12216
 
                 }/*5*/  //Z=12218
-                if ( fabs(CR->carr1p[n])<min )
+                if ( fabs(params.CR->carr1p[n])<min )
                 {/*5*/  //Z=12219
                     if ( n<n1 ) n1 = n;  //Z=12220
                 }/*5*/  //Z=12221
-                if ( fabs(CR->carr4p[n])<min )
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=12222
                     if ( n<n4 ) n4 = n;  //Z=12223
                 }/*5*/  //Z=12224
-                if ( fabs(CR->carr5p[n])<min )
+                if ( fabs(params.CR->carr5p[n])<min )
                 {/*5*/  //Z=12225
                     if ( n<n5 ) n5 = n;  //Z=12226
                 }/*5*/  //Z=12227
-                if ( fabs(CR->carr6p[n])<min )
+                if ( fabs(params.CR->carr6p[n])<min )
                 {/*5*/  //Z=12228
                     if ( n<n6 ) n6 = n;  //Z=12229
                 }/*5*/  //Z=12230
-                if ( fabs(CR->carr7p[n])<min )
+                if ( fabs(params.CR->carr7p[n])<min )
                 {/*5*/  //Z=12231
                     if ( n<n7 ) n7 = n;  //Z=12232
                 }/*5*/  //Z=12233
-                if ( fabs(CR->carr8p[n])<min )
+                if ( fabs(params.CR->carr8p[n])<min )
                 {/*5*/  //Z=12234
                     if ( n<n8 ) n8 = n;  //Z=12235
                 }/*5*/  //Z=12236
-                if ( fabs(CR->carr9p[n])<min )
+                if ( fabs(params.CR->carr9p[n])<min )
                 {/*5*/  //Z=12237
                     if ( n<n9 ) n9 = n;  //Z=12238
                 }/*5*/  //Z=12239
-                if ( fabs(CR->carr1f[n])<min )
+                if ( fabs(params.CR->carr1f[n])<min )
                 {/*5*/  //Z=12240
                     if ( n<n1f ) n1f = n;  //Z=12241
                 }/*5*/  //Z=12242
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=12243
                     if ( n<n4f ) n4f = n;  //Z=12244
                 }/*5*/  //Z=12245
-                if ( fabs(CR->carr5f[n])<min )
+                if ( fabs(params.CR->carr5f[n])<min )
                 {/*5*/  //Z=12246
                     if ( n<n5f ) n5f = n;  //Z=12247
                 }/*5*/  //Z=12248
-                if ( fabs(CR->carr6f[n])<min )
+                if ( fabs(params.CR->carr6f[n])<min )
                 {/*5*/  //Z=12249
                     if ( n<n6f ) n6f = n;  //Z=12250
                 }/*5*/  //Z=12251
-                if ( fabs(CR->carr7f[n])<min )
+                if ( fabs(params.CR->carr7f[n])<min )
                 {/*5*/  //Z=12252
                     if ( n<n7f ) n7f = n;  //Z=12253
                 }/*5*/  //Z=12254
-                if ( fabs(CR->carr8f[n])<min )
+                if ( fabs(params.CR->carr8f[n])<min )
                 {/*5*/  //Z=12255
                     if ( n<n8f ) n8f = n;  //Z=12256
                 }/*5*/  //Z=12257
-                if ( fabs(CR->carr9f[n])<min )
+                if ( fabs(params.CR->carr9f[n])<min )
                 {/*5*/  //Z=12258
                     if ( n<n9f ) n9f = n;  //Z=12259
                 }/*5*/  //Z=12260
@@ -5774,7 +5493,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
 
 
         /*  myelin  */  //Z=12265
-        if ( (cs==3) || (cs==4) )
+        if ( (params.cs==3) || (params.cs==4) )
         {/*3*/  //Z=12266
             for ( n=1; n<=nmax; n++ )
             {/*4*/  //Z=12267
@@ -5790,9 +5509,9 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 if ( dim==1 )
                 {/*5*/ /*  cylinder  */  //Z=12277
                     /*  P(q)-coefficients  */  //Z=12278
-                    CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=12279
+                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=12279
 
-                    CR->carr4p[n] = z12v[n]*xrn[n];  //Z=12281
+                    params.CR->carr4p[n] = z12v[n]*xrn[n];  //Z=12281
 
                     /*  F(q)-coefficients  */  //Z=12283
                     sump = 0.0;  //Z=12284
@@ -5800,46 +5519,46 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                     {/*6*/  //Z=12285
                         sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12286
                     }/*6*/  //Z=12287
-                    CR->carr1f[n] = M_PI*xln[n]*sump/4.0;  //Z=12288
+                    params.CR->carr1f[n] = M_PI*xln[n]*sump/4.0;  //Z=12288
                     sump = 0.0;  //Z=12289
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=12290
                         sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12291
                     }/*6*/  //Z=12292
-                    CR->carr4f[n] = xrn[n]*sump;  //Z=12293
+                    params.CR->carr4f[n] = xrn[n]*sump;  //Z=12293
                 }/*5*/  //Z=12294
                 if ( dim==2 )
                 {/*5*/ /*  disk  */  //Z=12295
                     /*  P(q)-coefficients  */  //Z=12296
-                    CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12297
-                    CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=12298
+                    params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12297
+                    params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=12298
                     /*  F(q)-coefficients  */  //Z=12299
                     sump = 0.0;  //Z=12300
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=12301
                         sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12302
                     }/*6*/  //Z=12303
-                    CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=12304
+                    params.CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=12304
                     sump = 0.0;  //Z=12305
                     for ( m=0; m<=n; m++ )
                     {/*6*/  //Z=12306
                         sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12307
                     }/*6*/  //Z=12308
-                    CR->carr4f[n] = M_PI*xln[n]*sump/4.0;  //Z=12309
+                    params.CR->carr4f[n] = M_PI*xln[n]*sump/4.0;  //Z=12309
                 }/*5*/  //Z=12310
-                if ( fabs(CR->carr1p[n])<min )
+                if ( fabs(params.CR->carr1p[n])<min )
                 {/*5*/  //Z=12311
                     if ( n<n1 ) n1 = n;  //Z=12312
                 }/*5*/  //Z=12313
-                if ( fabs(CR->carr4p[n])<min )
+                if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=12314
                     if ( n<n4 ) n4 = n;  //Z=12315
                 }/*5*/  //Z=12316
-                if ( fabs(CR->carr1f[n])<min )
+                if ( fabs(params.CR->carr1f[n])<min )
                 {/*5*/  //Z=12317
                     if ( n<n1f ) n1f = n;  //Z=12318
                 }/*5*/  //Z=12319
-                if ( fabs(CR->carr4f[n])<min )
+                if ( fabs(params.CR->carr4f[n])<min )
                 {/*5*/  //Z=12320
                     if ( n<n4f ) n4f = n;  //Z=12321
                 }/*5*/  //Z=12322
@@ -5852,29 +5571,29 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
     /* ** orientational distribution for cylinders and disks ** */  //Z=12330
     if ( (ordis==0) && (dim!=3) )
     {/*2*/  //Z=12331
-        qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,2,0,0,0,0,CR->carr1p,norm);  //Z=12332
-        qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,3,0,0,0,0,CR->carr1p,order);  //Z=12333
-        order = order/norm;  //Z=12334
+        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,2,0,0,0,0,params.CR->carr1p,params.norm);  //Z=12332
+        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,3,0,0,0,0,params.CR->carr1p,order);  //Z=12333
+        order = order/params.norm;  //Z=12334
 
         /*  use phi=0 and rotate qx/qy-axis  */  //Z=12336
-        if ( cho1==1 )
+        if ( params.orcase==1 )
         {/*3*/  //Z=12337
-            phi = 0;  //Z=12338
-            params.p11 = -cos(phi*M_PI/180.0)*cos(theta*M_PI/180.0);       /*  = -cos(theta*pi/180);  //Z=12339 */
-            params.p12 = sin(phi*M_PI/180.0);                          /*  = 0;  //Z=12340 */
-            params.p13 = cos(phi*M_PI/180.0)*sin(theta*M_PI/180.0);        /*  =  sin(theta*pi/180);  //Z=12341 */
-            params.p21 = -cos(phi*M_PI/180.0);                         /*  = -1;  //Z=12342 */
-            params.p22 = -sin(phi*M_PI/180.0)*cos(theta*M_PI/180.0);       /*  = 0;  //Z=12343 */
-            params.p23 = sin(phi*M_PI/180.0)*sin(theta*M_PI/180.0);        /*  = 0;  //Z=12344 */
-            params.p31 = -sin(theta*M_PI/180.0);                       /*  = 0;  //Z=12345 */
+            params.polPhi = 0;  //Z=12338
+            params.p11 = -cos(params.polPhi*M_PI/180.0)*cos(params.polTheta*M_PI/180.0);       /*  = -cos(theta*pi/180);  //Z=12339 */
+            params.p12 = sin(params.polPhi*M_PI/180.0);                                        /*  = 0;  //Z=12340 */
+            params.p13 = cos(params.polPhi*M_PI/180.0)*sin(params.polTheta*M_PI/180.0);        /*  =  sin(theta*pi/180);  //Z=12341 */
+            params.p21 = -cos(params.polPhi*M_PI/180.0);                                       /*  = -1;  //Z=12342 */
+            params.p22 = -sin(params.polPhi*M_PI/180.0)*cos(params.polTheta*M_PI/180.0);       /*  = 0;  //Z=12343 */
+            params.p23 = sin(params.polPhi*M_PI/180.0)*sin(params.polTheta*M_PI/180.0);        /*  = 0;  //Z=12344 */
+            params.p31 = -sin(params.polTheta*M_PI/180.0);                                     /*  = 0;  //Z=12345 */
             params.p32 = 0;  //Z=12346
-            params.p33 = -cos(theta*M_PI/180.0);                       /*  = -cos(theta*pi/180);  //Z=12347 */
+            params.p33 = -cos(params.polTheta*M_PI/180.0);                                      /*  = -cos(theta*pi/180);  //Z=12347 */
 
             for ( n=0; n<=nmax; n++ )
             {/*4*/  //Z=12349
                 for ( m=0; m<=nmax; m++ )
                 {/*5*/  //Z=12350
-                    qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,0,0,2*n,2*m,CR->carr1p,intl);  //Z=12351
+                    qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,0,0,2*n,2*m,params.CR->carr1p,intl);  //Z=12351
                     intlar[n][m] = intl;  //Z=12352
                 }/*5*/  //Z=12353
             }/*4*/  //Z=12354
@@ -5892,9 +5611,9 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
             if ( dim==1 )
             {/*4*/  //Z=12366
                 /*  homogeneous  */  //Z=12367
-                params.p11 = sin(theta*M_PI/180.0);  //Z=12368
-                params.p13 = cos(theta*M_PI/180.0);  //Z=12369
-                if ( cs==0 )
+                params.p11 = sin(params.polTheta*M_PI/180.0);  //Z=12368
+                params.p13 = cos(params.polTheta*M_PI/180.0);  //Z=12369
+                if ( params.cs==0 )
                 {/*5*/  //Z=12370
                     i = 2;  //Z=12371
                     for ( n=1; n<=nmax; n++ )
@@ -5913,43 +5632,43 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=12383
                             sump = 0.0;  //Z=12384
                             for ( ll=0; ll<=m; ll++ )  //Z=12385
-                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*norm);  //Z=12386
+                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*params.norm);  //Z=12386
                             /* carr1pm[i]:=power(4,m)*power(p21*p21,n-m)*sump/(fkv[n-m]);  //Z=12387 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=12388 */
                             /* i:=i+1;  //Z=12389 */
-                            CR->carr11pm[n][m] = sump/(fkv[n-m]);  //Z=12390
+                            params.CR->carr11pm[n][m] = sump/(fkv[n-m]);  //Z=12390
                         }/*7*/  //Z=12391
                         /*  P(q)-coefficients  */  //Z=12392
                         /* carr1p[n]:=power(4,n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=12393 */
 
-                        CR->carr1p[n] = (sqrt(M_PI)/2.0)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=12395
+                        params.CR->carr1p[n] = (sqrt(M_PI)/2.0)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=12395
                         /* carr1p[n]:=(1/2)*power(4,n)*z12vl[n]*xln[n]/((n+1)*(n+1/2));  //Z=12396 */
 
 
-                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12399
+                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12399
                         /*  F(q)-coefficients  */  //Z=12400
                         sump = 0.0;  //Z=12401
                         for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12402
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=12403
-                        CR->carr2f[n] = CR->carr2p[n];  //Z=12404
+                        params.CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=12403
+                        params.CR->carr2f[n] = params.CR->carr2p[n];  //Z=12404
                         /*  cross-sectional  */  //Z=12405
-                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  //Z=12406
+                        params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  //Z=12406
                         sump = 0.0;  //Z=12407
                         for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12408
-                        CR->carr4f[n] = xrn[n]*sump;  //Z=12409
-                        if ( fabs(CR->carr1p[n])<min )
+                        params.CR->carr4f[n] = xrn[n]*sump;  //Z=12409
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=12410
                             if ( n<n1 ) n1 = n;  //Z=12411
                         }/*7*/  //Z=12412
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=12413
                             if ( n<n4 ) n4 = n;  //Z=12414
                         }/*7*/  //Z=12415
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=12416
                             if ( n<n1f ) n1f = n;  //Z=12417
                         }/*7*/  //Z=12418
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=12419
                             if ( n<n4f ) n4f = n;  //Z=12420
                         }/*7*/  //Z=12421
@@ -5957,7 +5676,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 }/*5*/  /*  of homogeneous cylinder  */  //Z=12423
 
                 /*  core/shell  */  //Z=12425
-                if ( cs==1 )
+                if ( params.cs==1 )
                 {/*5*/  //Z=12426
                     i = 2;  //Z=12427
                     for ( n=1; n<=nmax; n++ )
@@ -5978,38 +5697,38 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=12441
                             sump = 0.0;  //Z=12442
                             for ( ll=0; ll<=m; ll++ )  //Z=12443
-                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*norm);  //Z=12444
+                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*params.norm);  //Z=12444
                             /* carr1pm[i]:=power(4,m)*power(p21*p21,n-m)*sump/(fkv[n-m]);  //Z=12445 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=12446 */
                             /* i:=i+1;  //Z=12447 */
-                            CR->carr11pm[n][m] = sump/(fkv[n-m]);  //Z=12448
+                            params.CR->carr11pm[n][m] = sump/(fkv[n-m]);  //Z=12448
                         }/*7*/  //Z=12449
                         /*  P(q)-coefficients  */  //Z=12450
                         /* carr1p[n]:=power(4,n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=12451 */
 
-                        CR->carr1p[n] = (sqrt(M_PI)/2.0)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=12453
+                        params.CR->carr1p[n] = (sqrt(M_PI)/2.0)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=12453
                         /* carr1p[n]:=(1/2)*power(4,n)*z12vl[n]*xln[n]/((n+1)*(n+1/2));  //Z=12454 */
 
-                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12456
+                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12456
                         /*  F(q)-coefficients  */  //Z=12457
                         sump = 0.0;  //Z=12458
                         for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12459
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=12460
-                        CR->carr2f[n] = CR->carr2p[n];  //Z=12461
+                        params.CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=12460
+                        params.CR->carr2f[n] = params.CR->carr2p[n];  //Z=12461
 
                         /*  P(q)-coefficients  */  //Z=12463
                         /*  cross-sectional  */  //Z=12464
                         /*  F121  */  //Z=12465
-                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=12466
+                        params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=12466
                         /*  F122  */  //Z=12467
                         sump = 0.0;  //Z=12468
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=12469
                             sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=12470
                         }/*7*/  //Z=12471
-                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=12472
+                        params.CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=12472
                         /*  F123  */  //Z=12473
-                        CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=12474
+                        params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=12474
 
                         /*  F(q)-coefficients  */  //Z=12476
                         /*  cross-sectional  */  //Z=12477
@@ -6019,46 +5738,46 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=12480
                             sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=12481
                         }/*7*/  //Z=12482
-                        CR->carr4f[n] = xrn[n]*sump;  //Z=12483
+                        params.CR->carr4f[n] = xrn[n]*sump;  //Z=12483
                         /*  F122  */  //Z=12484
                         sump = 0.0;  //Z=12485
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=12486
                             sump = sump+pn[m]*z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=12487
                         }/*7*/  //Z=12488
-                        CR->carr5f[n] = xrmn_n*sump;  //Z=12489
+                        params.CR->carr5f[n] = xrmn_n*sump;  //Z=12489
                         /*  F123  */  //Z=12490
-                        CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=12491
+                        params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=12491
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=12493
                             if ( n<n1 ) n1 = n;  //Z=12494
                         }/*7*/  //Z=12495
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=12496
                             if ( n<n4 ) n4 = n;  //Z=12497
                         }/*7*/  //Z=12498
-                        if ( fabs(CR->carr5p[n])<min )
+                        if ( fabs(params.CR->carr5p[n])<min )
                         {/*7*/  //Z=12499
                             if ( n<n5 ) n5 = n;  //Z=12500
                         }/*7*/  //Z=12501
-                        if ( fabs(CR->carr6p[n])<min )
+                        if ( fabs(params.CR->carr6p[n])<min )
                         {/*7*/  //Z=12502
                             if ( n<n6 ) n6 = n;  //Z=12503
                         }/*7*/  //Z=12504
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=12505
                             if ( n<n1f ) n1f = n;  //Z=12506
                         }/*7*/  //Z=12507
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=12508
                             if ( n<n4f ) n4f = n;  //Z=12509
                         }/*7*/  //Z=12510
-                        if ( fabs(CR->carr5f[n])<min )
+                        if ( fabs(params.CR->carr5f[n])<min )
                         {/*7*/  //Z=12511
                             if ( n<n5f ) n5f = n;  //Z=12512
                         }/*7*/  //Z=12513
-                        if ( fabs(CR->carr6f[n])<min )
+                        if ( fabs(params.CR->carr6f[n])<min )
                         {/*7*/  //Z=12514
                             if ( n<n6f ) n6f = n;  //Z=12515
                         }/*7*/  //Z=12516
@@ -6066,7 +5785,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 }/*5*/  /*  homogeneous loop  */  //Z=12518
 
                 /*  inhomogeneous core/shell  */  //Z=12522
-                if ( cs==2 )
+                if ( params.cs==2 )
                 {/*5*/  //Z=12523
                     i = 2;  //Z=12524
                     for ( n=1; n<=nmax; n++ )
@@ -6087,49 +5806,49 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=12538
                             sump = 0.0;  //Z=12539
                             for ( ll=0; ll<=m; ll++ )  //Z=12540
-                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*norm);  //Z=12541
+                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*params.norm);  //Z=12541
                             /* carr1pm[i]:=power(4,m)*power(p21*p21,n-m)*sump/(fkv[n-m]);  //Z=12542 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=12543 */
                             /* i:=i+1;  //Z=12544 */
-                            CR->carr11pm[n][m] = sump/(fkv[n-m]);  //Z=12545
+                            params.CR->carr11pm[n][m] = sump/(fkv[n-m]);  //Z=12545
                         }/*7*/  //Z=12546
                         /*  P(q)-coefficients  */  //Z=12547
                         /* carr1p[n]:=power(4,n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=12548 */
 
-                        CR->carr1p[n] = (sqrt(M_PI)/2.0)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=12550
+                        params.CR->carr1p[n] = (sqrt(M_PI)/2.0)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=12550
                         /* carr1p[n]:=(1/2)*power(4,n)*z12vl[n]*xln[n]/((n+1)*(n+1/2));  //Z=12551 */
 
-                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12553
+                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12553
                         /*  F(q)-coefficients  */  //Z=12554
                         sump = 0.0;  //Z=12555
                         for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12556
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=12557
-                        CR->carr2f[n] = CR->carr2p[n];  //Z=12558
+                        params.CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=12557
+                        params.CR->carr2f[n] = params.CR->carr2p[n];  //Z=12558
 
 
                         /*  cross-sectional P(q)  */  //Z=12561
-                        CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=12562
+                        params.CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=12562
                         sump = 0.0;  //Z=12563
                         sump1 = 0.0;  //Z=12564
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=12565
-                            sumi = 1/((m+1-alfa/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=12566
+                            sumi = 1/((m+1-params.alphash1/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=12566
                             sump = sump+pn[n-m]*sumi;  //Z=12567
                             sump1 = sump1+sumi;  //Z=12568
                         }/*7*/  //Z=12569
-                        CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;  //Z=12570
-                        CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n]*sump1;  //Z=12571
+                        params.CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;  //Z=12570
+                        params.CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n]*sump1;  //Z=12571
                         sump = 0.0;  //Z=12572
                         sump1 = 0.0;  //Z=12573
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=12574
-                            sumi = 1/((n-m+1-alfa/2.0)*(m+1-alfa/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=12575
+                            sumi = 1/((n-m+1-params.alphash1/2.0)*(m+1-params.alphash1/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=12575
                             sump = sump+sumi;  //Z=12576
                             sump1 = sump1+pn[n-m]*sumi;  //Z=12577
                         }/*7*/  //Z=12578
-                        CR->carr7p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump;  //Z=12579
-                        CR->carr8p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump1;  //Z=12580
-                        CR->carr9p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrn[n]*sump;  //Z=12581
+                        params.CR->carr7p[n] = sqr(1-params.alphash1/2.0)*z12v[n]*xrmn_n*sump;  //Z=12579
+                        params.CR->carr8p[n] = sqr(1-params.alphash1/2.0)*z12v[n]*xrmn_n*sump1;  //Z=12580
+                        params.CR->carr9p[n] = sqr(1-params.alphash1/2.0)*z12v[n]*xrn[n]*sump;  //Z=12581
 
                         /*  (* P(q)-coefficients *)  //Z=12585
                             (* cross-sectional *)  //Z=12586
@@ -6145,63 +5864,63 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                             carr6p[n]:=carr4p[n]/pn[n];   */  //Z=12596
 
                         /*  F(q)-coefficients  */  //Z=12598
-                        CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);  //Z=12599
-                        CR->carr5f[n] = (1-alfa/2.0)*z12v[n]*xrmn_n/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=12600
-                        CR->carr6f[n] = (1-alfa/2.0)*z12v[n]*xrn[n]/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=12601
+                        params.CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);  //Z=12599
+                        params.CR->carr5f[n] = (1-params.alphash1/2.0)*z12v[n]*xrmn_n/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=12600
+                        params.CR->carr6f[n] = (1-params.alphash1/2.0)*z12v[n]*xrn[n]/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=12601
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=12603
                             if ( n<n1 ) n1 = n;  //Z=12604
                         }/*7*/  //Z=12605
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=12606
                             if ( n<n4 ) n4 = n;  //Z=12607
                         }/*7*/  //Z=12608
-                        if ( fabs(CR->carr5p[n])<min )
+                        if ( fabs(params.CR->carr5p[n])<min )
                         {/*7*/  //Z=12609
                             if ( n<n5 ) n5 = n;  //Z=12610
                         }/*7*/  //Z=12611
-                        if ( fabs(CR->carr6p[n])<min )
+                        if ( fabs(params.CR->carr6p[n])<min )
                         {/*7*/  //Z=12612
                             if ( n<n6 ) n6 = n;  //Z=12613
                         }/*7*/  //Z=12614
-                        if ( fabs(CR->carr7p[n])<min )
+                        if ( fabs(params.CR->carr7p[n])<min )
                         {/*7*/  //Z=12615
                             if ( n<n7 ) n7 = n;  //Z=12616
                         }/*7*/  //Z=12617
-                        if ( fabs(CR->carr8p[n])<min )
+                        if ( fabs(params.CR->carr8p[n])<min )
                         {/*7*/  //Z=12618
                             if ( n<n8 ) n8 = n;  //Z=12619
                         }/*7*/  //Z=12620
-                        if ( fabs(CR->carr9p[n])<min )
+                        if ( fabs(params.CR->carr9p[n])<min )
                         {/*7*/  //Z=12621
                             if ( n<n9 ) n9 = n;  //Z=12622
                         }/*7*/  //Z=12623
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=12624
                             if ( n<n1f ) n1f = n;  //Z=12625
                         }/*7*/  //Z=12626
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=12627
                             if ( n<n4f ) n4f = n;  //Z=12628
                         }/*7*/  //Z=12629
-                        if ( fabs(CR->carr5f[n])<min )
+                        if ( fabs(params.CR->carr5f[n])<min )
                         {/*7*/  //Z=12630
                             if ( n<n5f ) n5f = n;  //Z=12631
                         }/*7*/  //Z=12632
-                        if ( fabs(CR->carr6f[n])<min )
+                        if ( fabs(params.CR->carr6f[n])<min )
                         {/*7*/  //Z=12633
                             if ( n<n6f ) n6f = n;  //Z=12634
                         }/*7*/  //Z=12635
-                        if ( fabs(CR->carr7f[n])<min )
+                        if ( fabs(params.CR->carr7f[n])<min )
                         {/*7*/  //Z=12636
                             if ( n<n7f ) n7f = n;  //Z=12637
                         }/*7*/  //Z=12638
-                        if ( fabs(CR->carr8f[n])<min )
+                        if ( fabs(params.CR->carr8f[n])<min )
                         {/*7*/  //Z=12639
                             if ( n<n8f ) n8f = n;  //Z=12640
                         }/*7*/  //Z=12641
-                        if ( fabs(CR->carr9f[n])<min )
+                        if ( fabs(params.CR->carr9f[n])<min )
                         {/*7*/  //Z=12642
                             if ( n<n9f ) n9f = n;  //Z=12643
                         }/*7*/  //Z=12644
@@ -6209,7 +5928,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 }/*5*/  /*  of inhomogeneous core/shell  */  //Z=12646
 
                 /*  myelin  */  //Z=12648
-                if ( (cs==3) || (cs==4) )
+                if ( (params.cs==3) || (params.cs==4) )
                 {/*5*/  //Z=12649
                     i = 2;  //Z=12650
                     for ( n=1; n<=nmax; n++ )
@@ -6228,43 +5947,43 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=12662
                             sump = 0.0;  //Z=12663
                             for ( ll=0; ll<=m; ll++ )  //Z=12664
-                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*norm);  //Z=12665
+                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*params.norm);  //Z=12665
                             /* carr1pm[i]:=power(4,m)*power(p21*p21,n-m)*sump/(fkv[n-m]);  //Z=12666 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=12667 */
                             /* i:=i+1;  //Z=12668 */
-                            CR->carr11pm[n][m] = sump/(fkv[n-m]);  //Z=12669
+                            params.CR->carr11pm[n][m] = sump/(fkv[n-m]);  //Z=12669
                         }/*7*/  //Z=12670
                         /*  P(q)-coefficients  */  //Z=12671
                         /* carr1p[n]:=power(4,n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=12672 */
 
-                        CR->carr1p[n] = (sqrt(M_PI)/2.0)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=12674
+                        params.CR->carr1p[n] = (sqrt(M_PI)/2.0)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=12674
                         /* carr1p[n]:=(1/2)*power(4,n)*z12vl[n]*xln[n]/((n+1)*(n+1/2));  //Z=12675 */
 
-                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12677
+                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12677
                         /*  F(q)-coefficients  */  //Z=12678
                         sump = 0.0;  //Z=12679
                         for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12680
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=12681
-                        CR->carr2f[n] = CR->carr2p[n];  //Z=12682
+                        params.CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=12681
+                        params.CR->carr2f[n] = params.CR->carr2p[n];  //Z=12682
                         /*  cross-sectional  */  //Z=12683
-                        CR->carr4p[n] = z12v[n]*xrn[n];  //Z=12684
+                        params.CR->carr4p[n] = z12v[n]*xrn[n];  //Z=12684
 
                         sump = 0.0;  //Z=12686
                         for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12687
-                        CR->carr4f[n] = xrn[n]*sump;  //Z=12688
-                        if ( fabs(CR->carr1p[n])<min )
+                        params.CR->carr4f[n] = xrn[n]*sump;  //Z=12688
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=12689
                             if ( n<n1 ) n1 = n;  //Z=12690
                         }/*7*/  //Z=12691
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=12692
                             if ( n<n4 ) n4 = n;  //Z=12693
                         }/*7*/  //Z=12694
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=12695
                             if ( n<n1f ) n1f = n;  //Z=12696
                         }/*7*/  //Z=12697
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=12698
                             if ( n<n4f ) n4f = n;  //Z=12699
                         }/*7*/  //Z=12700
@@ -6301,9 +6020,9 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
             if ( dim==2 )
             {/*4*/  //Z=12731
                 /*  homogeneous  */  //Z=12732
-                params.p11 = sin(theta*M_PI/180.0);  //Z=12733
-                params.p13 = cos(theta*M_PI/180.0);  //Z=12734
-                if ( cs==0 )
+                params.p11 = sin(params.polTheta*M_PI/180.0);  //Z=12733
+                params.p13 = cos(params.polTheta*M_PI/180.0);  //Z=12734
+                if ( params.cs==0 )
                 {/*5*/  //Z=12735
                     i = 2;  //Z=12736
                     for ( n=1; n<=nmax; n++ )
@@ -6321,55 +6040,55 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=12747
                             sump = 0.0;  //Z=12748
                             for ( ll=0; ll<=m; ll++ )  //Z=12749
-                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*norm);  //Z=12750
+                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*params.norm);  //Z=12750
                             /* carr2pm[i]:=power(4,m)*sump/(fkv[n-m]);  //Z=12751 */
-                            CR->carr11pm[n][m] = sump/(fkv[n-m]);  //Z=12752
+                            params.CR->carr22pm[n][m] = sump/(fkv[n-m]);  //Z=12752
                             /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]);  //Z=12753 */
-                            CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=12754
+                            params.CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=12754
                             /* carr2fm[i]:=carr2pm[i];  //Z=12755 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=12756 */
                             i = i+1;  //Z=12757
                         }/*7*/  //Z=12758
-                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=12759
+                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=12759
 
                         sump1 = 0.0;  //Z=12761
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=12762
                             sump1 = sump1+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=12763
                         }/*7*/  //Z=12764
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump1;  //Z=12765
+                        params.CR->carr1f[n] = xln[n]*fkv[n]*sump1;  //Z=12765
 
                         /*  cross-sectional  */  //Z=12767
-                        CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=12768
+                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=12768
                         sump = 0.0;  //Z=12769
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=12770
                             sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12771
                         }/*7*/  //Z=12772
-                        CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=12773
+                        params.CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=12773
 
                         /*  series for <...> integration  */  //Z=12775
-                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12776
+                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12776
                         sump = 0.0;  //Z=12777
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=12778
                             sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12779
                         }/*7*/  //Z=12780
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=12781
+                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=12781
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=12783
                             if ( n<n1 ) n1 = n;  //Z=12784
                         }/*7*/  //Z=12785
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=12786
                             if ( n<n4 ) n4 = n;  //Z=12787
                         }/*7*/  //Z=12788
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=12789
                             if ( n<n1f ) n1f = n;  //Z=12790
                         }/*7*/  //Z=12791
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=12792
                             if ( n<n4f ) n4f = n;  //Z=12793
                         }/*7*/  //Z=12794
@@ -6377,7 +6096,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 }/*5*/  //Z=12796
 
                 /*  core/shell  */  //Z=12798
-                if ( cs==1 )
+                if ( params.cs==1 )
                 {/*5*/  //Z=12799
                     i = 2;  //Z=12800
                     for ( n=1; n<=nmax; n++ )
@@ -6397,35 +6116,35 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=12813
                             sump = 0.0;  //Z=12814
                             for ( ll=0; ll<=m; ll++ )  //Z=12815
-                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*norm);  //Z=12816
+                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*params.norm);  //Z=12816
                             /* carr2pm[i]:=power(4,m)*sump/(fkv[n-m]);  //Z=12817 */
-                            CR->carr11pm[n][m] = sump/(fkv[n-m]);  //Z=12818
+                            params.CR->carr22pm[n][m] = sump/(fkv[n-m]);  //Z=12818
                             /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]);  //Z=12819 */
-                            CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=12820
+                            params.CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=12820
                             /* carr2fm[i]:=carr2pm[i];  //Z=12821 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=12822 */
                             i = i+1;  //Z=12823
                         }/*7*/  //Z=12824
-                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=12825
+                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=12825
 
                         sump1 = 0.0;  //Z=12827
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=12828
                             sump1 = sump1+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=12829
                         }/*7*/  //Z=12830
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump1;  //Z=12831
+                        params.CR->carr1f[n] = xln[n]*fkv[n]*sump1;  //Z=12831
 
                         /*  P(q)-coefficients  */  //Z=12833
                         /*  cross-sectional  */  //Z=12834
                         /*  F121  */  //Z=12835
-                        CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=12836
+                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=12836
                         /*  F122  */  //Z=12837
                         sump = 0.0;  //Z=12838
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=12839
                             sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12840
                         }/*7*/  //Z=12841
-                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=12842
+                        params.CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=12842
 
                         /*  F122  */  //Z=12845
                         sump = 0.0;  //Z=12846
@@ -6433,65 +6152,65 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=12847
                             sump = sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12848
                         }/*7*/  //Z=12849
-                        CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=12850
+                        params.CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=12850
 
                         /*  F123  */  //Z=12853
-                        CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=12854
+                        params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=12854
                         /*  F121  */  //Z=12855
                         sump = 0.0;  //Z=12856
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=12857
                             sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12858
                         }/*7*/  //Z=12859
-                        CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=12860
+                        params.CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=12860
                         /*  F122  */  //Z=12861
                         sump = 0.0;  //Z=12862
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=12863
                             sump = sump+pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12864
                         }/*7*/  //Z=12865
-                        CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=12866
+                        params.CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=12866
                         /*  F123  */  //Z=12867
-                        CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=12868
+                        params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=12868
 
                         /*  series for <...> integration  */  //Z=12870
-                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12871
+                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12871
                         sump = 0.0;  //Z=12872
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=12873
                             sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12874
                         }/*7*/  //Z=12875
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=12876
+                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=12876
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=12878
                             if ( n<n1 ) n1 = n;  //Z=12879
                         }/*7*/  //Z=12880
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=12881
                             if ( n<n4 ) n4 = n;  //Z=12882
                         }/*7*/  //Z=12883
-                        if ( fabs(CR->carr5p[n])<min )
+                        if ( fabs(params.CR->carr5p[n])<min )
                         {/*7*/  //Z=12884
                             if ( n<n5 ) n5 = n;  //Z=12885
                         }/*7*/  //Z=12886
-                        if ( fabs(CR->carr6p[n])<min )
+                        if ( fabs(params.CR->carr6p[n])<min )
                         {/*7*/  //Z=12887
                             if ( n<n6 ) n6 = n;  //Z=12888
                         }/*7*/  //Z=12889
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=12890
                             if ( n<n1f ) n1f = n;  //Z=12891
                         }/*7*/  //Z=12892
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=12893
                             if ( n<n4f ) n4f = n;  //Z=12894
                         }/*7*/  //Z=12895
-                        if ( fabs(CR->carr5f[n])<min )
+                        if ( fabs(params.CR->carr5f[n])<min )
                         {/*7*/  //Z=12896
                             if ( n<n5f ) n5f = n;  //Z=12897
                         }/*7*/  //Z=12898
-                        if ( fabs(CR->carr6f[n])<min )
+                        if ( fabs(params.CR->carr6f[n])<min )
                         {/*7*/  //Z=12899
                             if ( n<n6f ) n6f = n;  //Z=12900
                         }/*7*/  //Z=12901
@@ -6499,7 +6218,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 }/*5*/  /*  of core/shell  */  //Z=12903
 
                 /*  inhomogeneous core/shell  */  //Z=12905
-                if ( cs==2 )
+                if ( params.cs==2 )
                 {/*5*/  //Z=12906
                     i = 2;  //Z=12907
                     for ( n=1; n<=nmax; n++ )
@@ -6519,47 +6238,47 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=12920
                             sump = 0.0;  //Z=12921
                             for ( ll=0; ll<=m; ll++ )  //Z=12922
-                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*norm);  //Z=12923
+                                sump = sump+pow(4.0,ll)*pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[ll][n-ll]/(fk2v[ll]*fkv[m-ll]*fkv[n-ll]*params.norm);  //Z=12923
                             /* carr2pm[i]:=power(4,m)*sump/(fkv[n-m]);  //Z=12924 */
-                            CR->carr11pm[n][m] = sump/(fkv[n-m]);  //Z=12925
+                            params.CR->carr22pm[n][m] = sump/(fkv[n-m]);  //Z=12925
                             /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]);  //Z=12926 */
-                            CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=12927
+                            params.CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=12927
                             /* carr2fm[i]:=carr2pm[i];  //Z=12928 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=12929 */
                             i = i+1;  //Z=12930
                         }/*7*/  //Z=12931
-                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=12932
+                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=12932
 
                         sump1 = 0.0;  //Z=12934
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=12935
                             sump1 = sump1+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=12936
                         }/*7*/  //Z=12937
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump1;  //Z=12938
+                        params.CR->carr1f[n] = xln[n]*fkv[n]*sump1;  //Z=12938
 
                         /*  cross-sectional P(q)  */  //Z=12940
-                        CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);  //Z=12941
+                        params.CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);  //Z=12941
                         sump = 0.0;  //Z=12942
                         sump1 = 0.0;  //Z=12943
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=12944
-                            sumi = (m+1/2.0)/((m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=12945
+                            sumi = (m+1/2.0)/((m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=12945
                             sump = sump+pn[n-m]*sumi;  //Z=12946
                             sump1 = sump1+sumi;  //Z=12947
                         }/*7*/  //Z=12948
-                        CR->carr5p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=12949
-                        CR->carr6p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrn[n]*sump1;  //Z=12950
+                        params.CR->carr5p[n] = (M_PI/4.0)*(1-params.alphash1)*z12v[n]*xrmn_n*sump;  //Z=12949
+                        params.CR->carr6p[n] = (M_PI/4.0)*(1-params.alphash1)*z12v[n]*xrn[n]*sump1;  //Z=12950
                         sump = 0.0;  //Z=12951
                         sump1 = 0.0;  //Z=12952
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=12953
-                            sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-alfa/2.0)*(m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=12954
+                            sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-params.alphash1/2.0)*(m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=12954
                             sump = sump+sumi;  //Z=12955
                             sump1 = sump1+pn[n-m]*sumi;  //Z=12956
                         }/*7*/  //Z=12957
-                        CR->carr7p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=12958
-                        CR->carr8p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump1;  //Z=12959
-                        CR->carr9p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrn[n]*sump;  //Z=12960
+                        params.CR->carr7p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrmn_n*sump;  //Z=12958
+                        params.CR->carr8p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrmn_n*sump1;  //Z=12959
+                        params.CR->carr9p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrn[n]*sump;  //Z=12960
 
                         /*  (* P(q)-coefficients *)  //Z=12962
                             (* cross-sectional *)  //Z=12963
@@ -6581,72 +6300,72 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                             carr6p[n]:=carr4p[n]/pn[n];      */  //Z=12979
 
                         /*  F(q)  */  //Z=12981
-                        CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);  //Z=12982
-                        CR->carr5f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=12983
-                        CR->carr6f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrn[n]*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=12984
+                        params.CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);  //Z=12982
+                        params.CR->carr5f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=12983
+                        params.CR->carr6f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrn[n]*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=12984
 
                         /*  series for <...> integration  */  //Z=12986
-                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12987
+                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12987
                         sump = 0.0;  //Z=12988
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=12989
                             sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12990
                         }/*7*/  //Z=12991
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=12992
+                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=12992
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=12994
                             if ( n<n1 ) n1 = n;  //Z=12995
                         }/*7*/  //Z=12996
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=12997
                             if ( n<n4 ) n4 = n;  //Z=12998
                         }/*7*/  //Z=12999
-                        if ( fabs(CR->carr5p[n])<min )
+                        if ( fabs(params.CR->carr5p[n])<min )
                         {/*7*/  //Z=13000
                             if ( n<n5 ) n5 = n;  //Z=13001
                         }/*7*/  //Z=13002
-                        if ( fabs(CR->carr6p[n])<min )
+                        if ( fabs(params.CR->carr6p[n])<min )
                         {/*7*/  //Z=13003
                             if ( n<n6 ) n6 = n;  //Z=13004
                         }/*7*/  //Z=13005
-                        if ( fabs(CR->carr7p[n])<min )
+                        if ( fabs(params.CR->carr7p[n])<min )
                         {/*7*/  //Z=13006
                             if ( n<n7 ) n7 = n;  //Z=13007
                         }/*7*/  //Z=13008
-                        if ( fabs(CR->carr8p[n])<min )
+                        if ( fabs(params.CR->carr8p[n])<min )
                         {/*7*/  //Z=13009
                             if ( n<n8 ) n8 = n;  //Z=13010
                         }/*7*/  //Z=13011
-                        if ( fabs(CR->carr9p[n])<min )
+                        if ( fabs(params.CR->carr9p[n])<min )
                         {/*7*/  //Z=13012
                             if ( n<n9 ) n9 = n;  //Z=13013
                         }/*7*/  //Z=13014
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=13015
                             if ( n<n1f ) n1f = n;  //Z=13016
                         }/*7*/  //Z=13017
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=13018
                             if ( n<n4f ) n4f = n;  //Z=13019
                         }/*7*/  //Z=13020
-                        if ( fabs(CR->carr5f[n])<min )
+                        if ( fabs(params.CR->carr5f[n])<min )
                         {/*7*/  //Z=13021
                             if ( n<n5f ) n5f = n;  //Z=13022
                         }/*7*/  //Z=13023
-                        if ( fabs(CR->carr6f[n])<min )
+                        if ( fabs(params.CR->carr6f[n])<min )
                         {/*7*/  //Z=13024
                             if ( n<n6f ) n6f = n;  //Z=13025
                         }/*7*/  //Z=13026
-                        if ( fabs(CR->carr7f[n])<min )
+                        if ( fabs(params.CR->carr7f[n])<min )
                         {/*7*/  //Z=13027
                             if ( n<n7f ) n7f = n;  //Z=13028
                         }/*7*/  //Z=13029
-                        if ( fabs(CR->carr8f[n])<min )
+                        if ( fabs(params.CR->carr8f[n])<min )
                         {/*7*/  //Z=13030
                             if ( n<n8f ) n8f = n;  //Z=13031
                         }/*7*/  //Z=13032
-                        if ( fabs(CR->carr9f[n])<min )
+                        if ( fabs(params.CR->carr9f[n])<min )
                         {/*7*/  //Z=13033
                             if ( n<n9f ) n9f = n;  //Z=13034
                         }/*7*/  //Z=13035
@@ -6659,18 +6378,18 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
 
         /* ** general orientation case ** */  //Z=13160
         /*  for phi<>0, too slow, only for cylinders  */  //Z=13161
-        if ( cho1==5 )
+        if ( params.orcase==5 )
         {/*3*/  //Z=13162
 
-            params.p11 = -cos(phi*M_PI/180.0)*cos(theta*M_PI/180.0);  //Z=13164
-            params.p12 = sin(phi*M_PI/180.0);  //Z=13165
-            params.p13 = cos(phi*M_PI/180.0)*sin(theta*M_PI/180.0);  //Z=13166
-            params.p21 = -cos(phi*M_PI/180.0);  //Z=13167
-            params.p22 = -sin(phi*M_PI/180.0)*cos(theta*M_PI/180.0);  //Z=13168
-            params.p23 = sin(phi*M_PI/180.0)*sin(theta*M_PI/180.0);  //Z=13169
-            params.p31 = -sin(theta*M_PI/180.0);  //Z=13170
+            params.p11 = -cos(params.polPhi*M_PI/180.0)*cos(params.polTheta*M_PI/180.0);  //Z=13164
+            params.p12 = sin(params.polPhi*M_PI/180.0);  //Z=13165
+            params.p13 = cos(params.polPhi*M_PI/180.0)*sin(params.polTheta*M_PI/180.0);  //Z=13166
+            params.p21 = -cos(params.polPhi*M_PI/180.0);  //Z=13167
+            params.p22 = -sin(params.polPhi*M_PI/180.0)*cos(params.polTheta*M_PI/180.0);  //Z=13168
+            params.p23 = sin(params.polPhi*M_PI/180.0)*sin(params.polTheta*M_PI/180.0);  //Z=13169
+            params.p31 = -sin(params.polTheta*M_PI/180.0);  //Z=13170
             params.p32 = 0;  //Z=13171
-            params.p33 = -cos(theta*M_PI/180.0);  //Z=13172
+            params.p33 = -cos(params.polTheta*M_PI/180.0);  //Z=13172
 
             for ( n=1; n<=2*nmax; n++ ) fkv[n] = fkv[n-1]*n;  //Z=13174
 
@@ -6679,7 +6398,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
             {/*4*/  //Z=13177
                 for ( m=0; m<=2*n; m++ )
                 {/*5*/  //Z=13178
-                    qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,5,0,m,2*n-m,CR->carr1p,intl);  //Z=13179
+                    qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,5,0,m,2*n-m,params.CR->carr1p,intl);  //Z=13179
                     /* carr1pm[i]:=intl/(fkv[m]*fkv[2*n-m]*norm);  //Z=13180 */
                     i = i+1;  //Z=13181
                 }/*5*/  //Z=13182
@@ -6691,14 +6410,14 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 b1sv_n = b1sv_n*(b1s-1+n);  //Z=13187
                 xln[n] = -xln[n-1]*xl2z;  //Z=13188
                 xrn[n] = -xrn[n-1]*xr2z;  //Z=13189
-                CR->carr1p[n] = pow(4.0,2*n)*z12v[n]*xln[n]/((2.0*n+1)*(n+1));  //Z=13190
-                CR->carr3p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*b1sv_n*fkv[n]);  //Z=13191
+                params.CR->carr1p[n] = pow(4.0,2*n)*z12v[n]*xln[n]/((2.0*n+1)*(n+1));  //Z=13190
+                params.CR->carr3p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*b1sv_n*fkv[n]);  //Z=13191
 
-                if ( fabs(CR->carr1p[n])<min )
+                if ( fabs(params.CR->carr1p[n])<min )
                 {/*5*/  //Z=13193
                     if ( n<n1 ) n1 = n;  //Z=13194
                 }/*5*/  //Z=13195
-                if ( fabs(CR->carr3p[n])<min )
+                if ( fabs(params.CR->carr3p[n])<min )
                 {/*5*/  //Z=13196
                     if ( n<n3 ) n3 = n;  //Z=13197
                 }/*5*/  //Z=13198
@@ -6706,13 +6425,13 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
         }/*3*/   /*  of cho1=5  */  //Z=13200
 
         /* ** x-axis, orientational distribution centered around x-axis ** */  //Z=13205
-        if ( (cho1==2) && (dim!=3) )
+        if ( (params.orcase==2) && (dim!=3) )
         {/*3*/  //Z=13206
             /* ** cylinders ** */  //Z=13207
             if ( dim==1 )
             {/*4*/  //Z=13208
                 /*  homogeneous  */  //Z=13209
-                if ( cs==0 )
+                if ( params.cs==0 )
                 {/*5*/  //Z=13210
                     i = 2;  //Z=13211
                     for ( n=1; n<=nmax; n++ )
@@ -6729,40 +6448,40 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         /*  longitudinal  */  //Z=13222
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13223
-                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);  //Z=13224
-                            CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13225
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);  //Z=13224
+                            params.CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*params.norm);  //Z=13225
                             /* carr1fm[i]:=carr1pm[i];  //Z=13226 */
                             /* i:=i+1;  //Z=13227 */
                         }/*7*/  //Z=13228
                         /*  P(q)-coefficient  */  //Z=13229
                         /* carr1p[n]:=power(4,n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=13230 */
                         /* carr1p[n]:=(sqrt(pi)/2)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13231 */
-                        CR->carr1p[n] = (1/2.0)*pow(4.0,n)*z12vl[n]*xln[n]/((n+1)*(n+1/2.0));  //Z=13232
+                        params.CR->carr1p[n] = (1/2.0)*pow(4.0,n)*z12vl[n]*xln[n]/((n+1)*(n+1/2.0));  //Z=13232
 
                         /*  F(q)-coefficient  */  //Z=13235
                         sump = 0.0;  //Z=13236
                         for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13237
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=13238
+                        params.CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=13238
 
                         /*  cross-section  */  //Z=13240
-                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  //Z=13241
+                        params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  //Z=13241
                         sump = 0.0;  //Z=13242
                         for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13243
-                        CR->carr4f[n] = xrn[n]*sump;  //Z=13244
+                        params.CR->carr4f[n] = xrn[n]*sump;  //Z=13244
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=13246
                             if ( n<n1 ) n1 = n;  //Z=13247
                         }/*7*/  //Z=13248
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=13249
                             if ( n<n4 ) n4 = n;  //Z=13250
                         }/*7*/  //Z=13251
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=13252
                             if ( n<n1f ) n1f = n;  //Z=13253
                         }/*7*/  //Z=13254
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=13255
                             if ( n<n4f ) n4f = n;  //Z=13256
                         }/*7*/  //Z=13257
@@ -6770,7 +6489,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 }/*5*/  /*  of cs=0  */  //Z=13259
 
                 /*  core/shell  */  //Z=13261
-                if ( cs==1 )
+                if ( params.cs==1 )
                 {/*5*/  //Z=13262
                     i = 2;  //Z=13263
                     for ( n=1; n<=nmax; n++ )
@@ -6789,34 +6508,34 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         /*  longitudinal  */  //Z=13276
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13277
-                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);  //Z=13278
-                            CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13279
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);  //Z=13278
+                            params.CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*params.norm);  //Z=13279
                             /* carr1fm[i]:=carr1pm[i];  //Z=13280 */
                             /* i:=i+1;  //Z=13281 */
                         }/*7*/  //Z=13282
                         /*  P(q)-coefficient  */  //Z=13283
                         /* carr1p[n]:=power(4,n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=13284 */
                         /* carr1p[n]:=(sqrt(pi)/2)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13285 */
-                        CR->carr1p[n] = (1/2.0)*pow(4.0,n)*z12vl[n]*xln[n]/((n+1)*(n+1/2.0));  //Z=13286
+                        params.CR->carr1p[n] = (1/2.0)*pow(4.0,n)*z12vl[n]*xln[n]/((n+1)*(n+1/2.0));  //Z=13286
 
                         /*  F(q)-coefficient  */  //Z=13288
                         sump = 0.0;  //Z=13289
                         for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13290
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=13291
+                        params.CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=13291
 
                         /*  P(q)-coefficients  */  //Z=13293
                         /*  cross-sectional  */  //Z=13294
                         /*  F121  */  //Z=13295
-                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=13296
+                        params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=13296
                         /*  F122  */  //Z=13297
                         sump = 0.0;  //Z=13298
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13299
                             sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13300
                         }/*7*/  //Z=13301
-                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=13302
+                        params.CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=13302
                         /*  F123  */  //Z=13303
-                        CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=13304
+                        params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=13304
 
                         /*  F(q)-coefficients  */  //Z=13306
                         /*  cross-sectional  */  //Z=13307
@@ -6826,46 +6545,46 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=13310
                             sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13311
                         }/*7*/  //Z=13312
-                        CR->carr4f[n] = xrn[n]*sump;  //Z=13313
+                        params.CR->carr4f[n] = xrn[n]*sump;  //Z=13313
                         /*  F122  */  //Z=13314
                         sump = 0.0;  //Z=13315
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13316
                             sump = sump+pn[m]*z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13317
                         }/*7*/  //Z=13318
-                        CR->carr5f[n] = xrmn_n*sump;  //Z=13319
+                        params.CR->carr5f[n] = xrmn_n*sump;  //Z=13319
                         /*  F123  */  //Z=13320
-                        CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=13321
+                        params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=13321
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=13323
                             if ( n<n1 ) n1 = n;  //Z=13324
                         }/*7*/  //Z=13325
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=13326
                             if ( n<n4 ) n4 = n;  //Z=13327
                         }/*7*/  //Z=13328
-                        if ( fabs(CR->carr5p[n])<min )
+                        if ( fabs(params.CR->carr5p[n])<min )
                         {/*7*/  //Z=13329
                             if ( n<n5 ) n5 = n;  //Z=13330
                         }/*7*/  //Z=13331
-                        if ( fabs(CR->carr6p[n])<min )
+                        if ( fabs(params.CR->carr6p[n])<min )
                         {/*7*/  //Z=13332
                             if ( n<n6 ) n6 = n;  //Z=13333
                         }/*7*/  //Z=13334
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=13335
                             if ( n<n1f ) n1f = n;  //Z=13336
                         }/*7*/  //Z=13337
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=13338
                             if ( n<n4f ) n4f = n;  //Z=13339
                         }/*7*/  //Z=13340
-                        if ( fabs(CR->carr5f[n])<min )
+                        if ( fabs(params.CR->carr5f[n])<min )
                         {/*7*/  //Z=13341
                             if ( n<n5f ) n5f = n;  //Z=13342
                         }/*7*/  //Z=13343
-                        if ( fabs(CR->carr6f[n])<min )
+                        if ( fabs(params.CR->carr6f[n])<min )
                         {/*7*/  //Z=13344
                             if ( n<n6f ) n6f = n;  //Z=13345
                         }/*7*/  //Z=13346
@@ -6873,7 +6592,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 }/*5*/  /*  of cs=1  */  //Z=13348
 
                 /*  inhomogeneous core/shell  */  //Z=13350
-                if ( cs==2 )
+                if ( params.cs==2 )
                 {/*5*/  //Z=13351
                     i = 2;  //Z=13352
                     for ( n=1; n<=nmax; n++ )
@@ -6892,104 +6611,104 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         /*  longitudinal  */  //Z=13365
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13366
-                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);  //Z=13367
-                            CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13368
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);  //Z=13367
+                            params.CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*params.norm);  //Z=13368
                             /* carr1fm[i]:=carr1pm[i];  //Z=13369 */
                             /* i:=i+1;  //Z=13370 */
                         }/*7*/  //Z=13371
                         /*  P(q)-coefficient  */  //Z=13372
                         /* carr1p[n]:=power(4,n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=13373 */
                         /* carr1p[n]:=(sqrt(pi)/2)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13374 */
-                        CR->carr1p[n] = (1/2.0)*pow(4.0,n)*z12vl[n]*xln[n]/((n+1)*(n+1/2.0));  //Z=13375
+                        params.CR->carr1p[n] = (1/2.0)*pow(4.0,n)*z12vl[n]*xln[n]/((n+1)*(n+1/2.0));  //Z=13375
 
                         /*  F(q)-coefficient  */  //Z=13377
                         sump = 0.0;  //Z=13378
                         for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13379
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=13380
+                        params.CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=13380
 
                         /*  cross-sectional P(q)  */  //Z=13383
-                        CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=13384
+                        params.CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=13384
                         sump = 0.0;  //Z=13385
                         sump1 = 0.0;  //Z=13386
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13387
-                            sumi = 1/((m+1-alfa/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=13388
+                            sumi = 1/((m+1-params.alphash1/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=13388
                             sump = sump+pn[n-m]*sumi;  //Z=13389
                             sump1 = sump1+sumi;  //Z=13390
                         }/*7*/  //Z=13391
-                        CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;  //Z=13392
-                        CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n]*sump1;  //Z=13393
+                        params.CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;  //Z=13392
+                        params.CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n]*sump1;  //Z=13393
                         sump = 0.0;  //Z=13394
                         sump1 = 0.0;  //Z=13395
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13396
-                            sumi = 1/((n-m+1-alfa/2.0)*(m+1-alfa/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=13397
+                            sumi = 1/((n-m+1-params.alphash1/2.0)*(m+1-params.alphash1/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=13397
                             sump = sump+sumi;  //Z=13398
                             sump1 = sump1+pn[n-m]*sumi;  //Z=13399
                         }/*7*/  //Z=13400
-                        CR->carr7p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump;  //Z=13401
-                        CR->carr8p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump1;  //Z=13402
-                        CR->carr9p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrn[n]*sump;  //Z=13403
+                        params.CR->carr7p[n] = sqr(1-params.alphash1/2.0)*z12v[n]*xrmn_n*sump;  //Z=13401
+                        params.CR->carr8p[n] = sqr(1-params.alphash1/2.0)*z12v[n]*xrmn_n*sump1;  //Z=13402
+                        params.CR->carr9p[n] = sqr(1-params.alphash1/2.0)*z12v[n]*xrn[n]*sump;  //Z=13403
 
                         /*  F(q)-coefficients  */  //Z=13418
                         /*  cross-sectional  */  //Z=13419
-                        CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);  //Z=13420
-                        CR->carr5f[n] = (1-alfa/2.0)*z12v[n]*xrmn_n/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=13421
-                        CR->carr6f[n] = (1-alfa/2.0)*z12v[n]*xrn[n]/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=13422
+                        params.CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);  //Z=13420
+                        params.CR->carr5f[n] = (1-params.alphash1/2.0)*z12v[n]*xrmn_n/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=13421
+                        params.CR->carr6f[n] = (1-params.alphash1/2.0)*z12v[n]*xrn[n]/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=13422
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=13424
                             if ( n<n1 ) n1 = n;  //Z=13425
                         }/*7*/  //Z=13426
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=13427
                             if ( n<n4 ) n4 = n;  //Z=13428
                         }/*7*/  //Z=13429
-                        if ( fabs(CR->carr5p[n])<min )
+                        if ( fabs(params.CR->carr5p[n])<min )
                         {/*7*/  //Z=13430
                             if ( n<n5 ) n5 = n;  //Z=13431
                         }/*7*/  //Z=13432
-                        if ( fabs(CR->carr6p[n])<min )
+                        if ( fabs(params.CR->carr6p[n])<min )
                         {/*7*/  //Z=13433
                             if ( n<n6 ) n6 = n;  //Z=13434
                         }/*7*/  //Z=13435
-                        if ( fabs(CR->carr7p[n])<min )
+                        if ( fabs(params.CR->carr7p[n])<min )
                         {/*7*/  //Z=13436
                             if ( n<n7 ) n7 = n;  //Z=13437
                         }/*7*/  //Z=13438
-                        if ( fabs(CR->carr8p[n])<min )
+                        if ( fabs(params.CR->carr8p[n])<min )
                         {/*7*/  //Z=13439
                             if ( n<n8 ) n8 = n;  //Z=13440
                         }/*7*/  //Z=13441
-                        if ( fabs(CR->carr9p[n])<min )
+                        if ( fabs(params.CR->carr9p[n])<min )
                         {/*7*/  //Z=13442
                             if ( n<n9 ) n9 = n;  //Z=13443
                         }/*7*/  //Z=13444
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=13445
                             if ( n<n1f ) n1f = n;  //Z=13446
                         }/*7*/  //Z=13447
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=13448
                             if ( n<n4f ) n4f = n;  //Z=13449
                         }/*7*/  //Z=13450
-                        if ( fabs(CR->carr5f[n])<min )
+                        if ( fabs(params.CR->carr5f[n])<min )
                         {/*7*/  //Z=13451
                             if ( n<n5f ) n5f = n;  //Z=13452
                         }/*7*/  //Z=13453
-                        if ( fabs(CR->carr6f[n])<min )
+                        if ( fabs(params.CR->carr6f[n])<min )
                         {/*7*/  //Z=13454
                             if ( n<n6f ) n6f = n;  //Z=13455
                         }/*7*/  //Z=13456
-                        if ( fabs(CR->carr7f[n])<min )
+                        if ( fabs(params.CR->carr7f[n])<min )
                         {/*7*/  //Z=13457
                             if ( n<n7f ) n7f = n;  //Z=13458
                         }/*7*/  //Z=13459
-                        if ( fabs(CR->carr8f[n])<min )
+                        if ( fabs(params.CR->carr8f[n])<min )
                         {/*7*/  //Z=13460
                             if ( n<n8f ) n8f = n;  //Z=13461
                         }/*7*/  //Z=13462
-                        if ( fabs(CR->carr9f[n])<min )
+                        if ( fabs(params.CR->carr9f[n])<min )
                         {/*7*/  //Z=13463
                             if ( n<n9f ) n9f = n;  //Z=13464
                         }/*7*/  //Z=13465
@@ -6997,7 +6716,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 }/*5*/  /*  of cs=1  */  //Z=13467
 
                 /*  myelin  */  //Z=13469
-                if ( (cs==3) || (cs==4) )
+                if ( (params.cs==3) || (params.cs==4) )
                 {/*5*/  //Z=13470
                     i = 2;  //Z=13471
                     for ( n=1; n<=nmax; n++ )
@@ -7014,41 +6733,41 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         /*  longitudinal  */  //Z=13482
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13483
-                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);  //Z=13484
-                            CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13485
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);  //Z=13484
+                            params.CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*params.norm);  //Z=13485
                             /* carr1fm[i]:=carr1pm[i];  //Z=13486 */
                             /* i:=i+1;  //Z=13487 */
                         }/*7*/  //Z=13488
                         /*  P(q)-coefficient  */  //Z=13489
                         /* carr1p[n]:=power(4,n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=13490 */
                         /* carr1p[n]:=(sqrt(pi)/2)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13491 */
-                        CR->carr1p[n] = (1/2.0)*pow(4.0,n)*z12vl[n]*xln[n]/((n+1)*(n+1/2.0));  //Z=13492
+                        params.CR->carr1p[n] = (1/2.0)*pow(4.0,n)*z12vl[n]*xln[n]/((n+1)*(n+1/2.0));  //Z=13492
 
                         /*  F(q)-coefficient  */  //Z=13494
                         sump = 0.0;  //Z=13495
                         for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13496
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=13497
+                        params.CR->carr1f[n] = fk2v[n]*xln[n]*sump/(pow(4.0,n));  //Z=13497
 
                         /*  cross-section  */  //Z=13499
-                        CR->carr4p[n] = z12v[n]*xrn[n];  //Z=13500
+                        params.CR->carr4p[n] = z12v[n]*xrn[n];  //Z=13500
 
                         sump = 0.0;  //Z=13502
                         for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13503
-                        CR->carr4f[n] = xrn[n]*sump;  //Z=13504
+                        params.CR->carr4f[n] = xrn[n]*sump;  //Z=13504
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=13506
                             if ( n<n1 ) n1 = n;  //Z=13507
                         }/*7*/  //Z=13508
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=13509
                             if ( n<n4 ) n4 = n;  //Z=13510
                         }/*7*/  //Z=13511
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=13512
                             if ( n<n1f ) n1f = n;  //Z=13513
                         }/*7*/  //Z=13514
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=13515
                             if ( n<n4f ) n4f = n;  //Z=13516
                         }/*7*/  //Z=13517
@@ -7060,7 +6779,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
             if ( dim==2 )
             {/*4*/  //Z=13523
                 /*  homogeneous  */  //Z=13524
-                if ( cs==0 )
+                if ( params.cs==0 )
                 {/*5*/  //Z=13525
                     i = 2;  //Z=13526
                     for ( n=1; n<=nmax; n++ )
@@ -7076,17 +6795,17 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         /*  longitudinal  */  //Z=13536
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13537
-                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);  //Z=13538
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);  //Z=13538
                             /* carr2pm[i]:=power(4,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13539 */
-                            CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13540
+                            params.CR->carr22pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*params.norm);  //Z=13540
                             /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]);  //Z=13541 */
-                            CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=13542
+                            params.CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=13542
                             /* carr2fm[i]:=carr2pm[i];  //Z=13543 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=13544 */
                             /* i:=i+1;  //Z=13545 */
                         }/*7*/  //Z=13546
                         /*  P(q)-coefficient  */  //Z=13547
-                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=13548
+                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=13548
 
                         /*  F(q)-coefficient  */  //Z=13550
                         sump = 0.0;  //Z=13551
@@ -7094,39 +6813,39 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=13552
                             sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13553
                         }/*7*/  //Z=13554
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump;  //Z=13555
+                        params.CR->carr1f[n] = xln[n]*fkv[n]*sump;  //Z=13555
 
                         /*  cross-section  */  //Z=13557
-                        CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=13558
+                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=13558
                         sump = 0.0;  //Z=13559
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13560
                             sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13561
                         }/*7*/  //Z=13562
-                        CR->carr4f[n] = M_PI*xln[n]*sump/4.0;  //Z=13563
+                        params.CR->carr4f[n] = M_PI*xln[n]*sump/4.0;  //Z=13563
 
                         /*  series for <...> integration  */  //Z=13565
-                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=13566
+                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=13566
                         sump = 0.0;  //Z=13567
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13568
                             sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13569
                         }/*7*/  //Z=13570
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=13571
+                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=13571
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=13573
                             if ( n<n1 ) n1 = n;  //Z=13574
                         }/*7*/  //Z=13575
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=13576
                             if ( n<n4 ) n4 = n;  //Z=13577
                         }/*7*/  //Z=13578
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=13579
                             if ( n<n1f ) n1f = n;  //Z=13580
                         }/*7*/  //Z=13581
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=13582
                             if ( n<n4f ) n4f = n;  //Z=13583
                         }/*7*/  //Z=13584
@@ -7134,7 +6853,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 }/*5*/  /*  of cs=0  */  //Z=13586
 
                 /*  core/shell  */  //Z=13588
-                if ( cs==1 )
+                if ( params.cs==1 )
                 {/*5*/  //Z=13589
                     i = 2;  //Z=13590
                     for ( n=1; n<=nmax; n++ )
@@ -7152,17 +6871,17 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         /*  longitudinal  */  //Z=13602
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13603
-                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);  //Z=13604
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);  //Z=13604
                             /* carr2pm[i]:=power(4,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13605 */
-                            CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13606
+                            params.CR->carr22pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*params.norm);  //Z=13606
                             /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]);  //Z=13607 */
-                            CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=13608
+                            params.CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=13608
                             /* carr2fm[i]:=carr2pm[i];  //Z=13609 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=13610 */
                             /* i:=i+1;  //Z=13611 */
                         }/*7*/  //Z=13612
                         /*  P(q)-coefficient  */  //Z=13613
-                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=13614
+                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=13614
 
                         /*  F(q)-coefficient  */  //Z=13616
                         sump = 0.0;  //Z=13617
@@ -7170,17 +6889,17 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=13618
                             sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13619
                         }/*7*/  //Z=13620
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump;  //Z=13621
+                        params.CR->carr1f[n] = xln[n]*fkv[n]*sump;  //Z=13621
 
                         /*  F121  */  //Z=13623
-                        CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=13624
+                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=13624
                         /*  F122  */  //Z=13625
                         sump = 0.0;  //Z=13626
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13627
                             sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13628
                         }/*7*/  //Z=13629
-                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=13630
+                        params.CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=13630
 
                         /*  F122  */  //Z=13632
                         sump = 0.0;  //Z=13633
@@ -7188,65 +6907,65 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=13634
                             sump = sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13635
                         }/*7*/  //Z=13636
-                        CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=13637
+                        params.CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=13637
 
                         /*  F123  */  //Z=13640
-                        CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=13641
+                        params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=13641
                         /*  F121  */  //Z=13642
                         sump = 0.0;  //Z=13643
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13644
                             sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13645
                         }/*7*/  //Z=13646
-                        CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=13647
+                        params.CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=13647
                         /*  F122  */  //Z=13648
                         sump = 0.0;  //Z=13649
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13650
                             sump = sump+pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13651
                         }/*7*/  //Z=13652
-                        CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=13653
+                        params.CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=13653
                         /*  F123  */  //Z=13654
-                        CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=13655
+                        params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=13655
 
                         /*  series for <...> integration  */  //Z=13657
-                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=13658
+                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=13658
                         sump = 0.0;  //Z=13659
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13660
                             sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13661
                         }/*7*/  //Z=13662
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=13663
+                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=13663
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=13665
                             if ( n<n1 ) n1 = n;  //Z=13666
                         }/*7*/  //Z=13667
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=13668
                             if ( n<n4 ) n4 = n;  //Z=13669
                         }/*7*/  //Z=13670
-                        if ( fabs(CR->carr5p[n])<min )
+                        if ( fabs(params.CR->carr5p[n])<min )
                         {/*7*/  //Z=13671
                             if ( n<n5 ) n5 = n;  //Z=13672
                         }/*7*/  //Z=13673
-                        if ( fabs(CR->carr6p[n])<min )
+                        if ( fabs(params.CR->carr6p[n])<min )
                         {/*7*/  //Z=13674
                             if ( n<n6 ) n6 = n;  //Z=13675
                         }/*7*/  //Z=13676
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=13677
                             if ( n<n1f ) n1f = n;  //Z=13678
                         }/*7*/  //Z=13679
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=13680
                             if ( n<n4f ) n4f = n;  //Z=13681
                         }/*7*/  //Z=13682
-                        if ( fabs(CR->carr5f[n])<min )
+                        if ( fabs(params.CR->carr5f[n])<min )
                         {/*7*/  //Z=13683
                             if ( n<n5f ) n5f = n;  //Z=13684
                         }/*7*/  //Z=13685
-                        if ( fabs(CR->carr6f[n])<min )
+                        if ( fabs(params.CR->carr6f[n])<min )
                         {/*7*/  //Z=13686
                             if ( n<n6f ) n6f = n;  //Z=13687
                         }/*7*/  //Z=13688
@@ -7254,7 +6973,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 }/*5*/  /*  of cs=1  */  //Z=13690
 
                 /*  inhomogeneous core/shell  */  //Z=13692
-                if ( cs==2 )
+                if ( params.cs==2 )
                 {/*5*/  //Z=13693
                     i = 2;  //Z=13694
                     for ( n=1; n<=nmax; n++ )
@@ -7272,17 +6991,17 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         /*  longitudinal  */  //Z=13706
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13707
-                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,CR->carr1p,intl);  //Z=13708
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);  //Z=13708
                             /* carr2pm[i]:=power(4,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13709 */
-                            CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13710
+                            params.CR->carr22pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*params.norm);  //Z=13710
                             /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]);  //Z=13711 */
-                            CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=13712
+                            params.CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=13712
                             /* carr2fm[i]:=carr2pm[i];  //Z=13713 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=13714 */
                             /* i:=i+1;  //Z=13715 */
                         }/*7*/  //Z=13716
                         /*  P(q)-coefficient  */  //Z=13717
-                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=13718
+                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=13718
 
                         /*  F(q)-coefficient  */  //Z=13720
                         sump = 0.0;  //Z=13721
@@ -7290,99 +7009,99 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=13722
                             sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13723
                         }/*7*/  //Z=13724
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump;  //Z=13725
+                        params.CR->carr1f[n] = xln[n]*fkv[n]*sump;  //Z=13725
 
                         /*  cross-sectional P(q)  */  //Z=13727
-                        CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13728
+                        params.CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13728
                         sump = 0.0;  //Z=13729
                         sump1 = 0.0;  //Z=13730
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13731
-                            sumi = (m+1/2.0)/((m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=13732
+                            sumi = (m+1/2.0)/((m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=13732
                             sump = sump+pn[n-m]*sumi;  //Z=13733
                             sump1 = sump1+sumi;  //Z=13734
                         }/*7*/  //Z=13735
-                        CR->carr5p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=13736
-                        CR->carr6p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrn[n]*sump1;  //Z=13737
+                        params.CR->carr5p[n] = (M_PI/4.0)*(1-params.alphash1)*z12v[n]*xrmn_n*sump;  //Z=13736
+                        params.CR->carr6p[n] = (M_PI/4.0)*(1-params.alphash1)*z12v[n]*xrn[n]*sump1;  //Z=13737
                         sump = 0.0;  //Z=13738
                         sump1 = 0.0;  //Z=13739
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13740
-                            sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-alfa/2.0)*(m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=13741
+                            sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-params.alphash1/2.0)*(m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=13741
                             sump = sump+sumi;  //Z=13742
                             sump1 = sump1+pn[n-m]*sumi;  //Z=13743
                         }/*7*/  //Z=13744
-                        CR->carr7p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=13745
-                        CR->carr8p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump1;  //Z=13746
-                        CR->carr9p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrn[n]*sump;  //Z=13747
+                        params.CR->carr7p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrmn_n*sump;  //Z=13745
+                        params.CR->carr8p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrmn_n*sump1;  //Z=13746
+                        params.CR->carr9p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrn[n]*sump;  //Z=13747
 
                         /*  F(q)   */  //Z=13767
-                        CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);  //Z=13768
-                        CR->carr5f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=13769
-                        CR->carr6f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrn[n]*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=13770
+                        params.CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);  //Z=13768
+                        params.CR->carr5f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=13769
+                        params.CR->carr6f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrn[n]*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=13770
 
                         /*  series for <...> integration  */  //Z=13772
-                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=13773
+                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=13773
                         sump = 0.0;  //Z=13774
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13775
                             sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13776
                         }/*7*/  //Z=13777
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=13778
+                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=13778
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=13780
                             if ( n<n1 ) n1 = n;  //Z=13781
                         }/*7*/  //Z=13782
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=13783
                             if ( n<n4 ) n4 = n;  //Z=13784
                         }/*7*/  //Z=13785
-                        if ( fabs(CR->carr5p[n])<min )
+                        if ( fabs(params.CR->carr5p[n])<min )
                         {/*7*/  //Z=13786
                             if ( n<n5 ) n5 = n;  //Z=13787
                         }/*7*/  //Z=13788
-                        if ( fabs(CR->carr6p[n])<min )
+                        if ( fabs(params.CR->carr6p[n])<min )
                         {/*7*/  //Z=13789
                             if ( n<n6 ) n6 = n;  //Z=13790
                         }/*7*/  //Z=13791
-                        if ( fabs(CR->carr7p[n])<min )
+                        if ( fabs(params.CR->carr7p[n])<min )
                         {/*7*/  //Z=13792
                             if ( n<n7 ) n7 = n;  //Z=13793
                         }/*7*/  //Z=13794
-                        if ( fabs(CR->carr8p[n])<min )
+                        if ( fabs(params.CR->carr8p[n])<min )
                         {/*7*/  //Z=13795
                             if ( n<n8 ) n8 = n;  //Z=13796
                         }/*7*/  //Z=13797
-                        if ( fabs(CR->carr9p[n])<min )
+                        if ( fabs(params.CR->carr9p[n])<min )
                         {/*7*/  //Z=13798
                             if ( n<n9 ) n9 = n;  //Z=13799
                         }/*7*/  //Z=13800
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=13801
                             if ( n<n1f ) n1f = n;  //Z=13802
                         }/*7*/  //Z=13803
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=13804
                             if ( n<n4f ) n4f = n;  //Z=13805
                         }/*7*/  //Z=13806
-                        if ( fabs(CR->carr5f[n])<min )
+                        if ( fabs(params.CR->carr5f[n])<min )
                         {/*7*/  //Z=13807
                             if ( n<n5f ) n5f = n;  //Z=13808
                         }/*7*/  //Z=13809
-                        if ( fabs(CR->carr6f[n])<min )
+                        if ( fabs(params.CR->carr6f[n])<min )
                         {/*7*/  //Z=13810
                             if ( n<n6f ) n6f = n;  //Z=13811
                         }/*7*/  //Z=13812
-                        if ( fabs(CR->carr7f[n])<min )
+                        if ( fabs(params.CR->carr7f[n])<min )
                         {/*7*/  //Z=13813
                             if ( n<n7f ) n7f = n;  //Z=13814
                         }/*7*/  //Z=13815
-                        if ( fabs(CR->carr8f[n])<min )
+                        if ( fabs(params.CR->carr8f[n])<min )
                         {/*7*/  //Z=13816
                             if ( n<n8f ) n8f = n;  //Z=13817
                         }/*7*/  //Z=13818
-                        if ( fabs(CR->carr9f[n])<min )
+                        if ( fabs(params.CR->carr9f[n])<min )
                         {/*7*/  //Z=13819
                             if ( n<n9f ) n9f = n;  //Z=13820
                         }/*7*/  //Z=13821
@@ -7393,14 +7112,14 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
         }/*3*/  //Z=13826
 
         /* ** y-axis, orientational distribution centered around y-axis ** */  //Z=13830
-        if ( (cho1==3) && (dim!=3) )
+        if ( (params.orcase==3) && (dim!=3) )
         {/*3*/  //Z=13831
 
             /* ** cylinder ** */  //Z=13833
             if ( dim==1 )
             {/*4*/  //Z=13834
                 /*  homogeneous  */  //Z=13835
-                if ( cs==0 )
+                if ( params.cs==0 )
                 {/*5*/  //Z=13836
                     i = 2;  //Z=13837
                     for ( n=1; n<=nmax; n++ )
@@ -7417,45 +7136,45 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         /*  longitudinal  */  //Z=13848
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13849
-                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);  //Z=13850
-                            CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=13851
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);  //Z=13850
+                            params.CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*params.norm);  //Z=13851
 
                             /* carr1fm[i]:=carr1pm[i];  //Z=13853 */
                             /* i:=i+1;  //Z=13854 */
                         }/*7*/  //Z=13855
                         /*  P(q)-coefficient  */  //Z=13856
                         /* carr1p[n]:=power(4,2*n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=13857 */
-                        CR->carr1p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13858
+                        params.CR->carr1p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13858
                         /* carr1p[n]:=(sqrt(pi)/2)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13859 */
                         /* carr1p[n]:=(1/2)*power(4,2*n)*z12vl[n]*xln[n]/((n+1)*(n+1/2));  //Z=13860 */
 
                         /*  F(q)-coefficient  */  //Z=13862
                         sump = 0.0;  //Z=13863
                         for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13864
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump;  //Z=13865
+                        params.CR->carr1f[n] = fk2v[n]*xln[n]*sump;  //Z=13865
 
                         /*  cross-section  */  //Z=13867
-                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  //Z=13868
+                        params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  //Z=13868
 
                         /* carr4p[n]:=power(4,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(pi)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=13870 */
 
                         sump = 0.0;  //Z=13872
                         for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13873
-                        CR->carr4f[n] = xrn[n]*sump;  //Z=13874
+                        params.CR->carr4f[n] = xrn[n]*sump;  //Z=13874
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=13876
                             if ( n<n1 ) n1 = n;  //Z=13877
                         }/*7*/  //Z=13878
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=13879
                             if ( n<n4 ) n4 = n;  //Z=13880
                         }/*7*/  //Z=13881
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=13882
                             if ( n<n1f ) n1f = n;  //Z=13883
                         }/*7*/  //Z=13884
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=13885
                             if ( n<n4f ) n4f = n;  //Z=13886
                         }/*7*/  //Z=13887
@@ -7463,7 +7182,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 }/*5*/  /*  cs=0  */  //Z=13889
 
                 /*  core/shell  */  //Z=13891
-                if ( cs==1 )
+                if ( params.cs==1 )
                 {/*5*/  //Z=13892
                     i = 2;  //Z=13893
                     for ( n=1; n<=nmax; n++ )
@@ -7482,36 +7201,36 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         /*  longitudinal  */  //Z=13906
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13907
-                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);  //Z=13908
-                            CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=13909
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);  //Z=13908
+                            params.CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*params.norm);  //Z=13909
 
                             /* carr1fm[i]:=carr1pm[i];  //Z=13911 */
                             /* i:=i+1;  //Z=13912 */
                         }/*7*/  //Z=13913
                         /*  P(q)-coefficient  */  //Z=13914
                         /* carr1p[n]:=power(4,2*n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=13915 */
-                        CR->carr1p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13916
+                        params.CR->carr1p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13916
                         /* carr1p[n]:=(sqrt(pi)/2)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=13917 */
                         /* carr1p[n]:=(1/2)*power(4,2*n)*z12vl[n]*xln[n]/((n+1)*(n+1/2));  //Z=13918 */
 
                         /*  F(q)-coefficient  */  //Z=13920
                         sump = 0.0;  //Z=13921
                         for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13922
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump;  //Z=13923
+                        params.CR->carr1f[n] = fk2v[n]*xln[n]*sump;  //Z=13923
 
                         /*  P(q)-coefficients  */  //Z=13925
                         /*  cross-sectional  */  //Z=13926
                         /*  F121  */  //Z=13927
-                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=13928
+                        params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=13928
                         /*  F122  */  //Z=13929
                         sump = 0.0;  //Z=13930
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13931
                             sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13932
                         }/*7*/  //Z=13933
-                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=13934
+                        params.CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=13934
                         /*  F123  */  //Z=13935
-                        CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=13936
+                        params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=13936
 
                         /*  F(q)-coefficients  */  //Z=13938
                         /*  cross-sectional  */  //Z=13939
@@ -7521,46 +7240,46 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=13942
                             sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13943
                         }/*7*/  //Z=13944
-                        CR->carr4f[n] = xrn[n]*sump;  //Z=13945
+                        params.CR->carr4f[n] = xrn[n]*sump;  //Z=13945
                         /*  F122  */  //Z=13946
                         sump = 0.0;  //Z=13947
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13948
                             sump = sump+pn[m]*z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13949
                         }/*7*/  //Z=13950
-                        CR->carr5f[n] = xrmn_n*sump;  //Z=13951
+                        params.CR->carr5f[n] = xrmn_n*sump;  //Z=13951
                         /*  F123  */  //Z=13952
-                        CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=13953
+                        params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=13953
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=13955
                             if ( n<n1 ) n1 = n;  //Z=13956
                         }/*7*/  //Z=13957
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=13958
                             if ( n<n4 ) n4 = n;  //Z=13959
                         }/*7*/  //Z=13960
-                        if ( fabs(CR->carr5p[n])<min )
+                        if ( fabs(params.CR->carr5p[n])<min )
                         {/*7*/  //Z=13961
                             if ( n<n5 ) n5 = n;  //Z=13962
                         }/*7*/  //Z=13963
-                        if ( fabs(CR->carr6p[n])<min )
+                        if ( fabs(params.CR->carr6p[n])<min )
                         {/*7*/  //Z=13964
                             if ( n<n6 ) n6 = n;  //Z=13965
                         }/*7*/  //Z=13966
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=13967
                             if ( n<n1f ) n1f = n;  //Z=13968
                         }/*7*/  //Z=13969
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=13970
                             if ( n<n4f ) n4f = n;  //Z=13971
                         }/*7*/  //Z=13972
-                        if ( fabs(CR->carr5f[n])<min )
+                        if ( fabs(params.CR->carr5f[n])<min )
                         {/*7*/  //Z=13973
                             if ( n<n5f ) n5f = n;  //Z=13974
                         }/*7*/  //Z=13975
-                        if ( fabs(CR->carr6f[n])<min )
+                        if ( fabs(params.CR->carr6f[n])<min )
                         {/*7*/  //Z=13976
                             if ( n<n6f ) n6f = n;  //Z=13977
                         }/*7*/  //Z=13978
@@ -7568,7 +7287,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 }/*5*/  /*  cs=1  */  //Z=13980
 
                 /*  inhomogeneous core/shell  */  //Z=13982
-                if ( cs==2 )
+                if ( params.cs==2 )
                 {/*5*/  //Z=13983
                     i = 2;  //Z=13984
                     for ( n=1; n<=nmax; n++ )
@@ -7587,106 +7306,106 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         /*  longitudinal  */  //Z=13997
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=13998
-                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);  //Z=13999
-                            CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=14000
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);  //Z=13999
+                            params.CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*params.norm);  //Z=14000
 
                             /* carr1fm[i]:=carr1pm[i];  //Z=14002 */
                             /* i:=i+1;  //Z=14003 */
                         }/*7*/  //Z=14004
                         /*  P(q)-coefficient  */  //Z=14005
                         /* carr1p[n]:=power(4,2*n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=14006 */
-                        CR->carr1p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=14007
+                        params.CR->carr1p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=14007
                         /* carr1p[n]:=(sqrt(pi)/2)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=14008 */
                         /* carr1p[n]:=(1/2)*power(4,2*n)*z12vl[n]*xln[n]/((n+1)*(n+1/2));  //Z=14009 */
 
                         /*  F(q)-coefficient  */  //Z=14011
                         sump = 0.0;  //Z=14012
                         for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14013
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump;  //Z=14014
+                        params.CR->carr1f[n] = fk2v[n]*xln[n]*sump;  //Z=14014
 
                         /*  cross-sectional P(q)  */  //Z=14016
-                        CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=14017
+                        params.CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=14017
                         sump = 0.0;  //Z=14018
                         sump1 = 0.0;  //Z=14019
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14020
-                            sumi = 1/((m+1-alfa/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=14021
+                            sumi = 1/((m+1-params.alphash1/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=14021
                             sump = sump+pn[n-m]*sumi;  //Z=14022
                             sump1 = sump1+sumi;  //Z=14023
                         }/*7*/  //Z=14024
-                        CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;  //Z=14025
-                        CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n]*sump1;  //Z=14026
+                        params.CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;  //Z=14025
+                        params.CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n]*sump1;  //Z=14026
                         sump = 0.0;  //Z=14027
                         sump1 = 0.0;  //Z=14028
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14029
-                            sumi = 1/((n-m+1-alfa/2.0)*(m+1-alfa/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=14030
+                            sumi = 1/((n-m+1-params.alphash1/2.0)*(m+1-params.alphash1/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=14030
                             sump = sump+sumi;  //Z=14031
                             sump1 = sump1+pn[n-m]*sumi;  //Z=14032
                         }/*7*/  //Z=14033
-                        CR->carr7p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump;  //Z=14034
-                        CR->carr8p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump1;  //Z=14035
-                        CR->carr9p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrn[n]*sump;  //Z=14036
+                        params.CR->carr7p[n] = sqr(1-params.alphash1/2.0)*z12v[n]*xrmn_n*sump;  //Z=14034
+                        params.CR->carr8p[n] = sqr(1-params.alphash1/2.0)*z12v[n]*xrmn_n*sump1;  //Z=14035
+                        params.CR->carr9p[n] = sqr(1-params.alphash1/2.0)*z12v[n]*xrn[n]*sump;  //Z=14036
 
                         /*  F(q)-coefficients  */  //Z=14051
                         /*  cross-sectional  */  //Z=14052
-                        CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);  //Z=14053
-                        CR->carr5f[n] = (1-alfa/2.0)*z12v[n]*xrmn_n/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=14054
-                        CR->carr6f[n] = (1-alfa/2.0)*z12v[n]*xrn[n]/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=14055
+                        params.CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);  //Z=14053
+                        params.CR->carr5f[n] = (1-params.alphash1/2.0)*z12v[n]*xrmn_n/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=14054
+                        params.CR->carr6f[n] = (1-params.alphash1/2.0)*z12v[n]*xrn[n]/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=14055
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=14057
                             if ( n<n1 ) n1 = n;  //Z=14058
                         }/*7*/  //Z=14059
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=14060
                             if ( n<n4 ) n4 = n;  //Z=14061
                         }/*7*/  //Z=14062
-                        if ( fabs(CR->carr5p[n])<min )
+                        if ( fabs(params.CR->carr5p[n])<min )
                         {/*7*/  //Z=14063
                             if ( n<n5 ) n5 = n;  //Z=14064
                         }/*7*/  //Z=14065
-                        if ( fabs(CR->carr6p[n])<min )
+                        if ( fabs(params.CR->carr6p[n])<min )
                         {/*7*/  //Z=14066
                             if ( n<n6 ) n6 = n;  //Z=14067
                         }/*7*/  //Z=14068
-                        if ( fabs(CR->carr7p[n])<min )
+                        if ( fabs(params.CR->carr7p[n])<min )
                         {/*7*/  //Z=14069
                             if ( n<n7 ) n7 = n;  //Z=14070
                         }/*7*/  //Z=14071
-                        if ( fabs(CR->carr8p[n])<min )
+                        if ( fabs(params.CR->carr8p[n])<min )
                         {/*7*/  //Z=14072
                             if ( n<n8 ) n8 = n;  //Z=14073
                         }/*7*/  //Z=14074
-                        if ( fabs(CR->carr9p[n])<min )
+                        if ( fabs(params.CR->carr9p[n])<min )
                         {/*7*/  //Z=14075
                             if ( n<n9 ) n9 = n;  //Z=14076
                         }/*7*/  //Z=14077
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=14078
                             if ( n<n1f ) n1f = n;  //Z=14079
                         }/*7*/  //Z=14080
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=14081
                             if ( n<n4f ) n4f = n;  //Z=14082
                         }/*7*/  //Z=14083
-                        if ( fabs(CR->carr5f[n])<min )
+                        if ( fabs(params.CR->carr5f[n])<min )
                         {/*7*/  //Z=14084
                             if ( n<n5f ) n5f = n;  //Z=14085
                         }/*7*/  //Z=14086
-                        if ( fabs(CR->carr6f[n])<min )
+                        if ( fabs(params.CR->carr6f[n])<min )
                         {/*7*/  //Z=14087
                             if ( n<n6f ) n6f = n;  //Z=14088
                         }/*7*/  //Z=14089
-                        if ( fabs(CR->carr7f[n])<min )
+                        if ( fabs(params.CR->carr7f[n])<min )
                         {/*7*/  //Z=14090
                             if ( n<n7f ) n7f = n;  //Z=14091
                         }/*7*/  //Z=14092
-                        if ( fabs(CR->carr8f[n])<min )
+                        if ( fabs(params.CR->carr8f[n])<min )
                         {/*7*/  //Z=14093
                             if ( n<n8f ) n8f = n;  //Z=14094
                         }/*7*/  //Z=14095
-                        if ( fabs(CR->carr9f[n])<min )
+                        if ( fabs(params.CR->carr9f[n])<min )
                         {/*7*/  //Z=14096
                             if ( n<n9f ) n9f = n;  //Z=14097
                         }/*7*/  //Z=14098
@@ -7694,7 +7413,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 }/*5*/  /*  cs=2  */  //Z=14100
 
                 /*  myelin  */  //Z=14103
-                if ( (cs==3) || (cs==4) )
+                if ( (params.cs==3) || (params.cs==4) )
                 {/*5*/  //Z=14104
                     i = 2;  //Z=14105
                     for ( n=1; n<=nmax; n++ )
@@ -7711,43 +7430,43 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         /*  longitudinal  */  //Z=14116
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14117
-                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);  //Z=14118
-                            CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=14119
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);  //Z=14118
+                            params.CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*params.norm);  //Z=14119
 
                             /* carr1fm[i]:=carr1pm[i];  //Z=14121 */
                             /* i:=i+1;  //Z=14122 */
                         }/*7*/  //Z=14123
                         /*  P(q)-coefficient  */  //Z=14124
                         /* carr1p[n]:=power(4,2*n)*z12vl[n]*xln[n]/((2*n+1)*(n+1));  //Z=14125 */
-                        CR->carr1p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=14126
+                        params.CR->carr1p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=14126
                         /* carr1p[n]:=(sqrt(pi)/2)*fk2v[n]*z12vl[n]*xln[n]/((n+1)*gam3[n]*fkv[n]);  //Z=14127 */
                         /* carr1p[n]:=(1/2)*power(4,2*n)*z12vl[n]*xln[n]/((n+1)*(n+1/2));  //Z=14128 */
 
                         /*  F(q)-coefficient  */  //Z=14130
                         sump = 0.0;  //Z=14131
                         for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14132
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump;  //Z=14133
+                        params.CR->carr1f[n] = fk2v[n]*xln[n]*sump;  //Z=14133
 
                         /*  cross-section  */  //Z=14135
-                        CR->carr4p[n] = z12v[n]*xrn[n];  //Z=14136
+                        params.CR->carr4p[n] = z12v[n]*xrn[n];  //Z=14136
 
                         sump = 0.0;  //Z=14138
                         for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14139
-                        CR->carr4f[n] = xrn[n]*sump;  //Z=14140
+                        params.CR->carr4f[n] = xrn[n]*sump;  //Z=14140
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=14142
                             if ( n<n1 ) n1 = n;  //Z=14143
                         }/*7*/  //Z=14144
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=14145
                             if ( n<n4 ) n4 = n;  //Z=14146
                         }/*7*/  //Z=14147
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=14148
                             if ( n<n1f ) n1f = n;  //Z=14149
                         }/*7*/  //Z=14150
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=14151
                             if ( n<n4f ) n4f = n;  //Z=14152
                         }/*7*/  //Z=14153
@@ -7761,7 +7480,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
             if ( dim==2 )
             {/*4*/  //Z=14161
                 /*  homogeneous  */  //Z=14162
-                if ( cs==0 )
+                if ( params.cs==0 )
                 {/*5*/  //Z=14163
                     i = 2;  //Z=14164
                     for ( n=1; n<=nmax; n++ )
@@ -7777,56 +7496,56 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         /*  longitudinal  */  //Z=14174
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14175
-                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);  //Z=14176
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);  //Z=14176
                             /* carr2pm[i]:=intl/(power(4,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=14177 */
-                            CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=14178
+                            params.CR->carr22pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*params.norm);  //Z=14178
                             /* carr1pm[i]:=power(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=14179 */
-                            CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=14180
+                            params.CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=14180
                             /* carr2fm[i]:=carr2pm[i];  //Z=14181 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=14182 */
                             /* i:=i+1;  //Z=14183 */
                         }/*7*/  //Z=14184
                         /*  P(q)-coefficient  */  //Z=14185
-                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14186
+                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14186
                         /*  F(q)-coefficient  */  //Z=14187
                         sump = 0.0;  //Z=14188
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14189
                             sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14190
                         }/*7*/  //Z=14191
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump;  //Z=14192
+                        params.CR->carr1f[n] = xln[n]*fkv[n]*sump;  //Z=14192
 
                         /*  cross-section  */  //Z=14194
-                        CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=14195
+                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=14195
                         sump = 0.0;  //Z=14196
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14197
                             sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14198
                         }/*7*/  //Z=14199
-                        CR->carr4f[n] = M_PI*xln[n]*sump/4.0;  //Z=14200
+                        params.CR->carr4f[n] = M_PI*xln[n]*sump/4.0;  //Z=14200
 
                         /*  series for <...> integration  */  //Z=14202
-                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14203
+                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14203
                         sump = 0.0;  //Z=14204
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14205
                             sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14206
                         }/*7*/  //Z=14207
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=14208
+                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=14208
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=14210
                             if ( n<n1 ) n1 = n;  //Z=14211
                         }/*7*/  //Z=14212
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=14213
                             if ( n<n4 ) n4 = n;  //Z=14214
                         }/*7*/  //Z=14215
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=14216
                             if ( n<n1f ) n1f = n;  //Z=14217
                         }/*7*/  //Z=14218
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=14219
                             if ( n<n4f ) n4f = n;  //Z=14220
                         }/*7*/  //Z=14221
@@ -7834,7 +7553,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 }/*5*/  /*  of cs=0  */  //Z=14223
 
                 /*  core/shell  */  //Z=14225
-                if ( cs==1 )
+                if ( params.cs==1 )
                 {/*5*/  //Z=14226
                     i = 2;  //Z=14227
                     for ( n=1; n<=nmax; n++ )
@@ -7852,17 +7571,17 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         /*  longitudinal  */  //Z=14239
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14240
-                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);  //Z=14241
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);  //Z=14241
                             /* carr2pm[i]:=intl/(power(4,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=14242 */
-                            CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=14243
+                            params.CR->carr22pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*params.norm);  //Z=14243
                             /* carr1pm[i]:=power(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=14244 */
-                            CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=14245
+                            params.CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=14245
                             /* carr2fm[i]:=carr2pm[i];  //Z=14246 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=14247 */
                             /* i:=i+1;  //Z=14248 */
                         }/*7*/  //Z=14249
                         /*  P(q)-coefficient  */  //Z=14250
-                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14251
+                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14251
 
                         /*  F(q)-coefficient  */  //Z=14253
                         sump = 0.0;  //Z=14254
@@ -7870,82 +7589,82 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=14255
                             sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14256
                         }/*7*/  //Z=14257
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump;  //Z=14258
+                        params.CR->carr1f[n] = xln[n]*fkv[n]*sump;  //Z=14258
 
                         /*  cross-sectional  */  //Z=14260
                         /*  F121  */  //Z=14261
-                        CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=14262
+                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=14262
                         /*  F122  */  //Z=14263
                         sump = 0.0;  //Z=14264
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14265
                             sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14266
                         }/*7*/  //Z=14267
-                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=14268
+                        params.CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=14268
                         /*  F122  */  //Z=14269
                         sump = 0.0;  //Z=14270
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14271
                             sump = sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14272
                         }/*7*/  //Z=14273
-                        CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=14274
+                        params.CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=14274
                         /*  F123  */  //Z=14275
-                        CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=14276
+                        params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=14276
                         /*  F121  */  //Z=14277
                         sump = 0.0;  //Z=14278
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14279
                             sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14280
                         }/*7*/  //Z=14281
-                        CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=14282
+                        params.CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=14282
                         /*  F122  */  //Z=14283
                         sump = 0.0;  //Z=14284
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14285
                             sump = sump+pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14286
                         }/*7*/  //Z=14287
-                        CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=14288
+                        params.CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=14288
                         /*  F123  */  //Z=14289
-                        CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=14290
+                        params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=14290
 
                         /*  series for <...> integration  */  //Z=14292
-                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14293
+                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14293
                         sump = 0.0;  //Z=14294
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14295
                             sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14296
                         }/*7*/  //Z=14297
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=14298
+                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=14298
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=14300
                             if ( n<n1 ) n1 = n;  //Z=14301
                         }/*7*/  //Z=14302
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=14303
                             if ( n<n4 ) n4 = n;  //Z=14304
                         }/*7*/  //Z=14305
-                        if ( fabs(CR->carr5p[n])<min )
+                        if ( fabs(params.CR->carr5p[n])<min )
                         {/*7*/  //Z=14306
                             if ( n<n5 ) n5 = n;  //Z=14307
                         }/*7*/  //Z=14308
-                        if ( fabs(CR->carr6p[n])<min )
+                        if ( fabs(params.CR->carr6p[n])<min )
                         {/*7*/  //Z=14309
                             if ( n<n6 ) n6 = n;  //Z=14310
                         }/*7*/  //Z=14311
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=14312
                             if ( n<n1f ) n1f = n;  //Z=14313
                         }/*7*/  //Z=14314
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=14315
                             if ( n<n4f ) n4f = n;  //Z=14316
                         }/*7*/  //Z=14317
-                        if ( fabs(CR->carr5f[n])<min )
+                        if ( fabs(params.CR->carr5f[n])<min )
                         {/*7*/  //Z=14318
                             if ( n<n5f ) n5f = n;  //Z=14319
                         }/*7*/  //Z=14320
-                        if ( fabs(CR->carr6f[n])<min )
+                        if ( fabs(params.CR->carr6f[n])<min )
                         {/*7*/  //Z=14321
                             if ( n<n6f ) n6f = n;  //Z=14322
                         }/*7*/  //Z=14323
@@ -7953,7 +7672,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 }/*5*/  /*  of cs=1  */  //Z=14325
 
                 /*  inhomogeneous core/shell  */  //Z=14327
-                if ( cs==2 )
+                if ( params.cs==2 )
                 {/*5*/  //Z=14328
                     i = 2;  //Z=14329
                     for ( n=1; n<=nmax; n++ )
@@ -7971,17 +7690,17 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         /*  longitudinal  */  //Z=14341
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14342
-                            qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,CR->carr1p,intl);  //Z=14343
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);  //Z=14343
                             /* carr2pm[i]:=intl/(power(4,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=14344 */
-                            CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=14345
+                            params.CR->carr22pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*params.norm);  //Z=14345
                             /* carr1pm[i]:=power(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=14346 */
-                            CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=14347
+                            params.CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=14347
                             /* carr2fm[i]:=carr2pm[i];  //Z=14348 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=14349 */
                             /* i:=i+1;  //Z=14350 */
                         }/*7*/  //Z=14351
                         /*  P(q)-coefficient  */  //Z=14352
-                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14353
+                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14353
 
                         /*  F(q)-coefficient  */  //Z=14355
                         sump = 0.0;  //Z=14356
@@ -7989,87 +7708,87 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=14357
                             sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14358
                         }/*7*/  //Z=14359
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump;  //Z=14360
+                        params.CR->carr1f[n] = xln[n]*fkv[n]*sump;  //Z=14360
 
                         /*  cross-sectional P(q)  */  //Z=14362
-                        CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);  //Z=14363
+                        params.CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);  //Z=14363
                         sump = 0.0;  //Z=14364
                         sump1 = 0.0;  //Z=14365
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14366
-                            sumi = (m+1/2.0)/((m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=14367
+                            sumi = (m+1/2.0)/((m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=14367
                             sump = sump+pn[n-m]*sumi;  //Z=14368
                             sump1 = sump1+sumi;  //Z=14369
                         }/*7*/  //Z=14370
-                        CR->carr5p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=14371
-                        CR->carr6p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrn[n]*sump1;  //Z=14372
+                        params.CR->carr5p[n] = (M_PI/4.0)*(1-params.alphash1)*z12v[n]*xrmn_n*sump;  //Z=14371
+                        params.CR->carr6p[n] = (M_PI/4.0)*(1-params.alphash1)*z12v[n]*xrn[n]*sump1;  //Z=14372
                         sump = 0.0;  //Z=14373
                         sump1 = 0.0;  //Z=14374
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14375
-                            sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-alfa/2.0)*(m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=14376
+                            sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-params.alphash1/2.0)*(m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=14376
                             sump = sump+sumi;  //Z=14377
                             sump1 = sump1+pn[n-m]*sumi;  //Z=14378
                         }/*7*/  //Z=14379
-                        CR->carr7p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=14380
-                        CR->carr8p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump1;  //Z=14381
-                        CR->carr9p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrn[n]*sump;  //Z=14382
+                        params.CR->carr7p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrmn_n*sump;  //Z=14380
+                        params.CR->carr8p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrmn_n*sump1;  //Z=14381
+                        params.CR->carr9p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrn[n]*sump;  //Z=14382
 
                         /*  F(q)  */  //Z=14401
-                        CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);  //Z=14402
-                        CR->carr5f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=14403
-                        CR->carr6f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrn[n]*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=14404
+                        params.CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);  //Z=14402
+                        params.CR->carr5f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=14403
+                        params.CR->carr6f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrn[n]*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=14404
 
                         /*  series for <...> integration  */  //Z=14406
-                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14407
+                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14407
                         sump = 0.0;  //Z=14408
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14409
                             sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14410
                         }/*7*/  //Z=14411
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=14412
+                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=14412
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=14414
                             if ( n<n1 ) n1 = n;  //Z=14415
                         }/*7*/  //Z=14416
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=14417
                             if ( n<n4 ) n4 = n;  //Z=14418
                         }/*7*/  //Z=14419
-                        if ( fabs(CR->carr5p[n])<min )
+                        if ( fabs(params.CR->carr5p[n])<min )
                         {/*7*/  //Z=14420
                             if ( n<n5 ) n5 = n;  //Z=14421
                         }/*7*/  //Z=14422
-                        if ( fabs(CR->carr6p[n])<min )
+                        if ( fabs(params.CR->carr6p[n])<min )
                         {/*7*/  //Z=14423
                             if ( n<n6 ) n6 = n;  //Z=14424
                         }/*7*/  //Z=14425
-                        if ( fabs(CR->carr7p[n])<min )
+                        if ( fabs(params.CR->carr7p[n])<min )
                         {/*7*/  //Z=14426
                             if ( n<n7 ) n7 = n;  //Z=14427
                         }/*7*/  //Z=14428
-                        if ( fabs(CR->carr8p[n])<min )
+                        if ( fabs(params.CR->carr8p[n])<min )
                         {/*7*/  //Z=14429
                             if ( n<n8 ) n8 = n;  //Z=14430
                         }/*7*/  //Z=14431
-                        if ( fabs(CR->carr9p[n])<min )
+                        if ( fabs(params.CR->carr9p[n])<min )
                         {/*7*/  //Z=14432
                             if ( n<n9 ) n9 = n;  //Z=14433
                         }/*7*/  //Z=14434
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=14435
                             if ( n<n1f ) n1f = n;  //Z=14436
                         }/*7*/  //Z=14437
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=14438
                             if ( n<n4f ) n4f = n;  //Z=14439
                         }/*7*/  //Z=14440
-                        if ( fabs(CR->carr5f[n])<min )
+                        if ( fabs(params.CR->carr5f[n])<min )
                         {/*7*/  //Z=14441
                             if ( n<n5f ) n5f = n;  //Z=14442
                         }/*7*/  //Z=14443
-                        if ( fabs(CR->carr6f[n])<min )
+                        if ( fabs(params.CR->carr6f[n])<min )
                         {/*7*/  //Z=14444
                             if ( n<n6f ) n6f = n;  //Z=14445
                         }/*7*/  //Z=14446
@@ -8080,13 +7799,13 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
         }/*3*/  //Z=14451
 
         /* ** z-axis ** */  //Z=14453
-        if ( (cho1==4) && (dim!=3) )
+        if ( (params.orcase==4) && (dim!=3) )
         {/*3*/  //Z=14454
             /* ** cylinders ** */  //Z=14455
             if ( dim==1 )
             {/*4*/  //Z=14456
                 /*  homogeneous  */  //Z=14457
-                if ( cs==0 )
+                if ( params.cs==0 )
                 {/*5*/  //Z=14458
                     i = 2;  //Z=14459
                     for ( n=1; n<=nmax; n++ )
@@ -8101,34 +7820,34 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         xln[n] = -xln[n-1]*xl2z;  //Z=14468
                         xrn[n] = -xrn[n-1]*xr2z;  //Z=14469
                         /*  longitudinal  */  //Z=14470
-                        qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);  //Z=14471
+                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);  //Z=14471
                         /*  P(q)-coefficient  */  //Z=14472
-                        CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln[n]*intl/((2.0*n+1)*(n+1)*fkv[n]*fkv[n]*norm);  //Z=14473
+                        params.CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln[n]*intl/((2.0*n+1)*(n+1)*fkv[n]*fkv[n]*params.norm);  //Z=14473
                         /*  F(q)-coefficient  */  //Z=14474
                         sump = 0.0;  //Z=14475
                         for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14476
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump*intl/(pow(4.0,n)*fkv[n]*fkv[n]*norm);  //Z=14477
+                        params.CR->carr1f[n] = fk2v[n]*xln[n]*sump*intl/(pow(4.0,n)*fkv[n]*fkv[n]*params.norm);  //Z=14477
                         /*  cross-sectional  */  //Z=14478
                         /*  P(q)-coefficient  */  //Z=14479
-                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  //Z=14480
+                        params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  //Z=14480
                         /*  F(q)-coefficient  */  //Z=14481
                         sump = 0.0;  //Z=14482
                         for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14483
-                        CR->carr4f[n] = xrn[n]*sump;  //Z=14484
+                        params.CR->carr4f[n] = xrn[n]*sump;  //Z=14484
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=14486
                             if ( n<n1 ) n1 = n;  //Z=14487
                         }/*7*/  //Z=14488
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=14489
                             if ( n<n4 ) n4 = n;  //Z=14490
                         }/*7*/  //Z=14491
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=14492
                             if ( n<n1f ) n1f = n;  //Z=14493
                         }/*7*/  //Z=14494
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=14495
                             if ( n<n4f ) n4f = n;  //Z=14496
                         }/*7*/  //Z=14497
@@ -8136,7 +7855,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 }/*5*/  /*  of cs=0  */  //Z=14499
 
                 /*  core/shell  */  //Z=14501
-                if ( cs==1 )
+                if ( params.cs==1 )
                 {/*5*/  //Z=14502
                     i = 2;  //Z=14503
                     for ( n=1; n<=nmax; n++ )
@@ -8153,26 +7872,26 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         xrmn_n = -xrmn_n*xrm2z;  //Z=14514
                         pn[n] = pn[n-1]*p*p;  //Z=14515
                         /*  longitudinal  */  //Z=14516
-                        qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);  //Z=14517
+                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);  //Z=14517
                         /*  P(q)-coefficient  */  //Z=14518
-                        CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln[n]*intl/((2.0*n+1)*(n+1)*fkv[n]*fkv[n]*norm);  //Z=14519
+                        params.CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln[n]*intl/((2.0*n+1)*(n+1)*fkv[n]*fkv[n]*params.norm);  //Z=14519
                         /*  F(q)-coefficient  */  //Z=14520
                         sump = 0.0;  //Z=14521
                         for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14522
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump*intl/(pow(4.0,n+1)*fkv[n]*fkv[n]*norm);  //Z=14523
+                        params.CR->carr1f[n] = fk2v[n]*xln[n]*sump*intl/(pow(4.0,n+1)*fkv[n]*fkv[n]*params.norm);  //Z=14523
                         /*  P(q)-coefficients  */  //Z=14524
                         /*  cross-sectional  */  //Z=14525
                         /*  F121  */  //Z=14526
-                        CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=14527
+                        params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=14527
                         /*  F122  */  //Z=14528
                         sump = 0.0;  //Z=14529
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14530
                             sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14531
                         }/*7*/  //Z=14532
-                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=14533
+                        params.CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=14533
                         /*  F123  */  //Z=14534
-                        CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=14535
+                        params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=14535
 
                         /*  F(q)-coefficients  */  //Z=14537
                         /*  cross-sectional  */  //Z=14538
@@ -8182,46 +7901,46 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=14541
                             sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14542
                         }/*7*/  //Z=14543
-                        CR->carr4f[n] = xrn[n]*sump;  //Z=14544
+                        params.CR->carr4f[n] = xrn[n]*sump;  //Z=14544
                         /*  F122  */  //Z=14545
                         sump = 0.0;  //Z=14546
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14547
                             sump = sump+pn[m]*z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14548
                         }/*7*/  //Z=14549
-                        CR->carr5f[n] = xrmn_n*sump;  //Z=14550
+                        params.CR->carr5f[n] = xrmn_n*sump;  //Z=14550
                         /*  F123  */  //Z=14551
-                        CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=14552
+                        params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=14552
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=14554
                             if ( n<n1 ) n1 = n;  //Z=14555
                         }/*7*/  //Z=14556
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=14557
                             if ( n<n4 ) n4 = n;  //Z=14558
                         }/*7*/  //Z=14559
-                        if ( fabs(CR->carr5p[n])<min )
+                        if ( fabs(params.CR->carr5p[n])<min )
                         {/*7*/  //Z=14560
                             if ( n<n5 ) n5 = n;  //Z=14561
                         }/*7*/  //Z=14562
-                        if ( fabs(CR->carr6p[n])<min )
+                        if ( fabs(params.CR->carr6p[n])<min )
                         {/*7*/  //Z=14563
                             if ( n<n6 ) n6 = n;  //Z=14564
                         }/*7*/  //Z=14565
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=14566
                             if ( n<n1f ) n1f = n;  //Z=14567
                         }/*7*/  //Z=14568
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=14569
                             if ( n<n4f ) n4f = n;  //Z=14570
                         }/*7*/  //Z=14571
-                        if ( fabs(CR->carr5f[n])<min )
+                        if ( fabs(params.CR->carr5f[n])<min )
                         {/*7*/  //Z=14572
                             if ( n<n5f ) n5f = n;  //Z=14573
                         }/*7*/  //Z=14574
-                        if ( fabs(CR->carr6f[n])<min )
+                        if ( fabs(params.CR->carr6f[n])<min )
                         {/*7*/  //Z=14575
                             if ( n<n6f ) n6f = n;  //Z=14576
                         }/*7*/  //Z=14577
@@ -8229,7 +7948,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 }/*5*/  /*  of cs=1  */  //Z=14579
 
                 /*  inhomogeneous core/shell  */  //Z=14582
-                if ( cs==2 )
+                if ( params.cs==2 )
                 {/*5*/  //Z=14583
                     i = 2;  //Z=14584
                     for ( n=1; n<=nmax; n++ )
@@ -8246,85 +7965,85 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         xrmn_n = -xrmn_n*xrm2z;  //Z=14595
                         pn[n] = pn[n-1]*p*p;  //Z=14596
                         /*  longitudinal  */  //Z=14597
-                        qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);  //Z=14598
+                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);  //Z=14598
                         /*  P(q)-coefficient  */  //Z=14599
-                        CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln[n]*intl/((2.0*n+1)*(n+1)*fkv[n]*fkv[n]*norm);  //Z=14600
+                        params.CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln[n]*intl/((2.0*n+1)*(n+1)*fkv[n]*fkv[n]*params.norm);  //Z=14600
                         /*  F(q)-coefficient  */  //Z=14601
                         sump = 0.0;  //Z=14602
                         for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14603
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump*intl/(pow(4.0,n+1)*fkv[n]*fkv[n]*norm);  //Z=14604
+                        params.CR->carr1f[n] = fk2v[n]*xln[n]*sump*intl/(pow(4.0,n+1)*fkv[n]*fkv[n]*params.norm);  //Z=14604
 
                         /*  cross-sectional P(q)  */  //Z=14606
-                        CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=14607
+                        params.CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v[n]*xrn[n]/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=14607
                         sump = 0.0;  //Z=14608
                         sump1 = 0.0;  //Z=14609
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14610
-                            sumi = 1/((m+1-alfa/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=14611
+                            sumi = 1/((m+1-params.alphash1/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=14611
                             sump = sump+pn[n-m]*sumi;  //Z=14612
                             sump1 = sump1+sumi;  //Z=14613
                         }/*7*/  //Z=14614
-                        CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;  //Z=14615
-                        CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n]*sump1;  //Z=14616
+                        params.CR->carr5p[n] = (1-a/2.0)*z12v[n]*xrmn_n*sump;  //Z=14615
+                        params.CR->carr6p[n] = (1-a/2.0)*z12v[n]*xrn[n]*sump1;  //Z=14616
                         sump = 0.0;  //Z=14617
                         sump1 = 0.0;  //Z=14618
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14619
-                            sumi = 1/((n-m+1-alfa/2.0)*(m+1-alfa/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=14620
+                            sumi = 1/((n-m+1-params.alphash1/2.0)*(m+1-params.alphash1/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=14620
                             sump = sump+sumi;  //Z=14621
                             sump1 = sump1+pn[n-m]*sumi;  //Z=14622
                         }/*7*/  //Z=14623
-                        CR->carr7p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump;  //Z=14624
-                        CR->carr8p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrmn_n*sump1;  //Z=14625
-                        CR->carr9p[n] = (1-alfa/2.0)*(1-alfa/2.0)*z12v[n]*xrn[n]*sump;  //Z=14626
+                        params.CR->carr7p[n] = sqr(1-params.alphash1/2.0)*z12v[n]*xrmn_n*sump;  //Z=14624
+                        params.CR->carr8p[n] = sqr(1-params.alphash1/2.0)*z12v[n]*xrmn_n*sump1;  //Z=14625
+                        params.CR->carr9p[n] = sqr(1-params.alphash1/2.0)*z12v[n]*xrn[n]*sump;  //Z=14626
 
                         /*  F(q)-coefficients  */  //Z=14641
                         /*  cross-sectional  */  //Z=14642
-                        CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);  //Z=14643
-                        CR->carr5f[n] = (1-alfa/2.0)*z12v[n]*xrmn_n/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=14644
-                        CR->carr6f[n] = (1-alfa/2.0)*z12v[n]*xrn[n]/((n+1-alfa/2.0)*fkv[n]*fkv[n]);  //Z=14645
+                        params.CR->carr4f[n] = z12v[n]*xrn[n]/((n+1)*fkv[n]*fkv[n]);  //Z=14643
+                        params.CR->carr5f[n] = (1-params.alphash1/2.0)*z12v[n]*xrmn_n/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=14644
+                        params.CR->carr6f[n] = (1-params.alphash1/2.0)*z12v[n]*xrn[n]/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=14645
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=14647
                             if ( n<n1 ) n1 = n;  //Z=14648
                         }/*7*/  //Z=14649
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=14650
                             if ( n<n4 ) n4 = n;  //Z=14651
                         }/*7*/  //Z=14652
-                        if ( fabs(CR->carr5p[n])<min )
+                        if ( fabs(params.CR->carr5p[n])<min )
                         {/*7*/  //Z=14653
                             if ( n<n5 ) n5 = n;  //Z=14654
                         }/*7*/  //Z=14655
-                        if ( fabs(CR->carr6p[n])<min )
+                        if ( fabs(params.CR->carr6p[n])<min )
                         {/*7*/  //Z=14656
                             if ( n<n6 ) n6 = n;  //Z=14657
                         }/*7*/  //Z=14658
-                        if ( fabs(CR->carr7p[n])<min )
+                        if ( fabs(params.CR->carr7p[n])<min )
                         {/*7*/  //Z=14659
                             if ( n<n7 ) n7 = n;  //Z=14660
                         }/*7*/  //Z=14661
-                        if ( fabs(CR->carr8p[n])<min )
+                        if ( fabs(params.CR->carr8p[n])<min )
                         {/*7*/  //Z=14662
                             if ( n<n8 ) n8 = n;  //Z=14663
                         }/*7*/  //Z=14664
-                        if ( fabs(CR->carr9p[n])<min )
+                        if ( fabs(params.CR->carr9p[n])<min )
                         {/*7*/  //Z=14665
                             if ( n<n9 ) n9 = n;  //Z=14666
                         }/*7*/  //Z=14667
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=14668
                             if ( n<n1f ) n1f = n;  //Z=14669
                         }/*7*/  //Z=14670
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=14671
                             if ( n<n4f ) n4f = n;  //Z=14672
                         }/*7*/  //Z=14673
-                        if ( fabs(CR->carr5f[n])<min )
+                        if ( fabs(params.CR->carr5f[n])<min )
                         {/*7*/  //Z=14674
                             if ( n<n5f ) n5f = n;  //Z=14675
                         }/*7*/  //Z=14676
-                        if ( fabs(CR->carr6f[n])<min )
+                        if ( fabs(params.CR->carr6f[n])<min )
                         {/*7*/  //Z=14677
                             if ( n<n6f ) n6f = n;  //Z=14678
                         }/*7*/  //Z=14679
@@ -8332,7 +8051,7 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 }/*5*/  /*  of cs=2  */  //Z=14681
 
                 /*  myelin  */  //Z=14683
-                if ( (cs==3) || (cs==4) )
+                if ( (params.cs==3) || (params.cs==4) )
                 {/*5*/  //Z=14684
                     i = 2;  //Z=14685
                     for ( n=1; n<=nmax; n++ )
@@ -8347,36 +8066,36 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         xln[n] = -xln[n-1]*xl2z;  //Z=14694
                         xrn[n] = -xrn[n-1]*x12zm;  //Z=14695
                         /*  longitudinal  */  //Z=14696
-                        qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);  //Z=14697
+                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);  //Z=14697
                         /*  P(q)-coefficient  */  //Z=14698
-                        CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln[n]*intl/((2.0*n+1)*(n+1)*fkv[n]*fkv[n]*norm);  //Z=14699
+                        params.CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln[n]*intl/((2.0*n+1)*(n+1)*fkv[n]*fkv[n]*params.norm);  //Z=14699
                         /*  F(q)-coefficient  */  //Z=14700
                         sump = 0.0;  //Z=14701
                         for ( m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14702
-                        CR->carr1f[n] = fk2v[n]*xln[n]*sump*intl/(pow(4.0,n)*fkv[n]*fkv[n]*norm);  //Z=14703
+                        params.CR->carr1f[n] = fk2v[n]*xln[n]*sump*intl/(pow(4.0,n)*fkv[n]*fkv[n]*params.norm);  //Z=14703
                         /*  cross-sectional  */  //Z=14704
                         /*  P(q)-coefficient  */  //Z=14705
-                        CR->carr4p[n] = z12v[n]*xrn[n];  //Z=14706
+                        params.CR->carr4p[n] = z12v[n]*xrn[n];  //Z=14706
 
                         /*  F(q)-coefficient  */  //Z=14708
                         sump = 0.0;  //Z=14709
                         for ( m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14710
-                        CR->carr4f[n] = xrn[n]*sump;  //Z=14711
+                        params.CR->carr4f[n] = xrn[n]*sump;  //Z=14711
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=14713
                             if ( n<n1 ) n1 = n;  //Z=14714
                         }/*7*/  //Z=14715
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=14716
                             if ( n<n4 ) n4 = n;  //Z=14717
                         }/*7*/  //Z=14718
 
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=14720
                             if ( n<n1f ) n1f = n;  //Z=14721
                         }/*7*/  //Z=14722
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=14723
                             if ( n<n4f ) n4f = n;  //Z=14724
                         }/*7*/  //Z=14725
@@ -8388,15 +8107,15 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
             if ( dim==2 )
             {/*4*/  //Z=14731
                 /*  homogeneous  */  //Z=14732
-                if ( cs==0 )
+                if ( params.cs==0 )
                 {/*5*/  //Z=14733
                     carr2i[0] = 1;  //Z=14734
                     for ( n=1; n<=nmax; n++ )
                     {/*6*/  //Z=14735
                         fkv[n] = fkv[n-1]*n;  //Z=14736
                         fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14737
-                        qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);  //Z=14738
-                        carr2i[n] = pow(-1,n)*fk2v[n]*intl/(pow(4.0,n)*fkv[n]*fkv[n]*fkv[n]*norm);  //Z=14739
+                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);  //Z=14738
+                        carr2i[n] = pow(-1,n)*fk2v[n]*intl/(pow(4.0,n)*fkv[n]*fkv[n]*fkv[n]*params.norm);  //Z=14739
                     }/*6*/  //Z=14740
                     for ( n=1; n<=nmax; n++ )
                     {/*6*/  //Z=14741
@@ -8412,45 +8131,45 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=14750
                             sump = sump+carr2i[m]/fkv[n-m];  //Z=14751
                         }/*7*/  //Z=14752
-                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]*sump/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14753
+                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]*sump/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14753
                         sump1 = 0.0;  //Z=14754
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14755
                             sump1 = sump1+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14756
                         }/*7*/  //Z=14757
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump1*sump;  //Z=14758
+                        params.CR->carr1f[n] = xln[n]*fkv[n]*sump1*sump;  //Z=14758
 
                         /*  cross-sectional  */  //Z=14760
-                        CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=14761
+                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=14761
                         sump = 0.0;  //Z=14762
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14763
                             sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14764
                         }/*7*/  //Z=14765
-                        CR->carr4f[n] = M_PI*xln[n]*sump/4.0;  //Z=14766
+                        params.CR->carr4f[n] = M_PI*xln[n]*sump/4.0;  //Z=14766
 
                         /*  series for <...> integration  */  //Z=14768
-                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14769
+                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14769
                         sump = 0.0;  //Z=14770
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14771
                             sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14772
                         }/*7*/  //Z=14773
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=14774
+                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=14774
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=14776
                             if ( n<n1 ) n1 = n;  //Z=14777
                         }/*7*/  //Z=14778
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=14779
                             if ( n<n4 ) n4 = n;  //Z=14780
                         }/*7*/  //Z=14781
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=14782
                             if ( n<n1f ) n1f = n;  //Z=14783
                         }/*7*/  //Z=14784
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=14785
                             if ( n<n4f ) n4f = n;  //Z=14786
                         }/*7*/  //Z=14787
@@ -8459,15 +8178,15 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
 
 
                 /*  core/shell  */  //Z=14792
-                if ( cs==1 )
+                if ( params.cs==1 )
                 {/*5*/  //Z=14793
                     carr2i[0] = 1;  //Z=14794
                     for ( n=1; n<=nmax; n++ )
                     {/*6*/  //Z=14795
                         fkv[n] = fkv[n-1]*n;  //Z=14796
                         fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14797
-                        qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);  //Z=14798
-                        carr2i[n] = pow(-1,n)*fk2v[n]*intl/(pow(4.0,n)*fkv[n]*fkv[n]*fkv[n]*norm);  //Z=14799
+                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);  //Z=14798
+                        carr2i[n] = pow(-1,n)*fk2v[n]*intl/(pow(4.0,n)*fkv[n]*fkv[n]*fkv[n]*params.norm);  //Z=14799
                     }/*6*/  //Z=14800
                     for ( n=1; n<=nmax; n++ )
                     {/*6*/  //Z=14801
@@ -8485,88 +8204,88 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=14812
                             sump = sump+carr2i[m]/fkv[n-m];  //Z=14813
                         }/*7*/  //Z=14814
-                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]*sump/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14815
+                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]*sump/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14815
                         sump1 = 0.0;  //Z=14816
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14817
                             sump1 = sump1+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14818
                         }/*7*/  //Z=14819
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump1*sump;  //Z=14820
+                        params.CR->carr1f[n] = xln[n]*fkv[n]*sump1*sump;  //Z=14820
 
                         /*  cross-sectional  */  //Z=14822
                         /*  F121  */  //Z=14823
-                        CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=14824
+                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn[n]/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=14824
                         /*  F122  */  //Z=14825
                         sump = 0.0;  //Z=14826
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14827
                             sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14828
                         }/*7*/  //Z=14829
-                        CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=14830
+                        params.CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=14830
                         /*  F122  */  //Z=14831
                         sump = 0.0;  //Z=14832
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14833
                             sump = sump+pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14834
                         }/*7*/  //Z=14835
-                        CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=14836
+                        params.CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=14836
                         /*  F123  */  //Z=14837
-                        CR->carr6p[n] = CR->carr4p[n]/pn[n];  //Z=14838
+                        params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=14838
                         /*  F121  */  //Z=14839
                         sump = 0.0;  //Z=14840
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14841
                             sump = sump+z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14842
                         }/*7*/  //Z=14843
-                        CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=14844
+                        params.CR->carr4f[n] = M_PI*xrn[n]*sump/4.0;  //Z=14844
                         /*  F122  */  //Z=14845
                         sump = 0.0;  //Z=14846
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14847
                             sump = sump+pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14848
                         }/*7*/  //Z=14849
-                        CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=14850
+                        params.CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=14850
                         /*  F123  */  //Z=14851
-                        CR->carr6f[n] = CR->carr4f[n]/pn[n];  //Z=14852
+                        params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=14852
 
                         /*  series for <...> integration  */  //Z=14854
-                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14855
+                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14855
                         sump = 0.0;  //Z=14856
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14857
                             sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14858
                         }/*7*/  //Z=14859
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=14860
+                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=14860
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=14862
                             if ( n<n1 ) n1 = n;  //Z=14863
                         }/*7*/  //Z=14864
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=14865
                             if ( n<n4 ) n4 = n;  //Z=14866
                         }/*7*/  //Z=14867
-                        if ( fabs(CR->carr5p[n])<min )
+                        if ( fabs(params.CR->carr5p[n])<min )
                         {/*7*/  //Z=14868
                             if ( n<n5 ) n5 = n;  //Z=14869
                         }/*7*/  //Z=14870
-                        if ( fabs(CR->carr6p[n])<min )
+                        if ( fabs(params.CR->carr6p[n])<min )
                         {/*7*/  //Z=14871
                             if ( n<n6 ) n6 = n;  //Z=14872
                         }/*7*/  //Z=14873
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=14874
                             if ( n<n1f ) n1f = n;  //Z=14875
                         }/*7*/  //Z=14876
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=14877
                             if ( n<n4f ) n4f = n;  //Z=14878
                         }/*7*/  //Z=14879
-                        if ( fabs(CR->carr5f[n])<min )
+                        if ( fabs(params.CR->carr5f[n])<min )
                         {/*7*/  //Z=14880
                             if ( n<n5f ) n5f = n;  //Z=14881
                         }/*7*/  //Z=14882
-                        if ( fabs(CR->carr6f[n])<min )
+                        if ( fabs(params.CR->carr6f[n])<min )
                         {/*7*/  //Z=14883
                             if ( n<n6f ) n6f = n;  //Z=14884
                         }/*7*/  //Z=14885
@@ -8574,15 +8293,15 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                 }/*5*/  /*  of cs=1  */  //Z=14887
 
                 /*  inhomogeneous core/shell  */  //Z=14889
-                if ( cs==2 )
+                if ( params.cs==2 )
                 {/*5*/  //Z=14890
                     carr2i[0] = 1;  //Z=14891
                     for ( n=1; n<=nmax; n++ )
                     {/*6*/  //Z=14892
                         fkv[n] = fkv[n-1]*n;  //Z=14893
                         fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14894
-                        qrombdeltac(l,r,params.p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,CR->carr1p,intl);  //Z=14895
-                        carr2i[n] = pow(-1,n)*fk2v[n]*intl/(pow(4.0,n)*fkv[n]*fkv[n]*fkv[n]*norm);  //Z=14896
+                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);  //Z=14895
+                        carr2i[n] = pow(-1,n)*fk2v[n]*intl/(pow(4.0,n)*fkv[n]*fkv[n]*fkv[n]*params.norm);  //Z=14896
                     }/*6*/  //Z=14897
                     for ( n=1; n<=nmax; n++ )
                     {/*6*/  //Z=14898
@@ -8600,105 +8319,105 @@ void SasCalc_GENERIC_calculation::coefficients( double l/*params.length*/, doubl
                         {/*7*/  //Z=14909
                             sump = sump+carr2i[m]/fkv[n-m];  //Z=14910
                         }/*7*/  //Z=14911
-                        CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]*sump/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14912
+                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]*sump/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14912
                         sump1 = 0.0;  //Z=14913
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14914
                             sump1 = sump1+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14915
                         }/*7*/  //Z=14916
-                        CR->carr1f[n] = xln[n]*fkv[n]*sump1*sump;  //Z=14917
+                        params.CR->carr1f[n] = xln[n]*fkv[n]*sump1*sump;  //Z=14917
 
                         /*  cross-sectional P(q)  */  //Z=14919
-                        CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);  //Z=14920
+                        params.CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn[n]/((n+1)*gam3[n]*fkv[n]);  //Z=14920
                         sump = 0.0;  //Z=14921
                         sump1 = 0.0;  //Z=14922
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14923
-                            sumi = (m+1/2.0)/((m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=14924
+                            sumi = (m+1/2.0)/((m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=14924
                             sump = sump+pn[n-m]*sumi;  //Z=14925
                             sump1 = sump1+sumi;  //Z=14926
                         }/*7*/  //Z=14927
-                        CR->carr5p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=14928
-                        CR->carr6p[n] = (M_PI/4.0)*(1-alfa)*z12v[n]*xrn[n]*sump1;  //Z=14929
+                        params.CR->carr5p[n] = (M_PI/4.0)*(1-params.alphash1)*z12v[n]*xrmn_n*sump;  //Z=14928
+                        params.CR->carr6p[n] = (M_PI/4.0)*(1-params.alphash1)*z12v[n]*xrn[n]*sump1;  //Z=14929
                         sump = 0.0;  //Z=14930
                         sump1 = 0.0;  //Z=14931
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14932
-                            sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-alfa/2.0)*(m+1/2.0-alfa/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=14933
+                            sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-params.alphash1/2.0)*(m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=14933
                             sump = sump+sumi;  //Z=14934
                             sump1 = sump1+pn[n-m]*sumi;  //Z=14935
                         }/*7*/  //Z=14936
-                        CR->carr7p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump;  //Z=14937
-                        CR->carr8p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrmn_n*sump1;  //Z=14938
-                        CR->carr9p[n] = (M_PI/4.0)*(1-alfa)*(1-alfa)*z12v[n]*xrn[n]*sump;  //Z=14939
+                        params.CR->carr7p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrmn_n*sump;  //Z=14937
+                        params.CR->carr8p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrmn_n*sump1;  //Z=14938
+                        params.CR->carr9p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrn[n]*sump;  //Z=14939
 
                         /*  F(q)  */  //Z=14959
-                        CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);  //Z=14960
-                        CR->carr5f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=14961
-                        CR->carr6f[n] = (sqrt(M_PI)*(1-alfa)/2.0)*z12v[n]*xrn[n]*(n+1)/((n+1/2.0-alfa/2.0)*gam3[n]*fkv[n]);  //Z=14962
+                        params.CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn[n]/(gam3[n]*fkv[n]);  //Z=14960
+                        params.CR->carr5f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=14961
+                        params.CR->carr6f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrn[n]*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=14962
 
                         /*  series for <...> integration  */  //Z=14964
-                        CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14965
+                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln[n]/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14965
                         sump = 0.0;  //Z=14966
                         for ( m=0; m<=n; m++ )
                         {/*7*/  //Z=14967
                             sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14968
                         }/*7*/  //Z=14969
-                        CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=14970
+                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln[n]*sump/(2.0*gam3[n]);  //Z=14970
 
-                        if ( fabs(CR->carr1p[n])<min )
+                        if ( fabs(params.CR->carr1p[n])<min )
                         {/*7*/  //Z=14972
                             if ( n<n1 ) n1 = n;  //Z=14973
                         }/*7*/  //Z=14974
-                        if ( fabs(CR->carr4p[n])<min )
+                        if ( fabs(params.CR->carr4p[n])<min )
                         {/*7*/  //Z=14975
                             if ( n<n4 ) n4 = n;  //Z=14976
                         }/*7*/  //Z=14977
-                        if ( fabs(CR->carr5p[n])<min )
+                        if ( fabs(params.CR->carr5p[n])<min )
                         {/*7*/  //Z=14978
                             if ( n<n5 ) n5 = n;  //Z=14979
                         }/*7*/  //Z=14980
-                        if ( fabs(CR->carr6p[n])<min )
+                        if ( fabs(params.CR->carr6p[n])<min )
                         {/*7*/  //Z=14981
                             if ( n<n6 ) n6 = n;  //Z=14982
                         }/*7*/  //Z=14983
-                        if ( fabs(CR->carr7p[n])<min )
+                        if ( fabs(params.CR->carr7p[n])<min )
                         {/*7*/  //Z=14984
                             if ( n<n7 ) n7 = n;  //Z=14985
                         }/*7*/  //Z=14986
-                        if ( fabs(CR->carr8p[n])<min )
+                        if ( fabs(params.CR->carr8p[n])<min )
                         {/*7*/  //Z=14987
                             if ( n<n8 ) n8 = n;  //Z=14988
                         }/*7*/  //Z=14989
-                        if ( fabs(CR->carr9p[n])<min )
+                        if ( fabs(params.CR->carr9p[n])<min )
                         {/*7*/  //Z=14990
                             if ( n<n9 ) n9 = n;  //Z=14991
                         }/*7*/  //Z=14992
-                        if ( fabs(CR->carr1f[n])<min )
+                        if ( fabs(params.CR->carr1f[n])<min )
                         {/*7*/  //Z=14993
                             if ( n<n1f ) n1f = n;  //Z=14994
                         }/*7*/  //Z=14995
-                        if ( fabs(CR->carr4f[n])<min )
+                        if ( fabs(params.CR->carr4f[n])<min )
                         {/*7*/  //Z=14996
                             if ( n<n4f ) n4f = n;  //Z=14997
                         }/*7*/  //Z=14998
-                        if ( fabs(CR->carr5f[n])<min )
+                        if ( fabs(params.CR->carr5f[n])<min )
                         {/*7*/  //Z=14999
                             if ( n<n5f ) n5f = n;  //Z=15000
                         }/*7*/  //Z=15001
-                        if ( fabs(CR->carr6f[n])<min )
+                        if ( fabs(params.CR->carr6f[n])<min )
                         {/*7*/  //Z=15002
                             if ( n<n6f ) n6f = n;  //Z=15003
                         }/*7*/  //Z=15004
-                        if ( fabs(CR->carr7f[n])<min )
+                        if ( fabs(params.CR->carr7f[n])<min )
                         {/*7*/  //Z=15005
                             if ( n<n7f ) n7f = n;  //Z=15006
                         }/*7*/  //Z=15007
-                        if ( fabs(CR->carr8f[n])<min )
+                        if ( fabs(params.CR->carr8f[n])<min )
                         {/*7*/  //Z=15008
                             if ( n<n8f ) n8f = n;  //Z=15009
                         }/*7*/  //Z=15010
-                        if ( fabs(CR->carr9f[n])<min )
+                        if ( fabs(params.CR->carr9f[n])<min )
                         {/*7*/  //Z=15011
                             if ( n<n9f ) n9f = n;  //Z=15012
                         }/*7*/  //Z=15013
@@ -8716,58 +8435,65 @@ Label99:  //Z=15068
     // lässt sich aber schlecht weiterrechnen. Daher hier die passenden Indizes verringern auf
     // den letzten gültigen Wert.
 #ifndef __CUDACC__
-    int n1sav=n1, n2sav=n2, n3sav=n3, n4sav=n4, n5sav=n5, n6sav=n6, n7sav=n7, n8sav=n8, n9sav=n9;
+    //int n1sav=n1, n2sav=n2, n3sav=n3, n4sav=n4, n5sav=n5, n6sav=n6, n7sav=n7, n8sav=n8, n9sav=n9;
+    //int n1fsav=n1f, n2fsav=n2f, n3fsav=n3f, n4fsav=n4f, n5fsav=n5f, n6fsav=n6f, n7fsav=n7f, n8fsav=n8f, n9fsav=n9f;
 #endif
-    while ( n1 > 1 && isinf(CR->carr1p[n1]) ) n1--;
-    while ( n2 > 1 && isinf(CR->carr2p[n2]) ) n2--;
-    while ( n3 > 1 && isinf(CR->carr3p[n3]) ) n3--;
-    while ( n4 > 1 && (isinf(CR->carr4p[n4]) /*|| fabs(CR->carr4p[n4])<1e-50*/) ) n4--; // hängt direkt
-    while ( n5 > 1 && isinf(CR->carr5p[n5]) ) n5--;
-    while ( n6 > 1 && isinf(CR->carr6p[n6]) ) n6--;
-    while ( n7 > 1 && isinf(CR->carr7p[n7]) ) n7--;
-    while ( n8 > 1 && isinf(CR->carr8p[n8]) ) n8--;
-    while ( n9 > 1 && isinf(CR->carr9p[n9]) ) n9--;
-    while ( n1 > 1 && isinf(CR->carr1f[n1]) ) n1--;
-    while ( n2 > 1 && isinf(CR->carr2f[n2]) ) n2--;
-    while ( n3 > 1 && isinf(CR->carr3f[n3]) ) n3--;
-    while ( n4 > 1 && isinf(CR->carr4f[n4]) ) n4--;
-    while ( n5 > 1 && isinf(CR->carr5f[n5]) ) n5--;
-    while ( n6 > 1 && isinf(CR->carr6f[n6]) ) n6--;
-    while ( n7 > 1 && isinf(CR->carr7f[n7]) ) n7--;
-    while ( n8 > 1 && isinf(CR->carr8f[n8]) ) n8--;
-    while ( n9 > 1 && isinf(CR->carr9f[n9]) ) n9--;
+    while ( n1  > 1 && (isinf(params.CR->carr1p[n1 ]) || fabs(params.CR->carr1p[n1 ])<1e-99) ) n1--;
+    while ( n2  > 1 && (isinf(params.CR->carr2p[n2 ]) || fabs(params.CR->carr2p[n2 ])<1e-99) ) n2--;
+    while ( n3  > 1 && (isinf(params.CR->carr3p[n3 ]) || fabs(params.CR->carr3p[n3 ])<1e-99) ) n3--;
+    while ( n4  > 1 && (isinf(params.CR->carr4p[n4 ]) || fabs(params.CR->carr4p[n4 ])<1e-99) ) n4--;
+    while ( n5  > 1 && (isinf(params.CR->carr5p[n5 ]) || fabs(params.CR->carr5p[n5 ])<1e-99) ) n5--;
+    while ( n6  > 1 && (isinf(params.CR->carr6p[n6 ]) || fabs(params.CR->carr6p[n6 ])<1e-99) ) n6--;
+    while ( n7  > 1 && (isinf(params.CR->carr7p[n7 ]) || fabs(params.CR->carr7p[n7 ])<1e-99) ) n7--;
+    while ( n8  > 1 && (isinf(params.CR->carr8p[n8 ]) || fabs(params.CR->carr8p[n8 ])<1e-99) ) n8--;
+    while ( n9  > 1 && (isinf(params.CR->carr9p[n9 ]) || fabs(params.CR->carr9p[n9 ])<1e-99) ) n9--;
+    while ( n1f > 1 && (isinf(params.CR->carr1f[n1f]) || fabs(params.CR->carr1f[n1f])<1e-99) ) n1f--;
+    while ( n2f > 1 && (isinf(params.CR->carr2f[n2f]) || fabs(params.CR->carr2f[n2f])<1e-99) ) n2f--;
+    while ( n3f > 1 && (isinf(params.CR->carr3f[n3f]) || fabs(params.CR->carr3f[n3f])<1e-99) ) n3f--;
+    while ( n4f > 1 && (isinf(params.CR->carr4f[n4f]) || fabs(params.CR->carr4f[n4f])<1e-99) ) n4f--;
+    while ( n5f > 1 && (isinf(params.CR->carr5f[n5f]) || fabs(params.CR->carr5f[n5f])<1e-99) ) n5f--;
+    while ( n6f > 1 && (isinf(params.CR->carr6f[n6f]) || fabs(params.CR->carr6f[n6f])<1e-99) ) n6f--;
+    while ( n7f > 1 && (isinf(params.CR->carr7f[n7f]) || fabs(params.CR->carr7f[n7f])<1e-99) ) n7f--;
+    while ( n8f > 1 && (isinf(params.CR->carr8f[n8f]) || fabs(params.CR->carr8f[n8f])<1e-99) ) n8f--;
+    while ( n9f > 1 && (isinf(params.CR->carr9f[n9f]) || fabs(params.CR->carr9f[n9f])<1e-99) ) n9f--;
     // Jetzt folgt erst die lim? Berechnung
-    lim1 = pow(fabs(CR->carr1p[n1]),-1/(2.0*n1));  //Z=15070
-    lim2 = pow(fabs(CR->carr2p[n2]),-1/(2.0*n2));  //Z=15071
-    lim3 = pow(fabs(CR->carr3p[n3]),-1/(2.0*n3));  //Z=15072
-    lim4 = pow(fabs(CR->carr4p[n4]),-1/(2.0*n4));  //Z=15073
-    lim5 = pow(fabs(CR->carr5p[n5]),-1/(2.0*n5));  //Z=15074
-    lim6 = pow(fabs(CR->carr6p[n6]),-1/(2.0*n6));  //Z=15075
-    lim7 = pow(fabs(CR->carr7p[n7]),-1/(2.0*n7));  //Z=15076
-    lim8 = pow(fabs(CR->carr8p[n8]),-1/(2.0*n8));  //Z=15077
-    lim9 = pow(fabs(CR->carr9p[n9]),-1/(2.0*n9));  //Z=15078
-    lim1f = pow(fabs(CR->carr1f[n1]),-1/(2.0*n1));  //Z=15079
-    lim2f = pow(fabs(CR->carr2f[n2]),-1/(2.0*n2));  //Z=15080
-    lim3f = pow(fabs(CR->carr3f[n3]),-1/(2.0*n3));  //Z=15081
-    lim4f = pow(fabs(CR->carr4f[n4]),-1/(2.0*n4));  //Z=15082
-    lim5f = pow(fabs(CR->carr5f[n5]),-1/(2.0*n5));  //Z=15083
-    lim6f = pow(fabs(CR->carr6f[n6]),-1/(2.0*n6));  //Z=15084
-    lim7f = pow(fabs(CR->carr7f[n7]),-1/(2.0*n7));  //Z=15085
-    lim8f = pow(fabs(CR->carr8f[n8]),-1/(2.0*n8));  //Z=15086
-    lim9f = pow(fabs(CR->carr9f[n9]),-1/(2.0*n9));  //Z=15087
+    params.limq1 = pow(fabs(params.CR->carr1p[n1]),-1/(2.0*n1));  //Z=15070
+    params.limq2 = pow(fabs(params.CR->carr2p[n2]),-1/(2.0*n2));  //Z=15071
+    params.limq3 = pow(fabs(params.CR->carr3p[n3]),-1/(2.0*n3));  //Z=15072
+    params.limq4 = pow(fabs(params.CR->carr4p[n4]),-1/(2.0*n4));  //Z=15073
+    params.limq5 = pow(fabs(params.CR->carr5p[n5]),-1/(2.0*n5));  //Z=15074
+    params.limq6 = pow(fabs(params.CR->carr6p[n6]),-1/(2.0*n6));  //Z=15075
+    params.limq7 = pow(fabs(params.CR->carr7p[n7]),-1/(2.0*n7));  //Z=15076
+    params.limq8 = pow(fabs(params.CR->carr8p[n8]),-1/(2.0*n8));  //Z=15077
+    params.limq9 = pow(fabs(params.CR->carr9p[n9]),-1/(2.0*n9));  //Z=15078
+    params.limq1f = pow(fabs(params.CR->carr1f[n1f]),-1/(2.0*n1f));  //Z=15079 Im Orginal-Pascalprogramm wurden hier
+    params.limq2f = pow(fabs(params.CR->carr2f[n2f]),-1/(2.0*n2f));  //Z=15080  auch die Variablen n1 bis n9 genutzt
+    params.limq3f = pow(fabs(params.CR->carr3f[n3f]),-1/(2.0*n3f));  //Z=15081  und nicht die jetzt hier stehenden
+    params.limq4f = pow(fabs(params.CR->carr4f[n4f]),-1/(2.0*n4f));  //Z=15082  n1f bis n9f, obwohl diese oben passend
+    params.limq5f = pow(fabs(params.CR->carr5f[n5f]),-1/(2.0*n5f));  //Z=15083  bestimmt worden sind...
+    params.limq6f = pow(fabs(params.CR->carr6f[n6f]),-1/(2.0*n6f));  //Z=15084
+    params.limq7f = pow(fabs(params.CR->carr7f[n7f]),-1/(2.0*n7f));  //Z=15085  TODO ?
+    params.limq8f = pow(fabs(params.CR->carr8f[n8f]),-1/(2.0*n8f));  //Z=15086
+    params.limq9f = pow(fabs(params.CR->carr9f[n9f]),-1/(2.0*n9f));  //Z=15087
+#ifndef __CUDACC__
+    //qDebug() << "              " << "limq4"<<params.limq4 << "limq4f"<<params.limq4f;
+#endif
 
 #ifndef __CUDACC__
-
-    qDebug() << "Label99:" << n1 << n1sav << "1p" << CR->carr1p[n1] << lim1 << "1f" << CR->carr1f[n1] << lim1f;
-    qDebug() << "        " << n2 << n2sav << "2p" << CR->carr2p[n2] << lim2 << "2f" << CR->carr2f[n2] << lim2f;
-    qDebug() << "        " << n3 << n3sav << "3p" << CR->carr3p[n3] << lim3 << "3f" << CR->carr3f[n3] << lim3f;
-    qDebug() << "        " << n4 << n4sav << "4p" << CR->carr4p[n4] << lim4 << "4f" << CR->carr4f[n4] << lim4f;
-    qDebug() << "        " << n5 << n5sav << "5p" << CR->carr5p[n5] << lim5 << "5f" << CR->carr5f[n5] << lim5f;
-    qDebug() << "        " << n6 << n6sav << "6p" << CR->carr6p[n6] << lim6 << "6f" << CR->carr6f[n6] << lim6f;
-    qDebug() << "        " << n7 << n7sav << "7p" << CR->carr7p[n7] << lim7 << "7f" << CR->carr7f[n7] << lim7f;
-    qDebug() << "        " << n8 << n8sav << "8p" << CR->carr8p[n8] << lim8 << "8f" << CR->carr8f[n8] << lim8f;
-    qDebug() << "        " << n9 << n9sav << "9p" << CR->carr9p[n9] << lim9 << "9f" << CR->carr9f[n9] << lim9f;
-
+/*
+#define CI(a1,n1,a2,n2,l) qPrintable(QString("%1:%2  %3:%4  %5").arg(n1,3).arg(a1[n1],12,'e',5).arg(n2,3).arg(a2[n2],12,'e',5).arg(l,8,'f',6))
+    qDebug() << "Label99: ?p:  n?:carr?p[n?]  n?sav:carr?p[n?sav]  lim?    | ?f: n?f:carr?f[n?f] n?fsav:carr?f[n?fsav]  lim?f";
+    qDebug() << "        " << "1p:" << CI(params.CR->carr1p,n1, params.CR->carr1p,n1sav, params.limq1) << "| 1f:" << CI(params.CR->carr1f,n1f, params.CR->carr1f,n1fsav, params.limq1f);
+    qDebug() << "        " << "2p:" << CI(params.CR->carr2p,n2, params.CR->carr2p,n2sav, params.limq2) << "| 2f:" << CI(params.CR->carr2f,n2f, params.CR->carr2f,n2fsav, params.limq2f);
+    qDebug() << "        " << "3p:" << CI(params.CR->carr3p,n3, params.CR->carr3p,n3sav, params.limq3) << "| 3f:" << CI(params.CR->carr3f,n3f, params.CR->carr3f,n3fsav, params.limq3f);
+    qDebug() << "        " << "4p:" << CI(params.CR->carr4p,n4, params.CR->carr4p,n4sav, params.limq4) << "| 4f:" << CI(params.CR->carr4f,n4f, params.CR->carr4f,n4fsav, params.limq4f);
+    qDebug() << "        " << "5p:" << CI(params.CR->carr5p,n5, params.CR->carr5p,n5sav, params.limq5) << "| 5f:" << CI(params.CR->carr5f,n5f, params.CR->carr5f,n5fsav, params.limq5f);
+    qDebug() << "        " << "6p:" << CI(params.CR->carr6p,n6, params.CR->carr6p,n6sav, params.limq6) << "| 6f:" << CI(params.CR->carr6f,n6f, params.CR->carr6f,n6fsav, params.limq6f);
+    qDebug() << "        " << "7p:" << CI(params.CR->carr7p,n7, params.CR->carr7p,n7sav, params.limq7) << "| 7f:" << CI(params.CR->carr7f,n7f, params.CR->carr7f,n7fsav, params.limq7f);
+    qDebug() << "        " << "8p:" << CI(params.CR->carr8p,n8, params.CR->carr8p,n8sav, params.limq8) << "| 8f:" << CI(params.CR->carr8f,n8f, params.CR->carr8f,n8fsav, params.limq8f);
+    qDebug() << "        " << "9p:" << CI(params.CR->carr9p,n9, params.CR->carr9p,n9sav, params.limq9) << "| 9f:" << CI(params.CR->carr9f,n9f, params.CR->carr9f,n9fsav, params.limq9f);
+#undef CI
+*/
 /*
     QFile fout(QString("carr11pm_ordis%1_dim%2_cs%3.csv").arg(ordis).arg(dim).arg(cs));
     if ( fout.open(QIODevice::WriteOnly) )
@@ -8779,7 +8505,7 @@ Label99:  //Z=15068
         for ( int n=0; n<imax2d_len && n<=120; n++ ) // imax2d_len=130+1
         {   str = QString("n=%1").arg(n,3);
             for ( int m=0; m<imax2d_len; m++ )
-                str += QString("; %1").arg(CR->carr11pm[n][m]);
+                str += QString("; %1").arg(params.CR->carr11pm[n][m]);
             fout.write(qPrintable(str+EOL));
         }
         //---
@@ -8790,47 +8516,47 @@ Label99:  //Z=15068
         //---
         str = "carr1p[n]";
         for ( int n=0; n<coeffarray_len && n<=120; n++ ) // coeffarray_len=150+1
-            str += QString("; %1").arg(CR->carr1p[n]);
+            str += QString("; %1").arg(params.CR->carr1p[n]);
         fout.write(qPrintable(str+EOL));
         //---
         str = "carr2p[n]";
         for ( int n=0; n<coeffarray_len && n<=120; n++ ) // coeffarray_len=150+1
-            str += QString("; %1").arg(CR->carr2p[n]);
+            str += QString("; %1").arg(params.CR->carr2p[n]);
         fout.write(qPrintable(str+EOL));
         //---
         str = "carr3p[n]";
         for ( int n=0; n<coeffarray_len && n<=120; n++ ) // coeffarray_len=150+1
-            str += QString("; %1").arg(CR->carr3p[n]);
+            str += QString("; %1").arg(params.CR->carr3p[n]);
         fout.write(qPrintable(str+EOL));
         //---
         str = "carr4p[n]";
         for ( int n=0; n<coeffarray_len && n<=120; n++ ) // coeffarray_len=150+1
-            str += QString("; %1").arg(CR->carr4p[n]);
+            str += QString("; %1").arg(params.CR->carr4p[n]);
         fout.write(qPrintable(str+EOL));
         //---
         str = "carr5p[n]";
         for ( int n=0; n<coeffarray_len && n<=120; n++ ) // coeffarray_len=150+1
-            str += QString("; %1").arg(CR->carr5p[n]);
+            str += QString("; %1").arg(params.CR->carr5p[n]);
         fout.write(qPrintable(str+EOL));
         //---
         str = "carr6p[n]";
         for ( int n=0; n<coeffarray_len && n<=120; n++ ) // coeffarray_len=150+1
-            str += QString("; %1").arg(CR->carr6p[n]);
+            str += QString("; %1").arg(params.CR->carr6p[n]);
         fout.write(qPrintable(str+EOL));
         //---
         str = "carr7p[n]";
         for ( int n=0; n<coeffarray_len && n<=120; n++ ) // coeffarray_len=150+1
-            str += QString("; %1").arg(CR->carr7p[n]);
+            str += QString("; %1").arg(params.CR->carr7p[n]);
         fout.write(qPrintable(str+EOL));
         //---
         str = "carr8p[n]";
         for ( int n=0; n<coeffarray_len && n<=120; n++ ) // coeffarray_len=150+1
-            str += QString("; %1").arg(CR->carr8p[n]);
+            str += QString("; %1").arg(params.CR->carr8p[n]);
         fout.write(qPrintable(str+EOL));
         //---
         str = "carr9p[n]";
         for ( int n=0; n<coeffarray_len && n<=120; n++ ) // coeffarray_len=150+1
-            str += QString("; %1").arg(CR->carr9p[n]);
+            str += QString("; %1").arg(params.CR->carr9p[n]);
         fout.write(qPrintable(str+EOL));
         //---
         fout.close();

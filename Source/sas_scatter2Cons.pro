@@ -28,13 +28,6 @@ SOURCES += \
     sc_simplexfit2d.cpp \
     widimage.cpp
 
-    #sc_calc_fcc.cpp \
-    #sc_calc_bct.cpp \
-    #sc_calc_bcc.cpp \
-    #sc_calc_fd3m.cpp \
-    #sc_calc_sc.cpp \
-    #sc_calc_hcp.cpp \
-
 HEADERS += \
     sc_calcCons.h \
     sc_postproc.h \
@@ -44,19 +37,6 @@ HEADERS += \
     sc_readdata.h \
     sc_simplexfit2d.h \
     widimage.h
-
-    #sc_calc_fcc.h \
-    #sc_calc_fcc_gpu.h \
-    #sc_calc_bct.h \
-    #sc_calc_bct_gpu.h \
-    #sc_calc_bcc.h \
-    #sc_calc_bcc_gpu.h \
-    #sc_calc_fd3m.h \
-    #sc_calc_fd3m_gpu.h \
-    #sc_calc_sc.h \
-    #sc_calc_sc_gpu.h \
-    #sc_calc_hcp.h \
-    #sc_calc_hcp_gpu.h \
 
 
 # Default rules for deployment.
@@ -68,12 +48,6 @@ else: unix:!android: target.path = /opt/sas_scatter2/bin
 # CUDA definitions
 CUDA_DIR = /usr/local/cuda   # Path to cuda sdk/toolkit install
 CUDA_SOURCES += sc_calc_generic_gpu.cu
-                #sc_calc_fcc_gpu.cu
-                #sc_calc_bct_gpu.cu
-                #sc_calc_bcc_gpu.cu \
-                #sc_calc_sc_gpu.cu \
-                #sc_calc_hcp_gpu.cu \
-                #sc_calc_fd3m_gpu.cu
 
 !exists($$CUDA_DIR/bin/nvcc) {
     # if no cuda support is installed, treat this as a normal c++ file
@@ -150,7 +124,6 @@ unix: { # exists(../fftw-3.3.9) {
 }
 
 DISTFILES += \
-    ConfigParams.ini \
     sc_libs_gpu.h \
     sc_memory_gpu.h \
     sc_memory_gpu.cu \

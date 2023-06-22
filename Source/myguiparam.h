@@ -30,6 +30,7 @@ public:
     static myGuiParam *setFitToggle(QWidget *w);
     static void        setFitToggleHelper(QSpinBox *w);
     static void        setFitToggleHelper(QDoubleSpinBox *w);
+    static myGuiParam *setOutputDbl(QWidget *w);
 
     static QComboBox      *getSelect(QString key);
     static QDoubleSpinBox *getInputDbl(QString key);
@@ -47,6 +48,7 @@ public:
     void setLocInputDbl(QWidget *w, QString on, double min, double max, int prec, double def, QString pref="", QString suff="");
     void setLocInputTog(QWidget *w, QString on);
     void setLocFitToggle(QWidget *w, QString on);
+    void setLocOutputDbl(QWidget *w, QString on);
 
     bool isFitEnabled() { return _fit != nullptr; }
     bool isFitUsed();
@@ -82,6 +84,7 @@ public:
     inline QCheckBox *tog() { return _tog; }
     inline QCheckBox *fit() { return _fit; }
     inline QLabel    *lbl() { return _lbl; }
+    inline QLineEdit *out() { return _out; }
 
 signals:
     void valueChanged();
@@ -93,6 +96,7 @@ private:
     QDoubleSpinBox *_inp, *_inp2, *_inp3;
     QCheckBox *_tog;
     QCheckBox *_fit;
+    QLineEdit *_out;
 
     QString _keyName, _keyName2, _keyName3;
 

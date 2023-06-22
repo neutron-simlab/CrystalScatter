@@ -4,27 +4,10 @@
  * Disadvantage: no code optimization due to partly used functions possible
  */
 
-//#include "sc_calc_generic_gpu.h"
-//#include <iostream>
-
 // THIS IS ONLY AN INCLUDE FILE FOR ANOTHER CLASS
 
-
-// Um den Code in den jeweiligen Berechnungsklassen doch etwas
-// kleiner zu halten, habe ich jede Routine mittels #ifdef ...
-// ausgeblendet und nur die verwendeten können eingeblendet werden.
-// Damit der QtCreator damit keine Probleme bekommt, und es leichter
-// zu schreiben ist, werden hier alle eingeblendet.
-/* */
-#ifndef USE_CLASSLIB
-#include "sc_libs_gpu.h"
-// 01. Feb. 2023: hier die #defines aus dem sc_calc_generic_gpu.cu übernommen und
-// dann alles, was auskommentiert ist, auch wirklich löschen. Der 'alte' Code wurde
-// am 26. Jan. 2023 ins git gesichert.
-// Der Grund ist, dass dieses File etwas übersichtlicher wird.
-#warning "CLASSLIB not defined"
-#endif // USE_CLASSLIB
-/* */
+// TODO: raus if ( i0 == 99 )
+// TODO: raus {   // TEST x²*y³
 
 
 #ifdef __CUDACC__
@@ -213,7 +196,7 @@ double SasCalc_GENERIC_calculation::polyvesicle(double q) const        //{NV}
 
 //(* ************************** 3d-integral over lorentz(x)*sin(x) ********************************* *)
 /**
- * @brief SasCalculation::lorentznorm3
+ * @brief SasCalc_GENERIC_calculation::lorentznorm3
  * @param a
  * @return
  */
@@ -244,7 +227,7 @@ double SasCalc_GENERIC_calculation::lorentznorm3(double a) const           //{NV
 
 //(* ************************** 3d-integral over gauss(x)*sin(x) ********************************* *)
 /**
- * @brief SasCalculation::gaussnorm3
+ * @brief SasCalc_GENERIC_calculation::gaussnorm3
  * @param a
  * @return
  */
@@ -275,7 +258,7 @@ double SasCalc_GENERIC_calculation::gaussnorm3(double a) const         //{NV}
 
 //(* ************************** 3d-integral over pearson(x)*sin(x) ********************************* *)
 /**
- * @brief SasCalculation::pearsonnorm3
+ * @brief SasCalc_GENERIC_calculation::pearsonnorm3
  * @param a
  * @param b
  * @return
@@ -323,7 +306,7 @@ double SasCalc_GENERIC_calculation::pearsonnorm3(double a, double b) const      
 
 //(* ********************* integration procedure for pearson(x)*sin(x) ***************************** *)
 /**
- * @brief SasCalculation::pearsonintegral3
+ * @brief SasCalc_GENERIC_calculation::pearsonintegral3
  * @param at
  * @param bt
  * @param a
@@ -375,25 +358,20 @@ void SasCalc_GENERIC_calculation::pearsonintegral3(double at, double bt, double 
 #define latpar3(a,b) latpar3ptr[latparIDX(a,b,14)]      // [5000][15], genutzt: 1 bis 12
 //#define latpar4(a,b) latpar4ptr[latparIDX(a,b, 2)]      // [5000][15], genutzt: nichts
 
-
 // Nur in prepareCalculation
-rvButtonHKLClick SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype, int *latpar1ptr, int *latpar2ptr )
+void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype, int *latpar1ptr, int *latpar2ptr ) const
 {   //Z=43355
 
     //const int np=20000;
-
-    rvButtonHKLClick retval = chgNone;
 
     int /*i,j,*/ii/*,jj*/,h,k,l,hmax,kmax,lmax;//,index,xpos,ypos,image1width,image1height;
     int /*c0,*/c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,mult,/*multmax,hlev,klev,llev,zlev,zvar,*/ct1;
     // Unbenutzte Variablen: c3, c5, c9, c11, c12, c14 - sie werden aber hier gelassen, da ich sie nicht aus den Zuweisungs-case rausnehmen will
     int ccase,c1case,c2case/*,c3case*/,c4case/*,c5case*/,c6case,c7case,c8case/*,c9case*/,c10case;//,c11case,c12case;
-    float a,b,c,alf,bet,gam; //,xmin,xmax,wave,ttheta,sinarg;
-    // bet wird gebraucht, wenn UseStringGrid12 definiert ist.
+    float a,b,c,alf,gam; //,xmin,xmax,wave,ttheta,sinarg;
 #ifdef UseStringGrid12
-    // bet gehört eigendlich hier hin, ist aber an vielen Stellen gesetzt
     int   ct;
-    float q, invd;
+    float q, invd, bet;
 #endif
     //float xcord1,ycord1,xcord2,ycord2,xcord3,ycord3,xcord4,ycord4,boxscale,xdir1,ydir1,xdir2,ydir2;
 #ifdef UseStringGrid12
@@ -1670,8 +1648,6 @@ rvButtonHKLClick SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype, int *la
         } // switch ComboBoxTriclinic
     } // if RadioButtonSysTriclinic
 
-    // To avoid compiler warnings, "use" the set but unused variables from the above selections
-    c3=c3; c5=c5; c9=c9; c11=c11; c12=c12; c14=c14;
 
     //(* update unit cell values *)         //{NV}-31652
     a=params.uca; // StrToFloat(EditCellA.Text);
@@ -1680,11 +1656,11 @@ rvButtonHKLClick SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype, int *la
     if ( a<=0 ) a=1e-10;
     if ( b<=0 ) b=1e-10;
     if ( c<=0 ) c=1e-10;
-    alf=params.alpha_deg * M_PI/180.;  // StrToFloat(EditCellAlpha.Text);
-    bet=params.beta_deg  * M_PI/180.;  // StrToFloat(EditCellBeta.Text);
-    gam=params.gamma_deg * M_PI/180.;  // StrToFloat(EditCellGamma.Text);
+    alf=params.ucalpha_deg * M_PI/180.;  // StrToFloat(EditCellAlpha.Text);
+    gam=params.ucgamma_deg * M_PI/180.;  // StrToFloat(EditCellGamma.Text);
 
 #ifdef UseStringGrid12
+    bet=params.ucbeta_deg  * M_PI/180.;  // StrToFloat(EditCellBeta.Text);
     amax=params.amax; // StrToFloat(EditAmax.Text);
     bmax=params.bmax; // StrToFloat(EditBmax.Text);
     cmax=params.cmax; // StrToFloat(EditCmax.Text);
@@ -1699,7 +1675,9 @@ rvButtonHKLClick SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype, int *la
     {
         c=a*100;
         alf=M_PI/2.;
+#ifdef UseStringGrid12
         bet=M_PI/2.;
+#endif
         kmin=0;
         kmax=0;
         lmin=0;
@@ -1709,40 +1687,40 @@ rvButtonHKLClick SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype, int *la
     {
         c=a*100;
         alf=M_PI/2.;
+#ifdef UseStringGrid12
         bet=M_PI/2.;
+#endif
         lmin=0;
         lmax=0;
     }
     if ( RadioButtonSysCubic ) // -31686
     {
-        b=a;  c=a;  alf=M_PI/2.;    bet=M_PI/2.;    gam=M_PI/2.;    //{NV}-31687
+        b=a;  c=a;    alf=M_PI/2.;  gam=M_PI/2.;    //{NV}-31687
 #ifdef UseStringGrid12
-        bmax=amax;  cmax=amax;
+        bet=M_PI/2.;  bmax=amax;    cmax=amax;
 #endif
-        params.ucb = b;
-        params.ucc = c;
-        retval = chgBC;
         //EditCellb.Text:=FloatToStr(b);  EditCellc.Text:=FloatToStr(c);
     }
     if ( RadioButtonSysTetragonal )
     {
-        b=a;  alf=M_PI/2.0;  bet=M_PI/2.0;   gam=M_PI/2.0;
+        b=a;  alf=M_PI/2.0;  gam=M_PI/2.0;
 #ifdef UseStringGrid12
-        bmax=amax;
+        bet=M_PI/2.0;  bmax=amax;
 #endif
-        params.ucb = b;
-        retval = chgB;
         //EditCellb.Text:=FloatToStr(b);
     }
     if ( RadioButtonSysOrtho )
     {
-        alf=M_PI/2.;  bet=M_PI/2.;  gam=M_PI/2.;
+        alf=M_PI/2.;  gam=M_PI/2.;
+#ifdef UseStringGrid12
+        bet=M_PI/2.;
+#endif
     }
     if ( RadioButtonSysHex )
     {
-        b=a; alf=M_PI/2.;  bet=M_PI/2.;  gam=2*M_PI/3.;
+        b=a; alf=M_PI/2.;  gam=2*M_PI/3.;
 #ifdef UseStringGrid12
-        bmax=amax;
+        bet=M_PI/2.;  bmax=amax;
 #endif
         //EditCellb.Text:=FloatToStr(b);
     }
@@ -1753,17 +1731,10 @@ rvButtonHKLClick SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype, int *la
             b=a;
 #ifdef UseStringGrid12
             bmax=amax;
+            bet=M_PI/2.;
 #endif
             alf=M_PI/2.;
-            bet=M_PI/2.;
             gam=2*M_PI/3.;
-            // a wurde ja nicht geändert
-            params.ucb = b;
-            params.ucc = c;
-            params.alpha_deg = alf*180.0/M_PI;
-            params.beta_deg  = bet*180.0/M_PI;
-            params.gamma_deg = gam*180.0/M_PI;
-            retval = chgBCabc;
             //EditCellA.Text:=FloatToStr(a);
             //EditCellB.Text:=FloatToStr(b);
             //EditCellC.Text:=FloatToStr(c);
@@ -1780,16 +1751,9 @@ rvButtonHKLClick SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype, int *la
 #ifdef UseStringGrid12
             bmax=amax;
             cmax=amax;
-#endif
             bet=alf;
+#endif
             gam=alf;
-            // a wurde ja nicht geändert
-            params.ucb = b;
-            params.ucc = c;
-            params.alpha_deg = alf*180.0/M_PI;
-            params.beta_deg  = bet*180.0/M_PI;
-            params.gamma_deg = gam*180.0/M_PI;
-            retval = chgBCabc;
             //EditCellA.Text:=FloatToStr(a);
             //EditCellB.Text:=FloatToStr(b);
             //EditCellC.Text:=FloatToStr(c);
@@ -1805,13 +1769,22 @@ rvButtonHKLClick SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype, int *la
         switch ( c13 )
         {
         case 0:  //(* unique axis a *)
-            alf=gam;      bet=M_PI/2.;    gam=M_PI/2.;
+            alf=gam;      gam=M_PI/2.;
+#ifdef UseStringGrid12
+            bet=M_PI/2.;
+#endif
             break;
         case 1:  //(* unique axis b *)
-            bet=gam;      alf=M_PI/2.;    gam=M_PI/2.;
+            alf=M_PI/2.;    gam=M_PI/2.;
+#ifdef UseStringGrid12
+            bet=gam;
+#endif
             break;
         case 2:  //(* unique axis c *)
-            alf=M_PI/2.;     bet=M_PI/2.;
+            alf=M_PI/2.;
+#ifdef UseStringGrid12
+            bet=M_PI/2.;
+#endif
             break;
         } // switch c13
     }
@@ -2419,15 +2392,14 @@ rvButtonHKLClick SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype, int *la
         }  //(* of hkl-loop *)
     }  //(* of ii=1,2-case *)
 
-    return retval;
 } /* ButtonHKLClick() */
 
 
 
 // Nur in prepareCalculation
 void SasCalc_GENERIC_calculation::fhkl_c( int lat, int h, int k, int l,
-                       double uca, double ucb, double ucc, double /*ucalpha_deg*/, double /*ucbeta_deg*/,
-                       double ucgamma_deg, double &sphno, double &fhkl, double &qhkl, double &qhkl0 ) const
+                                         double &sphno, double &fhkl, double &qhkl,
+                                         double &qhkl0 ) const
 {
     // 'fhkl' wird im rufenden Programm zwar noch in einem Array (latpar?) gespeichert, aber dann
     // nirgendwo weiter verwendet. Daher wird es hier auch nicht gesetzt und kann langfristig
@@ -2438,12 +2410,12 @@ void SasCalc_GENERIC_calculation::fhkl_c( int lat, int h, int k, int l,
     //double /*s2a,*/c1a,/*c2a,c3a,*/c1b,/*c2b,s2b,*/c1g; //,c2g,s2g;
     float r[13][4]; // array[1..12,1..3] of real;
 
-    a=uca;
-    b=ucb;
-    c=ucc;
-    //alf=ucalpha_deg*M_PI/180.;
-    //bet=ucbeta_deg*M_PI/180.;
-    gam=ucgamma_deg*M_PI/180.;
+    a=params.uca;
+    b=params.ucb;
+    c=params.ucc;
+    //alf=params.ucalpha_deg*M_PI/180.;
+    //bet=params.ucbeta_deg*M_PI/180.;
+    gam=params.ucgamma_deg*M_PI/180.;
 
     //s2a=sin(alf)*sin(alf);
     //c1a=cos(alf);
@@ -3316,7 +3288,7 @@ void SasCalc_GENERIC_calculation::extinction( int lat, int h, int k, int l, int 
 #ifdef __CUDACC__
 __host__ __device__
 #endif
-//void CLASSLIB::trapzddeltac( double a, double b, double l, double r, double dbeta, double theta, double phi,
+//void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, double r, double dbeta, double theta, double phi,
 //                             double qx, double qy, double qz, double p11, double p12, double p13, double p21,
 //                             double p22, double p23, double p31, double p32, double p33,
 //                             double qxn, double qyn, double qzn, double qhkl, double ax1n, double ax2n, double ax3n,
@@ -3337,7 +3309,7 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
 {
     int j;  //Zupq1=2045
     double x, tnm, sump, /*sumf, sumn, sums,*/ del;  //Zupq1=2046
-    double /*fa, fb, fx,*/ pa, pb, px; //na, nb, nx, sa, sb, sx;  //Zupq1=2047
+    double /*fa, fb, fx,*/ pa, pb, px; //, na, nb, nx, sa, sb, sx;  //Zupq1=2047
 
     if ( n==1 )
     {/*2*/  //Zupq1=2050
@@ -3347,8 +3319,8 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
             switch ( i2 )
             {
             case 5: /*  delta and chi integration  */  //Zupq1=2052
-                qrombchid(l,r,p1,sigma,alfa,dbeta,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pa);  //Zupq1=2053
-                qrombchid(l,r,p1,sigma,alfa,dbeta,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pb);  //Zupq1=2054
+                qrombchid(l,r,p1,sigma,alfa,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pa);  //Zupq1=2053
+                qrombchid(l,r,p1,sigma,alfa,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pb);  //Zupq1=2054
                 pa = pa/(2.0*M_PI);  //Zupq1=2055
                 pb = pb/(2.0*M_PI);  //Zupq1=2056
                 break;  //Zupq1=2057
@@ -3393,7 +3365,7 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
             case 0: /*  Gauss  */  //Zupq1=2096
                 pa = sin(a)*exp(-a*a/(dbeta*dbeta))*(3*cos(a)*cos(a)-1)/2.0;  //Zupq1=2097
                 pb = sin(b)*exp(-b*b/(dbeta*dbeta))*(3*cos(b)*cos(b)-1)/2.0;  //Zupq1=2098
-                break;  //Zupq1=2099
+                break;;  //Zupq1=2099
             case 1: /*  Exponential  */  //Zupq1=2100
                 pa = sin(a)*exp(-a/dbeta)*(3*cos(a)*cos(a)-1)/2.0;  //Zupq1=2101
                 pb = sin(b)*exp(-b/dbeta)*(3*cos(b)*cos(b)-1)/2.0;  //Zupq1=2102
@@ -3405,8 +3377,8 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
             }  //Zupq1=2110
             break;
         case 4:   /*  cylinder formfactor  */  //Zupq1=2111
-            qrombchid(l,r,p1,sigma,alfa,dbeta,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pa);  //Zupq1=2112
-            qrombchid(l,r,p1,sigma,alfa,dbeta,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pb);  //Zupq1=2113
+            qrombchid(l,r,p1,sigma,alfa,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pa);  //Zupq1=2112
+            qrombchid(l,r,p1,sigma,alfa,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pb);  //Zupq1=2113
             switch ( i2 )
             {
             case 0: /*  Gauss  */  //Zupq1=2114
@@ -3424,8 +3396,8 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
             }  //Zupq1=2126
             break;
         case 5:   /*  unit cell rotation  */  //Zupq1=2127
-            qrombchid(l,r,p1,sigma,alfa,dbeta,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pa);  //Zupq1=2128
-            qrombchid(l,r,p1,sigma,alfa,dbeta,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pb);  //Zupq1=2129
+            qrombchid(l,r,p1,sigma,alfa,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pa);  //Zupq1=2128
+            qrombchid(l,r,p1,sigma,alfa,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pb);  //Zupq1=2129
             switch ( i2 )
             {
             case 0: /*  Gauss  */  //Zupq1=2130
@@ -3443,8 +3415,8 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
             }  //Zupq1=2142
             break;
         case 6:   /*  disk formfactor  */  //Zupq1=2143
-            qrombchid(l,r,p1,sigma,alfa,dbeta,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pa);  //Zupq1=2144
-            qrombchid(l,r,p1,sigma,alfa,dbeta,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pb);  //Zupq1=2145
+            qrombchid(l,r,p1,sigma,alfa,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pa);  //Zupq1=2144
+            qrombchid(l,r,p1,sigma,alfa,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pb);  //Zupq1=2145
             switch ( i2 )
             {
             case 0: /*  Gauss  */  //Zupq1=2146
@@ -3464,23 +3436,26 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
             }  //Zupq1=2160
             break;
         case 7:    /*  cube-, triaxial ellipsoid-integration  */  //Zupq1=2161
-            qrombchid(l,r,p1,sigma,alfa,dbeta,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pa);  //Zupq1=2162
-            qrombchid(l,r,p1,sigma,alfa,dbeta,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pb);  //Zupq1=2163
+            qrombchid(l,r,p1,sigma,alfa,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pa);  //Zupq1=2162
+            qrombchid(l,r,p1,sigma,alfa,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pb);  //Zupq1=2163
             pa = pa*sin(a);  //Zupq1=2164
             pb = pb*sin(b);  //Zupq1=2165
             break;  //Zupq1=2166
         case 8:   /*  superball integration  */  //Zupq1=2167
-            qrombchid(l,r,p1,sigma,alfa,dbeta,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pa);  //Zupq1=2168
-            qrombchid(l,r,p1,sigma,alfa,dbeta,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pb);  //Zupq1=2169
+            qrombchid(l,r,p1,sigma,alfa,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pa);  //Zupq1=2168
+            qrombchid(l,r,p1,sigma,alfa,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pb);  //Zupq1=2169
             /* pa:=1.05;  //Zupq1=2170 */
             /* pb:=1.0;  //Zupq1=2171 */
             break;  //Zupq1=2172
         } // switch i0
-        pq = 0.5*(b-a)*(pa+pb);  //Zupq1=2173
-        DSM(
+        if ( i0 == 99 )
+            pq = pa + pb;
+        else
+            pq = 0.5*(b-a)*(pa+pb);  //Zupq1=2173
+        //DSM(
         //if ( fabs(pq) < 1.0e-170 )
         //    qDebug() << "trapzddeltac(1)" << pa << pb << pq << "i?" << i0 << i1 << i2 << i3 << i4;
-        )
+        //)
         trapzddeltac_cnt = 1;  //Zupq1=2174
         DCNT( dbgCount++; )
     }
@@ -3505,7 +3480,7 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
                 switch ( i2 )
                 {
                 case 5:  /*  delta and chi integration  */  //Zupq1=2184
-                    qrombchid(l,r,p1,sigma,alfa,dbeta,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,px);  //Zupq1=2185
+                    qrombchid(l,r,p1,sigma,alfa,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,px);  //Zupq1=2185
                     px = px/(2.0*M_PI);  //Zupq1=2186
                     break;  //Zupq1=2187
                     /*  just delta integration  */  //Zupq1=2188
@@ -3538,21 +3513,21 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
             /* if i0=3 then px:=sin(x)*exp(-(x-pi/2)*(x-pi/2)/(dbeta*dbeta))*(3*cos(x)*cos(x)-1)/2;  //Zupq1=2208 */
 
             case 4:  /*  cylinder formfactor  */  //Zupq1=2210
-                qrombchid(l,r,p1,sigma,alfa,dbeta,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,px);  //Zupq1=2211
+                qrombchid(l,r,p1,sigma,alfa,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,px);  //Zupq1=2211
                 if ( i2==0 ) px = sin(x)*exp(-x*x/(dbeta*dbeta))*px/(2.0*M_PI);   /*  Gauss  */  //Zupq1=2212
                 if ( i2==1 ) px = sin(x)*exp(-x/dbeta)*px/(2.0*M_PI);   /*  Exponential  */  //Zupq1=2213
                 if ( i2==2 ) px = sin(x)*exp(-sin(x)/dbeta)*px/(2.0*M_PI);   /*  Onsager  */  //Zupq1=2214
                 break;  //Zupq1=2215
 
             case 5:  /*  unit cell rotation  */  //Zupq1=2216
-                qrombchid(l,r,p1,sigma,alfa,dbeta,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,px);  //Zupq1=2217
+                qrombchid(l,r,p1,sigma,alfa,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,px);  //Zupq1=2217
                 if ( i2==0 ) px = 8*sin(x)*exp(-x*x/(dbeta*dbeta))*px/(2.0*M_PI*pow(M_PI,3/2.0)*sigx*sigy*sigz);  /*  Gauss  */  //Zupq1=2218
                 if ( i2==1 ) px = 8*sin(x)*exp(-x/dbeta)*px/(2.0*M_PI*pow(M_PI,3/2.0)*sigx*sigy*sigz);  /*  Exponential  */  //Zupq1=2219
                 if ( i2==2 ) px = 8*sin(x)*exp(-sin(x)/dbeta)*px/(2.0*M_PI*pow(M_PI,3/2.0)*sigx*sigy*sigz);  /*  Onsager  */  //Zupq1=2220
                 break;  //Zupq1=2221
 
             case 6:  /*  disk formfactor  */  //Zupq1=2222
-                qrombchid(l,r,p1,sigma,alfa,dbeta,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,px);  //Zupq1=2223
+                qrombchid(l,r,p1,sigma,alfa,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,px);  //Zupq1=2223
                 if ( i2==0 ) px = sin(x)*exp(-x*x/(dbeta*dbeta))*px/(2.0*M_PI);  /*  Gauss  */  //Zupq1=2224
                 if ( i2==1 ) px = sin(x)*exp(-x/dbeta)*px/(2.0*M_PI);  /*  Exponential  */  //Zupq1=2225
                 if ( i2==2 ) px = sin(x)*exp(-sin(x)/dbeta)*px/(2.0*M_PI);  /*  Onsager  */  //Zupq1=2226
@@ -3560,12 +3535,12 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
                 break;  //Zupq1=2228
 
             case 7:  /*  cube-, triaxial ellipsoid-integration  */  //Zupq1=2229
-                qrombchid(l,r,p1,sigma,alfa,dbeta,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,px);  //Zupq1=2230
+                qrombchid(l,r,p1,sigma,alfa,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,px);  //Zupq1=2230
                 px = px*sin(x);  //Zupq1=2231
                 break;  //Zupq1=2232
 
             case 8:  /*  superball integration  */  //Zupq1=2233
-                qrombchid(l,r,p1,sigma,alfa,dbeta,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,px);  //Zupq1=2234
+                qrombchid(l,r,p1,sigma,alfa,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,px);  //Zupq1=2234
                 /* px:=0.99;  //Zupq1=2235 */
                 break;  //Zupq1=2236
             } // switch i0
@@ -3664,16 +3639,49 @@ void SasCalc_GENERIC_calculation::polint( double *xa/*RealArrayNP*/, double *ya/
 #ifdef __CUDACC__
 __host__ __device__
 #endif
-// Parameter r darf nicht wegfallen, da er meistens <params.radius> ist, aber auch mal <params.length> oder lokale Variablen übergeben werden
-//void CLASSLIB::qrombdeltac( double l, double r, /*p1*/ /*sigma*/ /*dbeta*/ double theta, double phi, double qx, double qy, double qz,
-//                            double qxn, double qyn, double qzn, double qhkl, double ax1n, double ax2n, double ax3n,
-//                            double ax1x, double ax1y, double ax1z, double ax2x, double ax2y, double ax2z,
-//                            double ax3x, double ax3y, double ax3z, double sigx, double sigy, double sigz,
-//                            int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
-//                            double *carr1,
-//                            double &pq ) const
+//void SasCalc_GENERIC_calculation::qrombdeltac(
+//    double l,     = params.length   -> raus
+//    double r,     = params.radius   -> raus
+//    double p1,    = params.p1 | params.radiusi(nur einmal)   ==> bleibt
+//    double sigma, = params.sigma | sigmal(formpq-Parameter) | params.sigmal   ==> bleibt
+//    double alfa,  = params.alphash | params.alpha   ==> bleibt
+//    double dbeta, = params.dbeta   -> raus
+//    double theta, = params.polTheta | theta(loc.Var)   ==> bleibt
+//    double phi,   = params.polPhi | phi(loc.Var)   ==> bleibt
+//    double qx,    = qx(loc.Var) | qxs(Param) | 1   ==> bleibt
+//    double qy,    = qy(loc.Var) | qys(Param) | 1   ==> bleibt
+//    double qz,    = qz(loc.Var) | 1   ==> bleibt
+//    double qxn,   = 9 | qxhkl(loc.Var)   ==> bleibt
+//    double qyn,   = 9 | qyhkl(loc.Var)   ==> bleibt
+//    double qzn,   = 9 | qzhkl(loc.Var)   ==> bleibt
+//    double qhkl,  = 9 | qhkl(loc.Var)   ==> bleibt
+//    double ax1n,  = 9 | params.ax1.length()
+//    double ax2n,  = 9 | params.ax2.length()
+//    double ax3n,  = 9 | params.ax3.length()
+//    double ax1x,  = 9 | params.ax1.x()
+//    double ax1y,  = 9 | params.ax1.y()
+//    double ax1z,  = 9 | params.ax1.z()
+//    double ax2x,  = 9 | params.ax2.x()
+//    double ax2y,  = 9 | params.ax2.y()
+//    double ax2z,  = 9 | params.ax2.z()
+//    double ax3x,  = 9 | params.ax3.x()
+//    double ax3y,  = 9 | params.ax3.y()
+//    double ax3z,  = 9 | params.ax3.z()
+//    double sigx,  = 9 | params.sig.x()
+//    double sigy,  = 9 | params.sig.y()
+//    double sigz,  = 9 | params.sig.z()
+//    int ordis,    = ordis(Param in formpq) | params.ordis   ==> bleibt
+//    int dim,      = 2 | 3 u.a.   ==> bleibt
+//    int i0,       = 6 | 5 u.a.   ==> bleibt
+//    int i1,       = params.orcase+7 | 6 u.a.   ==> bleibt
+//    int i2,       = 0 u.a.   ==> bleibt
+//    int i3,       = 0 u.a.   ==> bleibt
+//    int i4,       = 0 u.a.   ==> bleibt
+//    double *carr1,= params.CR->carr2p | params.CR->carr1p   ==> bleibt
+//    double &pq    = (Returnwert)
+//   ) const
 
-void SasCalc_GENERIC_calculation::qrombdeltac( double l, double r, double p1, double sigma, double alfa, double dbeta,
+void SasCalc_GENERIC_calculation::qrombdeltac( double p1, double sigma, double alfa,
                             double theta, double phi, double qx, double qy, double qz,
                             double qxn, double qyn, double qzn, double qhkl, double ax1n, double ax2n,
                             double ax3n, double ax1x, double ax1y, double ax1z, double ax2x, double ax2y,
@@ -3720,15 +3728,12 @@ void SasCalc_GENERIC_calculation::qrombdeltac( double l, double r, double p1, do
     //memset( dp, 0, sizeof(dp) );
 
     // params.dbeta ist die globale Variable in Grad.
-    dbeta = dbeta*M_PI/180.0;  //Zupq1=2247
+    double dbeta = params.dbeta*M_PI/180.0;  //Zupq1=2247
     theta = theta*M_PI/180.0;  //Zupq1=2248
     phi = phi*M_PI/180.0;  //Zupq1=2249
 
-    DCL( qDebug() << "   qrombdeltac(" << r << theta << phi << "qx/y/z" << qx << qy << qz << "..." // nur Kurzform
+    DCL( qDebug() << "   qrombdeltac(" << params.radius << theta << phi << "qx/y/z" << qx << qy << qz << "..." // nur Kurzform
                                        << "i?" << i0 << i1 << i2 << i3 << i4 << " ) sigma:" << params.sigma );
-
-    // aus fcc*.cu kommen: ,FCC.ordis,  3, 5, 6, 0, 0, 0,
-    //                     ,int ordis,dim,i0,i1,i2,i3,i4,
 
     /*  search for maximum integration angle  */  //Zupq1=2250
     if ( (i2==0) || (i2==2) || (i2==3) || (i2==5) ) delmax = dbeta*sqrt(log(1.0/prmin));  /*  Gaussian, Onsager, Maier-Saupe, Laguerre  */  //Zupq1=2251
@@ -3775,7 +3780,7 @@ void SasCalc_GENERIC_calculation::qrombdeltac( double l, double r, double p1, do
     hp[1] = 1.0;  //Zupq1=2293
     for ( j=1; j<=jmax; j++ )
     {/*2*/  //Zupq1=2294
-        trapzddeltac(alim,blim,l,r,p1,sigma,alfa,dbeta,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,
+        trapzddeltac(alim,blim,params.length,params.radius,p1,sigma,alfa,dbeta,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,
                      qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,
                      ordis,dim,i0,i1,i2,i3,i4,carr1,sp[j],j, trapzddeltac_cnt );  //Zupq1=2295
         if ( j>=k )
@@ -3818,7 +3823,7 @@ void SasCalc_GENERIC_calculation::qrombdeltac( double l, double r, double p1, do
 #ifdef __CUDACC__
 __host__ __device__
 #endif
-//void CLASSLIB::qrombchid( double l, double r, double sigma, double dbeta, double delta, double theta, double phi,
+//void SasCalc_GENERIC_calculation::qrombchid( double l, double r, double sigma, double dbeta, double delta, double theta, double phi,
 //                          double qx, double qy, double qz, double p11, double p12, double p13, double p21,
 //                          double p22, double p23, double p31, double p32, double p33,
 //                          double qxn, double qyn, double qzn, double qhkl, double ax1n, double ax2n, double ax3n,
@@ -3827,7 +3832,7 @@ __host__ __device__
 //                          int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
 //                          double *carr1, // NEU
 //                          double &pq ) const
-void SasCalc_GENERIC_calculation::qrombchid( double l, double r, double p1, double sigma, double alfa, double dbeta, double delta,
+void SasCalc_GENERIC_calculation::qrombchid( double l, double r, double p1, double sigma, double alfa, double delta,
                     double theta, double phi, double qx, double qy, double qz, double p11, double p12, double p13,
                     double p21, double p22, double p23, double p31, double p32, double p33, double qxn, double qyn,
                     double qzn, double qhkl, double ax1n, double ax2n, double ax3n, double ax1x, double ax1y,
@@ -3894,7 +3899,7 @@ void SasCalc_GENERIC_calculation::qrombchid( double l, double r, double p1, doub
     for ( j=1; j<=jmax; j++ )
     {/*2*/  //Zupq1=1450
         /* trapzdchid(alim,blim,l,r,p1,rho,alfa,sigmal,sigma,cc0,cc1,cc2,cc3,cc4,cc5,cc6,cc7,cc8,dbeta,phi,theta,qxn,qyn,qzn,q,maxit,i0,i1,i2,i3,i4,sp^[j],j);  //Zupq1=1451 */
-        trapzdchid(alim,blim,l,r,p1,sigma,alfa,dbeta,delta,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,
+        trapzdchid(alim,blim,l,r,p1,sigma,alfa,delta,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,
                    p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,
                    ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,sp[j],j, trapzdchid_cnt );  //Zupq1=1452
         if ( j>=k )
@@ -3923,7 +3928,16 @@ void SasCalc_GENERIC_calculation::qrombchid( double l, double r, double p1, doub
 #ifdef __CUDACC__
 __host__ __device__
 #endif
-void SasCalc_GENERIC_calculation::trapzdchid( double a, double b, double l, double r, double p1, double sigma, double alfa, double /*dbeta*/,
+//void SasCalc_GENERIC_calculation::trapzdchid( double a, double b, double l, double r, double p1, double sigma, double alfa, double dbeta,
+//                                            double delta, double theta, double phi, double qx, double qy, double qz, double p11,
+//                                            double p12, double p13, double p21, double p22, double p23, double p31, double p32,
+//                                            double p33, double qxn, double qyn, double qzn, double qhkl, double ax1n, double ax2n,
+//                                            double ax3n, double ax1x, double ax1y, double ax1z, double ax2x, double ax2y, double ax2z,
+//                                            double ax3x, double ax3y, double ax3z, double sigx, double sigy, double sigz,
+//                                            int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
+//                                            double *carr1, double &pq, int n,
+//                                            int &trapzdchid_cnt ) const
+void SasCalc_GENERIC_calculation::trapzdchid( double a, double b, double l, double r, double p1, double sigma, double alfa,
                double delta, double theta, double phi, double qx, double qy, double qz, double p11,
                double p12, double p13, double p21, double p22, double p23, double p31, double /*p32*/,
                double p33, double qxn, double qyn, double qzn, double qhkl, double ax1n, double ax2n,
@@ -3932,19 +3946,8 @@ void SasCalc_GENERIC_calculation::trapzdchid( double a, double b, double l, doub
                int /*ordis*/, int /*dim*/, int /*i0*/, int i1, int /*i2*/, int i3, int i4,
                double *carr1, double &pq, int n,
                int &trapzdchid_cnt ) const
-//void CLASSLIB::trapzdchid( double a, double b, double l, double r, double sigma, double dbeta, double delta, double /*theta*/, double /*phi*/,
-//                           double qx, double qy, double qz, double p11, double p12, double p13, double p21, double p22, double p23,
-//                           double p31, double /*p32*/, double p33, double qxn, double qyn, double qzn, double qhkl, double ax1n,
-//                           double ax2n, double ax3n, double ax1x, double ax1y, double ax1z, double ax2x, double ax2y, double ax2z,
-//                           double ax3x, double ax3y, double ax3z, double sigx, double sigy, double sigz,
-//                           int /*ordis*/, int /*dim*/, int /*i0*/, int i1, int /*i2*/, int i3, int i4,
-//                           double *carr1,  // NEU
-//                           double &pq, int n, int &trapzdchid_cnt ) const
 {/*1*/  //Zupq1=131
     const double eps =  0.0000000001;  //Zupq1=133
-    //const double eps1 =  0.00001;  //Zupq1=134
-
-    /* label 700,701,11,12,13,14,15,16,17,18,19,20,21,22,23,24; */  //Zupq1=136
 
     /*var*/ int i, j;  //Zupq1=138
     double x, tnm, sump, /*sumf, sumn, sums,*/ del, /*pqsum, oldpqsum,*/ delser, argser;  //Zupq1=139
@@ -3968,8 +3971,6 @@ void SasCalc_GENERIC_calculation::trapzdchid( double a, double b, double l, doub
     double pa1, pa2, pa3, pb1, pb2, pb3, px1, px2, px3, ella, ellb, ellc;  //Zupq1=157
     double qxl, qyl, qnna, qnnb, qnnx; //, argas, argbs, z1, z2, z3, z4, z5, z6;  //Zupq1=158
     double arga1, arga2, arga3, argb1, argb2, argb3, argx1, argx2, argx3;  //Zupq1=159
-
-    /*begin*/  //Zupq1=161
 
     arga = 1; // to avoid compiler warnings
     argb = 1;
@@ -4116,11 +4117,6 @@ void SasCalc_GENERIC_calculation::trapzdchid( double a, double b, double l, doub
             r32b = -l1*sin(b)+(1-cos(b))*l2*l3;  //Zupq1=286
             r33b = cos(b)+(1-cos(b))*l3*l3;  //Zupq1=287
 
-            /*  scattering vector hkl  */  //Zupq1=289
-            /* qxhkl:=(2*pi/1)*(p11*i2+p21*i3+p31*i4);  //Zupq1=290
-               qyhkl:=(2*pi/1)*(p12*i2+p22*i3+p32*i4);  //Zupq1=291
-               qzhkl:=(2*pi/1)*(p13*i2+p23*i3+p33*i4);  */  //Zupq1=292
-
             /*  rotate scattering vector  */  //Zupq1=294
             qxhkla = r11a*qxn+r12a*qyn+r13a*qzn;  //Zupq1=295
             qyhkla = r21a*qxn+r22a*qyn+r23a*qzn;  //Zupq1=296
@@ -4129,82 +4125,6 @@ void SasCalc_GENERIC_calculation::trapzdchid( double a, double b, double l, doub
             qyhklb = r21b*qxn+r22b*qyn+r23b*qzn;  //Zupq1=299
             qzhklb = r31b*qxn+r32b*qyn+r33b*qzn;  //Zupq1=300
 
-            /* (* rotated a *)  //Zupq1=302
-             aexa:=r11a*p11+r12a*p12+r13a*p13;  //Zupq1=303
-             aeya:=r21a*p11+r22a*p12+r23a*p13;  //Zupq1=304
-             aeza:=r31a*p11+r32a*p12+r33a*p13;  //Zupq1=305
-             aexb:=r11b*p11+r12b*p12+r13b*p13;  //Zupq1=306
-             aeyb:=r21b*p11+r22b*p12+r23b*p13;  //Zupq1=307
-             aezb:=r31b*p11+r32b*p12+r33b*p13;  //Zupq1=308
-
-            (* rotated b *)  //Zupq1=310
-                bexa:=r11a*p21+r12a*p22+r13a*p23;  //Zupq1=311
-            beya:=r21a*p21+r22a*p22+r23a*p23;  //Zupq1=312
-            beza:=r31a*p21+r32a*p22+r33a*p23;  //Zupq1=313
-            bexb:=r11b*p21+r12b*p22+r13b*p23;  //Zupq1=314
-            beyb:=r21b*p21+r22b*p22+r23b*p23;  //Zupq1=315
-            bezb:=r31b*p21+r32b*p22+r33b*p23;  //Zupq1=316
-
-            (* rotated c *)  //Zupq1=318
-                cexa:=r11a*p31+r12a*p32+r13a*p33;  //Zupq1=319
-            ceya:=r21a*p31+r22a*p32+r23a*p33;  //Zupq1=320
-            ceza:=r31a*p31+r32a*p32+r33a*p33;  //Zupq1=321
-            cexb:=r11b*p31+r12b*p32+r13b*p33;  //Zupq1=322
-            ceyb:=r21b*p31+r22b*p32+r23b*p33;  //Zupq1=323
-            cezb:=r31b*p31+r32b*p32+r33b*p33;  //Zupq1=324
-
-            ma11:=aexa;  //Zupq1=326
-            ma12:=aeya;  //Zupq1=327
-            ma13:=aeza;  //Zupq1=328
-            ma21:=bexa;  //Zupq1=329
-            ma22:=beya;  //Zupq1=330
-            ma23:=beza;  //Zupq1=331
-            ma31:=cexa;  //Zupq1=332
-            ma32:=ceya;  //Zupq1=333
-            ma33:=ceza;  //Zupq1=334
-
-            mb11:=aexb;  //Zupq1=336
-            mb12:=aeyb;  //Zupq1=337
-            mb13:=aezb;  //Zupq1=338
-            mb21:=bexb;  //Zupq1=339
-            mb22:=beyb;  //Zupq1=340
-            mb23:=bezb;  //Zupq1=341
-            mb31:=cexb;  //Zupq1=342
-            mb32:=ceyb;  //Zupq1=343
-            mb33:=cezb;  //Zupq1=344
-
-            {(* sigma is unit cell volume *)  //Zupq1=346
-                    (* reciprocal space base vectors *)  //Zupq1=347
-                    vola:=aexa*(beya*ceza-beza*ceya)+aeya*(beza*cexa-bexa*ceza)+aeza*(bexa*ceya-beya*cexa);  //Zupq1=348
-            ma11:=(beya*ceza-beza*ceya)/vola;  //Zupq1=349
-            ma12:=(beza*cexa-bexa*ceza)/vola;  //Zupq1=350
-            ma13:=(bexa*ceya-beya*cexa)/vola;  //Zupq1=351
-            ma21:=(aeza*ceya-aeya*ceza)/vola;  //Zupq1=352
-            ma22:=(aexa*ceza-aeza*cexa)/vola;  //Zupq1=353
-            ma23:=(aeya*cexa-aexa*ceya)/vola;  //Zupq1=354
-            ma31:=(aeya*beza-aeza*beya)/vola;  //Zupq1=355
-            ma32:=(aeza*bexa-aexa*beza)/vola;  //Zupq1=356
-            ma33:=(aexa*beya-aeya*bexa)/vola;  //Zupq1=357
-
-            volb:=aexb*(beyb*cezb-bezb*ceyb)+aeyb*(bezb*cexb-bexb*cezb)+aezb*(bexb*ceyb-beyb*cexb);  //Zupq1=359
-            mb11:=(beyb*cezb-bezb*ceyb)/volb;  //Zupq1=360
-            mb12:=(bezb*cexb-bexb*cezb)/volb;  //Zupq1=361
-            mb13:=(bexb*ceyb-beyb*cexb)/volb;  //Zupq1=362
-            mb21:=(aezb*ceyb-aeyb*cezb)/volb;  //Zupq1=363
-            mb22:=(aexb*cezb-aezb*cexb)/volb;  //Zupq1=364
-            mb23:=(aeyb*cexb-aexb*ceyb)/volb;  //Zupq1=365
-            mb31:=(aeyb*bezb-aezb*beyb)/volb;  //Zupq1=366
-            mb32:=(aezb*bexb-aexb*bezb)/volb;  //Zupq1=367
-            mb33:=(aexb*beyb-aeyb*bexb)/volb;  //Zupq1=368
-
-            qxhkla:=(2*pi/1)*(ma11*i2+ma21*i3+ma31*i4);  //Zupq1=370
-            qyhkla:=(2*pi/1)*(ma12*i2+ma22*i3+ma32*i4);  //Zupq1=371
-            qzhkla:=(2*pi/1)*(ma13*i2+ma23*i3+ma33*i4);  //Zupq1=372
-
-            qxhklb:=(2*pi/1)*(mb11*i2+mb21*i3+mb31*i4);  //Zupq1=374
-            qyhklb:=(2*pi/1)*(mb12*i2+mb22*i3+mb32*i4);  //Zupq1=375
-            qzhklb:=(2*pi/1)*(mb13*i2+mb23*i3+mb33*i4);   */  //Zupq1=376
-
             dqxa = qx-qxhkla;  //Zupq1=378
             dqya = qy-qyhkla;  //Zupq1=379
             dqza = qz-qzhkla;  //Zupq1=380
@@ -4212,13 +4132,6 @@ void SasCalc_GENERIC_calculation::trapzdchid( double a, double b, double l, doub
             dqxb = qx-qxhklb;  //Zupq1=382
             dqyb = qy-qyhklb;  //Zupq1=383
             dqzb = qz-qzhklb;  //Zupq1=384
-
-            /* dqxa:=qx-(r11a*qxn+r12a*qyn+r13a*qzn);  //Zupq1=386
-             dqya:=qy-(r21a*qxn+r22a*qyn+r23a*qzn);  //Zupq1=387
-             dqza:=qz-(r31a*qxn+r32a*qyn+r33a*qzn);  //Zupq1=388
-             dqxb:=qx-(r11b*qxn+r12b*qyn+r13b*qzn);  //Zupq1=389
-             dqyb:=qy-(r21b*qxn+r22b*qyn+r23b*qzn);  //Zupq1=390
-             dqzb:=qz-(r31b*qxn+r32b*qyn+r33b*qzn); */  //Zupq1=391
 
             ax1xa = (r11a*ax1x+r12a*ax1y+r13a*ax1z);  //Zupq1=393
             ax1ya = (r21a*ax1x+r22a*ax1y+r23a*ax1z);  //Zupq1=394
@@ -4245,13 +4158,6 @@ void SasCalc_GENERIC_calculation::trapzdchid( double a, double b, double l, doub
             dqs1b = (dqxb*ax1xb+dqyb*ax1yb+dqzb*ax1zb)/(ax1n*sigx);  //Zupq1=415
             dqs2b = (dqxb*ax2xb+dqyb*ax2yb+dqzb*ax2zb)/(ax2n*sigy);  //Zupq1=416
             dqs3b = (dqxb*ax3xb+dqyb*ax3yb+dqzb*ax3zb)/(ax3n*sigz);  //Zupq1=417
-
-            /* dqs1a:=(dqxa*ax1x+dqya*ax1y+dqza*ax1z)/(ax1n*sigx);  //Zupq1=419
-             dqs2a:=(dqxa*ax2x+dqya*ax2y+dqza*ax2z)/(ax2n*sigy);  //Zupq1=420
-             dqs3a:=(dqxa*ax3x+dqya*ax3y+dqza*ax3z)/(ax3n*sigz);  //Zupq1=421
-             dqs1b:=(dqxb*ax1x+dqyb*ax1y+dqzb*ax1z)/(ax1n*sigx);  //Zupq1=422
-             dqs2b:=(dqxb*ax2x+dqyb*ax2y+dqzb*ax2z)/(ax2n*sigy);  //Zupq1=423
-             dqs3b:=(dqxb*ax3x+dqyb*ax3y+dqzb*ax3z)/(ax3n*sigz);  */  //Zupq1=424
 
             arga = dqs1a*dqs1a+dqs2a*dqs2a+dqs3a*dqs3a;  //Zupq1=426
             argb = dqs1b*dqs1b+dqs2b*dqs2b+dqs3b*dqs3b;  //Zupq1=427
@@ -4636,37 +4542,6 @@ void SasCalc_GENERIC_calculation::trapzdchid( double a, double b, double l, doub
         {/*3*/   /*  isotropic cube  */  //Zupq1=753
             z = (1-sigma*sigma)/(sigma*sigma);  //Zupq1=754
 
-            /* arga1:=qn*sin(delta)*cos(a)*r+eps;  //Zupq1=756
-             arga2:=qn*sin(delta)*sin(a)*r+eps;  //Zupq1=757
-             arga3:=qn*cos(delta)*r+eps;  //Zupq1=758
-             if (i3=0) then begin (* P(q) *)  //Zupq1=759
-                if (arga1 < 0.001) then pa1:=1 else pa1:=szave(5,1,arga1,-2,z);  //Zupq1=760
-                if (arga2 < 0.001) then pa2:=1 else pa2:=szave(5,1,arga2,-2,z);  //Zupq1=761
-                if (arga3 < 0.001) then pa3:=1 else pa3:=szave(5,1,arga3,-2,z);  //Zupq1=762
-                pa:=pa1*pa2*pa3;  //Zupq1=763
-             end;  //Zupq1=764
-              if (i3=1) then begin (* F(q) *)  //Zupq1=765
-                if (arga1 < 0.001) then pa1:=1 else pa1:=szave(3,1,arga1,-1,z);  //Zupq1=766
-                if (arga2 < 0.001) then pa2:=1 else pa2:=szave(3,1,arga2,-1,z);  //Zupq1=767
-                if (arga3 < 0.001) then pa3:=1 else pa3:=szave(3,1,arga3,-1,z);  //Zupq1=768
-                pa:=pa1*pa1*pa2*pa2*pa3*pa3;  //Zupq1=769
-             end;  //Zupq1=770
-             argb1:=qn*sin(delta)*cos(b)*r+eps;  //Zupq1=771
-             argb2:=qn*sin(delta)*sin(b)*r+eps;  //Zupq1=772
-             argb3:=qn*cos(delta)*r+eps;  //Zupq1=773
-             if (i3=0) then begin (* P(q) *)  //Zupq1=774
-                if (argb1 < 0.001) then pb1:=1 else pb1:=szave(5,1,argb1,-2,z);  //Zupq1=775
-                if (argb2 < 0.001) then pb2:=1 else pb2:=szave(5,1,argb2,-2,z);  //Zupq1=776
-                if (argb3 < 0.001) then pb3:=1 else pb3:=szave(5,1,argb3,-2,z);  //Zupq1=777
-                pb:=pb1*pb2*pb3;  //Zupq1=778
-             end;  //Zupq1=779
-             if (i3=1) then begin (* F(q) *)  //Zupq1=780
-                if (argb1 < 0.001) then pb1:=1 else pb1:=szave(3,1,argb1,-1,z);  //Zupq1=781
-                if (argb2 < 0.001) then pb2:=1 else pb2:=szave(3,1,argb2,-1,z);  //Zupq1=782
-                if (argb3 < 0.001) then pb3:=1 else pb3:=szave(3,1,argb3,-1,z);  //Zupq1=783
-                pb:=pb1*pb1*pb2*pb2*pb3*pb3;  //Zupq1=784
-             end;                               */  //Zupq1=785
-
             qn = sqrt(qx*qx+qy*qy+eps);  //Zupq1=787
             arga1 = qn*sin(delta)*cos(a)*r/(z+1)+eps;  //Zupq1=788
             arga2 = qn*sin(delta)*sin(a)*r/(z+1)+eps;  //Zupq1=789
@@ -4932,80 +4807,10 @@ void SasCalc_GENERIC_calculation::trapzdchid( double a, double b, double l, doub
                 r32x = -l1*sin(x)+(1-cos(x))*l2*l3;  //Zupq1=1015
                 r33x = cos(x)+(1-cos(x))*l3*l3;  //Zupq1=1016
 
-                /* (* scattering vector hkl *)  //Zupq1=1018
-                qxhkl:=(2*pi/1)*(p11*i2+p21*i3+p31*i4);  //Zupq1=1019
-                qyhkl:=(2*pi/1)*(p12*i2+p22*i3+p32*i4);  //Zupq1=1020
-                qzhkl:=(2*pi/1)*(p13*i2+p23*i3+p33*i4);   */  //Zupq1=1021
-
                 /*  rotate this scattering vector  */  //Zupq1=1023
                 qxhklx = r11x*qxn+r12x*qyn+r13x*qzn;  //Zupq1=1024
                 qyhklx = r21x*qxn+r22x*qyn+r23x*qzn;  //Zupq1=1025
                 qzhklx = r31x*qxn+r32x*qyn+r33x*qzn;  //Zupq1=1026
-
-                /* 11:=0.707;  //Zupq1=1028
-                p12:=0.707;  //Zupq1=1029
-                p13:=0;  //Zupq1=1030
-                p21:=0.408;  //Zupq1=1031
-                p22:=-0.408;  //Zupq1=1032
-                p23:=0.816;  //Zupq1=1033
-                p31:=0.577;  //Zupq1=1034
-                p32:=-0.577;  //Zupq1=1035
-                p33:=-0.577;  //Zupq1=1036
-
-                    (* rotated a *)  //Zupq1=1038
-                        aexx:=r11x*p11+r12x*p12+r13x*p13;  //Zupq1=1039
-                aeyx:=r21x*p11+r22x*p12+r23x*p13;  //Zupq1=1040
-                aezx:=r31x*p11+r32x*p12+r33x*p13;  //Zupq1=1041
-
-                    (* rotated b *)  //Zupq1=1043
-                        bexx:=r11x*p21+r12x*p22+r13x*p23;  //Zupq1=1044
-                beyx:=r21x*p21+r22x*p22+r23x*p23;  //Zupq1=1045
-                bezx:=r31x*p21+r32x*p22+r33x*p23;  //Zupq1=1046
-
-                    (* rotated c *)  //Zupq1=1048
-                        cexx:=r11x*p31+r12x*p32+r13x*p33;  //Zupq1=1049
-                ceyx:=r21x*p31+r22x*p32+r23x*p33;  //Zupq1=1050
-                cezx:=r31x*p31+r32x*p32+r33x*p33;  //Zupq1=1051
-
-                mx11:=aexx;  //Zupq1=1053
-                mx12:=aeyx;  //Zupq1=1054
-                mx13:=aezx;  //Zupq1=1055
-                mx21:=bexx;  //Zupq1=1056
-                mx22:=beyx;  //Zupq1=1057
-                mx23:=bezx;  //Zupq1=1058
-                mx31:=cexx;  //Zupq1=1059
-                mx32:=ceyx;  //Zupq1=1060
-                mx33:=cezx;  //Zupq1=1061
-
-                    {(* reciprocal space base vectors *)  //Zupq1=1063
-                            volx:=aexx*(beyx*cezx-bezx*ceyx)+aeyx*(bezx*cexx-bexx*cezx)+aezx*(bexx*ceyx-beyx*cexx);  //Zupq1=1064
-                    mx11:=(beyx*cezx-bezx*ceyx)/volx;  //Zupq1=1065
-                    mx12:=(bezx*cexx-bexx*cezx)/volx;  //Zupq1=1066
-                    mx13:=(bexx*ceyx-beyx*cexx)/volx;  //Zupq1=1067
-                    mx21:=(aezx*ceyx-aeyx*cezx)/volx;  //Zupq1=1068
-                    mx22:=(aexx*cezx-aezx*cexx)/volx;  //Zupq1=1069
-                    mx23:=(aeyx*cexx-aexx*ceyx)/volx;  //Zupq1=1070
-                    mx31:=(aeyx*bezx-aezx*beyx)/volx;  //Zupq1=1071
-                    mx32:=(aezx*bexx-aexx*bezx)/volx;  //Zupq1=1072
-                    mx33:=(aexx*beyx-aeyx*bexx)/volx;  //Zupq1=1073
-
-                    qxhklx:=(2*pi/1)*(mx11*i2+mx21*i3+mx31*i4);  //Zupq1=1075
-                    qyhklx:=(2*pi/1)*(mx12*i2+mx22*i3+mx32*i4);  //Zupq1=1076
-                    qzhklx:=(2*pi/1)*(mx13*i2+mx23*i3+mx33*i4);  //Zupq1=1077
-
-                    {r11x:=cos(x);  //Zupq1=1079
-                    r12x:=-sin(x);  //Zupq1=1080
-                    r13x:=0;  //Zupq1=1081
-                    r21x:=sin(x);  //Zupq1=1082
-                    r22x:=cos(x);  //Zupq1=1083
-                    r23x:=0;  //Zupq1=1084
-                    r31x:=0;  //Zupq1=1085
-                    r32x:=0;  //Zupq1=1086
-                    r33x:=1;  //Zupq1=1087
-
-                    dqxx:=qx-(r11x*qxn+r12x*qyn+r13x*qzn);  //Zupq1=1089
-                    dqyx:=qy-(r21x*qxn+r22x*qyn+r23x*qzn);  //Zupq1=1090
-                    dqzx:=qz-(r31x*qxn+r32x*qyn+r33x*qzn);   */  //Zupq1=1091
 
                 dqxx = qx-qxhklx;  //Zupq1=1093
                 dqyx = qy-qyhklx;  //Zupq1=1094
@@ -5024,10 +4829,6 @@ void SasCalc_GENERIC_calculation::trapzdchid( double a, double b, double l, doub
                 dqs1x = (dqxx*ax1xx+dqyx*ax1yx+dqzx*ax1zx)/(ax1n*sigx);  //Zupq1=1107
                 dqs2x = (dqxx*ax2xx+dqyx*ax2yx+dqzx*ax2zx)/(ax2n*sigy);  //Zupq1=1108
                 dqs3x = (dqxx*ax3xx+dqyx*ax3yx+dqzx*ax3zx)/(ax3n*sigz);  //Zupq1=1109
-
-                /* dqs1x:=(dqxx*ax1x+dqyx*ax1y+dqzx*ax1z)/(ax1n*sigx);  //Zupq1=1111
-                dqs2x:=(dqxx*ax2x+dqyx*ax2y+dqzx*ax2z)/(ax2n*sigy);  //Zupq1=1112
-                dqs3x:=(dqxx*ax3x+dqyx*ax3y+dqzx*ax3z)/(ax3n*sigz);   */  //Zupq1=1113
 
                 argx = dqs1x*dqs1x+dqs2x*dqs2x+dqs3x*dqs3x;  //Zupq1=1115
                 px = exp(-4*argx/M_PI);  //Zupq1=1116
@@ -5251,24 +5052,6 @@ void SasCalc_GENERIC_calculation::trapzdchid( double a, double b, double l, doub
 
             if ( i1==12 )
             {/*4*/   /*  isotropic cube  */  //Zupq1=1303
-                /* z:=(1-sigma*sigma)/(sigma*sigma);  //Zupq1=1304
-                qn:=sqrt(qx*qx+qy*qy+eps);  //Zupq1=1305
-                argx1:=qn*sin(delta)*cos(x)*r+eps;  //Zupq1=1306
-                argx2:=qn*sin(delta)*sin(x)*r+eps;  //Zupq1=1307
-                argx3:=qn*cos(delta)*r+eps;  //Zupq1=1308
-                if (i3=0) then begin   (* P(q) *)  //Zupq1=1309
-                   if (argx1 < 0.001) then px1:=1 else px1:=szave(5,1,argx1,-2,z);  //Zupq1=1310
-                   if (arga2 < 0.001) then px2:=1 else px2:=szave(5,1,argx2,-2,z);  //Zupq1=1311
-                   if (argx3 < 0.001) then px3:=1 else px3:=szave(5,1,argx3,-2,z);  //Zupq1=1312
-                   px:=px1*px2*px3;  //Zupq1=1313
-                end;  //Zupq1=1314
-                if (i3=1) then begin   (* F(q) *)  //Zupq1=1315
-                   if (argx1 < 0.001) then px1:=1 else px1:=szave(3,1,argx1,-1,z);  //Zupq1=1316
-                   if (arga2 < 0.001) then px2:=1 else px2:=szave(3,1,argx2,-1,z);  //Zupq1=1317
-                   if (argx3 < 0.001) then px3:=1 else px3:=szave(3,1,argx3,-1,z);  //Zupq1=1318
-                   px:=px1*px1*px2*px2*px3*px3;  //Zupq1=1319
-                end;   */  //Zupq1=1320
-
                 z = (1-sigma*sigma)/(sigma*sigma);  //Zupq1=1322
                 qn = sqrt(qx*qx+qy*qy+eps);  //Zupq1=1323
                 argx1 = qn*sin(delta)*cos(x)*r/(z+1);  //Zupq1=1324
@@ -5292,7 +5075,7 @@ void SasCalc_GENERIC_calculation::trapzdchid( double a, double b, double l, doub
                             px1 = (a1/(argx1+eps))*sin(z*atan(argx1))/pow(1.0+argx1*argx1,z/2.0);  //Zupq1=1340
                     if ( argx2 < 0.001 ) px2 = 1; else  //Zupq1=1341
                             px2 = (a1/(argx2+eps))*sin(z*atan(argx2))/pow(1.0+argx2*argx2,z/2.0);  //Zupq1=1342
-                    if ( arga3 < 0.001 ) px3 = 1; else  //Zupq1=1343
+                    if ( argx3 < 0.001 ) px3 = 1; else  //Zupq1=1343 TODO: es stand arga3 hier...
                             px3 = (a1/(argx3+eps))*sin(z*atan(argx3))/pow(1.0+argx3*argx3,z/2.0);  //Zupq1=1344
                     px = px1*px1*px2*px2*px3*px3;  //Zupq1=1345
                 }/*5*/  //Zupq1=1346
@@ -5354,6 +5137,9 @@ void SasCalc_GENERIC_calculation::trapzdchid( double a, double b, double l, doub
 
             if ( i1==17 )
             {/*4*/   /*  superball integration  */  //Zupq1=1397
+                aa = r;     // von oben kopiert... (TODO?)
+                bb = p1;
+                cc = l;
                 /*  argx1:=-(l/r)*power(delta/r,p1-1)*power(1-power(delta/r,p1)-power(x/r,p1),(1/p1)-1);  //Zupq1=1398 */
                 /*  argx2:=-(l/r)*power(x/r,p1-1)*power(1-power(delta/r,p1)-power(x/r,p1),(1/p1)-1);  //Zupq1=1399 */
                 /*  px:=sqrt(1+argx1*argx1+argx2*argx2);  //Zupq1=1400 */
@@ -5392,59 +5178,62 @@ void SasCalc_GENERIC_calculation::trapzdchid( double a, double b, double l, doub
 #ifdef __CUDACC__
 __host__ __device__
 #endif
-double SasCalc_GENERIC_calculation::formpq(double length, double radius, double sigmal, double sigmar, double p1,
-                        double rho, double alfa, double theta, double phi, double limql, double limq1,
-                        double limq2, double /*limq3*/, double limq4, double limq5, double limq6,
-                        double /*limq7*/, double /*limq8*/, double /*limq9*/, double qx, double qy, double qxs,
-                        double qys, double q, double norm, double por,
-                        int part, int cs, int ordis, int orcase,
-                        const double *myarray, // CoeffArrayType
-                        double *carr1p, double *carr2p, double *carr3p, // CoeffArrayType
-                        double *carr4p, double *carr5p, double *carr6p, // CoeffArrayType
-                        double *carr7p, double *carr8p, double *carr9p // CoeffArrayType   /*Z0311=14582*/
-                        /*ArrayImax2D carr11pm, ArrayImax2D carr22pm*/) const   /*Z=14910*/
+//    double SasCalc_GENERIC_calculation::formpq(double length, double radius, double sigmal, double sigmar, double p1,
+//                                        double rho, double alfa, double theta, double phi, double limql, double limq1,
+//                                        double limq2, double /*limq3*/, double limq4, double limq5, double limq6,
+//                                        double /*limq7*/, double /*limq8*/, double /*limq9*/, double qx, double qy, double qxs,
+//                                        double qys, double q, double norm, double por,
+//                                        int part, int cs, int ordis, int orcase,
+//                                        const double *myarray, // CoeffArrayType
+//                                        double *carr1p, double *carr2p, double *carr3p, // CoeffArrayType
+//                                        double *carr4p, double *carr5p, double *carr6p, // CoeffArrayType
+//                                        double *carr7p, double *carr8p, double *carr9p // CoeffArrayType   /*Z0311=14582*/
+//                                        /*ArrayImax2D carr11pm, ArrayImax2D carr22pm*/) const   /*Z=14910*/
+double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double qx, double qy, double qxs, double qys, double q, int ordis) const   /*Z=14910*/
 {/*1*/  //Z=15188
+    // double sigmal ist nicht zu ersetzen, da es an einer Stelle CALC.epsilon ist, sonst nur CALC.params.sigmal
+    // int ordis ist nicht zu ersetzen, da es einmal eine feste Zahl ist, sonst nur CALC.ordis
 
-    int    ii, jj, /*n,*/ nser, m, mser, lser, /*indx,*/ inmax;  //Z=15194
+    int    ii, jj, n, nser, m, mser, lser, /*indx,*/ inmax;  //Z=15194
     double pqsum, oldpqsum, binsum, delser, argq, arglq, /*argp1,*/ pqr, pql, pq1, pq2, pq3, epsi, qq2;  //Z=15195
     double ccc1, ccc2, ccc3, vv3, zl, zr, radiusm, argqx, argqy, pqrx, pqry; //, ella, ellb, ellc;  //Z=15196
     double cc1, cc2, cc3, cc4, cc5, cc6, cc7, cc8, cc9, cc10;  //Z=15197
     double ac1, ac2, ac3, ac4, ac5, ac6, ac7, ac8, ac9, ac10;  //Z=15198
     double argbm, nenbm, argbp, nenbp, argep, nenep, argem, nenem, arggp, nengp;  //Z=15199
     double arggm, nengm, /*argim, nenim, argip, nenip,*/ F121, F122, F123; //, F124, F125, F126;  //Z=15200
-    double qqn[200], /*qqnx[200], qqny[200],*/ fkv[200], gam3[200];  //Z=15201
+    double qqn[200], /*qqnx[200], qqny[200],*/ fkv[200]; //, gam3[200];  //Z=15201
     double F12, F12ser, F12asz, F12sum, F12sez, oldF12sez, F12asy, F12as1z, F12as2z, F12as3z, F12as4z;  //Z=15202
     double v, e0, e1, pz2v, pz2v1, pz2v2, lim, lim1, xrz, arg, nen, arg1, nen1, arg2, nen2;  //Z=15203
     double a1m, a2m, xijm, arglmz, nenlmz, xijp, arglpz, nenlpz, vvm, rmax, del, delc;  //Z=15204
     //double nom, lout, lin, lliph, llipt, phiax, phiin, phiout, philiph, philipt;  //Z=15205
     double dim, xrad, xradp, lim2, lim3, lim4, lim5, lim6;  //Z=15206
-    double a1, b1, b2, b1s, d0, d1, ee0, ee1, x1z, x12z, x2z, x22z, gb1s;  //Z=15207
-    double gz1, preg1, preg3, preg4, pzvc, pzvc1, pzvc2, pzac, pzac1, pzac2, pzc, pzc1, pza, pzva, pzva1, dnv0,  pvav0, pvav10, pva0;  //Z=15208
+    double a1, b1, b2, b1s, d0, /*d1,*/ ee0, ee1, x1z, x12z, x2z, x22z, gb1s;  //Z=15207
+    double gz1, preg1, preg3, preg4, pzvc, pzvc1, pzvc2, pzac, pzac1, /*pzac2,*/ pzc, pzc1, pza, pzva, pzva1; //, dnv0,  pvav0, pvav10, pva0;  //Z=15208
     double F22sez, oldF22sez, F22, F32sez, oldF32sez, F32;  //Z=15209
     double F42sez, oldF42sez, F42, F52sez, oldF52sez, F52, F62sez, oldF62sez, F62;  //Z=15210
     double arg11, nen11, arg12, nen12, arg13, nen13;  //Z=15211
-    double arg21, nen21, arg22, nen22, arg210, nen210, arg220, nen220, arg23, nen23, arg24, nen24, arg25, nen25, arg26, nen26, arg27, nen27, arg28, nen28;  //Z=15212
-    double F22as1sum1z, F22as1sum2z, F22as10z, F22as1z, F22as1sum1z0, F22as1sum2z0, F22as1z0;  //Z=15213
-    double a22as21z, F22as21z, a22as22z, F22as22z, a22as23z, F22as23z, a22as24z, F22as24z, F22as20z, F22as2z, F22asz, F22asz0;  //Z=15214
-    double arg31, nen31, arg32, nen32, arg310, nen310, arg320, nen320, arg33, nen33, arg34, nen34, arg35, nen35;  //Z=15215
-    double F32as1sum1z, F32as1sum2z, F32as10z, F32as1z, F32as1sum1z0, F32as1sum2z0, F32as1z0;  //Z=15216
-    double F32as21z, F32as22z, F32as23z, F32as24z, F32as20z, F32as2z, F32asz, F32asz0;  //Z=15217
-    double arg41, nen41, arg42, nen42, arg43, nen43, arg44, nen44, arg45, nen45;  //Z=15218
-    double F42as10z, F42as1sumz, F42as1z, F42as1z0, F42as20z, F42as21, F42as22, F42as23, F42as2z, F42as2z0;  //Z=15219
-    double F42as30z, F42as24, F42as25, F42as26, F42as3z, F42as3z0, F42as40z, F42as27, F42as28, F42as29, F42as4z, F42asz, F42asz0;  //Z=15220
-    double arg51, nen51, arg52, nen52, arg53, nen53, arg54, nen54, arg55, nen55, arg56, nen56;  //Z=15221
+    double /*arg21, nen21, arg22, nen22,*/ arg210, nen210, arg220, nen220, arg23, nen23, arg24, nen24, arg25, nen25, arg26, nen26, arg27, nen27, arg28, nen28;  //Z=15212
+    double /*F22as1sum1z, F22as1sum2z,*/ F22as10z, /*F22as1z,*/ F22as1sum1z0, F22as1sum2z0, F22as1z0;  //Z=15213
+    double a22as21z, F22as21z, a22as22z, F22as22z, a22as23z, F22as23z, a22as24z, F22as24z, F22as20z, F22as2z, /*F22asz,*/ F22asz0;  //Z=15214
+    double /*arg31, nen31, arg32, nen32,*/ arg310, nen310, arg320, nen320, arg33, nen33, arg34, nen34, arg35, nen35;  //Z=15215
+    double /*F32as1sum1z, F32as1sum2z,*/ F32as10z, /*F32as1z,*/ F32as1sum1z0, F32as1sum2z0, F32as1z0;  //Z=15216
+    double F32as21z, F32as22z, F32as23z, F32as24z, F32as20z, F32as2z, /*F32asz,*/ F32asz0;  //Z=15217
+    double arg41, nen41, arg42, nen42, /*arg43, nen43,*/ arg44, nen44, arg45, nen45;  //Z=15218
+    double F42as10z, /*F42as1sumz, F42as1z,*/ F42as1z0, F42as20z, F42as21, F42as22, /*F42as23, F42as2z,*/ F42as2z0;  //Z=15219
+    double F42as30z, F42as24, /*F42as25,*/ F42as26, /*F42as3z,*/ F42as3z0, F42as40z, F42as27, F42as28, F42as29, F42as4z, /*F42asz,*/ F42asz0;  //Z=15220
+    double arg51, nen51, arg52, nen52, /*arg53, nen53,*/ arg54, nen54, /*arg55, nen55,*/ arg56, nen56;  //Z=15221
     double arg57, nen57, arg58, nen58, arg59, nen59, arg510, nen510;  //Z=15222
-    double F52as10z, F52as1sumz, F52as1z, F52as1z0, F52as20z, F52as21, F52as22, F52as23, F52as2z, F52as2z0;  //Z=15223
-    double F52as30z, F52as24, F52as25, F52as26, F52as3z, F52as3z0, F52as40z, F52as27, F52as28, F52as29, F52as4z, F52asz, F52asz0;  //Z=15224
-    double arg61, nen61, arg62, nen62, arg63, nen63, arg64, nen64, arg65, nen65;  //Z=15225
-    double F62as10z, F62as1sumz, F62as1z, F62as1z0, F62as20z, F62as21, F62as22, F62as23, F62as2z, F62as2z0;  //Z=15226
-    double F62as30z, F62as24, F62as25, F62as26, F62as3z, F62as3z0, F62as40z, F62as27, F62as28, F62as29, F62as4z, F62asz, F62asz0;  //Z=15227
-    double z12v[200], a1v[200], b1v[200], b2v[200], b1sv[200], sum12[200], sum22[200], sum32[200], sum42[200], sum52[200], sum62[200];  //Z=15228
+    double F52as10z, /*F52as1sumz, F52as1z,*/ F52as1z0, F52as20z, F52as21, F52as22, /*F52as23, F52as2z,*/ F52as2z0;  //Z=15223
+    double F52as30z, F52as24, /*F52as25,*/ F52as26, /*F52as3z,*/ F52as3z0, F52as40z, F52as27, F52as28, F52as29, F52as4z, /*F52asz,*/ F52asz0;  //Z=15224
+    double arg61, nen61, arg62, nen62, /*arg63, nen63,*/ arg64, nen64, arg65, nen65;  //Z=15225
+    double F62as10z, /*F62as1sumz, F62as1z,*/ F62as1z0, F62as20z, F62as21, F62as22, /*F62as23, F62as2z,*/ F62as2z0;  //Z=15226
+    double F62as30z, F62as24, /*F62as25,*/ F62as26, /*F62as3z,*/ F62as3z0, F62as40z, F62as27, F62as28, F62as29, F62as4z, /*F62asz,*/ F62asz0;  //Z=15227
+    double z12v[200], a1v[200], b1v[200], b2v[200], b1sv[200], /*sum12[200],*/ sum22[200], sum32[200]; //, sum42[200], sum52[200], sum62[200];  //Z=15228
 
     /*begin*/  //Z=15230
     zl = (1-sigmal*sigmal)/(sigmal*sigmal);  //Z=15231
-    zr = (1-sigmar*sigmar)/(sigmar*sigmar);  //Z=15232
-    radiusm = radius/p1;   /*  outer radius of core/shell particle  */  //Z=15233
+    zr = (1-sqr(params.sigma))/(sqr(params.sigma));  //Z=15232
+    radiusm = params.radius/params.p1;   /*  outer radius of core/shell particle  */  //Z=15233
 
     // Noch fehlende (globale) Variablen und sonstige Anpassungen:
     // An machen Stellen muss "params." eingefügt werden.
@@ -5457,37 +5246,20 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
     double qz = 1; // wird für qrombchid() verwendet (zuerst bei Z=16029)
     // Dort werden auch p11..p33, ax1[nxyz],ax2[nxyz],ax3[nxyz], sig[xyz] verwendet
 
-    // Bei qrombdeltac() stimmen noch nicht die Parameterlisten:
-    // HIER im neuen Code:
-    //      qrombdeltac(length,radius,p1,sigmal,alfa,params.dbeta,theta,0,qxs,qys,qz,
-    //                  9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,1,4,orcase,0,0,0,carr1p,pql);  //Z=16237
-    //
-    // IN MEINER LIBRARY aus älterm Code:
-    // Parameter r darf nicht wegfallen, da er meistens <params.radius> ist, aber auch mal <params.length> oder lokale Variablen übergeben werden
-    //void CLASSLIB::qrombdeltac( double l, double r, /*p1*/ /*sigma*/ /*dbeta*/ double theta, double phi, double qx, double qy, double qz,
-    //                           double qxn, double qyn, double qzn, double qhkl, double ax1n, double ax2n, double ax3n,
-    //                           double ax1x, double ax1y, double ax1z, double ax2x, double ax2y, double ax2z,
-    //                           double ax3x, double ax3y, double ax3z, double sigx, double sigy, double sigz,
-    //                           int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
-    //                           double *carr1,
-    //                           double &pq ) const
-    //
-
-
-    //ella = radius;  //Z=15235
-    //ellb = length;  //Z=15236
+    //ella = params.radius;  //Z=15235
+    //ellb = params.length;  //Z=15236
     //ellc = radiusm;  //Z=15237
-
 
     /* ************ */  //Z=15240
     /* ** sphere ** */  //Z=15241
     /* ************ */  //Z=15242
-    if ( part==0 )
+    if ( params.part==0 )
     {/*2*/  //Z=15243
         /* ** homogeneous sphere ** */  //Z=15244
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=15245
-            if ( q<0.4*limq4 )
+            //if ( q > 2.2 ) qDebug() << "  formpq" << 0.4*params.limq4 << q << "r"<<params.radius;
+            if ( q<0.4*params.limq4 )
             {/*4*/  //Z=15246
                 pqsum = 1.0;  //Z=15247
                 oldpqsum = 0.0;  //Z=15248
@@ -5498,7 +5270,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                     /* qqn[nser]:=qqn[nser-1]*q*q;  //Z=15252 */
                     qq2 = qq2*q*q;  //Z=15253
                     /* pqsum:=pqsum+carr4p[nser]*qqn[nser];  //Z=15254 */
-                    pqsum = pqsum+carr4p[nser]*qq2;  //Z=15255
+                    pqsum = pqsum+params.CR->carr4p[nser]*qq2;  //Z=15255
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=15256
                     if ( delser<0.0001 ) break; /* goto 50; */  //Z=15257
                     oldpqsum = pqsum;  //Z=15258
@@ -5508,7 +5280,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             }/*4*/  //Z=15262
             else
             {/*4*/  //Z=15263
-                argq = q*radius/(zr+1);  //Z=15264
+                argq = q*params.radius/(zr+1);  //Z=15264
                 pqr = (1/(2.0*zr*(zr-1)*(zr-2)*(zr-3)))*pow(argq,-4);  //Z=15265
                 pq1 = pqr*(1+cos((zr-3)*atan(2.0*argq))/pow(1.0+4*argq*argq,(zr-3)/2.0));  //Z=15266
                 pq2 = (pqr/((zr-4)*argq))*sin((zr-4)*atan(2.0*argq))/pow(1.0+4*argq*argq,(zr-4)/2.0);  //Z=15267
@@ -5518,31 +5290,31 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
         }/*3*/ /*  of homogeneous sphere */  //Z=15271
 
         /* ** core/shell sphere ** */  //Z=15273
-        if ( cs==1 )
+        if ( params.cs==1 )
         {/*3*/  //Z=15274
 
-            cc1 = sqr(rho);  //Z=15276
-            cc2 = 2*p1*rho*(1-rho);  //Z=15277
-            cc3 = sqr(1-rho)*sqr(p1);  //Z=15278
-            cc4 = -2*sqr(rho);  //Z=15279
-            cc5 = -2*p1*rho*(1-rho);  //Z=15280
-            cc6 = sqr(rho);  //Z=15281
-            cc7 = -2*rho*(1-rho);  //Z=15282
-            cc8 = -sqr(1-rho)*2*p1;  //Z=15283
-            cc9 = 2*rho*(1-rho);  //Z=15284
-            cc10 = sqr(1-rho);  //Z=15285
+            cc1 = sqr(params.rho);  //Z=15276
+            cc2 = 2*params.p1*params.rho*(1-params.rho);  //Z=15277
+            cc3 = sqr(1-params.rho)*sqr(params.p1);  //Z=15278
+            cc4 = -2*sqr(params.rho);  //Z=15279
+            cc5 = -2*params.p1*params.rho*(1-params.rho);  //Z=15280
+            cc6 = sqr(params.rho);  //Z=15281
+            cc7 = -2*params.rho*(1-params.rho);  //Z=15282
+            cc8 = -sqr(1-params.rho)*2*params.p1;  //Z=15283
+            cc9 = 2*params.rho*(1-params.rho);  //Z=15284
+            cc10 = sqr(1-params.rho);  //Z=15285
 
-            ccc1 = sqr(1-rho)*pow(p1,6);  //Z=15287
-            ccc2 = 2*rho*(1-rho)*pow(p1,3);  //Z=15288
-            ccc3 = rho*rho;  //Z=15289
-            vv3 = sqr((1-rho)*pow(p1,3)+rho);  //Z=15290
+            ccc1 = sqr(1-params.rho)*pow(params.p1,6);  //Z=15287
+            ccc2 = 2*params.rho*(1-params.rho)*pow(params.p1,3);  //Z=15288
+            ccc3 = params.rho*params.rho;  //Z=15289
+            vv3 = sqr((1-params.rho)*pow(params.p1,3)+params.rho);  //Z=15290
 
             argq = q*radiusm/(zz+1);  //Z=15292
-            argpq = q*radius/(zz+1);  //Z=15293
+            argpq = q*params.radius/(zz+1);  //Z=15293
             pqr = (1/(2.0*zr*(zr-1)*(zr-2)*(zr-3)))*pow(argq,-4);  //Z=15294
 
             /*  F121 sphere  */  //Z=15296
-            if ( q<(0.3*limq4) )
+            if ( q<(0.3*params.limq4) )
             {/*4*/  //Z=15297
                 qqn[0] = 1.0;  //Z=15298
                 pqsum = 1.0;  //Z=15299
@@ -5550,7 +5322,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=15301
                     qqn[nser] = qqn[nser-1]*q*q;  //Z=15302
-                    pqsum = pqsum+qqn[nser]*carr4p[nser];  //Z=15303
+                    pqsum = pqsum+qqn[nser]*params.CR->carr4p[nser];  //Z=15303
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=15304
                     if ( delser<0.0001 ) break; /* goto 51; */  //Z=15305
                     oldpqsum = pqsum;  //Z=15306
@@ -5567,7 +5339,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             }/*4*/  //Z=15316
 
             /*  F122 sphere  */  //Z=15318
-            if ( q<(0.3*limq5) )
+            if ( q<(0.3*params.limq5) )
             {/*4*/  //Z=15319
                 qqn[0] = 1.0;  //Z=15320
                 pqsum = 1.0;  //Z=15321
@@ -5575,7 +5347,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=15323
                     qqn[nser] = qqn[nser-1]*q*q;  //Z=15324
-                    pqsum = pqsum+qqn[nser]*carr5p[nser];  //Z=15325
+                    pqsum = pqsum+qqn[nser]*params.CR->carr5p[nser];  //Z=15325
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=15326
                     if ( delser<0.0001 ) break; /* goto 52; */  //Z=15327
                     oldpqsum = pqsum;  //Z=15328
@@ -5610,7 +5382,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             }/*4*/  //Z=15356
 
             /*  F123 sphere  */  //Z=15358
-            if ( q<(0.3*limq6) )
+            if ( q<(0.3*params.limq6) )
             {/*4*/  //Z=15359
                 qqn[0] = 1.0;  //Z=15360
                 pqsum = 1.0;  //Z=15361
@@ -5618,7 +5390,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=15363
                     qqn[nser] = qqn[nser-1]*q*q;  //Z=15364
-                    pqsum = pqsum+qqn[nser]*carr6p[nser];  //Z=15365
+                    pqsum = pqsum+qqn[nser]*params.CR->carr6p[nser];  //Z=15365
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=15366
                     if ( delser<0.0001 ) break; /* goto 53; */  //Z=15367
                     oldpqsum = pqsum;  //Z=15368
@@ -5637,19 +5409,19 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
         }/*3*/  /*  of core/shell sphere  */  //Z=15380
 
         /* ** inhomogeneous core/shell sphere ** */  //Z=15382
-        if ( cs==2 )
+        if ( params.cs==2 )
         {/*3*/  //Z=15383
 
             dim = 3;  //Z=15385
             delc = 0.0001;  //Z=15386
             xrad = q*radiusm;  //Z=15387
-            xradp = q*radius;  //Z=15388
-            x1z = q*radius/(2.0*(zr+1));  //Z=15389
+            xradp = q*params.radius;  //Z=15388
+            x1z = q*params.radius/(2.0*(zr+1));  //Z=15389
             x12z = x1z*x1z;  //Z=15390
             x2z = q*radiusm/(2.0*(zr+1));  //Z=15391
             x22z = x2z*x2z;  //Z=15392
 
-            lim = 18*exp(-5*sigmar);  //Z=15394
+            lim = 18*exp(-5*params.sigma);  //Z=15394
             lim1 = lim;  //Z=15395
             lim2 = lim*0.7;  //Z=15396
             lim3 = lim;  //Z=15397
@@ -5657,14 +5429,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             lim5 = lim*0.7;  //Z=15399
             lim6 = lim*1.2;  //Z=15400
 
-            a1 = (dim-alfa)/2.0;  //Z=15402
+            a1 = (dim-params.alphash1)/2.0;  //Z=15402
             b1 = dim/2.0;  //Z=15403
-            b2 = (dim+2-alfa)/2.0;  //Z=15404
+            b2 = (dim+2-params.alphash1)/2.0;  //Z=15404
             b1s = (dim+2)/2.0;  //Z=15405
             v = -b1s+1/2.0;  //Z=15406
             c = a1-b1-b2+1/2.0;  //Z=15407
             d0 = 1;  //Z=15408
-            d1 = a1*(1+a1-b1)*(1+a1-b2);  //Z=15409
+            //d1 = a1*(1+a1-b1)*(1+a1-b2);  //Z=15409
             e0 = 1.0;  //Z=15410
             e1 = (3/8.0)-(b1+b2)+((b1-b2)*(b1-b2)-3*a1*a1+2*a1*(1+b1+b2))/2.0;  //Z=15411
             ee0 = 1.0;  //Z=15412
@@ -5684,48 +5456,49 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             pzvc2 = gamma(zr+1+v+c-2)/gz1;  //Z=15426
             pzac = gamma(zr+1-2*a1+c)/gz1;  //Z=15427
             pzac1 = gamma(zr+1-2*a1+c-1)/gz1;  //Z=15428
-            pzac2 = gamma(zr+1-2*a1+c+2)/gz1;  //Z=15429
+            //pzac2 = gamma(zr+1-2*a1+c+2)/gz1;  //Z=15429
             pzc = gamma(zr+1+2*c)/gz1;  //Z=15430
             pzc1 = gamma(zr+1+2*c-1)/gz1;  //Z=15431
             pza = gamma(zr+1-4*a1)/gz1;  //Z=15432
             pzva = gamma(zr+1+v-2*a1)/gz1;  //Z=15433
             pzva1 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=15434
-            dnv0 = 1;  //Z=15435
-            pvav0 = gamma(zr+1+v-2*a1)/gz1;  //Z=15436
-            pvav10 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=15437
-            pva0 = gamma(zr+1-4*a1)/gz1;  //Z=15438
+            //dnv0 = 1;  //Z=15435
+            //pvav0 = gamma(zr+1+v-2*a1)/gz1;  //Z=15436
+            //pvav10 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=15437
+            //pva0 = gamma(zr+1-4*a1)/gz1;  //Z=15438
 
             cc1 = 1/(dim*dim);  //Z=15440
-            cc2 = 2*rho/(dim*(dim-alfa)*pow(p1,dim-alfa));  //Z=15441
-            cc3 = -2*rho/(dim*(dim-alfa));  //Z=15442
-            cc4 = rho*rho/((dim-alfa)*(dim-alfa)*pow(p1*p1,dim-alfa));  //Z=15443
-            cc5 = -2*rho*rho/((dim-alfa)*(dim-alfa)*pow(p1,dim-alfa));  //Z=15444
-            cc6 = rho*rho/((dim-alfa)*(dim-alfa));  //Z=15445
+            cc2 = 2*params.rho/(dim*(dim-params.alphash1)*pow(params.p1,dim-params.alphash1));  //Z=15441
+            cc3 = -2*params.rho/(dim*(dim-params.alphash1));  //Z=15442
+            cc4 = sqr(params.rho)/(sqr(dim-params.alphash1)*pow(sqr(params.p1),dim-params.alphash1));  //Z=15443
+            cc5 = -2*sqr(params.rho)/(sqr(dim-params.alphash1)*pow(params.p1,dim-params.alphash1));  //Z=15444
+            cc6 = sqr(params.rho)/sqr(dim-params.alphash1);  //Z=15445
             vv3 = cc1+cc2+cc3+cc4+cc5+cc6;  //Z=15446
 
             /*  term #1 series  */  //Z=15448
             if ( (xradp)<lim1 )
             {/*4*/  //Z=15449
-                z12v[0] = 1;  //Z=15450
-                b1sv[0] = 1;  //Z=15451
-                fkv[0] = 1;  //Z=15452
-                gam3[0] = sqrt(M_PI)/2.0;  //Z=15453
-                qqn[0] = 1.0;  //Z=15454
+                //z12v[0] = 1;  //Z=15450
+                //b1sv[0] = 1;  //Z=15451
+                //fkv[0] = 1;  //Z=15452
+                //gam3[0] = sqrt(M_PI)/2.0;  //Z=15453
+                double qqnn = 1.0; // qqn[0] = 1.0;  //Z=15454
                 F12sez = 1.0;  //Z=15455
                 oldF12sez = 0.0;  //Z=15456
-                for ( int n=1; n<=120; n++ )
+                for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=15457
-                    qqn[n] = qqn[n-1]*q*q;  //Z=15458
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=15459
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=15460
-                    fkv[n] = fkv[n-1]*n;  //Z=15461
-                    gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=15462
-                    sum12[n] = 0;  //Z=15463
+                    //qqn[n] = qqn[n-1]*q*q;  //Z=15458
+                    qqnn = qqnn * q * q;
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=15459
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=15460
+                    //fkv[n] = fkv[n-1]*n;  //Z=15461
+                    //gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=15462
+                    //sum12[n] = 0;  //Z=15463
                     /* for m:=0 to n do sum12[n]:=sum12[n]+1/(b1sv[m]*b1sv[n-m]*fkv[m]*fkv[n-m]);  //Z=15464 */
                     /* sum12[n]:=(9*sqrt(pi)/2)*power(4,n)/((n+3)*(n+2)*(n+3/2)*gam3[n]*fkv[n]);  //Z=15465 */
                     /* F12sez:=F12sez+power(-x12z,n)*z12v[n]*sum12[n];  //Z=15466 */
 
-                    F12sez = F12sez+carr1p[n]*qqn[n];  //Z=15468
+                    F12sez += params.CR->carr1p[n]*qqnn; //qqn[n];  //Z=15468
 
                     del = fabs((F12sez-oldF12sez)/F12sez);  //Z=15470
                     if ( del<delc ) break; /* goto 201; */  //Z=15471
@@ -5738,34 +5511,35 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             /*  term #2 series  */  //Z=15478
             if ( (xradp)<lim2 )
             {/*4*/  //Z=15479
-                z12v[0] = 1;  //Z=15480
-                a1v[0] = 1;  //Z=15481
-                b1v[0] = 1;  //Z=15482
-                b2v[0] = 1;  //Z=15483
-                b1sv[0] = 1;  //Z=15484
-                fkv[0] = 1;  //Z=15485
-                gam3[0] = sqrt(M_PI)/2.0;  //Z=15486
-                qqn[0] = 1.0;  //Z=15487
+                //z12v[0] = 1;  //Z=15480
+                //a1v[0] = 1;  //Z=15481
+                //b1v[0] = 1;  //Z=15482
+                //b2v[0] = 1;  //Z=15483
+                //b1sv[0] = 1;  //Z=15484
+                //fkv[0] = 1;  //Z=15485
+                //gam3[0] = sqrt(M_PI)/2.0;  //Z=15486
+                double qqnn = 1.0; // qqn[0] = 1.0;  //Z=15487
                 F22sez = 1.0;  //Z=15488
                 oldF22sez = 0.0;  //Z=15489
-                for ( int n=1; n<=120; n++ )
+                for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=15490
-                    qqn[n] = qqn[n-1]*q*q;  //Z=15491
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=15492
-                    a1v[n] = a1v[n-1]*(a1-1+n);  //Z=15493
-                    b1v[n] = b1v[n-1]*(b1-1+n);  //Z=15494
-                    b2v[n] = b2v[n-1]*(b2-1+n);  //Z=15495
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=15496
-                    fkv[n] = fkv[n-1]*n;  //Z=15497
-                    gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=15498
-                    sum22[n] = 0;  //Z=15499
+                    //qqn[n] = qqn[n-1]*q*q;  //Z=15491
+                    qqnn = qqnn * q * q;
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=15492
+                    //a1v[n] = a1v[n-1]*(a1-1+n);  //Z=15493
+                    //b1v[n] = b1v[n-1]*(b1-1+n);  //Z=15494
+                    //b2v[n] = b2v[n-1]*(b2-1+n);  //Z=15495
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=15496
+                    //fkv[n] = fkv[n-1]*n;  //Z=15497
+                    //gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=15498
+                    //sum22[n] = 0;  //Z=15499
                     /* for m:=0 to n do sum22[n]:=sum22[n]+a1v[n-m]*power(p1*p1,m)/(b1sv[m]*b1v[n-m]*b2v[n-m]*fkv[m]*fkv[n-m]);  //Z=15500 */
                     /* F22sez:=F22sez+power(-x22z,n)*z12v[n]*sum22[n];  //Z=15501 */
 
                     /* for m:=0 to n do sum22[n]:=sum22[n]+power(p1*p1,m)/((n-m+3/2)*(m+(3/2)-(alfa/2))*gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=15503 */
                     /* F22sez:=F22sez+(3*pi*(3-alfa)/16)*power(-x22z,n)*z12v[n]*sum22[n];  //Z=15504 */
 
-                    F22sez = F22sez+carr2p[n]*qqn[n];  //Z=15506
+                    F22sez += params.CR->carr2p[n]*qqnn; // qqn[n];  //Z=15506
 
                     del = fabs((F22sez-oldF22sez)/F22sez);  //Z=15508
                     if ( del<delc ) break; /* goto 202; */  //Z=15509
@@ -5778,34 +5552,35 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             /*  term #3 series  */  //Z=15516
             if ( (xradp)<lim3 )
             {/*4*/  //Z=15517
-                z12v[0] = 1;  //Z=15518
-                a1v[0] = 1;  //Z=15519
-                b1v[0] = 1;  //Z=15520
-                b2v[0] = 1;  //Z=15521
-                b1sv[0] = 1;  //Z=15522
-                fkv[0] = 1;  //Z=15523
-                gam3[0] = sqrt(M_PI)/2.0;  //Z=15524
-                qqn[0] = 1.0;  //Z=15525
+                //z12v[0] = 1;  //Z=15518
+                //a1v[0] = 1;  //Z=15519
+                //b1v[0] = 1;  //Z=15520
+                //b2v[0] = 1;  //Z=15521
+                //b1sv[0] = 1;  //Z=15522
+                //fkv[0] = 1;  //Z=15523
+                //gam3[0] = sqrt(M_PI)/2.0;  //Z=15524
+                double qqnn = 1.0; //qqn[0] = 1.0;  //Z=15525
                 F32sez = 1.0;  //Z=15526
                 oldF32sez = 0.0;  //Z=15527
-                for ( int n=1; n<=120; n++ )
+                for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=15528
-                    qqn[n] = qqn[n-1]*q*q;  //Z=15529
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=15530
-                    a1v[n] = a1v[n-1]*(a1-1+n);  //Z=15531
-                    b1v[n] = b1v[n-1]*(b1-1+n);  //Z=15532
-                    b2v[n] = b2v[n-1]*(b2-1+n);  //Z=15533
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=15534
-                    fkv[n] = fkv[n-1]*n;  //Z=15535
-                    gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=15536
-                    sum32[n] = 0;  //Z=15537
+                    //qqn[n] = qqn[n-1]*q*q;  //Z=15529
+                    qqnn = qqnn * q * q;
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=15530
+                    //a1v[n] = a1v[n-1]*(a1-1+n);  //Z=15531
+                    //b1v[n] = b1v[n-1]*(b1-1+n);  //Z=15532
+                    //b2v[n] = b2v[n-1]*(b2-1+n);  //Z=15533
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=15534
+                    //fkv[n] = fkv[n-1]*n;  //Z=15535
+                    //gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=15536
+                    //sum32[n] = 0;  //Z=15537
                     /* for m:=0 to n do sum32[n]:=sum32[n]+a1v[n-m]/(b1sv[m]*b1v[n-m]*b2v[n-m]*fkv[m]*fkv[n-m]);  //Z=15538 */
                     /* F32sez:=F32sez+power(-x12z,n)*z12v[n]*sum32[n];  //Z=15539 */
 
                     /* for m:=0 to n do sum32[n]:=sum32[n]+1/((n-m+3/2)*(m+(3/2)-(alfa/2))*gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=15541 */
                     /* F32sez:=F32sez+(3*pi*(3-alfa)/16)*power(-x12z,n)*z12v[n]*sum32[n];  //Z=15542 */
 
-                    F32sez = F32sez+carr3p[n]*qqn[n];  //Z=15544
+                    F32sez += params.CR->carr3p[n]*qqnn; //qqn[n];  //Z=15544
 
                     del = fabs((F32sez-oldF32sez)/F32sez);  //Z=15546
                     if ( del<delc ) break; /* goto 203; */  //Z=15547
@@ -5818,34 +5593,35 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             /*  term #4 series  */  //Z=15554
             if ( (xradp)<lim4 )
             {/*4*/  //Z=15555
-                z12v[0] = 1;  //Z=15556
-                a1v[0] = 1;  //Z=15557
-                b1v[0] = 1;  //Z=15558
-                b2v[0] = 1;  //Z=15559
-                b1sv[0] = 1;  //Z=15560
-                fkv[0] = 1;  //Z=15561
-                gam3[0] = sqrt(M_PI)/2.0;  //Z=15562
-                qqn[0] = 1.0;  //Z=15563
+                //z12v[0] = 1;  //Z=15556
+                //a1v[0] = 1;  //Z=15557
+                //b1v[0] = 1;  //Z=15558
+                //b2v[0] = 1;  //Z=15559
+                //b1sv[0] = 1;  //Z=15560
+                //fkv[0] = 1;  //Z=15561
+                //gam3[0] = sqrt(M_PI)/2.0;  //Z=15562
+                double qqnn = 1.0; //qqn[0] = 1.0;  //Z=15563
                 F42sez = 1.0;  //Z=15564
                 oldF42sez = 0.0;  //Z=15565
-                for ( int n=1; n<=120; n++ )
+                for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=15566
-                    qqn[n] = qqn[n-1]*q*q;  //Z=15567
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=15568
-                    a1v[n] = a1v[n-1]*(a1-1+n);  //Z=15569
-                    b1v[n] = b1v[n-1]*(b1-1+n);  //Z=15570
-                    b2v[n] = b2v[n-1]*(b2-1+n);  //Z=15571
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=15572
-                    fkv[n] = fkv[n-1]*n;  //Z=15573
-                    gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=15574
-                    sum42[n] = 0;  //Z=15575
+                    //qqn[n] = qqn[n-1]*q*q;  //Z=15567
+                    qqnn = qqnn * q * q;
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=15568
+                    //a1v[n] = a1v[n-1]*(a1-1+n);  //Z=15569
+                    //b1v[n] = b1v[n-1]*(b1-1+n);  //Z=15570
+                    //b2v[n] = b2v[n-1]*(b2-1+n);  //Z=15571
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=15572
+                    //fkv[n] = fkv[n-1]*n;  //Z=15573
+                    //gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=15574
+                    //sum42[n] = 0;  //Z=15575
                     /* for m:=0 to n do sum42[n]:=sum42[n]+a1v[m]*a1v[n-m]/(b1v[m]*b1v[n-m]*b2v[m]*b2v[n-m]*fkv[m]*fkv[n-m]);  //Z=15576 */
                     /* F42sez:=F42sez+power(-x22z,n)*z12v[n]*sum42[n];  //Z=15577 */
 
                     /* for m:=0 to n do sum42[n]:=sum42[n]+1/((n-m+(3/2)-(alfa/2))*(m+(3/2)-(alfa/2))*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=15579 */
                     /* F42sez:=F42sez+((3-alfa)*(3-alfa)*pi/16)*power(-x22z,n)*z12v[n]*sum42[n];  //Z=15580 */
 
-                    F42sez = F42sez+carr4p[n]*qqn[n];  //Z=15582
+                    F42sez += params.CR->carr4p[n]*qqnn; //qqn[n];  //Z=15582
 
                     del = fabs((F42sez-oldF42sez)/F42sez);  //Z=15584
                     if ( del<delc ) break; /* goto 204; */  //Z=15585
@@ -5858,32 +5634,33 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             /*  term #5 series  */  //Z=15592
             if ( (xradp)<lim5 )
             {/*4*/  //Z=15593
-                z12v[0] = 1;  //Z=15594
-                a1v[0] = 1;  //Z=15595
-                b1v[0] = 1;  //Z=15596
-                b2v[0] = 1;  //Z=15597
-                b1sv[0] = 1;  //Z=15598
-                fkv[0] = 1;  //Z=15599
-                qqn[0] = 1.0;  //Z=15600
+                //z12v[0] = 1;  //Z=15594
+                //a1v[0] = 1;  //Z=15595
+                //b1v[0] = 1;  //Z=15596
+                //b2v[0] = 1;  //Z=15597
+                //b1sv[0] = 1;  //Z=15598
+                //fkv[0] = 1;  //Z=15599
+                double qqnn = 1.0; //qqn[0] = 1.0;  //Z=15600
                 F52sez = 1.0;  //Z=15601
                 oldF52sez = 0.0;  //Z=15602
-                for ( int n=1; n<=120; n++ )
+                for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=15603
-                    qqn[n] = qqn[n-1]*q*q;  //Z=15604
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=15605
-                    a1v[n] = a1v[n-1]*(a1-1+n);  //Z=15606
-                    b1v[n] = b1v[n-1]*(b1-1+n);  //Z=15607
-                    b2v[n] = b2v[n-1]*(b2-1+n);  //Z=15608
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=15609
-                    fkv[n] = fkv[n-1]*n;  //Z=15610
-                    sum52[n] = 0;  //Z=15611
+                    //qqn[n] = qqn[n-1]*q*q;  //Z=15604
+                    qqnn = qqnn * q * q;
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=15605
+                    //a1v[n] = a1v[n-1]*(a1-1+n);  //Z=15606
+                    //b1v[n] = b1v[n-1]*(b1-1+n);  //Z=15607
+                    //b2v[n] = b2v[n-1]*(b2-1+n);  //Z=15608
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=15609
+                    //fkv[n] = fkv[n-1]*n;  //Z=15610
+                    //sum52[n] = 0;  //Z=15611
                     /* for m:=0 to n do sum52[n]:=sum52[n]+a1v[m]*a1v[n-m]*power(p1*p1,m)/(b1v[m]*b1v[n-m]*b2v[m]*b2v[n-m]*fkv[m]*fkv[n-m]);  //Z=15612 */
                     /* F52sez:=F52sez+power(-x22z,n)*z12v[n]*sum52[n];  //Z=15613 */
 
                     /* for m:=0 to n do sum52[n]:=sum52[n]+power(p1*p1,n-m)/((n-m+(3/2)-(alfa/2))*(m+(3/2)-(alfa/2))*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=15615 */
                     /* F52sez:=F52sez+((3-alfa)*(3-alfa)*pi/16)*power(-x22z,n)*z12v[n]*sum52[n];  //Z=15616 */
 
-                    F52sez = F52sez+carr5p[n]*qqn[n];  //Z=15618
+                    F52sez += params.CR->carr5p[n]*qqnn; //qqn[n];  //Z=15618
 
                     del = fabs((F52sez-oldF52sez)/F52sez);  //Z=15620
                     if ( del<delc ) break; /* goto 205; */  //Z=15621
@@ -5896,32 +5673,33 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             /*  term #6 series  */  //Z=15628
             if ( (xradp)<lim6 )
             {/*4*/  //Z=15629
-                z12v[0] = 1;  //Z=15630
-                a1v[0] = 1;  //Z=15631
-                b1v[0] = 1;  //Z=15632
-                b2v[0] = 1;  //Z=15633
-                b1sv[0] = 1;  //Z=15634
-                fkv[0] = 1;  //Z=15635
-                qqn[0] = 1.0;  //Z=15636
+                //z12v[0] = 1;  //Z=15630
+                //a1v[0] = 1;  //Z=15631
+                //b1v[0] = 1;  //Z=15632
+                //b2v[0] = 1;  //Z=15633
+                //b1sv[0] = 1;  //Z=15634
+                //fkv[0] = 1;  //Z=15635
+                double qqnn = 1.0; //qqn[0] = 1.0;  //Z=15636
                 F62sez = 1.0;  //Z=15637
                 oldF62sez = 0.0;  //Z=15638
-                for ( int n=1; n<=120; n++ )
+                for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=15639
-                    qqn[n] = qqn[n-1]*q*q;  //Z=15640
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=15641
-                    a1v[n] = a1v[n-1]*(a1-1+n);  //Z=15642
-                    b1v[n] = b1v[n-1]*(b1-1+n);  //Z=15643
-                    b2v[n] = b2v[n-1]*(b2-1+n);  //Z=15644
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=15645
-                    fkv[n] = fkv[n-1]*n;  //Z=15646
-                    sum62[n] = 0;  //Z=15647
+                    //qqn[n] = qqn[n-1]*q*q;  //Z=15640
+                    qqnn = qqnn * sqr(q);
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=15641
+                    //a1v[n] = a1v[n-1]*(a1-1+n);  //Z=15642
+                    //b1v[n] = b1v[n-1]*(b1-1+n);  //Z=15643
+                    //b2v[n] = b2v[n-1]*(b2-1+n);  //Z=15644
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=15645
+                    //fkv[n] = fkv[n-1]*n;  //Z=15646
+                    //sum62[n] = 0;  //Z=15647
                     /* for m:=0 to n do sum62[n]:=sum62[n]+a1v[m]*a1v[n-m]/(b1v[m]*b1v[n-m]*b2v[m]*b2v[n-m]*fkv[m]*fkv[n-m]);  //Z=15648 */
                     /* F62sez:=F62sez+power(-x12z,n)*z12v[n]*sum62[n];  //Z=15649 */
 
                     /* for m:=0 to n do sum62[n]:=sum62[n]+1/((n-m+(3/2)-(alfa/2))*(m+(3/2)-(alfa/2))*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=15651 */
                     /* F62sez:=F62sez+((3-alfa)*(3-alfa)*pi/16)*power(-x12z,n)*z12v[n]*sum62[n];  //Z=15652 */
 
-                    F62sez = F62sez+carr6p[n]*qqn[n];  //Z=15654
+                    F62sez += params.CR->carr6p[n]*qqnn; //qqn[n];  //Z=15654
 
                     del = fabs((F62sez-oldF62sez)/F62sez);  //Z=15656
                     if ( del<delc ) break; /* goto 206; */  //Z=15657
@@ -5952,14 +5730,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             /* ** term #2 asymptote ** */  //Z=15681
             if ( xradp>=lim2 )
             {/*4*/  //Z=15682
-                arg21 = (zr+v-2*a1+1)*atan(2.0*x1z);  //Z=15683
-                nen21 = pow(1.0+4*x1z*x1z,(zr+v-2*a1+1)/2.0);  //Z=15684
-                arg22 = (zr+v-2*a1)*atan(2.0*x1z);  //Z=15685
-                nen22 = pow(1.0+4*x1z*x1z,(zr+v-2*a1)/2.0);  //Z=15686
-                F22as1sum1z = dnv0*ee0*pvav0*(cos(M_PI*v/2.0)*cos(arg21)/nen21-sin(M_PI*v/2.0)*sin(arg21)/nen21);  //Z=15687
-                F22as1sum2z = dnv0*ee1*(1/(2.0*x1z))*pvav10*(cos(M_PI*(v-1)/2.0)*cos(arg22)/nen22-sin(M_PI*(v-1)/2.0)*sin(arg22)/nen22);  //Z=15688
+                //arg21 = (zr+v-2*a1+1)*atan(2.0*x1z);  //Z=15683
+                //nen21 = pow(1.0+4*x1z*x1z,(zr+v-2*a1+1)/2.0);  //Z=15684
+                //arg22 = (zr+v-2*a1)*atan(2.0*x1z);  //Z=15685
+                //nen22 = pow(1.0+4*x1z*x1z,(zr+v-2*a1)/2.0);  //Z=15686
+                //F22as1sum1z = dnv0*ee0*pvav0*(cos(M_PI*v/2.0)*cos(arg21)/nen21-sin(M_PI*v/2.0)*sin(arg21)/nen21);  //Z=15687
+                //F22as1sum2z = dnv0*ee1*(1/(2.0*x1z))*pvav10*(cos(M_PI*(v-1)/2.0)*cos(arg22)/nen22-sin(M_PI*(v-1)/2.0)*sin(arg22)/nen22);  //Z=15688
                 F22as10z = preg1*preg4*pow(x1z,v)*pow(x22z,-a1);  //Z=15689
-                F22as1z = F22as10z*(F22as1sum1z+F22as1sum2z);  //Z=15690
+                //F22as1z = F22as10z*(F22as1sum1z+F22as1sum2z);  //Z=15690
 
                 arg210 = (zr+v-2*a1+1)*atan(2.0*x1z);  //Z=15692
                 nen210 = pow(1.0+4*x1z*x1z,(zr+v-2*a1+1)/2.0);  //Z=15693
@@ -5991,7 +5769,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 F22as24z = a22as24z*(cos(M_PI*(v-1-c+1)/2.0)*cos(arg27)/nen27-sin(M_PI*(v-1-c+1)/2.0)*sin(arg27)/nen27+cos(M_PI*(v-1+c-1)/2.0)*cos(arg28)/nen28-sin(M_PI*(v-1+c-1)/2.0)*sin(arg28)/nen28);  //Z=15719
                 F22as20z = preg1*preg3*pow(x1z,v)*pow(x2z,c);  //Z=15720
                 F22as2z = F22as20z*(F22as21z+F22as22z+F22as23z+F22as24z);  //Z=15721
-                F22asz = F22as1z+F22as2z;  //Z=15722
+                //F22asz = F22as1z+F22as2z;  //Z=15722
                 F22asz0 = F22as1z0+F22as2z;  //Z=15723
                 F22 = F22asz0;  //Z=15724
             }/*4*/  //Z=15725
@@ -5999,14 +5777,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             /* ** term #3 asymptote ** */  //Z=15727
             if ( xradp>=lim3 )
             {/*4*/  //Z=15728
-                arg31 = (zr+v-2*a1+1)*atan(2.0*x1z);  //Z=15729
-                nen31 = pow(1.0+4*x1z*x1z,(zr+v-2*a1+1)/2.0);  //Z=15730
-                arg32 = (zr+v-2*a1)*atan(2.0*x1z);  //Z=15731
-                nen32 = pow(1.0+4*x1z*x1z,(zr+v-2*a1)/2.0);  //Z=15732
-                F32as1sum1z = dnv0*ee0*pvav0*(cos(M_PI*v/2.0)*cos(arg31)/nen31-sin(M_PI*v/2.0)*sin(arg31)/nen31);  //Z=15733
-                F32as1sum2z = dnv0*ee1*(1/(2.0*x1z))*pvav10*(cos(M_PI*(v-1)/2.0)*cos(arg32)/nen32-sin(M_PI*(v-1)/2.0)*sin(arg32)/nen32);  //Z=15734
+                //arg31 = (zr+v-2*a1+1)*atan(2.0*x1z);  //Z=15729
+                //nen31 = pow(1.0+4*x1z*x1z,(zr+v-2*a1+1)/2.0);  //Z=15730
+                //arg32 = (zr+v-2*a1)*atan(2.0*x1z);  //Z=15731
+                //nen32 = pow(1.0+4*x1z*x1z,(zr+v-2*a1)/2.0);  //Z=15732
+                //F32as1sum1z = dnv0*ee0*pvav0*(cos(M_PI*v/2.0)*cos(arg31)/nen31-sin(M_PI*v/2.0)*sin(arg31)/nen31);  //Z=15733
+                //F32as1sum2z = dnv0*ee1*(1/(2.0*x1z))*pvav10*(cos(M_PI*(v-1)/2.0)*cos(arg32)/nen32-sin(M_PI*(v-1)/2.0)*sin(arg32)/nen32);  //Z=15734
                 F32as10z = preg1*preg4*pow(x1z,v)*pow(x12z,-a1);  //Z=15735
-                F32as1z = F32as10z*(F32as1sum1z+F32as1sum2z);  //Z=15736
+                //F32as1z = F32as10z*(F32as1sum1z+F32as1sum2z);  //Z=15736
 
                 arg310 = (z+v-2*a1+1)*atan(2.0*x1z);  //Z=15738
                 nen310 = pow(1.0+4*x1z*x1z,(z+v-2*a1+1)/2.0);  //Z=15739
@@ -6028,7 +5806,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 F32as24z = (1/2.0)*ee1*e1*(1/(4.0*x1z*x1z))*pzvc2*(cos(M_PI*(v-1-c+1)/2.0)+cos(M_PI*(v-1+c-1)/2.0)*cos(arg35)/nen35-sin(M_PI*(v-1+c-1)/2.0)*sin(arg35)/nen35);  //Z=15755
                 F32as20z = preg1*preg3*pow(x1z,v)*pow(x1z,c);  //Z=15756
                 F32as2z = F32as20z*(F32as21z+F32as22z+F32as23z+F32as24z);  //Z=15757
-                F32asz = F32as1z+F32as2z;  //Z=15758
+                //F32asz = F32as1z+F32as2z;  //Z=15758
                 F32asz0 = F32as1z0+F32as2z;  //Z=15759
                 F32 = F32asz0;  //Z=15760
             }/*4*/  //Z=15761
@@ -6038,28 +5816,28 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             if ( xrad>=lim4 )
             {/*4*/  //Z=15765
                 F42as10z = preg4*preg4*pow(x22z,-2*a1);  //Z=15766
-                F42as1sumz = pva0;  //Z=15767
-                F42as1z = F42as10z*F42as1sumz;  //Z=15768
+                //F42as1sumz = pva0;  //Z=15767
+                //F42as1z = F42as10z*F42as1sumz;  //Z=15768
                 F42as1z0 = F42as10z*pza;  //Z=15769
 
                 arg41 = (zr-2*a1+c+1)*atan(2.0*x2z);  //Z=15771
                 nen41 = pow(1.0+4*x2z*x2z,(zr-2*a1+c+1)/2.0);  //Z=15772
                 arg42 = (zr-2*a1+c)*atan(2.0*x2z);  //Z=15773
                 nen42 = pow(1.0+4*x2z*x2z,(zr-2*a1+c)/2.0);  //Z=15774
-                arg43 = (zr-2*a1+c+3)*atan(2.0*x2z);  //Z=15775
-                nen43 = pow(1.0+4*x2z*x2z,(zr-2*a1+c+3)/2.0);  //Z=15776
+                //arg43 = (zr-2*a1+c+3)*atan(2.0*x2z);  //Z=15775
+                //nen43 = pow(1.0+4*x2z*x2z,(zr-2*a1+c+3)/2.0);  //Z=15776
                 F42as20z = preg4*preg3*pow(x22z,-a1)*pow(x2z,c);  //Z=15777
                 F42as21 = d0*e0*pzac*(cos(M_PI*c/2.0)*cos(arg41)/nen41-sin(M_PI*c/2.0)*sin(arg41)/nen41);  //Z=15778
                 F42as22 = d0*e1*pzac1*(1/(2.0*x2z))*(cos(M_PI*(c-1)/2.0)*cos(arg42)/nen42-sin(M_PI*(c-1)/2.0)*sin(arg42)/nen42);  //Z=15779
-                F42as23 = d1*e0*pzac2*(-x22z)*(cos(M_PI*c/2.0)*cos(arg43)/nen43-sin(M_PI*c/2.0)*sin(arg43)/arg43);  //Z=15780
-                F42as2z = F42as20z*(F42as21+F42as22+F42as23);  //Z=15781
+                //F42as23 = d1*e0*pzac2*(-x22z)*(cos(M_PI*c/2.0)*cos(arg43)/nen43-sin(M_PI*c/2.0)*sin(arg43)/arg43);  //Z=15780
+                //F42as2z = F42as20z*(F42as21+F42as22+F42as23);  //Z=15781
                 F42as2z0 = F42as20z*(F42as21+F42as22);  //Z=15782
 
                 F42as30z = preg4*preg3*pow(x22z,-a1)*pow(x2z,c);  //Z=15784
                 F42as24 = d0*e0*pzac*(cos(M_PI*c/2.0)*cos(arg41)/nen41-sin(M_PI*c/2.0)*sin(arg41)/nen41);  //Z=15785
-                F42as25 = d1*e0*pzac2*(-x22z)*(cos(M_PI*(c-1)/2.0)*cos(arg43)/nen43-sin(M_PI*(c-1)/2.0)*sin(arg43)/nen43);  //Z=15786
+                //F42as25 = d1*e0*pzac2*(-x22z)*(cos(M_PI*(c-1)/2.0)*cos(arg43)/nen43-sin(M_PI*(c-1)/2.0)*sin(arg43)/nen43);  //Z=15786
                 F42as26 = d0*e1*pzac1*(1/(2.0*x2z))*(cos(M_PI*(c+1)/2.0)*cos(arg42)/nen42-sin(M_PI*(c+1)/2.0)*sin(arg42)/nen42);  //Z=15787
-                F42as3z = F42as30z*(F42as24+F42as25+F42as26);  //Z=15788
+                //F42as3z = F42as30z*(F42as24+F42as25+F42as26);  //Z=15788
                 F42as3z0 = F42as30z*(F42as24+F42as26);  //Z=15789
 
                 F42as40z = preg3*preg3*pow(x2z*x2z,c);  //Z=15791
@@ -6071,7 +5849,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 F42as28 = (1/2.0)*e0*e1*(1/(2.0*x2z))*pzc1*(cos(M_PI*(2*c-1)/2.0)*cos(arg45)/nen45-sin(M_PI*(2*c-1)/2.0)*sin(arg45)/nen45);  //Z=15797
                 F42as29 = (1/2.0)*e1*e0*(1/(2.0*x2z))*pzc1*(cos(M_PI*(2*c-1)/2.0)*cos(arg45)/nen45-sin(M_PI*(2*c-1)/2.0)*sin(arg45)/nen45);  //Z=15798
                 F42as4z = F42as40z*(F42as27+F42as28+F42as29);  //Z=15799
-                F42asz = F42as1z+F42as2z+F42as3z+F42as4z;  //Z=15800
+                //F42asz = F42as1z+F42as2z+F42as3z+F42as4z;  //Z=15800
                 F42asz0 = F42as1z0+F42as2z0+F42as3z0+F42as4z;  //Z=15801
                 F42 = F42asz0;  //Z=15802
             }/*4*/  //Z=15803
@@ -6081,8 +5859,8 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             if ( xradp>=lim5 )
             {/*4*/  //Z=15807
                 F52as10z = preg4*preg4*pow(x12z,-a1)*pow(x22z,-a1);  //Z=15808
-                F52as1sumz = pva0;  //Z=15809
-                F52as1z = F52as10z*F52as1sumz;  //Z=15810
+                //F52as1sumz = pva0;  //Z=15809
+                //F52as1z = F52as10z*F52as1sumz;  //Z=15810
                 F52as1z0 = F52as10z*pza;  //Z=15811
 
                 F52as20z = preg4*preg3*pow(x12z,-a1)*pow(x2z,c);  //Z=15813
@@ -6090,25 +5868,25 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 nen51 = pow(1.0+4*x2z*x2z,(zr-2*a1+c+1)/2.0);  //Z=15815
                 arg52 = (zr-2*a1+c)*atan(2.0*x2z);  //Z=15816
                 nen52 = pow(1.0+4*x2z*x2z,(zr-2*a1+c)/2.0);  //Z=15817
-                arg53 = (zr-2*a1+c+3)*atan(2.0*x2z);  //Z=15818
-                nen53 = pow(1.0+4*x2z*x2z,(zr-2*a1+c+3)/2.0);  //Z=15819
+                //arg53 = (zr-2*a1+c+3)*atan(2.0*x2z);  //Z=15818
+                //nen53 = pow(1.0+4*x2z*x2z,(zr-2*a1+c+3)/2.0);  //Z=15819
                 F52as21 = d0*e0*pzac*(cos(M_PI*c/2.0)*cos(arg51)/nen51-sin(M_PI*c/2.0)*sin(arg51)/nen51);  //Z=15820
                 F52as22 = d0*e1*pzac1*(1/(2.0*x2z))*(cos(M_PI*(c-1)/2.0)*cos(arg52)/nen52-sin(M_PI*(c-1)/2.0)*sin(arg52)/nen52);  //Z=15821
-                F52as23 = d1*e0*pzac2*(-x22z)*(cos(M_PI*c/2.0)*cos(arg53)/nen53-sin(M_PI*c/2.0)*sin(arg53)/nen53);  //Z=15822
-                F52as2z = F52as20z*(F52as21+F52as22+F52as23);  //Z=15823
+                //F52as23 = d1*e0*pzac2*(-x22z)*(cos(M_PI*c/2.0)*cos(arg53)/nen53-sin(M_PI*c/2.0)*sin(arg53)/nen53);  //Z=15822
+                //F52as2z = F52as20z*(F52as21+F52as22+F52as23);  //Z=15823
                 F52as2z0 = F52as20z*(F52as21+F52as22);  //Z=15824
 
                 F52as30z = preg4*preg3*pow(x22z,-a1)*pow(x1z,c);  //Z=15826
                 arg54 = (zr-2*a1+c+1)*atan(2.0*x1z);  //Z=15827
                 nen54 = pow(1.0+4*x1z*x1z,(zr-2*a1+c+1)/2.0);  //Z=15828
-                arg55 = (zr-2*a1+c+3)*atan(2.0*x1z);  //Z=15829
-                nen55 = pow(1.0+4*x1z*x1z,(zr-2*a1+c+3)/2.0);  //Z=15830
+                //arg55 = (zr-2*a1+c+3)*atan(2.0*x1z);  //Z=15829
+                //nen55 = pow(1.0+4*x1z*x1z,(zr-2*a1+c+3)/2.0);  //Z=15830
                 arg56 = (zr-2*a1+c)*atan(2.0*x1z);  //Z=15831
                 nen56 = pow(1.0+4*x1z*x1z,(zr-2*a1+c)/2.0);  //Z=15832
                 F52as24 = d0*e0*pzac*(cos(M_PI*c/2.0)*cos(arg54)/nen54-sin(M_PI*c/2.0)*sin(arg54)/nen54);  //Z=15833
-                F52as25 = d1*e0*pzac2*(-x22z)*(cos(M_PI*(c+1)/2.0)*cos(arg55)/nen55-sin(M_PI*(c+1)/2.0)*sin(arg55)/nen55);  //Z=15834
+                //F52as25 = d1*e0*pzac2*(-x22z)*(cos(M_PI*(c+1)/2.0)*cos(arg55)/nen55-sin(M_PI*(c+1)/2.0)*sin(arg55)/nen55);  //Z=15834
                 F52as26 = d0*e1*pzac1*(1/(2.0*x1z))*(cos(M_PI*(c-1)/2.0)*cos(arg56)/nen56-sin(M_PI*(c-1)/2.0)*sin(arg56)/nen56);  //Z=15835
-                F52as3z = F52as30z*(F52as24+F52as25+F52as26);  //Z=15836
+                //F52as3z = F52as30z*(F52as24+F52as25+F52as26);  //Z=15836
                 F52as3z0 = F52as30z*(F52as24+F52as26);  //Z=15837
 
                 F52as40z = preg3*preg3*pow(x1z,c)*pow(x2z,c);  //Z=15839
@@ -6124,7 +5902,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 F52as28 = (1/2.0)*e0*e1*(1/(2.0*x2z))*pzc1*(0+sin(arg59)/nen59+cos(M_PI*(2*c-1)/2.0)*cos(arg510)/nen510-sin(M_PI*(2*c-1)/2.0)*sin(arg510)/nen510);  //Z=15849
                 F52as29 = (1/2.0)*e1*e0*(1/(2.0*x1z))*pzc1*(0-sin(arg59)/nen59+cos(M_PI*(2*c-1)/2.0)*cos(arg510)/nen510-sin(M_PI*(2*c-1)/2.0)*sin(arg510)/nen510);  //Z=15850
                 F52as4z = F52as40z*(F52as27+F52as28+F52as29);  //Z=15851
-                F52asz = F52as1z+F52as2z+F52as3z+F52as4z;  //Z=15852
+                //F52asz = F52as1z+F52as2z+F52as3z+F52as4z;  //Z=15852
                 F52asz0 = F52as1z0+F52as2z0+F52as3z0+F52as4z;  //Z=15853
                 F52 = F52asz0;  //Z=15854
             }/*4*/  //Z=15855
@@ -6133,8 +5911,8 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             if ( xradp>=lim6 )
             {/*4*/  //Z=15858
                 F62as10z = preg4*preg4*pow(x12z,-a1)*pow(x12z,-a1);  //Z=15859
-                F62as1sumz = pva0;  //Z=15860
-                F62as1z = F62as10z*F62as1sumz;  //Z=15861
+                //F62as1sumz = pva0;  //Z=15860
+                //F62as1z = F62as10z*F62as1sumz;  //Z=15861
                 F62as1z0 = F62as10z*pza;  //Z=15862
 
                 F62as20z = preg4*preg3*pow(x12z,-a1)*pow(x1z,c);  //Z=15864
@@ -6142,19 +5920,19 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 nen61 = pow(1.0+4*x1z*x1z,(zr-2*a1+c+1)/2.0);  //Z=15866
                 arg62 = (zr-2*a1+c)*atan(2.0*x1z);  //Z=15867
                 nen62 = pow(1.0+4*x1z*x1z,(zr-2*a1+c)/2.0);  //Z=15868
-                arg63 = (zr-2*a1+c+3)*atan(2.0*x1z);  //Z=15869
-                nen63 = pow(1.0+4*x1z*x1z,(zr-2*a1+c+3)/2.0);  //Z=15870
+                //arg63 = (zr-2*a1+c+3)*atan(2.0*x1z);  //Z=15869
+                //nen63 = pow(1.0+4*x1z*x1z,(zr-2*a1+c+3)/2.0);  //Z=15870
                 F62as21 = d0*e0*pzac*(cos(M_PI*c/2.0)*cos(arg61)/nen61-sin(M_PI*c/2.0)*sin(arg61)/nen61);  //Z=15871
                 F62as22 = d0*e1*pzac1*(1/(2.0*x1z))*(cos(M_PI*(c-1)/2.0)*cos(arg62)/nen62-sin(M_PI*(c-1)/2.0)*sin(arg62)/nen62);  //Z=15872
-                F62as23 = d1*e0*pzac2*(-x12z)*(cos(M_PI*c/2.0)*cos(arg63)/nen63-sin(M_PI*c/2.0)*sin(arg63)/nen63);  //Z=15873
-                F62as2z = F62as20z*(F62as21+F62as22+F62as23);  //Z=15874
+                //F62as23 = d1*e0*pzac2*(-x12z)*(cos(M_PI*c/2.0)*cos(arg63)/nen63-sin(M_PI*c/2.0)*sin(arg63)/nen63);  //Z=15873
+                //F62as2z = F62as20z*(F62as21+F62as22+F62as23);  //Z=15874
                 F62as2z0 = F62as20z*(F62as21+F62as22);  //Z=15875
 
                 F62as30z = preg4*preg3*pow(x12z,-a1)*pow(x1z,c);  //Z=15877
                 F62as24 = d0*e0*pzac*(cos(M_PI*c/2.0)*cos(arg61)/nen61-sin(M_PI*c/2.0)*sin(arg61)/nen61);  //Z=15878
-                F62as25 = d1*e0*pzac2*(-x12z)*(cos(M_PI*(c+1)/2.0)*cos(arg63)/nen63-sin(M_PI*(c+1)/2.0)*sin(arg63)/nen63);  //Z=15879
+                //F62as25 = d1*e0*pzac2*(-x12z)*(cos(M_PI*(c+1)/2.0)*cos(arg63)/nen63-sin(M_PI*(c+1)/2.0)*sin(arg63)/nen63);  //Z=15879
                 F62as26 = d0*e1*pzac1*(1/(2.0*x1z))*(cos(M_PI*(c-1)/2.0)*cos(arg62)/nen62-sin(M_PI*(c-1)/2.0)*sin(arg62)/nen62);  //Z=15880
-                F62as3z = F62as30z*(F62as24+F62as25+F62as26);  //Z=15881
+                //F62as3z = F62as30z*(F62as24+F62as25+F62as26);  //Z=15881
                 F62as3z0 = F62as30z*(F62as24+F62as26);  //Z=15882
 
                 F62as40z = preg3*preg3*pow(x1z*x1z,c);  //Z=15884
@@ -6166,7 +5944,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 F62as28 = (1/2.0)*e0*e1*(1/(2.0*x1z))*pzc1*(cos(M_PI*(2*c-1)/2.0)*cos(arg65)/nen65-sin(M_PI*(2*c-1)/2.0)*sin(arg65)/nen65);  //Z=15890
                 F62as29 = (1/2.0)*e1*e0*(1/(2.0*x1z))*pzc1*(cos(M_PI*(2*c-1)/2.0)*cos(arg65)/nen65-sin(M_PI*(2*c-1)/2.0)*sin(arg65)/nen65);  //Z=15891
                 F62as4z = F62as40z*(F62as27+F62as28+F62as29);  //Z=15892
-                F62asz = F62as1z+F62as2z+F62as3z+F62as4z;  //Z=15893
+                //F62asz = F62as1z+F62as2z+F62as3z+F62as4z;  //Z=15893
                 F62asz0 = F62as1z0+F62as2z0+F62as3z0+F62as4z;  //Z=15894
                 F62 = F62asz0;  //Z=15895
             }/*4*/  //Z=15896
@@ -6180,7 +5958,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
 
 
         /*  myelin sphere  */  //Z=15906
-        if ( (cs==3) || (cs==4) )
+        if ( (params.cs==3) || (params.cs==4) )
         {/*3*/  //Z=15907
 
             /*  sphere parameters  */  //Z=15909
@@ -6191,12 +5969,12 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             pz2v = 1/(zr*(zr-1)*(zr-2)*(zr-3));  //Z=15914
             pz2v1 = pz2v/(zr-4);  //Z=15915
             pz2v2 = pz2v1/(zr-5);  //Z=15916
-            lim = 18*exp(-5*sigmar);  //Z=15917
+            lim = 18*exp(-5*params.sigma);  //Z=15917
             lim1 = lim*1.4;  //Z=15918
-            rad = myarray[1];  //Z=15919
-            inmax = round(myarray[14]);  //Z=15920
-            vvm = myarray[15];  //Z=15921
-            rmax = myarray[16];  //Z=15922
+            rad = params.CR->myarray[1];  //Z=15919
+            inmax = round(params.CR->myarray[14]);  //Z=15920
+            vvm = params.CR->myarray[15];  //Z=15921
+            rmax = params.CR->myarray[16];  //Z=15922
             xmax = q*rmax;  //Z=15923
 
             if ( xmax<(lim1) )
@@ -6222,18 +6000,18 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                             for ( mser=0; mser<=nser; mser++ )
                             {/*8*/  //Z=15940
                                 /* pqsum:=pqsum+power(carr7p[ii],2*mser)*power(carr7p[jj],2*(nser-mser))/((mser+1)*fkv[mser]*(nser-mser+1)*fkv[nser-mser]*fkv[mser]*fkv[nser-mser]);  //Z=15941 */
-                                pqsum = pqsum+pow(carr7p[ii],2*mser)*pow(carr7p[jj],2*(nser-mser))/(carr6p[mser]*carr6p[nser-mser]);  //Z=15942
+                                pqsum = pqsum+pow(params.CR->carr7p[ii],2*mser)*pow(params.CR->carr7p[jj],2*(nser-mser))/(params.CR->carr6p[mser]*params.CR->carr6p[nser-mser]);  //Z=15942
 
                                 /* indx:=mser+1+round(nser*(nser+1)/2);  //Z=15944 */
                                 /* pqsum:=pqsum+power(carr7p[ii],2*mser)*power(carr7p[jj],2*(nser-mser))*carr1pm[indx];  //Z=15945 */
                             }/*8*/  //Z=15946
-                            F12sez = F12sez+carr4p[nser]*qqn[nser]*pqsum;  //Z=15947
+                            F12sez = F12sez+params.CR->carr4p[nser]*qqn[nser]*pqsum;  //Z=15947
                             delser = fabs((F12sez-oldF12sez)/F12sez);  //Z=15948
                             if ( delser<0.0001 ) break; /* goto 250; */  //Z=15949
                             oldF12sez = F12sez;  //Z=15950
                         }/*7*/  //Z=15951
                         /*250:*/  //Z=15952
-                        F12sum = F12sum+carr5p[ii]*carr5p[jj]*F12sez;  //Z=15953
+                        F12sum = F12sum+params.CR->carr5p[ii]*params.CR->carr5p[jj]*F12sez;  //Z=15953
                     }/*6*/  //Z=15954
                 }/*5*/  //Z=15955
                 F12ser = F12sum/vvm;  //Z=15956
@@ -6252,20 +6030,20 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 F12asz = 0.0;  //Z=15968
                 for ( ii=1; ii<=inmax; ii++ )
                 {/*5*/  //Z=15969
-                    a1m = carr5p[ii]*pow(carr7p[ii],v);   /*  carr7p[ii]:=pp[ii];  //Z=15970 */
+                    a1m = params.CR->carr5p[ii]*pow(params.CR->carr7p[ii],v);   /*  carr7p[ii]:=pp[ii];  //Z=15970 */
                     for ( jj=1; jj<=inmax; jj++ )
                     {/*6*/  //Z=15971
-                        a2m = carr5p[jj]*pow(carr7p[jj],v);  //Z=15972
-                        xijm = (carr3p[ii]-carr3p[jj])*q/(zr+1);      /*   carr3p[ii]:=ll[ii];  //Z=15973 */
+                        a2m = params.CR->carr5p[jj]*pow(params.CR->carr7p[jj],v);  //Z=15972
+                        xijm = (params.CR->carr3p[ii]-params.CR->carr3p[jj])*q/(zr+1);      /*   carr3p[ii]:=ll[ii];  //Z=15973 */
                         arglmz = (zr+1)*atan(xijm);  //Z=15974
                         nenlmz = pow(1.0+xijm*xijm,(zr+1)/2.0);  //Z=15975
-                        xijp = (carr3p[ii]+carr3p[jj])*q/(zr+1);  //Z=15976
+                        xijp = (params.CR->carr3p[ii]+params.CR->carr3p[jj])*q/(zr+1);  //Z=15976
                         arglpz = (zr+1)*atan(xijp);  //Z=15977
                         nenlpz = pow(1.0+xijp*xijp,(zr+1)/2.0);  //Z=15978
                         F12as1z = e0*e0*pz2v*(cos(arglmz)/nenlmz+(cos(M_PI*v)*(cos(arg)*cos(arglpz)-sin(arg)*sin(arglpz))-sin(M_PI*v)*(sin(arg)*cos(arglpz)+cos(arg)*sin(arglpz)))/(nen*nenlpz));  //Z=15979
-                        F12as2z = e0*e1*(1/(carr7p[jj]*xrz))*pz2v1*(-sin(arglmz)/nenlmz+(cos(M_PI*(2*v-1)/2.0)*(cos(arg1)*cos(arglpz)-sin(arg1)*sin(arglpz))-sin(M_PI*(2*v-1)/2.0)*(sin(arg1)*cos(arglpz)+cos(arg1)*sin(arglpz)))/(nen1*nenlpz));  //Z=15980
-                        F12as3z = e1*e0*(1/(carr7p[ii]*xrz))*pz2v1*(sin(arglmz)/nenlmz+(cos(M_PI*(2*v-1)/2.0)*(cos(arg1)*cos(arglpz)-sin(arg1)*sin(arglpz))-sin(M_PI*(2*v-1)/2.0)*(sin(arg1)*cos(arglpz)+cos(arg1)*sin(arglpz)))/(nen1*nenlpz));  //Z=15981
-                        F12as4z = e1*e1*(1/(carr7p[ii]*carr7p[jj]*xrz*xrz))*pz2v2*(cos(arglmz)/nenlmz+(cos(M_PI*(v-1))*(cos(arg2)*cos(arglpz)-sin(arg2)*sin(arglpz))-sin(M_PI*(v-1))*(sin(arg2)*cos(arglpz)+cos(arg2)*sin(arglpz)))/(nen2*nenlpz));  //Z=15982
+                        F12as2z = e0*e1*(1/(params.CR->carr7p[jj]*xrz))*pz2v1*(-sin(arglmz)/nenlmz+(cos(M_PI*(2*v-1)/2.0)*(cos(arg1)*cos(arglpz)-sin(arg1)*sin(arglpz))-sin(M_PI*(2*v-1)/2.0)*(sin(arg1)*cos(arglpz)+cos(arg1)*sin(arglpz)))/(nen1*nenlpz));  //Z=15980
+                        F12as3z = e1*e0*(1/(params.CR->carr7p[ii]*xrz))*pz2v1*(sin(arglmz)/nenlmz+(cos(M_PI*(2*v-1)/2.0)*(cos(arg1)*cos(arglpz)-sin(arg1)*sin(arglpz))-sin(M_PI*(2*v-1)/2.0)*(sin(arg1)*cos(arglpz)+cos(arg1)*sin(arglpz)))/(nen1*nenlpz));  //Z=15981
+                        F12as4z = e1*e1*(1/(params.CR->carr7p[ii]*params.CR->carr7p[jj]*xrz*xrz))*pz2v2*(cos(arglmz)/nenlmz+(cos(M_PI*(v-1))*(cos(arg2)*cos(arglpz)-sin(arg2)*sin(arglpz))-sin(M_PI*(v-1))*(sin(arg2)*cos(arglpz)+cos(arg2)*sin(arglpz)))/(nen2*nenlpz));  //Z=15982
 
                         F12asz = F12asz+a1m*a2m*(F12as1z+F12as2z+F12as3z+F12as4z);  //Z=15984
                     }/*6*/  //Z=15985
@@ -6287,15 +6065,15 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
     /* ************ */  //Z=16001
     /* ** triaxial ellipsoid ** */  //Z=16002
     /* ************ */  //Z=16003
-    if ( part==116 )
+    if ( params.part==116 )
     {/*2*/  //Z=16004
         epsi = sigmal;  //Z=16005
         /* ** homogeneous triaxial ellipsoid ** */  //Z=16006
         if ( ordis==7 )
         {/*3*/   /*  isotropic  */  //Z=16007
-            if ( cs==0 )
+            if ( params.cs==0 )
             {/*4*/  //Z=16008
-                if ( q<0.4*limq4 )
+                if ( q<0.4*params.limq4 )
                 {/*5*/  //Z=16009
                     pqsum = 1.0;  //Z=16010
                     oldpqsum = 0.0;  //Z=16011
@@ -6303,7 +6081,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                     for ( nser=1; nser<=100; nser++ )
                     {/*6*/  //Z=16013
                         qqn[nser] = qqn[nser-1]*q*q;  //Z=16014
-                        pqsum = pqsum+carr4p[nser]*qqn[nser];  //Z=16015
+                        pqsum = pqsum+params.CR->carr4p[nser]*qqn[nser];  //Z=16015
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=16016
                         if ( delser<0.0001 ) break; /* goto 90; */  //Z=16017
                         oldpqsum = pqsum;  //Z=16018
@@ -6318,7 +6096,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
 
                     /* qrombdeltac(length,radius,p1,sigmal,dbeta,theta,0,qxs,qys,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,1,4,orcase,0,0,0,carr1p,pq);  //Z=16027 */
 
-                    qrombchid(length,radius,p1,params.sigma,alfa,params.dbeta,epsi,theta,phi,qx,qy,qz,
+                    qrombchid(params.length,params.radius,params.p1,params.sigma,params.alphash1,epsi,params.polTheta,params.polPhi,qx,qy,qz,
                               params.p11,params.p12,params.p13,params.p21,params.p22,params.p23,params.p31,params.p32,params.p33,
                               qx,qy,0,qhkl,
                               params.ax1.length(),params.ax2.length(),params.ax3.length(),
@@ -6326,7 +6104,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                               params.ax2.x(),params.ax2.y(),params.ax2.z(),
                               params.ax3.x(),params.ax3.y(),params.ax3.z(),
                               params.sig.x(),params.sig.y(),params.sig.z(),
-                              ordis,3,7,13,7,0,0,carr1p,pql);  //Z=16029
+                              ordis,3,7,13,7,0,0,params.CR->carr1p,pql);  //Z=16029
                     /*formpq:=*/ return pql;  //Z=16030
                 }/*5*/  //Z=16031
             }/*4*/ /*  of homogeneous sphere */  //Z=16032
@@ -6336,11 +6114,11 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
         /*  perfect  */  //Z=16036
         if ( ordis==6 )
         {/*3*/  //Z=16037
-            if ( orcase==4 )
+            if ( params.orcase==4 )
                 pql = 1.0;  //Z=16038
             else
             {/*4*/  //Z=16039
-                if ( q<(0.6*limq1) )
+                if ( q<(0.6*params.limq1) )
                 {/*5*/  //Z=16040
                     pqsum = 1.0;  //Z=16041
                     oldpqsum = 0.0;  //Z=16042
@@ -6363,7 +6141,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 }/*5*/  //Z=16058
                 else
                 {/*5*/  //Z=16059
-                    arglq = (qxs+qys+eps9)*length/(zl+1);  //Z=16060
+                    arglq = (qxs+qys+eps9)*params.length/(zl+1);  //Z=16060
                     /* pql:=(1/(2*zl*(zl-1)))*(1/(arglq*arglq))*(1-cos((zl-1)*arctan(2*arglq))/power(1+4*arglq*arglq,(zl-1)/2));  //Z=16061 */
                     /* pql:=(pi/(2*zl))*(1/arglq);  //Z=16062 */
                     pql = (1/(2.0*zl*(zl-1)))*(1/(arglq*arglq))*(1-cos((zl-1)*atan(2.0*arglq))/pow(1.0+4*arglq*arglq,(zl-1)/2.0));  //Z=16063
@@ -6378,7 +6156,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
     /* ********** */  //Z=16072
     /*  cylinder  */  //Z=16073
     /* ********** */  //Z=16074
-    if ( part==1 )
+    if ( params.part==1 )
     {/*2*/  //Z=16075
 
         /* ** longitudinal part ** */  //Z=16077
@@ -6386,9 +6164,9 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
         if ( ordis==7 )
         {/*3*/  //Z=16079
             /*  exact average  */  //Z=16080
-            if ( (length/radius)<2 )
+            if ( (params.length/params.radius)<2 )
             {/*4*/  //Z=16081
-                if ( q<(5*limq2) )
+                if ( q<(5*params.limq2) )
                 {/*5*/  //Z=16082
                     /*  Cauchy sum  */  //Z=16083
                     /* pqsum:=1.0;  //Z=16084
@@ -6411,7 +6189,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                     {/*6*/  //Z=16100
                         binsum = 0.0;  //Z=16101
                         for ( mser=0; mser<=100; mser++ ) binsum = binsum+params.CR->carr11pm[nser][mser]*qqn[mser];  //Z=16102
-                        pqsum = pqsum+carr2p[nser]*qqn[nser]*binsum;  //Z=16103
+                        pqsum = pqsum+params.CR->carr2p[nser]*qqn[nser]*binsum;  //Z=16103
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=16104
                         if ( delser<0.0001 ) break; /* goto 601; */  //Z=16105
                         oldpqsum = pqsum;  //Z=16106
@@ -6422,14 +6200,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 }/*5*/  //Z=16111
                 else
                 {/*5*/  //Z=16112
-                    pql = por/pow(q,4);  //Z=16113
+                    pql = params.por/pow(q,4);  //Z=16113
                 }/*5*/  //Z=16114
             }/*4*/  //Z=16115
 
             /*  factorization  */  //Z=16117
             else
             {/*4*/  //Z=16118
-                if ( q<(0.6*limq1) )
+                if ( q<(0.6*params.limq1) )
                 {/*5*/  //Z=16119
                     pqsum = 1.0;  //Z=16120
                     oldpqsum = 0.0;  //Z=16121
@@ -6437,7 +6215,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=16123
                         qqn[nser] = qqn[nser-1]*q*q;  //Z=16124
-                        pqsum = pqsum+carr1p[nser]*qqn[nser];  //Z=16125
+                        pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser];  //Z=16125
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=16126
                         if ( delser<0.0001 ) break; /* goto 60; */  //Z=16127
                         oldpqsum = pqsum;  //Z=16128
@@ -6447,7 +6225,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 }/*5*/  //Z=16132
                 else
                 {/*5*/  //Z=16133
-                    arglq = q*length/(zl+1);  //Z=16134
+                    arglq = q*params.length/(zl+1);  //Z=16134
                     /* pql:=(1/(2*zl*(zl-1)))*(1/(arglq*arglq))*(1-cos((zl-1)*arctan(2*arglq))/power(1+4*arglq*arglq,(zl-1)/2));  //Z=16135 */
                     pql = (M_PI/(2.0*zl))*(1/arglq);  //Z=16136
                     pql = pql-(1/(2.0*zl*(zl-1)*arglq*arglq))*cos((zl-1)*atan(2.0*arglq))/pow(1.0+4*arglq*arglq,(zl-1)/2.0);  //Z=16137
@@ -6458,11 +6236,11 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
         /*  perfect  */  //Z=16142
         if ( ordis==6 )
         {/*3*/  //Z=16143
-            if ( orcase==4 )
+            if ( params.orcase==4 )
                 pql = 1.0;  //Z=16144
             else
             {/*4*/  //Z=16145
-                if ( limql<(0.5*limq1) )
+                if ( limql<(0.5*params.limq1) )
                 {/*5*/  //Z=16146
                     /* if (sqrt(qx*qx*length*length+qy*qy*radius*radius+eps)<10) then begin  //Z=16147 */
                     pqsum = 1.0;  //Z=16148
@@ -6471,7 +6249,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=16151
                         qqn[nser] = qqn[nser-1]*(qxs+qys)*(qxs+qys);     /*  (qxs,qys)=(qx,0) for x, (0,qy) for y, (qx,qy) for z  */  //Z=16152
-                        pqsum = pqsum+carr1p[nser]*qqn[nser];  //Z=16153
+                        pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser];  //Z=16153
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=16154
                         if ( delser<0.0001 ) break; /* goto 65; */  //Z=16155
                         oldpqsum = pqsum;  //Z=16156
@@ -6481,7 +6259,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 }/*5*/  //Z=16160
                 else
                 {/*5*/  //Z=16161
-                    arglq = (qxs+qys+eps9)*length/(zl+1);  //Z=16162
+                    arglq = (qxs+qys+eps9)*params.length/(zl+1);  //Z=16162
                     /* pql:=(1/(2*zl*(zl-1)))*(1/(arglq*arglq))*(1-cos((zl-1)*arctan(2*arglq))/power(1+4*arglq*arglq,(zl-1)/2));  //Z=16163 */
                     /* pql:=(pi/(2*zl))*(1/arglq);  //Z=16164 */
                     pql = (1/(2.0*zl*(zl-1)))*(1/(arglq*arglq))*(1-cos((zl-1)*atan(2.0*arglq))/pow(1.0+4*arglq*arglq,(zl-1)/2.0));  //Z=16165
@@ -6492,12 +6270,12 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
         /*  general  */  //Z=16170
         if ( ordis==0 )
         {/*3*/  //Z=16171
-            if ( orcase==4 )
+            if ( params.orcase==4 )
                 pql = 1.0;  //Z=16172
             else
             {/*4*/  //Z=16173
-                lim = myarray[17];  //Z=16174
-                if ( limql<(2*limq1) )
+                lim = params.CR->myarray[17];  //Z=16174
+                if ( limql<(2*params.limq1) )
                 {/*5*/  //Z=16175
                     /* if (limql<0.1) then begin  //Z=16176 */
                     /* if (q<0.05) then begin  //Z=16177 */
@@ -6505,7 +6283,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                     oldpqsum = 0.0;  //Z=16179
                     qxn[0] = 1.0;  //Z=16180
                     qyn[0] = 1.0;  //Z=16181
-                    if ( orcase==1 )
+                    if ( params.orcase==1 )
                     {/*6*/  //Z=16182
                         for ( nser=1; nser<=120; nser++ )
                         {/*7*/  //Z=16183
@@ -6518,14 +6296,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                                 /* binsum:=binsum+carr1pm[indx]*qxn[mser]*qyn[nser-mser];  //Z=16189 */
                                 binsum = binsum+params.CR->carr11pm[nser][mser]*qxn[mser]*qyn[nser-mser];  //Z=16190
                             }/*8*/  //Z=16191
-                            pqsum = pqsum+carr1p[nser]*binsum;  //Z=16192
+                            pqsum = pqsum+params.CR->carr1p[nser]*binsum;  //Z=16192
                             delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=16193
                             if ( delser<0.0001 ) break; /* goto 66; */  //Z=16194
                             oldpqsum = pqsum;  //Z=16195
                         }/*7*/  //Z=16196
                     }/*6*/  //Z=16197
 
-                    if ( orcase==2 )
+                    if ( params.orcase==2 )
                     {/*6*/  /*  x-axis  */  //Z=16199
                         for ( nser=1; nser<=120; nser++ )
                         {/*7*/  //Z=16200
@@ -6538,7 +6316,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                                 /* binsum:=binsum+carr1pm[indx]*qxn[mser]*qyn[nser-mser];  //Z=16206 */
                                 binsum = binsum+params.CR->carr11pm[nser][mser]*qxn[mser]*qyn[nser-mser];  //Z=16207
                             }/*8*/  //Z=16208
-                            pqsum = pqsum+carr1p[nser]*binsum;  //Z=16209
+                            pqsum = pqsum+params.CR->carr1p[nser]*binsum;  //Z=16209
                             delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=16210
                             if ( delser<0.0001 ) break; /* goto 66; */  //Z=16211
                             oldpqsum = pqsum;  //Z=16212
@@ -6546,7 +6324,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                     }/*6*/  //Z=16214
                     pql = pqsum;  //Z=16215
 
-                    if ( orcase==3 )
+                    if ( params.orcase==3 )
                     {/*6*/  /*  y-axis  */  //Z=16217
                         for ( nser=1; nser<=120; nser++ )
                         {/*7*/  //Z=16218
@@ -6559,7 +6337,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                                 /* binsum:=binsum+carr1pm[indx]*qxn[mser]*qyn[nser-mser];  //Z=16224 */
                                 binsum = binsum+params.CR->carr11pm[nser][mser]*qxn[mser]*qyn[nser-mser];  //Z=16225
                             }/*8*/  //Z=16226
-                            pqsum = pqsum+carr1p[nser]*binsum;  //Z=16227
+                            pqsum = pqsum+params.CR->carr1p[nser]*binsum;  //Z=16227
                             delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=16228
                             if ( delser<0.0001 ) break; /* goto 66; */  //Z=16229
                             oldpqsum = pqsum;  //Z=16230
@@ -6570,9 +6348,9 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 }/*5*/  //Z=16235
                 else
                 {/*5*/  //Z=16236
-                    qrombdeltac(length,radius,p1,sigmal,alfa,params.dbeta,theta,0,qxs,qys,qz,
-                                9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,1,4,orcase,0,0,0,carr1p,pql);  //Z=16237
-                    pql = pql/norm;  //Z=16238
+                    qrombdeltac(params.p1,sigmal,params.alphash1,params.polTheta,0,qxs,qys,qz,
+                                9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,1,4,params.orcase,0,0,0,params.CR->carr1p,pql);  //Z=16237
+                    pql = pql/params.norm;  //Z=16238
                 }/*5*/  //Z=16239
             }/*4*/  //Z=16240
         }/*3*/   /*  of general  */  //Z=16241
@@ -6580,15 +6358,15 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
 
         /*  transverse part  */  //Z=16244
         /*  homogeneous cylinder  */  //Z=16245
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=16246
             /*  exact average  */  //Z=16247
-            if ( (length/radius)<2 )
+            if ( (params.length/params.radius)<2 )
                 pqr = 1;  //Z=16248
             /*  factorization  */  //Z=16249
             else
             {/*4*/  //Z=16250
-                if ( q<(0.3*limq4) )
+                if ( q<(0.3*params.limq4) )
                 {/*5*/  //Z=16251
                     /* if (sqrt(qx*qx*length*length+qy*qy*radius*radius+eps)<10) then begin  //Z=16252 */
                     pqsum = 1.0;  //Z=16253
@@ -6599,7 +6377,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                         qqn[nser] = qqn[nser-1]*q*q;  //Z=16257
                         /* qqn[nser]:=qqn[nser-1]*(qxs+qys)*(qxs+qys);     (* (qxs,qys)=(qx,0) for x, (0,qy) for y, (qx,qy) for z *)  //Z=16258 */
                         /* qqn[nser]:=qqn[nser-1]*qx*qx;       (* GISAXS *)  //Z=16259 */
-                        pqsum = pqsum+carr4p[nser]*qqn[nser];  //Z=16260
+                        pqsum = pqsum+params.CR->carr4p[nser]*qqn[nser];  //Z=16260
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=16261
                         if ( delser<0.0001 ) break; /* goto 61; */  //Z=16262
                         oldpqsum = pqsum;  //Z=16263
@@ -6611,7 +6389,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 {/*5*/  //Z=16268
                     /* q:=sqrt(qxs*qxs+qys*qys+eps);       (* for perfect orientation *)  //Z=16269 */
                     /* q:=abs(qx+eps);                               (* for GISAXS *)  //Z=16270 */
-                    argpq = q*radius/(zr+1);  //Z=16271
+                    argpq = q*params.radius/(zr+1);  //Z=16271
                     pqr1 = (1/(zr*(zr-1)*(zr-2)))*pow(argpq,-3);  //Z=16272
                     pqr2 = (1/(zr*(zr-1)*(zr-2)))*pow(argpq,-3)*sin((zr-2)*atan(2.0*argpq))/pow(1.0+4*argpq*argpq,(zr-2)/2.0);  //Z=16273
                     pqr3 = (1/(zr*(zr-1)*(zr-2)*(zr-3)))*pow(argpq,-4)*cos((zr-3)*atan(2.0*argpq))/pow(1.0+4*argpq*argpq,(zr-3)/2.0);  //Z=16274
@@ -6625,29 +6403,29 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
         }/*3*/ /*  of homogeneous  */  //Z=16282
 
         /*  core/shell cylinder  */  //Z=16284
-        if ( cs==1 )
+        if ( params.cs==1 )
         {/*3*/  //Z=16285
-            cc1 = sqr(rho);  //Z=16286
-            cc2 = 2*p1*rho*(1-rho);  //Z=16287
-            cc3 = sqr(1-rho)*sqr(p1);  //Z=16288
-            cc4 = -2*sqr(rho);  //Z=16289
-            cc5 = -2*p1*rho*(1-rho);  //Z=16290
-            cc6 = sqr(rho);  //Z=16291
-            cc7 = -2*rho*(1-rho);  //Z=16292
-            cc8 = -sqr(1-rho)*2*p1;  //Z=16293
-            cc9 = 2*rho*(1-rho);  //Z=16294
-            cc10 = sqr(1-rho);  //Z=16295
+            cc1 = sqr(params.rho);  //Z=16286
+            cc2 = 2*params.p1*params.rho*(1-params.rho);  //Z=16287
+            cc3 = sqr(1-params.rho)*sqr(params.p1);  //Z=16288
+            cc4 = -2*sqr(params.rho);  //Z=16289
+            cc5 = -2*params.p1*params.rho*(1-params.rho);  //Z=16290
+            cc6 = sqr(params.rho);  //Z=16291
+            cc7 = -2*params.rho*(1-params.rho);  //Z=16292
+            cc8 = -sqr(1-params.rho)*2*params.p1;  //Z=16293
+            cc9 = 2*params.rho*(1-params.rho);  //Z=16294
+            cc10 = sqr(1-params.rho);  //Z=16295
 
-            ccc1 = sqr(1-rho)*pow(p1,4);  //Z=16297
-            ccc2 = 2*rho*(1-rho)*pow(p1,2);  //Z=16298
-            ccc3 = rho*rho;  //Z=16299
-            vv3 = sqr((1-rho)*pow(p1,2)+rho);  //Z=16300
+            ccc1 = sqr(1-params.rho)*pow(params.p1,4);  //Z=16297
+            ccc2 = 2*params.rho*(1-params.rho)*pow(params.p1,2);  //Z=16298
+            ccc3 = params.rho*params.rho;  //Z=16299
+            vv3 = sqr((1-params.rho)*pow(params.p1,2)+params.rho);  //Z=16300
 
             argq = q*radiusm/(zz+1);  //Z=16302
-            argpq = q*radius/(zz+1);  //Z=16303
+            argpq = q*params.radius/(zz+1);  //Z=16303
 
             /*  F121 cylinder  */  //Z=16305
-            if ( q<(0.7*limq4) )
+            if ( q<(0.7*params.limq4) )
             {/*4*/  //Z=16306
                 /* ** series expansion ** */  //Z=16307
                 pqsum = 1.0;  //Z=16308
@@ -6656,7 +6434,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=16311
                     qqn[nser] = qqn[nser-1]*q*q;  //Z=16312
-                    pqsum = pqsum+carr4p[nser]*qqn[nser];  //Z=16313
+                    pqsum = pqsum+params.CR->carr4p[nser]*qqn[nser];  //Z=16313
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=16314
                     if ( delser<0.0001 ) break; /* goto 62; */  //Z=16315
                     oldpqsum = pqsum;  //Z=16316
@@ -6675,7 +6453,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             }/*4*/  //Z=16328
 
             /*  F122 cylinder  */  //Z=16330
-            if ( q<(1.5*limq5) )
+            if ( q<(1.5*params.limq5) )
             {/*4*/  //Z=16331
                 /* ** series expansion ** */  //Z=16332
                 pqsum = 1.0;  //Z=16333
@@ -6684,7 +6462,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=16336
                     qqn[nser] = qqn[nser-1]*q*q;  //Z=16337
-                    pqsum = pqsum+carr5p[nser]*qqn[nser];  //Z=16338
+                    pqsum = pqsum+params.CR->carr5p[nser]*qqn[nser];  //Z=16338
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=16339
                     if ( delser<0.0001 ) break; /* goto 63; */  //Z=16340
                     oldpqsum = pqsum;  //Z=16341
@@ -6708,14 +6486,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 nengp = pow(1.0+sqr(argpq+argq),(zr-4)/2.0);  //Z=16358
 
                 pqr1 = (1/(zr*(zr-1)*(zr-2)))*pow(argq,-3)*(cos(argbm)/nenbm-sin(argbp)/nenbp);  //Z=16360
-                pqr2 = (1/(zr*(zr-1)*(zr-2)*(zr-3)))*pow(argq,-4)*((1-1/p1)*sin(argem)/nenem-(1+1/p1)*cos(argep)/nenep);  //Z=16361
-                pqr3 = (1/(zr*(zr-1)*(zr-2)*(zr-3)*(zr-4)))*pow(argq,-5)*(1/p1)*(cos(arggm)/nengm-sin(arggp)/nengp);  //Z=16362
-                pqr = (4/M_PI)*pow(p1,-3/2.0)*(pqr1+(9/16.0)*pqr2+(9/16.0)*(9/16.0)*pqr3);  //Z=16363
+                pqr2 = (1/(zr*(zr-1)*(zr-2)*(zr-3)))*pow(argq,-4)*((1-1/params.p1)*sin(argem)/nenem-(1+1/params.p1)*cos(argep)/nenep);  //Z=16361
+                pqr3 = (1/(zr*(zr-1)*(zr-2)*(zr-3)*(zr-4)))*pow(argq,-5)*(1/params.p1)*(cos(arggm)/nengm-sin(arggp)/nengp);  //Z=16362
+                pqr = (4/M_PI)*pow(params.p1,-3/2.0)*(pqr1+(9/16.0)*pqr2+(9/16.0)*(9/16.0)*pqr3);  //Z=16363
                 F122 = ccc2*pqr/vv3;  //Z=16364
             }/*4*/  //Z=16365
 
             /*  F123 cylinder  */  //Z=16367
-            if ( q<(0.6*limq6) )
+            if ( q<(0.6*params.limq6) )
             {/*4*/  //Z=16368
                 /* ** series expansion ** */  //Z=16369
                 pqsum = 1.0;  //Z=16370
@@ -6724,7 +6502,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=16373
                     qqn[nser] = qqn[nser-1]*q*q;  //Z=16374
-                    pqsum = pqsum+carr6p[nser]*qqn[nser];  //Z=16375
+                    pqsum = pqsum+params.CR->carr6p[nser]*qqn[nser];  //Z=16375
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=16376
                     if ( delser<0.0001 ) break; /* goto 64; */  //Z=16377
                     oldpqsum = pqsum;  //Z=16378
@@ -6746,19 +6524,19 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
         }/*3*/ /*  of core/shell  */  //Z=16393
 
         /*  inhomogeneous core/shell cylinder  */  //Z=16395
-        if ( cs==2 )
+        if ( params.cs==2 )
         {/*3*/  //Z=16396
 
             dim = 2;  //Z=16398
             delc = 0.0001;  //Z=16399
             xrad = q*radiusm;  //Z=16400
-            xradp = q*radius;  //Z=16401
-            x1z = q*radius/(2.0*(zr+1));  //Z=16402
+            xradp = q*params.radius;  //Z=16401
+            x1z = q*params.radius/(2.0*(zr+1));  //Z=16402
             x12z = x1z*x1z;  //Z=16403
             x2z = q*radiusm/(2.0*(zr+1));  //Z=16404
             x22z = x2z*x2z;  //Z=16405
 
-            lim = 18*exp(-5*sigmar);  //Z=16407
+            lim = 18*exp(-5*params.sigma);  //Z=16407
             lim1 = lim;  //Z=16408
             lim2 = lim*0.7;  //Z=16409
             lim3 = lim;  //Z=16410
@@ -6766,14 +6544,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             lim5 = lim*0.7;  //Z=16412
             lim6 = lim*1.2;  //Z=16413
 
-            a1 = (dim-alfa)/2.0;  //Z=16415
+            a1 = (dim-params.alphash1)/2.0;  //Z=16415
             b1 = dim/2.0;  //Z=16416
-            b2 = (dim+2-alfa)/2.0;  //Z=16417
+            b2 = (dim+2-params.alphash1)/2.0;  //Z=16417
             b1s = (dim+2)/2.0;  //Z=16418
             v = -b1s+1/2.0;  //Z=16419
             c = a1-b1-b2+1/2.0;  //Z=16420
             d0 = 1;  //Z=16421
-            d1 = a1*(1+a1-b1)*(1+a1-b2);  //Z=16422
+            //d1 = a1*(1+a1-b1)*(1+a1-b2);  //Z=16422
             e0 = 1.0;  //Z=16423
             e1 = (3/8.0)-(b1+b2)+((b1-b2)*(b1-b2)-3*a1*a1+2*a1*(1+b1+b2))/2.0;  //Z=16424
             ee0 = 1.0;  //Z=16425
@@ -6793,45 +6571,46 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             pzvc2 = gamma(zr+1+v+c-2)/gz1;  //Z=16439
             pzac = gamma(zr+1-2*a1+c)/gz1;  //Z=16440
             pzac1 = gamma(zr+1-2*a1+c-1)/gz1;  //Z=16441
-            pzac2 = gamma(zr+1-2*a1+c+2)/gz1;  //Z=16442
+            //pzac2 = gamma(zr+1-2*a1+c+2)/gz1;  //Z=16442
             pzc = gamma(zr+1+2*c)/gz1;  //Z=16443
             pzc1 = gamma(zr+1+2*c-1)/gz1;  //Z=16444
             pza = gamma(zr+1-4*a1)/gz1;  //Z=16445
             pzva = gamma(zr+1+v-2*a1)/gz1;  //Z=16446
             pzva1 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=16447
-            dnv0 = 1;  //Z=16448
-            pvav0 = gamma(zr+1+v-2*a1)/gz1;  //Z=16449
-            pvav10 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=16450
-            pva0 = gamma(zr+1-4*a1)/gz1;  //Z=16451
+            //dnv0 = 1;  //Z=16448
+            //pvav0 = gamma(zr+1+v-2*a1)/gz1;  //Z=16449
+            //pvav10 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=16450
+            //pva0 = gamma(zr+1-4*a1)/gz1;  //Z=16451
 
             cc1 = 1/(dim*dim);  //Z=16453
-            cc2 = 2*rho/(dim*(dim-alfa)*pow(p1,dim-alfa));  //Z=16454
-            cc3 = -2*rho/(dim*(dim-alfa));  //Z=16455
-            cc4 = rho*rho/((dim-alfa)*(dim-alfa)*pow(p1*p1,dim-alfa));  //Z=16456
-            cc5 = -2*rho*rho/((dim-alfa)*(dim-alfa)*pow(p1,dim-alfa));  //Z=16457
-            cc6 = rho*rho/((dim-alfa)*(dim-alfa));  //Z=16458
+            cc2 = 2*params.rho/(dim*(dim-params.alphash1)*pow(params.p1,dim-params.alphash1));  //Z=16454
+            cc3 = -2*params.rho/(dim*(dim-params.alphash1));  //Z=16455
+            cc4 = sqr(params.rho)/(sqr(dim-params.alphash1)*pow(sqr(params.p1),dim-params.alphash1));  //Z=16456
+            cc5 = -2*sqr(params.rho)/(sqr(dim-params.alphash1)*pow(params.p1,dim-params.alphash1));  //Z=16457
+            cc6 = sqr(params.rho)/sqr(dim-params.alphash1);  //Z=16458
             vv3 = cc1+cc2+cc3+cc4+cc5+cc6;  //Z=16459
 
             /*  term #1 series  */  //Z=16461
             if ( (xradp)<lim1 )
             {/*4*/  //Z=16462
-                z12v[0] = 1;  //Z=16463
-                b1sv[0] = 1;  //Z=16464
-                fkv[0] = 1;  //Z=16465
+                //z12v[0] = 1;  //Z=16463
+                //b1sv[0] = 1;  //Z=16464
+                //fkv[0] = 1;  //Z=16465
                 F12sez = 1.0;  //Z=16466
                 oldF12sez = 0.0;  //Z=16467
-                qqn[0] = 1.0;  //Z=16468
-                for ( int n=1; n<=120; n++ )
+                double qqnn = 1.0; //qqn[0] = 1.0;  //Z=16468
+                for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=16469
-                    qqn[n] = qqn[n-1]*q*q;  //Z=16470
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=16471
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=16472
-                    fkv[n] = fkv[n-1]*n;  //Z=16473
-                    sum12[n] = 0;  //Z=16474
+                    //qqn[n] = qqn[n-1]*q*q;  //Z=16470
+                    qqnn = qqnn * sqr(q);
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=16471
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=16472
+                    //fkv[n] = fkv[n-1]*n;  //Z=16473
+                    //sum12[n] = 0;  //Z=16474
                     /* for m:=0 to n do sum12[n]:=sum12[n]+1/(b1sv[m]*b1sv[n-m]*fkv[m]*fkv[n-m]);  //Z=16475 */
                     /* F12sez:=F12sez+power(-x12z,n)*z12v[n]*sum12[n];  //Z=16476 */
 
-                    F12sez = F12sez+carr4p[n]*qqn[n];  //Z=16478
+                    F12sez += params.CR->carr4p[n]*qqnn; //qqn[n];  //Z=16478
 
                     del = fabs((F12sez-oldF12sez)/F12sez);  //Z=16480
                     if ( del<delc ) break; /* goto 211; */  //Z=16481
@@ -6850,12 +6629,13 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 b2v[0] = 1;  //Z=16493
                 b1sv[0] = 1;  //Z=16494
                 fkv[0] = 1;  //Z=16495
-                qqn[0] = 1.0;  //Z=16496
+                double qqnn = 1.0; //qqn[0] = 1.0;  //Z=16496
                 F22sez = 1.0;  //Z=16497
                 oldF22sez = 0.0;  //Z=16498
-                for ( int n=1; n<=120; n++ )
+                for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=16499
-                    qqn[n] = qqn[n-1]*q*q;  //Z=16500
+                    //qqn[n] = qqn[n-1]*q*q;  //Z=16500
+                    qqnn = qqnn * sqr(q);
                     z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=16501
                     a1v[n] = a1v[n-1]*(a1-1+n);  //Z=16502
                     b1v[n] = b1v[n-1]*(b1-1+n);  //Z=16503
@@ -6863,7 +6643,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                     b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=16505
                     fkv[n] = fkv[n-1]*n;  //Z=16506
                     sum22[n] = 0;  //Z=16507
-                    for ( m=0; m<=n; m++ ) sum22[n] = sum22[n]+a1v[n-m]*pow(p1*p1,m)/(b1sv[m]*b1v[n-m]*b2v[n-m]*fkv[m]*fkv[n-m]);  //Z=16508
+                    for ( m=0; m<=n; m++ ) sum22[n] = sum22[n]+a1v[n-m]*pow(sqr(params.p1),m)/(b1sv[m]*b1v[n-m]*b2v[n-m]*fkv[m]*fkv[n-m]);  //Z=16508
                     F22sez = F22sez+pow(-x22z,n)*z12v[n]*sum22[n];  //Z=16509
 
                     /* F22sez:=F22sez+carr5p[n]*qqn[n];  //Z=16511 */
@@ -6888,7 +6668,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 qqn[0] = 1.0;  //Z=16529
                 F32sez = 1.0;  //Z=16530
                 oldF32sez = 0.0;  //Z=16531
-                for ( int n=1; n<=120; n++ )
+                for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=16532
                     qqn[n] = qqn[n-1]*q*q;  //Z=16533
                     z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=16534
@@ -6914,29 +6694,30 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             /*  term #4 series  */  //Z=16554
             if ( (xradp)<lim4 )
             {/*4*/  //Z=16555
-                z12v[0] = 1;  //Z=16556
-                a1v[0] = 1;  //Z=16557
-                b1v[0] = 1;  //Z=16558
-                b2v[0] = 1;  //Z=16559
-                b1sv[0] = 1;  //Z=16560
-                fkv[0] = 1;  //Z=16561
-                qqn[0] = 1.0;  //Z=16562
+                //z12v[0] = 1;  //Z=16556
+                //a1v[0] = 1;  //Z=16557
+                //b1v[0] = 1;  //Z=16558
+                //b2v[0] = 1;  //Z=16559
+                //b1sv[0] = 1;  //Z=16560
+                //fkv[0] = 1;  //Z=16561
+                double qqnn = 1.0; //qqn[0] = 1.0;  //Z=16562
                 F42sez = 1.0;  //Z=16563
                 oldF42sez = 0.0;  //Z=16564
-                for ( int n=1; n<=120; n++ )
+                for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=16565
-                    qqn[n] = qqn[n-1]*q*q;  //Z=16566
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=16567
-                    a1v[n] = a1v[n-1]*(a1-1+n);  //Z=16568
-                    b1v[n] = b1v[n-1]*(b1-1+n);  //Z=16569
-                    b2v[n] = b2v[n-1]*(b2-1+n);  //Z=16570
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=16571
-                    fkv[n] = fkv[n-1]*n;  //Z=16572
-                    sum42[n] = 0;  //Z=16573
+                    //qqn[n] = qqn[n-1]*q*q;  //Z=16566
+                    qqnn *= sqr(q);
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=16567
+                    //a1v[n] = a1v[n-1]*(a1-1+n);  //Z=16568
+                    //b1v[n] = b1v[n-1]*(b1-1+n);  //Z=16569
+                    //b2v[n] = b2v[n-1]*(b2-1+n);  //Z=16570
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=16571
+                    //fkv[n] = fkv[n-1]*n;  //Z=16572
+                    //sum42[n] = 0;  //Z=16573
                     /* for m:=0 to n do sum42[n]:=sum42[n]+a1v[m]*a1v[n-m]/(b1v[m]*b1v[n-m]*b2v[m]*b2v[n-m]*fkv[m]*fkv[n-m]);  //Z=16574 */
                     /* F42sez:=F42sez+power(-x22z,n)*z12v[n]*sum42[n];  //Z=16575 */
 
-                    F42sez = F42sez+carr7p[n]*qqn[n];  //Z=16577
+                    F42sez += params.CR->carr7p[n]*qqnn; //qqn[n];  //Z=16577
 
                     del = fabs((F42sez-oldF42sez)/F42sez);  //Z=16579
                     if ( del<delc ) break; /* goto 214; */  //Z=16580
@@ -6949,29 +6730,30 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             /*  term #5 series  */  //Z=16587
             if ( (xradp)<lim5 )
             {/*4*/  //Z=16588
-                z12v[0] = 1;  //Z=16589
-                a1v[0] = 1;  //Z=16590
-                b1v[0] = 1;  //Z=16591
-                b2v[0] = 1;  //Z=16592
-                b1sv[0] = 1;  //Z=16593
-                fkv[0] = 1;  //Z=16594
-                qqn[0] = 1.0;  //Z=16595
+                //z12v[0] = 1;  //Z=16589
+                //a1v[0] = 1;  //Z=16590
+                //b1v[0] = 1;  //Z=16591
+                //b2v[0] = 1;  //Z=16592
+                //b1sv[0] = 1;  //Z=16593
+                //fkv[0] = 1;  //Z=16594
+                double qqnn = 1.0; //qqn[0] = 1.0;  //Z=16595
                 F52sez = 1.0;  //Z=16596
                 oldF52sez = 0.0;  //Z=16597
-                for ( int n=1; n<=120; n++ )
+                for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=16598
-                    qqn[n] = qqn[n-1]*q*q;  //Z=16599
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=16600
-                    a1v[n] = a1v[n-1]*(a1-1+n);  //Z=16601
-                    b1v[n] = b1v[n-1]*(b1-1+n);  //Z=16602
-                    b2v[n] = b2v[n-1]*(b2-1+n);  //Z=16603
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=16604
-                    fkv[n] = fkv[n-1]*n;  //Z=16605
-                    sum52[n] = 0;  //Z=16606
+                    //qqn[n] = qqn[n-1]*q*q;  //Z=16599
+                    qqnn *= sqr(q);
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=16600
+                    //a1v[n] = a1v[n-1]*(a1-1+n);  //Z=16601
+                    //b1v[n] = b1v[n-1]*(b1-1+n);  //Z=16602
+                    //b2v[n] = b2v[n-1]*(b2-1+n);  //Z=16603
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=16604
+                    //fkv[n] = fkv[n-1]*n;  //Z=16605
+                    //sum52[n] = 0;  //Z=16606
                     /* for m:=0 to n do sum52[n]:=sum52[n]+a1v[m]*a1v[n-m]*power(p1*p1,m)/(b1v[m]*b1v[n-m]*b2v[m]*b2v[n-m]*fkv[m]*fkv[n-m]);  //Z=16607 */
                     /* F52sez:=F52sez+power(-x22z,n)*z12v[n]*sum52[n];  //Z=16608 */
 
-                    F52sez = F52sez+carr8p[n]*qqn[n];  //Z=16610
+                    F52sez += params.CR->carr8p[n]*qqnn; //qqn[n];  //Z=16610
 
                     del = fabs((F52sez-oldF52sez)/F52sez);  //Z=16612
                     if ( del<delc ) break; /* goto 215; */  //Z=16613
@@ -6984,29 +6766,30 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             /*  term #6 series  */  //Z=16620
             if ( (xradp)<lim6 )
             {/*4*/  //Z=16621
-                z12v[0] = 1;  //Z=16622
-                a1v[0] = 1;  //Z=16623
-                b1v[0] = 1;  //Z=16624
-                b2v[0] = 1;  //Z=16625
-                b1sv[0] = 1;  //Z=16626
-                fkv[0] = 1;  //Z=16627
-                qqn[0] = 1.0;  //Z=16628
+                //z12v[0] = 1;  //Z=16622
+                //a1v[0] = 1;  //Z=16623
+                //b1v[0] = 1;  //Z=16624
+                //b2v[0] = 1;  //Z=16625
+                //b1sv[0] = 1;  //Z=16626
+                //fkv[0] = 1;  //Z=16627
+                double qqnn = 1.0; //qqn[0] = 1.0;  //Z=16628
                 F62sez = 1.0;  //Z=16629
                 oldF62sez = 0.0;  //Z=16630
-                for ( int n=1; n<=120; n++ )
+                for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=16631
-                    qqn[n] = qqn[n-1]*q*q;  //Z=16632
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=16633
-                    a1v[n] = a1v[n-1]*(a1-1+n);  //Z=16634
-                    b1v[n] = b1v[n-1]*(b1-1+n);  //Z=16635
-                    b2v[n] = b2v[n-1]*(b2-1+n);  //Z=16636
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=16637
-                    fkv[n] = fkv[n-1]*n;  //Z=16638
-                    sum62[n] = 0;  //Z=16639
+                    //qqn[n] = qqn[n-1]*q*q;  //Z=16632
+                    qqnn *= sqr(q);
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=16633
+                    //a1v[n] = a1v[n-1]*(a1-1+n);  //Z=16634
+                    //b1v[n] = b1v[n-1]*(b1-1+n);  //Z=16635
+                    //b2v[n] = b2v[n-1]*(b2-1+n);  //Z=16636
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=16637
+                    //fkv[n] = fkv[n-1]*n;  //Z=16638
+                    //sum62[n] = 0;  //Z=16639
                     /* for m:=0 to n do sum62[n]:=sum62[n]+a1v[m]*a1v[n-m]/(b1v[m]*b1v[n-m]*b2v[m]*b2v[n-m]*fkv[m]*fkv[n-m]);  //Z=16640 */
                     /* F62sez:=F62sez+power(-x12z,n)*z12v[n]*sum62[n];  //Z=16641 */
 
-                    F62sez = F62sez+carr9p[n]*qqn[n];  //Z=16643
+                    F62sez += params.CR->carr9p[n]*qqnn; //qqn[n];  //Z=16643
 
                     del = fabs((F62sez-oldF62sez)/F62sez);  //Z=16645
                     if ( del<delc ) break; /* goto 216; */  //Z=16646
@@ -7037,14 +6820,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             /* ** term #2 asymptote ** */  //Z=16670
             if ( xradp>=lim2 )
             {/*4*/  //Z=16671
-                arg21 = (zr+v-2*a1+1)*atan(2.0*x1z);  //Z=16672
-                nen21 = pow(1.0+4*x1z*x1z,(zr+v-2*a1+1)/2.0);  //Z=16673
-                arg22 = (zr+v-2*a1)*atan(2.0*x1z);  //Z=16674
-                nen22 = pow(1.0+4*x1z*x1z,(zr+v-2*a1)/2.0);  //Z=16675
-                F22as1sum1z = dnv0*ee0*pvav0*(cos(M_PI*v/2.0)*cos(arg21)/nen21-sin(M_PI*v/2.0)*sin(arg21)/nen21);  //Z=16676
-                F22as1sum2z = dnv0*ee1*(1/(2.0*x1z))*pvav10*(cos(M_PI*(v-1)/2.0)*cos(arg22)/nen22-sin(M_PI*(v-1)/2.0)*sin(arg22)/nen22);  //Z=16677
+                //arg21 = (zr+v-2*a1+1)*atan(2.0*x1z);  //Z=16672
+                //nen21 = pow(1.0+4*x1z*x1z,(zr+v-2*a1+1)/2.0);  //Z=16673
+                //arg22 = (zr+v-2*a1)*atan(2.0*x1z);  //Z=16674
+                //nen22 = pow(1.0+4*x1z*x1z,(zr+v-2*a1)/2.0);  //Z=16675
+                //F22as1sum1z = dnv0*ee0*pvav0*(cos(M_PI*v/2.0)*cos(arg21)/nen21-sin(M_PI*v/2.0)*sin(arg21)/nen21);  //Z=16676
+                //F22as1sum2z = dnv0*ee1*(1/(2.0*x1z))*pvav10*(cos(M_PI*(v-1)/2.0)*cos(arg22)/nen22-sin(M_PI*(v-1)/2.0)*sin(arg22)/nen22);  //Z=16677
                 F22as10z = preg1*preg4*pow(x1z,v)*pow(x22z,-a1);  //Z=16678
-                F22as1z = F22as10z*(F22as1sum1z+F22as1sum2z);  //Z=16679
+                //F22as1z = F22as10z*(F22as1sum1z+F22as1sum2z);  //Z=16679
 
                 arg210 = (zr+v-2*a1+1)*atan(2.0*x1z);  //Z=16681
                 nen210 = pow(1.0+4*x1z*x1z,(zr+v-2*a1+1)/2.0);  //Z=16682
@@ -7076,7 +6859,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 F22as24z = a22as24z*(cos(M_PI*(v-1-c+1)/2.0)*cos(arg27)/nen27-sin(M_PI*(v-1-c+1)/2.0)*sin(arg27)/nen27+cos(M_PI*(v-1+c-1)/2.0)*cos(arg28)/nen28-sin(M_PI*(v-1+c-1)/2.0)*sin(arg28)/nen28);  //Z=16708
                 F22as20z = preg1*preg3*pow(x1z,v)*pow(x2z,c);  //Z=16709
                 F22as2z = F22as20z*(F22as21z+F22as22z+F22as23z+F22as24z);  //Z=16710
-                F22asz = F22as1z+F22as2z;  //Z=16711
+                //F22asz = F22as1z+F22as2z;  //Z=16711
                 F22asz0 = F22as1z0+F22as2z;  //Z=16712
                 F22 = F22asz0;  //Z=16713
             }/*4*/  //Z=16714
@@ -7084,14 +6867,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             /* ** term #3 asymptote ** */  //Z=16716
             if ( xradp>=lim3 )
             {/*4*/  //Z=16717
-                arg31 = (zr+v-2*a1+1)*atan(2.0*x1z);  //Z=16718
-                nen31 = pow(1.0+4*x1z*x1z,(zr+v-2*a1+1)/2.0);  //Z=16719
-                arg32 = (zr+v-2*a1)*atan(2.0*x1z);  //Z=16720
-                nen32 = pow(1.0+4*x1z*x1z,(zr+v-2*a1)/2.0);  //Z=16721
-                F32as1sum1z = dnv0*ee0*pvav0*(cos(M_PI*v/2.0)*cos(arg31)/nen31-sin(M_PI*v/2.0)*sin(arg31)/nen31);  //Z=16722
-                F32as1sum2z = dnv0*ee1*(1/(2.0*x1z))*pvav10*(cos(M_PI*(v-1)/2.0)*cos(arg32)/nen32-sin(M_PI*(v-1)/2.0)*sin(arg32)/nen32);  //Z=16723
+                //arg31 = (zr+v-2*a1+1)*atan(2.0*x1z);  //Z=16718
+                //nen31 = pow(1.0+4*x1z*x1z,(zr+v-2*a1+1)/2.0);  //Z=16719
+                //arg32 = (zr+v-2*a1)*atan(2.0*x1z);  //Z=16720
+                //nen32 = pow(1.0+4*x1z*x1z,(zr+v-2*a1)/2.0);  //Z=16721
+                //F32as1sum1z = dnv0*ee0*pvav0*(cos(M_PI*v/2.0)*cos(arg31)/nen31-sin(M_PI*v/2.0)*sin(arg31)/nen31);  //Z=16722
+                //F32as1sum2z = dnv0*ee1*(1/(2.0*x1z))*pvav10*(cos(M_PI*(v-1)/2.0)*cos(arg32)/nen32-sin(M_PI*(v-1)/2.0)*sin(arg32)/nen32);  //Z=16723
                 F32as10z = preg1*preg4*pow(x1z,v)*pow(x12z,-a1);  //Z=16724
-                F32as1z = F32as10z*(F32as1sum1z+F32as1sum2z);  //Z=16725
+                //F32as1z = F32as10z*(F32as1sum1z+F32as1sum2z);  //Z=16725
 
                 arg310 = (z+v-2*a1+1)*atan(2.0*x1z);  //Z=16727
                 nen310 = pow(1.0+4*x1z*x1z,(z+v-2*a1+1)/2.0);  //Z=16728
@@ -7113,7 +6896,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 F32as24z = (1/2.0)*ee1*e1*(1/(4.0*x1z*x1z))*pzvc2*(cos(M_PI*(v-1-c+1)/2.0)+cos(M_PI*(v-1+c-1)/2.0)*cos(arg35)/nen35-sin(M_PI*(v-1+c-1)/2.0)*sin(arg35)/nen35);  //Z=16744
                 F32as20z = preg1*preg3*pow(x1z,v)*pow(x1z,c);  //Z=16745
                 F32as2z = F32as20z*(F32as21z+F32as22z+F32as23z+F32as24z);  //Z=16746
-                F32asz = F32as1z+F32as2z;  //Z=16747
+                //F32asz = F32as1z+F32as2z;  //Z=16747
                 F32asz0 = F32as1z0+F32as2z;  //Z=16748
                 F32 = F32asz0;  //Z=16749
             }/*4*/  //Z=16750
@@ -7123,28 +6906,28 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             if ( xrad>=lim4 )
             {/*4*/  //Z=16754
                 F42as10z = preg4*preg4*pow(x22z,-2*a1);  //Z=16755
-                F42as1sumz = pva0;  //Z=16756
-                F42as1z = F42as10z*F42as1sumz;  //Z=16757
+                //F42as1sumz = pva0;  //Z=16756
+                //F42as1z = F42as10z*F42as1sumz;  //Z=16757
                 F42as1z0 = F42as10z*pza;  //Z=16758
 
                 arg41 = (zr-2*a1+c+1)*atan(2.0*x2z);  //Z=16760
                 nen41 = pow(1.0+4*x2z*x2z,(zr-2*a1+c+1)/2.0);  //Z=16761
                 arg42 = (zr-2*a1+c)*atan(2.0*x2z);  //Z=16762
                 nen42 = pow(1.0+4*x2z*x2z,(zr-2*a1+c)/2.0);  //Z=16763
-                arg43 = (zr-2*a1+c+3)*atan(2.0*x2z);  //Z=16764
-                nen43 = pow(1.0+4*x2z*x2z,(zr-2*a1+c+3)/2.0);  //Z=16765
+                //arg43 = (zr-2*a1+c+3)*atan(2.0*x2z);  //Z=16764
+                //nen43 = pow(1.0+4*x2z*x2z,(zr-2*a1+c+3)/2.0);  //Z=16765
                 F42as20z = preg4*preg3*pow(x22z,-a1)*pow(x2z,c);  //Z=16766
                 F42as21 = d0*e0*pzac*(cos(M_PI*c/2.0)*cos(arg41)/nen41-sin(M_PI*c/2.0)*sin(arg41)/nen41);  //Z=16767
                 F42as22 = d0*e1*pzac1*(1/(2.0*x2z))*(cos(M_PI*(c-1)/2.0)*cos(arg42)/nen42-sin(M_PI*(c-1)/2.0)*sin(arg42)/nen42);  //Z=16768
-                F42as23 = d1*e0*pzac2*(-x22z)*(cos(M_PI*c/2.0)*cos(arg43)/nen43-sin(M_PI*c/2.0)*sin(arg43)/arg43);  //Z=16769
-                F42as2z = F42as20z*(F42as21+F42as22+F42as23);  //Z=16770
+                //F42as23 = d1*e0*pzac2*(-x22z)*(cos(M_PI*c/2.0)*cos(arg43)/nen43-sin(M_PI*c/2.0)*sin(arg43)/arg43);  //Z=16769
+                //F42as2z = F42as20z*(F42as21+F42as22+F42as23);  //Z=16770
                 F42as2z0 = F42as20z*(F42as21+F42as22);  //Z=16771
 
                 F42as30z = preg4*preg3*pow(x22z,-a1)*pow(x2z,c);  //Z=16773
                 F42as24 = d0*e0*pzac*(cos(M_PI*c/2.0)*cos(arg41)/nen41-sin(M_PI*c/2.0)*sin(arg41)/nen41);  //Z=16774
-                F42as25 = d1*e0*pzac2*(-x22z)*(cos(M_PI*(c-1)/2.0)*cos(arg43)/nen43-sin(M_PI*(c-1)/2.0)*sin(arg43)/nen43);  //Z=16775
+                //F42as25 = d1*e0*pzac2*(-x22z)*(cos(M_PI*(c-1)/2.0)*cos(arg43)/nen43-sin(M_PI*(c-1)/2.0)*sin(arg43)/nen43);  //Z=16775
                 F42as26 = d0*e1*pzac1*(1/(2.0*x2z))*(cos(M_PI*(c+1)/2.0)*cos(arg42)/nen42-sin(M_PI*(c+1)/2.0)*sin(arg42)/nen42);  //Z=16776
-                F42as3z = F42as30z*(F42as24+F42as25+F42as26);  //Z=16777
+                //F42as3z = F42as30z*(F42as24+F42as25+F42as26);  //Z=16777
                 F42as3z0 = F42as30z*(F42as24+F42as26);  //Z=16778
 
                 F42as40z = preg3*preg3*pow(x2z*x2z,c);  //Z=16780
@@ -7156,7 +6939,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 F42as28 = (1/2.0)*e0*e1*(1/(2.0*x2z))*pzc1*(cos(M_PI*(2*c-1)/2.0)*cos(arg45)/nen45-sin(M_PI*(2*c-1)/2.0)*sin(arg45)/nen45);  //Z=16786
                 F42as29 = (1/2.0)*e1*e0*(1/(2.0*x2z))*pzc1*(cos(M_PI*(2*c-1)/2.0)*cos(arg45)/nen45-sin(M_PI*(2*c-1)/2.0)*sin(arg45)/nen45);  //Z=16787
                 F42as4z = F42as40z*(F42as27+F42as28+F42as29);  //Z=16788
-                F42asz = F42as1z+F42as2z+F42as3z+F42as4z;  //Z=16789
+                //F42asz = F42as1z+F42as2z+F42as3z+F42as4z;  //Z=16789
                 F42asz0 = F42as1z0+F42as2z0+F42as3z0+F42as4z;  //Z=16790
                 F42 = F42asz0;  //Z=16791
             }/*4*/  //Z=16792
@@ -7166,8 +6949,8 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             if ( xradp>=lim5 )
             {/*4*/  //Z=16796
                 F52as10z = preg4*preg4*pow(x12z,-a1)*pow(x22z,-a1);  //Z=16797
-                F52as1sumz = pva0;  //Z=16798
-                F52as1z = F52as10z*F52as1sumz;  //Z=16799
+                //F52as1sumz = pva0;  //Z=16798
+                //F52as1z = F52as10z*F52as1sumz;  //Z=16799
                 F52as1z0 = F52as10z*pza;  //Z=16800
 
                 F52as20z = preg4*preg3*pow(x12z,-a1)*pow(x2z,c);  //Z=16802
@@ -7175,25 +6958,25 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 nen51 = pow(1.0+4*x2z*x2z,(zr-2*a1+c+1)/2.0);  //Z=16804
                 arg52 = (zr-2*a1+c)*atan(2.0*x2z);  //Z=16805
                 nen52 = pow(1.0+4*x2z*x2z,(zr-2*a1+c)/2.0);  //Z=16806
-                arg53 = (zr-2*a1+c+3)*atan(2.0*x2z);  //Z=16807
-                nen53 = pow(1.0+4*x2z*x2z,(zr-2*a1+c+3)/2.0);  //Z=16808
+                //arg53 = (zr-2*a1+c+3)*atan(2.0*x2z);  //Z=16807
+                //nen53 = pow(1.0+4*x2z*x2z,(zr-2*a1+c+3)/2.0);  //Z=16808
                 F52as21 = d0*e0*pzac*(cos(M_PI*c/2.0)*cos(arg51)/nen51-sin(M_PI*c/2.0)*sin(arg51)/nen51);  //Z=16809
                 F52as22 = d0*e1*pzac1*(1/(2.0*x2z))*(cos(M_PI*(c-1)/2.0)*cos(arg52)/nen52-sin(M_PI*(c-1)/2.0)*sin(arg52)/nen52);  //Z=16810
-                F52as23 = d1*e0*pzac2*(-x22z)*(cos(M_PI*c/2.0)*cos(arg53)/nen53-sin(M_PI*c/2.0)*sin(arg53)/nen53);  //Z=16811
-                F52as2z = F52as20z*(F52as21+F52as22+F52as23);  //Z=16812
+                //F52as23 = d1*e0*pzac2*(-x22z)*(cos(M_PI*c/2.0)*cos(arg53)/nen53-sin(M_PI*c/2.0)*sin(arg53)/nen53);  //Z=16811
+                //F52as2z = F52as20z*(F52as21+F52as22+F52as23);  //Z=16812
                 F52as2z0 = F52as20z*(F52as21+F52as22);  //Z=16813
 
                 F52as30z = preg4*preg3*pow(x22z,-a1)*pow(x1z,c);  //Z=16815
                 arg54 = (zr-2*a1+c+1)*atan(2.0*x1z);  //Z=16816
                 nen54 = pow(1.0+4*x1z*x1z,(zr-2*a1+c+1)/2.0);  //Z=16817
-                arg55 = (zr-2*a1+c+3)*atan(2.0*x1z);  //Z=16818
-                nen55 = pow(1.0+4*x1z*x1z,(zr-2*a1+c+3)/2.0);  //Z=16819
+                //arg55 = (zr-2*a1+c+3)*atan(2.0*x1z);  //Z=16818
+                //nen55 = pow(1.0+4*x1z*x1z,(zr-2*a1+c+3)/2.0);  //Z=16819
                 arg56 = (zr-2*a1+c)*atan(2.0*x1z);  //Z=16820
                 nen56 = pow(1.0+4*x1z*x1z,(zr-2*a1+c)/2.0);  //Z=16821
                 F52as24 = d0*e0*pzac*(cos(M_PI*c/2.0)*cos(arg54)/nen54-sin(M_PI*c/2.0)*sin(arg54)/nen54);  //Z=16822
-                F52as25 = d1*e0*pzac2*(-x22z)*(cos(M_PI*(c+1)/2.0)*cos(arg55)/nen55-sin(M_PI*(c+1)/2.0)*sin(arg55)/nen55);  //Z=16823
+                //F52as25 = d1*e0*pzac2*(-x22z)*(cos(M_PI*(c+1)/2.0)*cos(arg55)/nen55-sin(M_PI*(c+1)/2.0)*sin(arg55)/nen55);  //Z=16823
                 F52as26 = d0*e1*pzac1*(1/(2.0*x1z))*(cos(M_PI*(c-1)/2.0)*cos(arg56)/nen56-sin(M_PI*(c-1)/2.0)*sin(arg56)/nen56);  //Z=16824
-                F52as3z = F52as30z*(F52as24+F52as25+F52as26);  //Z=16825
+                //F52as3z = F52as30z*(F52as24+F52as25+F52as26);  //Z=16825
                 F52as3z0 = F52as30z*(F52as24+F52as26);  //Z=16826
 
                 F52as40z = preg3*preg3*pow(x1z,c)*pow(x2z,c);  //Z=16828
@@ -7209,7 +6992,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 F52as28 = (1/2.0)*e0*e1*(1/(2.0*x2z))*pzc1*(0+sin(arg59)/nen59+cos(M_PI*(2*c-1)/2.0)*cos(arg510)/nen510-sin(M_PI*(2*c-1)/2.0)*sin(arg510)/nen510);  //Z=16838
                 F52as29 = (1/2.0)*e1*e0*(1/(2.0*x1z))*pzc1*(0-sin(arg59)/nen59+cos(M_PI*(2*c-1)/2.0)*cos(arg510)/nen510-sin(M_PI*(2*c-1)/2.0)*sin(arg510)/nen510);  //Z=16839
                 F52as4z = F52as40z*(F52as27+F52as28+F52as29);  //Z=16840
-                F52asz = F52as1z+F52as2z+F52as3z+F52as4z;  //Z=16841
+                //F52asz = F52as1z+F52as2z+F52as3z+F52as4z;  //Z=16841
                 F52asz0 = F52as1z0+F52as2z0+F52as3z0+F52as4z;  //Z=16842
                 F52 = F52asz0;  //Z=16843
             }/*4*/  //Z=16844
@@ -7218,8 +7001,8 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             if ( xradp>=lim6 )
             {/*4*/  //Z=16847
                 F62as10z = preg4*preg4*pow(x12z,-a1)*pow(x12z,-a1);  //Z=16848
-                F62as1sumz = pva0;  //Z=16849
-                F62as1z = F62as10z*F62as1sumz;  //Z=16850
+                //F62as1sumz = pva0;  //Z=16849
+                //F62as1z = F62as10z*F62as1sumz;  //Z=16850
                 F62as1z0 = F62as10z*pza;  //Z=16851
 
                 F62as20z = preg4*preg3*pow(x12z,-a1)*pow(x1z,c);  //Z=16853
@@ -7227,19 +7010,19 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 nen61 = pow(1.0+4*x1z*x1z,(zr-2*a1+c+1)/2.0);  //Z=16855
                 arg62 = (zr-2*a1+c)*atan(2.0*x1z);  //Z=16856
                 nen62 = pow(1.0+4*x1z*x1z,(zr-2*a1+c)/2.0);  //Z=16857
-                arg63 = (zr-2*a1+c+3)*atan(2.0*x1z);  //Z=16858
-                nen63 = pow(1.0+4*x1z*x1z,(zr-2*a1+c+3)/2.0);  //Z=16859
+                //arg63 = (zr-2*a1+c+3)*atan(2.0*x1z);  //Z=16858
+                //nen63 = pow(1.0+4*x1z*x1z,(zr-2*a1+c+3)/2.0);  //Z=16859
                 F62as21 = d0*e0*pzac*(cos(M_PI*c/2.0)*cos(arg61)/nen61-sin(M_PI*c/2.0)*sin(arg61)/nen61);  //Z=16860
                 F62as22 = d0*e1*pzac1*(1/(2.0*x1z))*(cos(M_PI*(c-1)/2.0)*cos(arg62)/nen62-sin(M_PI*(c-1)/2.0)*sin(arg62)/nen62);  //Z=16861
-                F62as23 = d1*e0*pzac2*(-x12z)*(cos(M_PI*c/2.0)*cos(arg63)/nen63-sin(M_PI*c/2.0)*sin(arg63)/nen63);  //Z=16862
-                F62as2z = F62as20z*(F62as21+F62as22+F62as23);  //Z=16863
+                //F62as23 = d1*e0*pzac2*(-x12z)*(cos(M_PI*c/2.0)*cos(arg63)/nen63-sin(M_PI*c/2.0)*sin(arg63)/nen63);  //Z=16862
+                //F62as2z = F62as20z*(F62as21+F62as22+F62as23);  //Z=16863
                 F62as2z0 = F62as20z*(F62as21+F62as22);  //Z=16864
 
                 F62as30z = preg4*preg3*pow(x12z,-a1)*pow(x1z,c);  //Z=16866
                 F62as24 = d0*e0*pzac*(cos(M_PI*c/2.0)*cos(arg61)/nen61-sin(M_PI*c/2.0)*sin(arg61)/nen61);  //Z=16867
-                F62as25 = d1*e0*pzac2*(-x12z)*(cos(M_PI*(c+1)/2.0)*cos(arg63)/nen63-sin(M_PI*(c+1)/2.0)*sin(arg63)/nen63);  //Z=16868
+                //F62as25 = d1*e0*pzac2*(-x12z)*(cos(M_PI*(c+1)/2.0)*cos(arg63)/nen63-sin(M_PI*(c+1)/2.0)*sin(arg63)/nen63);  //Z=16868
                 F62as26 = d0*e1*pzac1*(1/(2.0*x1z))*(cos(M_PI*(c-1)/2.0)*cos(arg62)/nen62-sin(M_PI*(c-1)/2.0)*sin(arg62)/nen62);  //Z=16869
-                F62as3z = F62as30z*(F62as24+F62as25+F62as26);  //Z=16870
+                //F62as3z = F62as30z*(F62as24+F62as25+F62as26);  //Z=16870
                 F62as3z0 = F62as30z*(F62as24+F62as26);  //Z=16871
 
                 F62as40z = preg3*preg3*pow(x1z*x1z,c);  //Z=16873
@@ -7251,7 +7034,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 F62as28 = (1/2.0)*e0*e1*(1/(2.0*x1z))*pzc1*(cos(M_PI*(2*c-1)/2.0)*cos(arg65)/nen65-sin(M_PI*(2*c-1)/2.0)*sin(arg65)/nen65);  //Z=16879
                 F62as29 = (1/2.0)*e1*e0*(1/(2.0*x1z))*pzc1*(cos(M_PI*(2*c-1)/2.0)*cos(arg65)/nen65-sin(M_PI*(2*c-1)/2.0)*sin(arg65)/nen65);  //Z=16880
                 F62as4z = F62as40z*(F62as27+F62as28+F62as29);  //Z=16881
-                F62asz = F62as1z+F62as2z+F62as3z+F62as4z;  //Z=16882
+                //F62asz = F62as1z+F62as2z+F62as3z+F62as4z;  //Z=16882
                 F62asz0 = F62as1z0+F62as2z0+F62as3z0+F62as4z;  //Z=16883
                 F62 = F62asz0;  //Z=16884
             }/*4*/  //Z=16885
@@ -7266,7 +7049,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
 
 
         /*  myelin cylinder  */  //Z=16896
-        if ( (cs==3) || (cs==4) )
+        if ( (params.cs==3) || (params.cs==4) )
         {/*3*/  //Z=16897
 
             /*  cylinder parameters  */  //Z=16899
@@ -7277,12 +7060,12 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             pz2v = 1/(zr*(zr-1)*(zr-2));  //Z=16904
             pz2v1 = pz2v/(zr-3);  //Z=16905
             pz2v2 = pz2v1/(zr-4);  //Z=16906
-            lim = 18*exp(-5*sigmar);  //Z=16907
+            lim = 18*exp(-5*params.sigma);  //Z=16907
             lim1 = lim*1.2;  //Z=16908
-            rad = myarray[1];  //Z=16909
-            inmax = round(myarray[14]);  //Z=16910
-            vvm = myarray[15];  //Z=16911
-            rmax = myarray[16];  //Z=16912
+            rad = params.CR->myarray[1];  //Z=16909
+            inmax = round(params.CR->myarray[14]);  //Z=16910
+            vvm = params.CR->myarray[15];  //Z=16911
+            rmax = params.CR->myarray[16];  //Z=16912
             xmax = q*rmax;  //Z=16913
 
             if ( xmax<(lim1) )
@@ -7308,18 +7091,18 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                             for ( mser=0; mser<=nser; mser++ )
                             {/*8*/  //Z=16930
                                 /* pqsum:=pqsum+power(carr7p[ii],2*mser)*power(carr7p[jj],2*(nser-mser))/((mser+1)*fkv[mser]*(nser-mser+1)*fkv[nser-mser]*fkv[mser]*fkv[nser-mser]);  //Z=16931 */
-                                pqsum = pqsum+pow(carr7p[ii],2*mser)*pow(carr7p[jj],2*(nser-mser))/(carr6p[mser]*carr6p[nser-mser]);  //Z=16932
+                                pqsum = pqsum+pow(params.CR->carr7p[ii],2*mser)*pow(params.CR->carr7p[jj],2*(nser-mser))/(params.CR->carr6p[mser]*params.CR->carr6p[nser-mser]);  //Z=16932
 
                                 /* indx:=mser+1+round(nser*(nser+1)/2);  //Z=16934 */
                                 /* pqsum:=pqsum+power(carr7p[ii],2*mser)*power(carr7p[jj],2*(nser-mser))*carr1pm[indx];  //Z=16935 */
                             }/*8*/  //Z=16936
-                            F12sez = F12sez+carr4p[nser]*qqn[nser]*pqsum;  //Z=16937
+                            F12sez = F12sez+params.CR->carr4p[nser]*qqn[nser]*pqsum;  //Z=16937
                             delser = fabs((F12sez-oldF12sez)/F12sez);  //Z=16938
                             if ( delser<0.0001 ) break; /* goto 101; */  //Z=16939
                             oldF12sez = F12sez;  //Z=16940
                         }/*7*/  //Z=16941
                         /*101:*/  //Z=16942
-                        F12sum = F12sum+carr5p[ii]*carr5p[jj]*F12sez;  //Z=16943
+                        F12sum = F12sum+params.CR->carr5p[ii]*params.CR->carr5p[jj]*F12sez;  //Z=16943
                     }/*6*/  //Z=16944
                 }/*5*/  //Z=16945
                 F12ser = F12sum/vvm;  //Z=16946
@@ -7338,24 +7121,24 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 F12asz = 0.0;  //Z=16958
                 for ( ii=1; ii<=inmax; ii++ )
                 {/*5*/  //Z=16959
-                    a1m = carr5p[ii]*pow(carr7p[ii],v);   /*  carr7p[ii]:=pp[ii];  //Z=16960 */
+                    a1m = params.CR->carr5p[ii]*pow(params.CR->carr7p[ii],v);   /*  carr7p[ii]:=pp[ii];  //Z=16960 */
                     for ( jj=1; jj<=inmax; jj++ )
                     {/*6*/  //Z=16961
-                        a2m = carr5p[jj]*pow(carr7p[jj],v);  //Z=16962
-                        xijm = (carr3p[ii]-carr3p[jj])*q/(zr+1);      /*   carr3p[ii]:=ll[ii];  //Z=16963 */
+                        a2m = params.CR->carr5p[jj]*pow(params.CR->carr7p[jj],v);  //Z=16962
+                        xijm = (params.CR->carr3p[ii]-params.CR->carr3p[jj])*q/(zr+1);      /*   carr3p[ii]:=ll[ii];  //Z=16963 */
                         arglmz = (zr+1)*atan(xijm);  //Z=16964
                         nenlmz = pow(1.0+xijm*xijm,(zr+1)/2.0);  //Z=16965
-                        xijp = (carr3p[ii]+carr3p[jj])*q/(zr+1);  //Z=16966
+                        xijp = (params.CR->carr3p[ii]+params.CR->carr3p[jj])*q/(zr+1);  //Z=16966
                         arglpz = (zr+1)*atan(xijp);  //Z=16967
                         nenlpz = pow(1.0+xijp*xijp,(zr+1)/2.0);  //Z=16968
                         /* F12as1z:=e0*e0*pz2v*(cos(arglmz)/nenlmz+(cos(pi*v)*(cos(arg)*cos(arglpz)-sin(arg)*sin(arglpz))-sin(pi*v)*(sin(arg)*cos(arglpz)+cos(arg)*sin(arglpz)))/(nen*nenlpz));  //Z=16969 */
                         F12as1z = e0*e0*pz2v*(cos(arglmz)/nenlmz+(0-(sin(arg)*cos(arglpz)+cos(arg)*sin(arglpz)))/(nen*nenlpz));  //Z=16970
                         /* F12as2z:=e0*e1*(1/(carr7p[jj]*xrz))*pz2v1*(-sin(arglmz)/nenlmz+(cos(pi*(2*v-1)/2)*(cos(arg1)*cos(arglpz)-sin(arg1)*sin(arglpz))-sin(pi*(2*v-1)/2)*(sin(arg1)*cos(arglpz)+cos(arg1)*sin(arglpz)))/(nen1*nenlpz));  //Z=16971 */
-                        F12as2z = e0*e1*(1/(carr7p[jj]*xrz))*pz2v1*(-sin(arglmz)/nenlmz+(1*(cos(arg1)*cos(arglpz)-sin(arg1)*sin(arglpz))-0)/(nen1*nenlpz));  //Z=16972
+                        F12as2z = e0*e1*(1/(params.CR->carr7p[jj]*xrz))*pz2v1*(-sin(arglmz)/nenlmz+(1*(cos(arg1)*cos(arglpz)-sin(arg1)*sin(arglpz))-0)/(nen1*nenlpz));  //Z=16972
                         /* F12as3z:=e1*e0*(1/(carr7p[ii]*xrz))*pz2v1*(sin(arglmz)/nenlmz+(cos(pi*(2*v-1)/2)*(cos(arg1)*cos(arglpz)-sin(arg1)*sin(arglpz))-sin(pi*(2*v-1)/2)*(sin(arg1)*cos(arglpz)+cos(arg1)*sin(arglpz)))/(nen1*nenlpz));  //Z=16973 */
-                        F12as3z = e1*e0*(1/(carr7p[ii]*xrz))*pz2v1*(sin(arglmz)/nenlmz+(1*(cos(arg1)*cos(arglpz)-sin(arg1)*sin(arglpz))-0)/(nen1*nenlpz));  //Z=16974
+                        F12as3z = e1*e0*(1/(params.CR->carr7p[ii]*xrz))*pz2v1*(sin(arglmz)/nenlmz+(1*(cos(arg1)*cos(arglpz)-sin(arg1)*sin(arglpz))-0)/(nen1*nenlpz));  //Z=16974
                         /* F12as4z:=e1*e1*(1/(carr7p[ii]*carr7p[jj]*xrz*xrz))*pz2v2*(cos(arglmz)/nenlmz+(cos(pi*(v-1))*(cos(arg2)*cos(arglpz)-sin(arg2)*sin(arglpz))-sin(pi*(v-1))*(sin(arg2)*cos(arglpz)+cos(arg2)*sin(arglpz)))/(nen2*nenlpz));  //Z=16975 */
-                        F12as4z = e1*e1*(1/(carr7p[ii]*carr7p[jj]*xrz*xrz))*pz2v2*(cos(arglmz)/nenlmz+(0+1*(sin(arg2)*cos(arglpz)+cos(arg2)*sin(arglpz)))/(nen2*nenlpz));  //Z=16976
+                        F12as4z = e1*e1*(1/(params.CR->carr7p[ii]*params.CR->carr7p[jj]*xrz*xrz))*pz2v2*(cos(arglmz)/nenlmz+(0+1*(sin(arg2)*cos(arglpz)+cos(arg2)*sin(arglpz)))/(nen2*nenlpz));  //Z=16976
 
                         F12asz = F12asz+a1m*a2m*(F12as1z+F12as2z+F12as3z+F12as4z);  //Z=16978
                     }/*6*/  //Z=16979
@@ -7378,14 +7161,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
     /* ****** */  //Z=16996
     /*  disk  */  //Z=16997
     /* ****** */  //Z=16998
-    if ( part==2 )
+    if ( params.part==2 )
     {/*2*/  //Z=16999
 
         /* ** longitudinal part ** */  //Z=17001
         /* ** isotropic ** */  //Z=17002
         if ( ordis==7 )
         {/*3*/  //Z=17003
-            if ( q<(0.5*limq1) )
+            if ( q<(0.5*params.limq1) )
             {/*4*/  //Z=17004
                 pqsum = 1.0;  //Z=17005
                 oldpqsum = 0.0;  //Z=17006
@@ -7393,7 +7176,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 for ( nser=1; nser<=80; nser++ )
                 {/*5*/  //Z=17008
                     qqn[nser] = qqn[nser-1]*q*q;  //Z=17009
-                    pqsum = pqsum+carr1p[nser]*qqn[nser];  //Z=17010
+                    pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser];  //Z=17010
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17011
                     if ( delser<0.0001 ) break; /* goto 70; */  //Z=17012
                     oldpqsum = pqsum;  //Z=17013
@@ -7403,7 +7186,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             }/*4*/  //Z=17017
             else
             {/*4*/  //Z=17018
-                arglq = q*length/(zl+1);  //Z=17019
+                arglq = q*params.length/(zl+1);  //Z=17019
                 pql = (2/(zl*(zl-1)))*pow(arglq,-2);  //Z=17020
             }/*4*/  //Z=17021
         }/*3*/  /*  of isotropic  */  //Z=17022
@@ -7411,52 +7194,52 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
         /*  perfect  */  //Z=17024
         if ( ordis==6 )
         {/*3*/  //Z=17025
-            if ( limql<0.7*limq1 )
+            if ( limql<0.7*params.limq1 )
             {/*4*/  //Z=17026
 
                 pqsum = 1.0;  //Z=17028
                 oldpqsum = 0.0;  //Z=17029
                 qqn[0] = 1.0;  //Z=17030
-                if ( orcase==1 )
+                if ( params.orcase==1 )
                 {/*5*/  //Z=17031
                     argq = qxs+qys;  //Z=17032
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=17033
                         qqn[nser] = qqn[nser-1]*q*q;  //Z=17034
-                        pqsum = pqsum+carr1p[nser]*qqn[nser]*pow(1.0-argq*argq,nser);  //Z=17035
+                        pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser]*pow(1.0-argq*argq,nser);  //Z=17035
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17036
                         if ( delser<0.0001 ) break; /* goto 76; */  //Z=17037
                         oldpqsum = pqsum;  //Z=17038
                     }/*6*/  //Z=17039
                 }/*5*/  //Z=17040
-                if ( orcase==2 )
+                if ( params.orcase==2 )
                 {/*5*/  //Z=17041
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=17042
                         qqn[nser] = qqn[nser-1]*q*q;  //Z=17043
-                        pqsum = pqsum+carr1p[nser]*qqn[nser]*pow(1.0-qxs*qxs,nser);  //Z=17044
+                        pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser]*pow(1.0-qxs*qxs,nser);  //Z=17044
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17045
                         if ( delser<0.0001 ) break; /* goto 76; */  //Z=17046
                         oldpqsum = pqsum;  //Z=17047
                     }/*6*/  //Z=17048
                 }/*5*/  //Z=17049
-                if ( orcase==3 )
+                if ( params.orcase==3 )
                 {/*5*/  //Z=17050
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=17051
                         qqn[nser] = qqn[nser-1]*q*q;  //Z=17052
-                        pqsum = pqsum+carr1p[nser]*qqn[nser]*pow(1.0-qys*qys,nser);  //Z=17053
+                        pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser]*pow(1.0-qys*qys,nser);  //Z=17053
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17054
                         if ( delser<0.0001 ) break; /* goto 76; */  //Z=17055
                         oldpqsum = pqsum;  //Z=17056
                     }/*6*/  //Z=17057
                 }/*5*/  //Z=17058
-                if ( orcase==4 )
+                if ( params.orcase==4 )
                 {/*5*/  //Z=17059
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=17060
                         qqn[nser] = qqn[nser-1]*q*q;  //Z=17061
-                        pqsum = pqsum+carr1p[nser]*qqn[nser];  //Z=17062
+                        pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser];  //Z=17062
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17063
                         if ( delser<0.0001 ) break; /* goto 76; */  //Z=17064
                         oldpqsum = pqsum;  //Z=17065
@@ -7467,14 +7250,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             }/*4*/  //Z=17070
             else
             {/*4*/  //Z=17071
-                if ( orcase==1 )
+                if ( params.orcase==1 )
                 {/*5*/  //Z=17072
                     qnarg = qxs+qys;  //Z=17073
-                    arglq = sqrt(1.0-qnarg*qnarg)*q*length/(zl+1)+eps9;  //Z=17074
+                    arglq = sqrt(1.0-qnarg*qnarg)*q*params.length/(zl+1)+eps9;  //Z=17074
                 }/*5*/  //Z=17075
-                if ( orcase==2 ) arglq = sqrt(1.0-qxs*qxs)*q*length/(zl+1)+eps9;  //Z=17076
-                if ( orcase==3 ) arglq = sqrt(1.0-qys*qys)*q*length/(zl+1)+eps9;  //Z=17077
-                if ( orcase==4 ) arglq = q*length/(zl+1)+eps9;  //Z=17078
+                if ( params.orcase==2 ) arglq = sqrt(1.0-qxs*qxs)*q*params.length/(zl+1)+eps9;  //Z=17076
+                if ( params.orcase==3 ) arglq = sqrt(1.0-qys*qys)*q*params.length/(zl+1)+eps9;  //Z=17077
+                if ( params.orcase==4 ) arglq = q*params.length/(zl+1)+eps9;  //Z=17078
 
                 pqr1 = (1/(zl*(zl-1)*(zl-2)))*pow(arglq,-3);  //Z=17080
                 pqr2 = (1/(zl*(zl-1)*(zl-2)))*pow(arglq,-3)*sin((zl-2)*atan(2.0*arglq))/pow(1.0+4*arglq*arglq,(zl-2)/2.0);  //Z=17081
@@ -7486,9 +7269,9 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
         /*  orientational distribution  */  //Z=17087
         if ( ordis==0 )
         {/*3*/       /*  general  */  //Z=17088
-            if ( orcase==1 )
+            if ( params.orcase==1 )
             {/*4*/  //Z=17089
-                if ( limql<(0.3*limq1) )
+                if ( limql<(0.3*params.limq1) )
                 {/*5*/  //Z=17090
                     pqsum = 1.0;  //Z=17091
                     oldpqsum = 0.0;  //Z=17092
@@ -7510,13 +7293,13 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                             {/*8*/  //Z=17105
                                 /* indx:=lser+1+round(mser*(mser+1)/2);  //Z=17106 */
                                 /* binsum1:=binsum1+carr2pm[indx]*qxn[lser]*qyn[mser-lser];  //Z=17107 */
-                                binsum1 = binsum1+params.CR->carr11pm[mser][lser]*qxn[lser]*qyn[mser-lser];  //Z=17108
+                                binsum1 = binsum1+params.CR->carr22pm[mser][lser]*qxn[lser]*qyn[mser-lser];  //Z=17108
                             }/*8*/  //Z=17109
                             /* indx:=mser+1+round(nser*(nser+1)/2);  //Z=17110 */
                             /* binsum:=binsum+carr1pm[indx]*binsum1;  //Z=17111 */
                             binsum = binsum+params.CR->carr11pm[nser][mser]*binsum1;  //Z=17112
                         }/*7*/  //Z=17113
-                        pqsum = pqsum+carr1p[nser]*qqn[nser]*binsum;  //Z=17114
+                        pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser]*binsum;  //Z=17114
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17115
                         if ( delser<0.0001 ) break; /* goto 77; */  //Z=17116
                         oldpqsum = pqsum;  //Z=17117
@@ -7528,14 +7311,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 {/*5*/  //Z=17122
                     /*  disk: length = disk radius  */  //Z=17123
                     /*  always use Bessel function approximation  */  //Z=17124
-                    qrombdeltac(length,radius,p1,sigmal,alfa,params.dbeta,theta,phi,qx,qy,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,orcase+7,0,0,0,carr2p,pql);  //Z=17125
-                    pql = pql/norm;  //Z=17126
+                    qrombdeltac(params.p1,sigmal,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,params.orcase+7,0,0,0,params.CR->carr2p,pql);  //Z=17125
+                    pql = pql/params.norm;  //Z=17126
                 }/*5*/  //Z=17127
             }/*4*/  //Z=17128
 
-            if ( orcase==2 )
+            if ( params.orcase==2 )
             {/*4*/   /*  x-axis  */  //Z=17130
-                if ( limql<(0.9*limq1) )
+                if ( limql<(0.9*params.limq1) )
                 {/*5*/  //Z=17131
                     pqsum = 1.0;  //Z=17132
                     oldpqsum = 0.0;  //Z=17133
@@ -7557,13 +7340,13 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                             {/*8*/  //Z=17146
                                 /* indx:=lser+1+round(mser*(mser+1)/2);  //Z=17147 */
                                 /* binsum1:=binsum1+carr2pm[indx]*qxn[lser]*qyn[mser-lser];  //Z=17148 */
-                                binsum1 = binsum1+params.CR->carr11pm[mser][lser]*qxn[lser]*qyn[mser-lser];  //Z=17149
+                                binsum1 = binsum1+params.CR->carr22pm[mser][lser]*qxn[lser]*qyn[mser-lser];  //Z=17149
                             }/*8*/  //Z=17150
                             /* indx:=mser+1+round(nser*(nser+1)/2);  //Z=17151 */
                             /* binsum:=binsum+carr1pm[indx]*binsum1;  //Z=17152 */
                             binsum = binsum+params.CR->carr11pm[nser][mser]*binsum1;  //Z=17153
                         }/*7*/  //Z=17154
-                        pqsum = pqsum+carr1p[nser]*qqn[nser]*binsum;  //Z=17155
+                        pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser]*binsum;  //Z=17155
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17156
                         if ( delser<0.0001 ) break; /* goto 78; */  //Z=17157
                         oldpqsum = pqsum;  //Z=17158
@@ -7575,16 +7358,16 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 {/*5*/  //Z=17163
                     /*  disk: length = disk radius  */  //Z=17164
                     /*  always use Bessel function approximation  */  //Z=17165
-                    qrombdeltac(length,radius,p1,sigmal,alfa,params.dbeta,theta,phi,qx,qy,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,orcase+7,0,0,0,carr2p,pql);  //Z=17166
-                    pql = pql/norm;  //Z=17167
+                    qrombdeltac(params.p1,sigmal,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,params.orcase+7,0,0,0,params.CR->carr2p,pql);  //Z=17166
+                    pql = pql/params.norm;  //Z=17167
                     /* pql:=pq/1e-5;  //Z=17168 */
                     /* pql:=0.5;  //Z=17169 */
                 }/*5*/  //Z=17170
             }/*4*/  //Z=17171
 
-            if ( orcase==3 )
+            if ( params.orcase==3 )
             {/*4*/     /*  y-axis  */  //Z=17173
-                if ( limql<(0.9*limq1) )
+                if ( limql<(0.9*params.limq1) )
                 {/*5*/  //Z=17174
                     pqsum = 1.0;  //Z=17175
                     oldpqsum = 0.0;  //Z=17176
@@ -7606,13 +7389,13 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                             {/*8*/  //Z=17189
                                 /* indx:=lser+1+round(mser*(mser+1)/2);  //Z=17190 */
                                 /* binsum1:=binsum1+carr2pm[indx]*qxn[lser]*qyn[mser-lser];  //Z=17191 */
-                                binsum1 = binsum1+params.CR->carr11pm[mser][lser]*qxn[lser]*qyn[mser-lser];  //Z=17192
+                                binsum1 = binsum1+params.CR->carr22pm[mser][lser]*qxn[lser]*qyn[mser-lser];  //Z=17192
                             }/*8*/  //Z=17193
                             /* indx:=mser+1+round(nser*(nser+1)/2);  //Z=17194 */
                             /* binsum:=binsum+carr1pm[indx]*binsum1;  //Z=17195 */
                             binsum = binsum+params.CR->carr11pm[nser][mser]*binsum1;  //Z=17196
                         }/*7*/  //Z=17197
-                        pqsum = pqsum+carr1p[nser]*qqn[nser]*binsum;  //Z=17198
+                        pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser]*binsum;  //Z=17198
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17199
                         if ( delser<0.0001 ) break; /* goto 79; */  //Z=17200
                         oldpqsum = pqsum;  //Z=17201
@@ -7624,14 +7407,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 {/*5*/  //Z=17206
                     /*  disk: length = disk radius  */  //Z=17207
                     /*  always use Bessel function approximation  */  //Z=17208
-                    qrombdeltac(length,radius,p1,sigmal,alfa,params.dbeta,theta,phi,qx,qy,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,orcase+7,0,0,0,carr2p,pql);  //Z=17209
-                    pql = pql/norm;  //Z=17210
+                    qrombdeltac(params.p1,sigmal,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,params.orcase+7,0,0,0,params.CR->carr2p,pql);  //Z=17209
+                    pql = pql/params.norm;  //Z=17210
                 }/*5*/  //Z=17211
             }/*4*/  //Z=17212
 
-            if ( orcase==4 )
+            if ( params.orcase==4 )
             {/*4*/  //Z=17214
-                if ( limql<(0.7*limq1) )
+                if ( limql<(0.7*params.limq1) )
                 {/*5*/  //Z=17215
                     pqsum = 1.0;  //Z=17216
                     oldpqsum = 0.0;  //Z=17217
@@ -7639,7 +7422,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=17219
                         qqn[nser] = qqn[nser-1]*q*q;  //Z=17220
-                        pqsum = pqsum+carr1p[nser]*qqn[nser];  //Z=17221
+                        pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser];  //Z=17221
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17222
                         if ( delser<0.0001 ) break; /* goto 80; */  //Z=17223
                         oldpqsum = pqsum;  //Z=17224
@@ -7651,8 +7434,8 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 {/*5*/  //Z=17229
                     /*  disk: length = disk radius  */  //Z=17230
                     /*  always use Bessel function approximation  */  //Z=17231
-                    qrombdeltac(length,radius,p1,sigmal,alfa,params.dbeta,theta,phi,qx,qy,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,orcase+7,0,0,0,carr2p,pql);  //Z=17232
-                    pql = pql/norm;  //Z=17233
+                    qrombdeltac(params.p1,sigmal,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,params.orcase+7,0,0,0,params.CR->carr2p,pql);  //Z=17232
+                    pql = pql/params.norm;  //Z=17233
                 }/*5*/  //Z=17234
             }/*4*/  //Z=17235
         }/*3*/   /*  of orientational distribution  */  //Z=17236
@@ -7661,9 +7444,9 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
         /*  transverse part  */  //Z=17239
         /*  disk: radius = disk thickness/2  */  //Z=17240
         /*  homogeneous disk  */  //Z=17241
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=17242
-            if ( q<(0.3*limq4) )
+            if ( q<(0.3*params.limq4) )
             {/*4*/  //Z=17243
                 pqsum = 1.0;  //Z=17244
                 oldpqsum = 0.0;  //Z=17245
@@ -7671,7 +7454,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 for ( nser=1; nser<=100; nser++ )
                 {/*5*/  //Z=17247
                     qqn[nser] = qqn[nser-1]*q*q;  //Z=17248
-                    pqsum = pqsum+carr4p[nser]*qqn[nser];  //Z=17249
+                    pqsum = pqsum+params.CR->carr4p[nser]*qqn[nser];  //Z=17249
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17250
                     if ( delser<0.0001 ) break; /* goto 71; */  //Z=17251
                     oldpqsum = pqsum;  //Z=17252
@@ -7681,7 +7464,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             }/*4*/  //Z=17256
             else
             {/*4*/  //Z=17257
-                argpq = q*radius/(zr+1);  //Z=17258
+                argpq = q*params.radius/(zr+1);  //Z=17258
                 pqr = (1/(2.0*zr*(zr-1)))*pow(argpq,-2)*(1-cos((zr-1)*atan(2.0*argpq))/pow(1.0+4*argpq*argpq,(zr-1)/2.0));  //Z=17259
             }/*4*/  //Z=17260
             /*formpq:=*/ return pql*pqr;  //Z=17261
@@ -7689,18 +7472,18 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
         }/*3*/ /*  of homogeneous  */  //Z=17263
 
         /*  core/shell disk  */  //Z=17265
-        if ( cs==1 )
+        if ( params.cs==1 )
         {/*3*/  //Z=17266
-            ccc1 = sqr(1-rho)*pow(p1,2);  //Z=17267
-            ccc2 = 2*rho*(1-rho)*pow(p1,1);  //Z=17268
-            ccc3 = rho*rho;  //Z=17269
-            vv3 = sqr((1-rho)*pow(p1,1)+rho);  //Z=17270
+            ccc1 = sqr(1-params.rho)*pow(params.p1,2);  //Z=17267
+            ccc2 = 2*params.rho*(1-params.rho)*pow(params.p1,1);  //Z=17268
+            ccc3 = params.rho*params.rho;  //Z=17269
+            vv3 = sqr((1-params.rho)*pow(params.p1,1)+params.rho);  //Z=17270
 
             argq = q*radiusm/(zz+1);  //Z=17272
-            argpq = q*radius/(zz+1);  //Z=17273
+            argpq = q*params.radius/(zz+1);  //Z=17273
 
             /*  F121 disk  */  //Z=17275
-            if ( q<(0.8*limq4) )
+            if ( q<(0.8*params.limq4) )
             {/*4*/  //Z=17276
                 /* ** series expansion ** */  //Z=17277
                 pqsum = 1.0;  //Z=17278
@@ -7709,7 +7492,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=17281
                     qqn[nser] = qqn[nser-1]*q*q;  //Z=17282
-                    pqsum = pqsum+carr4p[nser]*qqn[nser];  //Z=17283
+                    pqsum = pqsum+params.CR->carr4p[nser]*qqn[nser];  //Z=17283
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17284
                     if ( delser<0.0001 ) break; /* goto 72; */  //Z=17285
                     oldpqsum = pqsum;  //Z=17286
@@ -7724,7 +7507,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             }/*4*/  //Z=17294
 
             /*  F122 disk  */  //Z=17296
-            if ( q<(2.0*limq5) )
+            if ( q<(2.0*params.limq5) )
             {/*4*/  //Z=17297
                 /* ** series expansion ** */  //Z=17298
                 pqsum = 1.0;  //Z=17299
@@ -7733,7 +7516,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=17302
                     qqn[nser] = qqn[nser-1]*q*q;  //Z=17303
-                    pqsum = pqsum+carr5p[nser]*qqn[nser];  //Z=17304
+                    pqsum = pqsum+params.CR->carr5p[nser]*qqn[nser];  //Z=17304
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17305
                     if ( delser<0.0001 ) break; /* goto 73; */  //Z=17306
                     oldpqsum = pqsum;  //Z=17307
@@ -7753,7 +7536,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             }/*4*/  //Z=17320
 
             /*  F123 disk  */  //Z=17322
-            if ( q<(0.3*limq6) )
+            if ( q<(0.3*params.limq6) )
             {/*4*/  //Z=17323
                 /* ** series expansion ** */  //Z=17324
                 pqsum = 1.0;  //Z=17325
@@ -7762,7 +7545,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=17328
                     qqn[nser] = qqn[nser-1]*q*q;  //Z=17329
-                    pqsum = pqsum+carr6p[nser]*qqn[nser];  //Z=17330
+                    pqsum = pqsum+params.CR->carr6p[nser]*qqn[nser];  //Z=17330
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17331
                     if ( delser<0.0001 ) break; /* goto 74; */  //Z=17332
                     oldpqsum = pqsum;  //Z=17333
@@ -7781,19 +7564,19 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
         }/*3*/ /*  of core/shell-disk  */  //Z=17345
 
         /*  inhomogeneous core/shell disk  */  //Z=17347
-        if ( cs==2 )
+        if ( params.cs==2 )
         {/*3*/  //Z=17348
 
             dim = 1;  //Z=17350
             delc = 0.0001;  //Z=17351
             xrad = q*radiusm;  //Z=17352
-            xradp = q*radius;  //Z=17353
-            x1z = q*radius/(2.0*(zr+1));  //Z=17354
+            xradp = q*params.radius;  //Z=17353
+            x1z = q*params.radius/(2.0*(zr+1));  //Z=17354
             x12z = x1z*x1z;  //Z=17355
             x2z = q*radiusm/(2.0*(zr+1));  //Z=17356
             x22z = x2z*x2z;  //Z=17357
 
-            lim = 18*exp(-5*sigmar);  //Z=17359
+            lim = 18*exp(-5*params.sigma);  //Z=17359
             lim1 = lim;  //Z=17360
             lim2 = lim*0.7;  //Z=17361
             lim3 = lim;  //Z=17362
@@ -7801,14 +7584,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             lim5 = lim*0.7;  //Z=17364
             lim6 = lim*1.2;  //Z=17365
 
-            a1 = (dim-alfa)/2.0;  //Z=17367
+            a1 = (dim-params.alphash1)/2.0;  //Z=17367
             b1 = dim/2.0;  //Z=17368
-            b2 = (dim+2-alfa)/2.0;  //Z=17369
+            b2 = (dim+2-params.alphash1)/2.0;  //Z=17369
             b1s = (dim+2)/2.0;  //Z=17370
             v = -b1s+1/2.0;  //Z=17371
             c = a1-b1-b2+1/2.0;  //Z=17372
             d0 = 1;  //Z=17373
-            d1 = a1*(1+a1-b1)*(1+a1-b2);  //Z=17374
+            //d1 = a1*(1+a1-b1)*(1+a1-b2);  //Z=17374
             e0 = 1.0;  //Z=17375
             e1 = (3/8.0)-(b1+b2)+((b1-b2)*(b1-b2)-3*a1*a1+2*a1*(1+b1+b2))/2.0;  //Z=17376
             ee0 = 1.0;  //Z=17377
@@ -7828,45 +7611,46 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             pzvc2 = gamma(zr+1+v+c-2)/gz1;  //Z=17391
             pzac = gamma(zr+1-2*a1+c)/gz1;  //Z=17392
             pzac1 = gamma(zr+1-2*a1+c-1)/gz1;  //Z=17393
-            pzac2 = gamma(zr+1-2*a1+c+2)/gz1;  //Z=17394
+            //pzac2 = gamma(zr+1-2*a1+c+2)/gz1;  //Z=17394
             pzc = gamma(zr+1+2*c)/gz1;  //Z=17395
             pzc1 = gamma(zr+1+2*c-1)/gz1;  //Z=17396
             pza = gamma(zr+1-4*a1)/gz1;  //Z=17397
             pzva = gamma(zr+1+v-2*a1)/gz1;  //Z=17398
             pzva1 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=17399
-            dnv0 = 1;  //Z=17400
-            pvav0 = gamma(zr+1+v-2*a1)/gz1;  //Z=17401
-            pvav10 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=17402
-            pva0 = gamma(zr+1-4*a1)/gz1;  //Z=17403
+            //dnv0 = 1;  //Z=17400
+            //pvav0 = gamma(zr+1+v-2*a1)/gz1;  //Z=17401
+            //pvav10 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=17402
+            //pva0 = gamma(zr+1-4*a1)/gz1;  //Z=17403
 
             cc1 = 1/(dim*dim);  //Z=17405
-            cc2 = 2*rho/(dim*(dim-alfa)*pow(p1,dim-alfa));  //Z=17406
-            cc3 = -2*rho/(dim*(dim-alfa));  //Z=17407
-            cc4 = rho*rho/((dim-alfa)*(dim-alfa)*pow(p1*p1,dim-alfa));  //Z=17408
-            cc5 = -2*rho*rho/((dim-alfa)*(dim-alfa)*pow(p1,dim-alfa));  //Z=17409
-            cc6 = rho*rho/((dim-alfa)*(dim-alfa));  //Z=17410
+            cc2 = 2*params.rho/(dim*(dim-params.alphash1)*pow(params.p1,dim-params.alphash1));  //Z=17406
+            cc3 = -2*params.rho/(dim*(dim-params.alphash1));  //Z=17407
+            cc4 = sqr(params.rho)/(sqr(dim-params.alphash1)*pow(sqr(params.p1),dim-params.alphash1));  //Z=17408
+            cc5 = -2*sqr(params.rho)/(sqr(dim-params.alphash1)*pow(params.p1,dim-params.alphash1));  //Z=17409
+            cc6 = sqr(params.rho)/sqr(dim-params.alphash1);  //Z=17410
             vv3 = cc1+cc2+cc3+cc4+cc5+cc6;  //Z=17411
 
             /*  term #1 series  */  //Z=17413
             if ( (xradp)<lim1 )
             {/*4*/  //Z=17414
-                z12v[0] = 1;  //Z=17415
-                b1sv[0] = 1;  //Z=17416
-                fkv[0] = 1;  //Z=17417
-                qqn[0] = 1.0;  //Z=17418
+                //z12v[0] = 1;  //Z=17415
+                //b1sv[0] = 1;  //Z=17416
+                //fkv[0] = 1;  //Z=17417
+                double qqnn = 1.0; //qqn[0] = 1.0;  //Z=17418
                 F12sez = 1.0;  //Z=17419
                 oldF12sez = 0.0;  //Z=17420
-                for ( int n=1; n<=120; n++ )
+                for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=17421
-                    qqn[n] = qqn[n-1]*q*q;  //Z=17422
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=17423
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=17424
-                    fkv[n] = fkv[n-1]*n;  //Z=17425
-                    sum12[n] = 0;  //Z=17426
+                    //qqn[n] = qqn[n-1]*q*q;  //Z=17422
+                    qqnn *= sqr(q);
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=17423
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=17424
+                    //fkv[n] = fkv[n-1]*n;  //Z=17425
+                    //sum12[n] = 0;  //Z=17426
                     /* for m:=0 to n do sum12[n]:=sum12[n]+1/(b1sv[m]*b1sv[n-m]*fkv[m]*fkv[n-m]);  //Z=17427 */
                     /* F12sez:=F12sez+power(-x12z,n)*z12v[n]*sum12[n];  //Z=17428 */
 
-                    F12sez = F12sez+carr4p[n]*qqn[n];  //Z=17430
+                    F12sez += params.CR->carr4p[n]*qqnn; //qqn[n];  //Z=17430
 
                     del = fabs((F12sez-oldF12sez)/F12sez);  //Z=17432
                     if ( del<delc ) break; /* goto 221; */  //Z=17433
@@ -7879,29 +7663,30 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             /*  term #2 series  */  //Z=17440
             if ( (xradp)<lim2 )
             {/*4*/  //Z=17441
-                z12v[0] = 1;  //Z=17442
-                a1v[0] = 1;  //Z=17443
-                b1v[0] = 1;  //Z=17444
-                b2v[0] = 1;  //Z=17445
-                b1sv[0] = 1;  //Z=17446
-                fkv[0] = 1;  //Z=17447
-                qqn[0] = 1.0;  //Z=17448
+                //z12v[0] = 1;  //Z=17442
+                //a1v[0] = 1;  //Z=17443
+                //b1v[0] = 1;  //Z=17444
+                //b2v[0] = 1;  //Z=17445
+                //b1sv[0] = 1;  //Z=17446
+                //fkv[0] = 1;  //Z=17447
+                double qqnn = 1.0; //qqn[0] = 1.0;  //Z=17448
                 F22sez = 1.0;  //Z=17449
                 oldF22sez = 0.0;  //Z=17450
-                for ( int n=1; n<=120; n++ )
+                for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=17451
-                    qqn[n] = qqn[n-1]*q*q;  //Z=17452
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=17453
-                    a1v[n] = a1v[n-1]*(a1-1+n);  //Z=17454
-                    b1v[n] = b1v[n-1]*(b1-1+n);  //Z=17455
-                    b2v[n] = b2v[n-1]*(b2-1+n);  //Z=17456
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=17457
-                    fkv[n] = fkv[n-1]*n;  //Z=17458
-                    sum22[n] = 0;  //Z=17459
+                    //qqn[n] = qqn[n-1]*q*q;  //Z=17452
+                    qqnn *= sqr(q);
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=17453
+                    //a1v[n] = a1v[n-1]*(a1-1+n);  //Z=17454
+                    //b1v[n] = b1v[n-1]*(b1-1+n);  //Z=17455
+                    //b2v[n] = b2v[n-1]*(b2-1+n);  //Z=17456
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=17457
+                    //fkv[n] = fkv[n-1]*n;  //Z=17458
+                    //sum22[n] = 0;  //Z=17459
                     /* for m:=0 to n do sum22[n]:=sum22[n]+a1v[n-m]*power(p1*p1,m)/(b1sv[m]*b1v[n-m]*b2v[n-m]*fkv[m]*fkv[n-m]);  //Z=17460 */
                     /* F22sez:=F22sez+power(-x22z,n)*z12v[n]*sum22[n];  //Z=17461 */
 
-                    F22sez = F22sez+carr5p[n]*qqn[n];  //Z=17463
+                    F22sez += params.CR->carr5p[n]*qqnn; //qqn[n];  //Z=17463
 
                     del = fabs((F22sez-oldF22sez)/F22sez);  //Z=17465
                     if ( del<delc ) break; /* goto 222; */  //Z=17466
@@ -7914,29 +7699,30 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             /*  term #3 series  */  //Z=17473
             if ( (xradp)<lim3 )
             {/*4*/  //Z=17474
-                z12v[0] = 1;  //Z=17475
-                a1v[0] = 1;  //Z=17476
-                b1v[0] = 1;  //Z=17477
-                b2v[0] = 1;  //Z=17478
-                b1sv[0] = 1;  //Z=17479
-                fkv[0] = 1;  //Z=17480
-                qqn[0] = 1.0;  //Z=17481
+                //z12v[0] = 1;  //Z=17475
+                //a1v[0] = 1;  //Z=17476
+                //b1v[0] = 1;  //Z=17477
+                //b2v[0] = 1;  //Z=17478
+                //b1sv[0] = 1;  //Z=17479
+                //fkv[0] = 1;  //Z=17480
+                double qqnn = 1.0; //qqn[0] = 1.0;  //Z=17481
                 F32sez = 1.0;  //Z=17482
                 oldF32sez = 0.0;  //Z=17483
-                for ( int n=1; n<=120; n++ )
+                for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=17484
-                    qqn[n] = qqn[n-1]*q*q;  //Z=17485
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=17486
-                    a1v[n] = a1v[n-1]*(a1-1+n);  //Z=17487
-                    b1v[n] = b1v[n-1]*(b1-1+n);  //Z=17488
-                    b2v[n] = b2v[n-1]*(b2-1+n);  //Z=17489
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=17490
-                    fkv[n] = fkv[n-1]*n;  //Z=17491
-                    sum32[n] = 0;  //Z=17492
+                    //qqn[n] = qqn[n-1]*q*q;  //Z=17485
+                    qqnn *= sqr(q);
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=17486
+                    //a1v[n] = a1v[n-1]*(a1-1+n);  //Z=17487
+                    //b1v[n] = b1v[n-1]*(b1-1+n);  //Z=17488
+                    //b2v[n] = b2v[n-1]*(b2-1+n);  //Z=17489
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=17490
+                    //fkv[n] = fkv[n-1]*n;  //Z=17491
+                    //sum32[n] = 0;  //Z=17492
                     /* for m:=0 to n do sum32[n]:=sum32[n]+a1v[n-m]/(b1sv[m]*b1v[n-m]*b2v[n-m]*fkv[m]*fkv[n-m]);  //Z=17493 */
                     /* F32sez:=F32sez+power(-x12z,n)*z12v[n]*sum32[n];  //Z=17494 */
 
-                    F32sez = F32sez+carr6p[n]*qqn[n];  //Z=17496
+                    F32sez += params.CR->carr6p[n]*qqnn; //qqn[n];  //Z=17496
 
                     del = fabs((F32sez-oldF32sez)/F32sez);  //Z=17498
                     if ( del<delc ) break; /* goto 223; */  //Z=17499
@@ -7949,29 +7735,30 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             /*  term #4 series  */  //Z=17506
             if ( (xradp)<lim4 )
             {/*4*/  //Z=17507
-                z12v[0] = 1;  //Z=17508
-                a1v[0] = 1;  //Z=17509
-                b1v[0] = 1;  //Z=17510
-                b2v[0] = 1;  //Z=17511
-                b1sv[0] = 1;  //Z=17512
-                fkv[0] = 1;  //Z=17513
-                qqn[0] = 1.0;  //Z=17514
+                //z12v[0] = 1;  //Z=17508
+                //a1v[0] = 1;  //Z=17509
+                //b1v[0] = 1;  //Z=17510
+                //b2v[0] = 1;  //Z=17511
+                //b1sv[0] = 1;  //Z=17512
+                //fkv[0] = 1;  //Z=17513
+                double qqnn = 1.0; //qqn[0] = 1.0;  //Z=17514
                 F42sez = 1.0;  //Z=17515
                 oldF42sez = 0.0;  //Z=17516
-                for ( int n=1; n<=120; n++ )
+                for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=17517
-                    qqn[n] = qqn[n-1]*q*q;  //Z=17518
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=17519
-                    a1v[n] = a1v[n-1]*(a1-1+n);  //Z=17520
-                    b1v[n] = b1v[n-1]*(b1-1+n);  //Z=17521
-                    b2v[n] = b2v[n-1]*(b2-1+n);  //Z=17522
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=17523
-                    fkv[n] = fkv[n-1]*n;  //Z=17524
-                    sum42[n] = 0;  //Z=17525
+                    //qqn[n] = qqn[n-1]*q*q;  //Z=17518
+                    qqnn *= sqr(q);
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=17519
+                    //a1v[n] = a1v[n-1]*(a1-1+n);  //Z=17520
+                    //b1v[n] = b1v[n-1]*(b1-1+n);  //Z=17521
+                    //b2v[n] = b2v[n-1]*(b2-1+n);  //Z=17522
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=17523
+                    //fkv[n] = fkv[n-1]*n;  //Z=17524
+                    //sum42[n] = 0;  //Z=17525
                     /* for m:=0 to n do sum42[n]:=sum42[n]+a1v[m]*a1v[n-m]/(b1v[m]*b1v[n-m]*b2v[m]*b2v[n-m]*fkv[m]*fkv[n-m]);  //Z=17526 */
                     /* F42sez:=F42sez+power(-x22z,n)*z12v[n]*sum42[n];  //Z=17527 */
 
-                    F42sez = F42sez+carr7p[n]*qqn[n];  //Z=17529
+                    F42sez += params.CR->carr7p[n]*qqnn; //qqn[n];  //Z=17529
 
                     del = fabs((F42sez-oldF42sez)/F42sez);  //Z=17531
                     if ( del<delc ) break; /* goto 224; */  //Z=17532
@@ -7984,29 +7771,30 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             /*  term #5 series  */  //Z=17539
             if ( (xradp)<lim5 )
             {/*4*/  //Z=17540
-                z12v[0] = 1;  //Z=17541
-                a1v[0] = 1;  //Z=17542
-                b1v[0] = 1;  //Z=17543
-                b2v[0] = 1;  //Z=17544
-                b1sv[0] = 1;  //Z=17545
-                fkv[0] = 1;  //Z=17546
-                qqn[0] = 1.0;  //Z=17547
+                //z12v[0] = 1;  //Z=17541
+                //a1v[0] = 1;  //Z=17542
+                //b1v[0] = 1;  //Z=17543
+                //b2v[0] = 1;  //Z=17544
+                //b1sv[0] = 1;  //Z=17545
+                //fkv[0] = 1;  //Z=17546
+                double qqnn = 1.0; //qqn[0] = 1.0;  //Z=17547
                 F52sez = 1.0;  //Z=17548
                 oldF52sez = 0.0;  //Z=17549
-                for ( int n=1; n<=120; n++ )
+                for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=17550
-                    qqn[n] = qqn[n-1]*q*q;  //Z=17551
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=17552
-                    a1v[n] = a1v[n-1]*(a1-1+n);  //Z=17553
-                    b1v[n] = b1v[n-1]*(b1-1+n);  //Z=17554
-                    b2v[n] = b2v[n-1]*(b2-1+n);  //Z=17555
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=17556
-                    fkv[n] = fkv[n-1]*n;  //Z=17557
-                    sum52[n] = 0;  //Z=17558
+                    //qqn[n] = qqn[n-1]*q*q;  //Z=17551
+                    qqnn *= sqr(q);
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=17552
+                    //a1v[n] = a1v[n-1]*(a1-1+n);  //Z=17553
+                    //b1v[n] = b1v[n-1]*(b1-1+n);  //Z=17554
+                    //b2v[n] = b2v[n-1]*(b2-1+n);  //Z=17555
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=17556
+                    //fkv[n] = fkv[n-1]*n;  //Z=17557
+                    //sum52[n] = 0;  //Z=17558
                     /* for m:=0 to n do sum52[n]:=sum52[n]+a1v[m]*a1v[n-m]*power(p1*p1,m)/(b1v[m]*b1v[n-m]*b2v[m]*b2v[n-m]*fkv[m]*fkv[n-m]);  //Z=17559 */
                     /* F52sez:=F52sez+power(-x22z,n)*z12v[n]*sum52[n];  //Z=17560 */
 
-                    F52sez = F52sez+carr8p[n]*qqn[n];  //Z=17562
+                    F52sez += params.CR->carr8p[n]*qqnn; //qqn[n];  //Z=17562
 
                     del = fabs((F52sez-oldF52sez)/F52sez);  //Z=17564
                     if ( del<delc ) break; /* goto 225; */  //Z=17565
@@ -8019,29 +7807,30 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             /*  term #6 series  */  //Z=17572
             if ( (xradp)<lim6 )
             {/*4*/  //Z=17573
-                z12v[0] = 1;  //Z=17574
-                a1v[0] = 1;  //Z=17575
-                b1v[0] = 1;  //Z=17576
-                b2v[0] = 1;  //Z=17577
-                b1sv[0] = 1;  //Z=17578
-                fkv[0] = 1;  //Z=17579
-                qqn[0] = 1.0;  //Z=17580
+                //z12v[0] = 1;  //Z=17574
+                //a1v[0] = 1;  //Z=17575
+                //b1v[0] = 1;  //Z=17576
+                //b2v[0] = 1;  //Z=17577
+                //b1sv[0] = 1;  //Z=17578
+                //fkv[0] = 1;  //Z=17579
+                double qqnn = 1.0; //qqn[0] = 1.0;  //Z=17580
                 F62sez = 1.0;  //Z=17581
                 oldF62sez = 0.0;  //Z=17582
-                for ( int n=1; n<=120; n++ )
+                for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=17583
-                    qqn[n] = qqn[n-1]*q*q;  //Z=17584
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=17585
-                    a1v[n] = a1v[n-1]*(a1-1+n);  //Z=17586
-                    b1v[n] = b1v[n-1]*(b1-1+n);  //Z=17587
-                    b2v[n] = b2v[n-1]*(b2-1+n);  //Z=17588
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=17589
-                    fkv[n] = fkv[n-1]*n;  //Z=17590
-                    sum62[n] = 0;  //Z=17591
+                    //qqn[n] = qqn[n-1]*q*q;  //Z=17584
+                    qqnn *= sqr(q);
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=17585
+                    //a1v[n] = a1v[n-1]*(a1-1+n);  //Z=17586
+                    //b1v[n] = b1v[n-1]*(b1-1+n);  //Z=17587
+                    //b2v[n] = b2v[n-1]*(b2-1+n);  //Z=17588
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=17589
+                    //fkv[n] = fkv[n-1]*n;  //Z=17590
+                    //sum62[n] = 0;  //Z=17591
                     /* for m:=0 to n do sum62[n]:=sum62[n]+a1v[m]*a1v[n-m]/(b1v[m]*b1v[n-m]*b2v[m]*b2v[n-m]*fkv[m]*fkv[n-m]);  //Z=17592 */
                     /* F62sez:=F62sez+power(-x12z,n)*z12v[n]*sum62[n];  //Z=17593 */
 
-                    F62sez = F62sez+carr9p[n]*qqn[n];  //Z=17595
+                    F62sez += params.CR->carr9p[n]*qqnn; //qqn[n];  //Z=17595
 
                     del = fabs((F62sez-oldF62sez)/F62sez);  //Z=17597
                     if ( del<delc ) break; /* goto 226; */  //Z=17598
@@ -8072,14 +7861,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             /* ** term #2 asymptote ** */  //Z=17622
             if ( xradp>=lim2 )
             {/*4*/  //Z=17623
-                arg21 = (zr+v-2*a1+1)*atan(2.0*x1z);  //Z=17624
-                nen21 = pow(1.0+4*x1z*x1z,(zr+v-2*a1+1)/2.0);  //Z=17625
-                arg22 = (zr+v-2*a1)*atan(2.0*x1z);  //Z=17626
-                nen22 = pow(1.0+4*x1z*x1z,(zr+v-2*a1)/2.0);  //Z=17627
-                F22as1sum1z = dnv0*ee0*pvav0*(cos(M_PI*v/2.0)*cos(arg21)/nen21-sin(M_PI*v/2.0)*sin(arg21)/nen21);  //Z=17628
-                F22as1sum2z = dnv0*ee1*(1/(2.0*x1z))*pvav10*(cos(M_PI*(v-1)/2.0)*cos(arg22)/nen22-sin(M_PI*(v-1)/2.0)*sin(arg22)/nen22);  //Z=17629
+                //arg21 = (zr+v-2*a1+1)*atan(2.0*x1z);  //Z=17624
+                //nen21 = pow(1.0+4*x1z*x1z,(zr+v-2*a1+1)/2.0);  //Z=17625
+                //arg22 = (zr+v-2*a1)*atan(2.0*x1z);  //Z=17626
+                //nen22 = pow(1.0+4*x1z*x1z,(zr+v-2*a1)/2.0);  //Z=17627
+                //F22as1sum1z = dnv0*ee0*pvav0*(cos(M_PI*v/2.0)*cos(arg21)/nen21-sin(M_PI*v/2.0)*sin(arg21)/nen21);  //Z=17628
+                //F22as1sum2z = dnv0*ee1*(1/(2.0*x1z))*pvav10*(cos(M_PI*(v-1)/2.0)*cos(arg22)/nen22-sin(M_PI*(v-1)/2.0)*sin(arg22)/nen22);  //Z=17629
                 F22as10z = preg1*preg4*pow(x1z,v)*pow(x22z,-a1);  //Z=17630
-                F22as1z = F22as10z*(F22as1sum1z+F22as1sum2z);  //Z=17631
+                //F22as1z = F22as10z*(F22as1sum1z+F22as1sum2z);  //Z=17631
 
                 arg210 = (zr+v-2*a1+1)*atan(2.0*x1z);  //Z=17633
                 nen210 = pow(1.0+4*x1z*x1z,(zr+v-2*a1+1)/2.0);  //Z=17634
@@ -8111,7 +7900,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 F22as24z = a22as24z*(cos(M_PI*(v-1-c+1)/2.0)*cos(arg27)/nen27-sin(M_PI*(v-1-c+1)/2.0)*sin(arg27)/nen27+cos(M_PI*(v-1+c-1)/2.0)*cos(arg28)/nen28-sin(M_PI*(v-1+c-1)/2.0)*sin(arg28)/nen28);  //Z=17660
                 F22as20z = preg1*preg3*pow(x1z,v)*pow(x2z,c);  //Z=17661
                 F22as2z = F22as20z*(F22as21z+F22as22z+F22as23z+F22as24z);  //Z=17662
-                F22asz = F22as1z+F22as2z;  //Z=17663
+                //F22asz = F22as1z+F22as2z;  //Z=17663
                 F22asz0 = F22as1z0+F22as2z;  //Z=17664
                 F22 = F22asz0;  //Z=17665
             }/*4*/  //Z=17666
@@ -8119,14 +7908,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             /* ** term #3 asymptote ** */  //Z=17668
             if ( xradp>=lim3 )
             {/*4*/  //Z=17669
-                arg31 = (zr+v-2*a1+1)*atan(2.0*x1z);  //Z=17670
-                nen31 = pow(1.0+4*x1z*x1z,(zr+v-2*a1+1)/2.0);  //Z=17671
-                arg32 = (zr+v-2*a1)*atan(2.0*x1z);  //Z=17672
-                nen32 = pow(1.0+4*x1z*x1z,(zr+v-2*a1)/2.0);  //Z=17673
-                F32as1sum1z = dnv0*ee0*pvav0*(cos(M_PI*v/2.0)*cos(arg31)/nen31-sin(M_PI*v/2.0)*sin(arg31)/nen31);  //Z=17674
-                F32as1sum2z = dnv0*ee1*(1/(2.0*x1z))*pvav10*(cos(M_PI*(v-1)/2.0)*cos(arg32)/nen32-sin(M_PI*(v-1)/2.0)*sin(arg32)/nen32);  //Z=17675
+                //arg31 = (zr+v-2*a1+1)*atan(2.0*x1z);  //Z=17670
+                //nen31 = pow(1.0+4*x1z*x1z,(zr+v-2*a1+1)/2.0);  //Z=17671
+                //arg32 = (zr+v-2*a1)*atan(2.0*x1z);  //Z=17672
+                //nen32 = pow(1.0+4*x1z*x1z,(zr+v-2*a1)/2.0);  //Z=17673
+                //F32as1sum1z = dnv0*ee0*pvav0*(cos(M_PI*v/2.0)*cos(arg31)/nen31-sin(M_PI*v/2.0)*sin(arg31)/nen31);  //Z=17674
+                //F32as1sum2z = dnv0*ee1*(1/(2.0*x1z))*pvav10*(cos(M_PI*(v-1)/2.0)*cos(arg32)/nen32-sin(M_PI*(v-1)/2.0)*sin(arg32)/nen32);  //Z=17675
                 F32as10z = preg1*preg4*pow(x1z,v)*pow(x12z,-a1);  //Z=17676
-                F32as1z = F32as10z*(F32as1sum1z+F32as1sum2z);  //Z=17677
+                //F32as1z = F32as10z*(F32as1sum1z+F32as1sum2z);  //Z=17677
 
                 arg310 = (z+v-2*a1+1)*atan(2.0*x1z);  //Z=17679
                 nen310 = pow(1.0+4*x1z*x1z,(z+v-2*a1+1)/2.0);  //Z=17680
@@ -8148,7 +7937,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 F32as24z = (1/2.0)*ee1*e1*(1/(4.0*x1z*x1z))*pzvc2*(cos(M_PI*(v-1-c+1)/2.0)+cos(M_PI*(v-1+c-1)/2.0)*cos(arg35)/nen35-sin(M_PI*(v-1+c-1)/2.0)*sin(arg35)/nen35);  //Z=17696
                 F32as20z = preg1*preg3*pow(x1z,v)*pow(x1z,c);  //Z=17697
                 F32as2z = F32as20z*(F32as21z+F32as22z+F32as23z+F32as24z);  //Z=17698
-                F32asz = F32as1z+F32as2z;  //Z=17699
+                //F32asz = F32as1z+F32as2z;  //Z=17699
                 F32asz0 = F32as1z0+F32as2z;  //Z=17700
                 F32 = F32asz0;  //Z=17701
             }/*4*/  //Z=17702
@@ -8158,28 +7947,28 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             if ( xrad>=lim4 )
             {/*4*/  //Z=17706
                 F42as10z = preg4*preg4*pow(x22z,-2*a1);  //Z=17707
-                F42as1sumz = pva0;  //Z=17708
-                F42as1z = F42as10z*F42as1sumz;  //Z=17709
+                //F42as1sumz = pva0;  //Z=17708
+                //F42as1z = F42as10z*F42as1sumz;  //Z=17709
                 F42as1z0 = F42as10z*pza;  //Z=17710
 
                 arg41 = (zr-2*a1+c+1)*atan(2.0*x2z);  //Z=17712
                 nen41 = pow(1.0+4*x2z*x2z,(zr-2*a1+c+1)/2.0);  //Z=17713
                 arg42 = (zr-2*a1+c)*atan(2.0*x2z);  //Z=17714
                 nen42 = pow(1.0+4*x2z*x2z,(zr-2*a1+c)/2.0);  //Z=17715
-                arg43 = (zr-2*a1+c+3)*atan(2.0*x2z);  //Z=17716
-                nen43 = pow(1.0+4*x2z*x2z,(zr-2*a1+c+3)/2.0);  //Z=17717
+                //arg43 = (zr-2*a1+c+3)*atan(2.0*x2z);  //Z=17716
+                //nen43 = pow(1.0+4*x2z*x2z,(zr-2*a1+c+3)/2.0);  //Z=17717
                 F42as20z = preg4*preg3*pow(x22z,-a1)*pow(x2z,c);  //Z=17718
                 F42as21 = d0*e0*pzac*(cos(M_PI*c/2.0)*cos(arg41)/nen41-sin(M_PI*c/2.0)*sin(arg41)/nen41);  //Z=17719
                 F42as22 = d0*e1*pzac1*(1/(2.0*x2z))*(cos(M_PI*(c-1)/2.0)*cos(arg42)/nen42-sin(M_PI*(c-1)/2.0)*sin(arg42)/nen42);  //Z=17720
-                F42as23 = d1*e0*pzac2*(-x22z)*(cos(M_PI*c/2.0)*cos(arg43)/nen43-sin(M_PI*c/2.0)*sin(arg43)/arg43);  //Z=17721
-                F42as2z = F42as20z*(F42as21+F42as22+F42as23);  //Z=17722
+                //F42as23 = d1*e0*pzac2*(-x22z)*(cos(M_PI*c/2.0)*cos(arg43)/nen43-sin(M_PI*c/2.0)*sin(arg43)/arg43);  //Z=17721
+                //F42as2z = F42as20z*(F42as21+F42as22+F42as23);  //Z=17722
                 F42as2z0 = F42as20z*(F42as21+F42as22);  //Z=17723
 
                 F42as30z = preg4*preg3*pow(x22z,-a1)*pow(x2z,c);  //Z=17725
                 F42as24 = d0*e0*pzac*(cos(M_PI*c/2.0)*cos(arg41)/nen41-sin(M_PI*c/2.0)*sin(arg41)/nen41);  //Z=17726
-                F42as25 = d1*e0*pzac2*(-x22z)*(cos(M_PI*(c-1)/2.0)*cos(arg43)/nen43-sin(M_PI*(c-1)/2.0)*sin(arg43)/nen43);  //Z=17727
+                //F42as25 = d1*e0*pzac2*(-x22z)*(cos(M_PI*(c-1)/2.0)*cos(arg43)/nen43-sin(M_PI*(c-1)/2.0)*sin(arg43)/nen43);  //Z=17727
                 F42as26 = d0*e1*pzac1*(1/(2.0*x2z))*(cos(M_PI*(c+1)/2.0)*cos(arg42)/nen42-sin(M_PI*(c+1)/2.0)*sin(arg42)/nen42);  //Z=17728
-                F42as3z = F42as30z*(F42as24+F42as25+F42as26);  //Z=17729
+                //F42as3z = F42as30z*(F42as24+F42as25+F42as26);  //Z=17729
                 F42as3z0 = F42as30z*(F42as24+F42as26);  //Z=17730
 
                 F42as40z = preg3*preg3*pow(x2z*x2z,c);  //Z=17732
@@ -8191,7 +7980,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 F42as28 = (1/2.0)*e0*e1*(1/(2.0*x2z))*pzc1*(cos(M_PI*(2*c-1)/2.0)*cos(arg45)/nen45-sin(M_PI*(2*c-1)/2.0)*sin(arg45)/nen45);  //Z=17738
                 F42as29 = (1/2.0)*e1*e0*(1/(2.0*x2z))*pzc1*(cos(M_PI*(2*c-1)/2.0)*cos(arg45)/nen45-sin(M_PI*(2*c-1)/2.0)*sin(arg45)/nen45);  //Z=17739
                 F42as4z = F42as40z*(F42as27+F42as28+F42as29);  //Z=17740
-                F42asz = F42as1z+F42as2z+F42as3z+F42as4z;  //Z=17741
+                //F42asz = F42as1z+F42as2z+F42as3z+F42as4z;  //Z=17741
                 F42asz0 = F42as1z0+F42as2z0+F42as3z0+F42as4z;  //Z=17742
                 F42 = F42asz0;  //Z=17743
             }/*4*/  //Z=17744
@@ -8201,8 +7990,8 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             if ( xradp>=lim5 )
             {/*4*/  //Z=17748
                 F52as10z = preg4*preg4*pow(x12z,-a1)*pow(x22z,-a1);  //Z=17749
-                F52as1sumz = pva0;  //Z=17750
-                F52as1z = F52as10z*F52as1sumz;  //Z=17751
+                //F52as1sumz = pva0;  //Z=17750
+                //F52as1z = F52as10z*F52as1sumz;  //Z=17751
                 F52as1z0 = F52as10z*pza;  //Z=17752
 
                 F52as20z = preg4*preg3*pow(x12z,-a1)*pow(x2z,c);  //Z=17754
@@ -8210,25 +7999,25 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 nen51 = pow(1.0+4*x2z*x2z,(zr-2*a1+c+1)/2.0);  //Z=17756
                 arg52 = (zr-2*a1+c)*atan(2.0*x2z);  //Z=17757
                 nen52 = pow(1.0+4*x2z*x2z,(zr-2*a1+c)/2.0);  //Z=17758
-                arg53 = (zr-2*a1+c+3)*atan(2.0*x2z);  //Z=17759
-                nen53 = pow(1.0+4*x2z*x2z,(zr-2*a1+c+3)/2.0);  //Z=17760
+                //arg53 = (zr-2*a1+c+3)*atan(2.0*x2z);  //Z=17759
+                //nen53 = pow(1.0+4*x2z*x2z,(zr-2*a1+c+3)/2.0);  //Z=17760
                 F52as21 = d0*e0*pzac*(cos(M_PI*c/2.0)*cos(arg51)/nen51-sin(M_PI*c/2.0)*sin(arg51)/nen51);  //Z=17761
                 F52as22 = d0*e1*pzac1*(1/(2.0*x2z))*(cos(M_PI*(c-1)/2.0)*cos(arg52)/nen52-sin(M_PI*(c-1)/2.0)*sin(arg52)/nen52);  //Z=17762
-                F52as23 = d1*e0*pzac2*(-x22z)*(cos(M_PI*c/2.0)*cos(arg53)/nen53-sin(M_PI*c/2.0)*sin(arg53)/nen53);  //Z=17763
-                F52as2z = F52as20z*(F52as21+F52as22+F52as23);  //Z=17764
+                //F52as23 = d1*e0*pzac2*(-x22z)*(cos(M_PI*c/2.0)*cos(arg53)/nen53-sin(M_PI*c/2.0)*sin(arg53)/nen53);  //Z=17763
+                //F52as2z = F52as20z*(F52as21+F52as22+F52as23);  //Z=17764
                 F52as2z0 = F52as20z*(F52as21+F52as22);  //Z=17765
 
                 F52as30z = preg4*preg3*pow(x22z,-a1)*pow(x1z,c);  //Z=17767
                 arg54 = (zr-2*a1+c+1)*atan(2.0*x1z);  //Z=17768
                 nen54 = pow(1.0+4*x1z*x1z,(zr-2*a1+c+1)/2.0);  //Z=17769
-                arg55 = (zr-2*a1+c+3)*atan(2.0*x1z);  //Z=17770
-                nen55 = pow(1.0+4*x1z*x1z,(zr-2*a1+c+3)/2.0);  //Z=17771
+                //arg55 = (zr-2*a1+c+3)*atan(2.0*x1z);  //Z=17770
+                //nen55 = pow(1.0+4*x1z*x1z,(zr-2*a1+c+3)/2.0);  //Z=17771
                 arg56 = (zr-2*a1+c)*atan(2.0*x1z);  //Z=17772
                 nen56 = pow(1.0+4*x1z*x1z,(zr-2*a1+c)/2.0);  //Z=17773
                 F52as24 = d0*e0*pzac*(cos(M_PI*c/2.0)*cos(arg54)/nen54-sin(M_PI*c/2.0)*sin(arg54)/nen54);  //Z=17774
-                F52as25 = d1*e0*pzac2*(-x22z)*(cos(M_PI*(c+1)/2.0)*cos(arg55)/nen55-sin(M_PI*(c+1)/2.0)*sin(arg55)/nen55);  //Z=17775
+                //F52as25 = d1*e0*pzac2*(-x22z)*(cos(M_PI*(c+1)/2.0)*cos(arg55)/nen55-sin(M_PI*(c+1)/2.0)*sin(arg55)/nen55);  //Z=17775
                 F52as26 = d0*e1*pzac1*(1/(2.0*x1z))*(cos(M_PI*(c-1)/2.0)*cos(arg56)/nen56-sin(M_PI*(c-1)/2.0)*sin(arg56)/nen56);  //Z=17776
-                F52as3z = F52as30z*(F52as24+F52as25+F52as26);  //Z=17777
+                //F52as3z = F52as30z*(F52as24+F52as25+F52as26);  //Z=17777
                 F52as3z0 = F52as30z*(F52as24+F52as26);  //Z=17778
 
                 F52as40z = preg3*preg3*pow(x1z,c)*pow(x2z,c);  //Z=17780
@@ -8244,7 +8033,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 F52as28 = (1/2.0)*e0*e1*(1/(2.0*x2z))*pzc1*(0+sin(arg59)/nen59+cos(M_PI*(2*c-1)/2.0)*cos(arg510)/nen510-sin(M_PI*(2*c-1)/2.0)*sin(arg510)/nen510);  //Z=17790
                 F52as29 = (1/2.0)*e1*e0*(1/(2.0*x1z))*pzc1*(0-sin(arg59)/nen59+cos(M_PI*(2*c-1)/2.0)*cos(arg510)/nen510-sin(M_PI*(2*c-1)/2.0)*sin(arg510)/nen510);  //Z=17791
                 F52as4z = F52as40z*(F52as27+F52as28+F52as29);  //Z=17792
-                F52asz = F52as1z+F52as2z+F52as3z+F52as4z;  //Z=17793
+                //F52asz = F52as1z+F52as2z+F52as3z+F52as4z;  //Z=17793
                 F52asz0 = F52as1z0+F52as2z0+F52as3z0+F52as4z;  //Z=17794
                 F52 = F52asz0;  //Z=17795
             }/*4*/  //Z=17796
@@ -8253,8 +8042,8 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             if ( xradp>=lim6 )
             {/*4*/  //Z=17799
                 F62as10z = preg4*preg4*pow(x12z,-a1)*pow(x12z,-a1);  //Z=17800
-                F62as1sumz = pva0;  //Z=17801
-                F62as1z = F62as10z*F62as1sumz;  //Z=17802
+                //F62as1sumz = pva0;  //Z=17801
+                //F62as1z = F62as10z*F62as1sumz;  //Z=17802
                 F62as1z0 = F62as10z*pza;  //Z=17803
 
                 F62as20z = preg4*preg3*pow(x12z,-a1)*pow(x1z,c);  //Z=17805
@@ -8262,19 +8051,19 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 nen61 = pow(1.0+4*x1z*x1z,(zr-2*a1+c+1)/2.0);  //Z=17807
                 arg62 = (zr-2*a1+c)*atan(2.0*x1z);  //Z=17808
                 nen62 = pow(1.0+4*x1z*x1z,(zr-2*a1+c)/2.0);  //Z=17809
-                arg63 = (zr-2*a1+c+3)*atan(2.0*x1z);  //Z=17810
-                nen63 = pow(1.0+4*x1z*x1z,(zr-2*a1+c+3)/2.0);  //Z=17811
+                //arg63 = (zr-2*a1+c+3)*atan(2.0*x1z);  //Z=17810
+                //nen63 = pow(1.0+4*x1z*x1z,(zr-2*a1+c+3)/2.0);  //Z=17811
                 F62as21 = d0*e0*pzac*(cos(M_PI*c/2.0)*cos(arg61)/nen61-sin(M_PI*c/2.0)*sin(arg61)/nen61);  //Z=17812
                 F62as22 = d0*e1*pzac1*(1/(2.0*x1z))*(cos(M_PI*(c-1)/2.0)*cos(arg62)/nen62-sin(M_PI*(c-1)/2.0)*sin(arg62)/nen62);  //Z=17813
-                F62as23 = d1*e0*pzac2*(-x12z)*(cos(M_PI*c/2.0)*cos(arg63)/nen63-sin(M_PI*c/2.0)*sin(arg63)/nen63);  //Z=17814
-                F62as2z = F62as20z*(F62as21+F62as22+F62as23);  //Z=17815
+                //F62as23 = d1*e0*pzac2*(-x12z)*(cos(M_PI*c/2.0)*cos(arg63)/nen63-sin(M_PI*c/2.0)*sin(arg63)/nen63);  //Z=17814
+                //F62as2z = F62as20z*(F62as21+F62as22+F62as23);  //Z=17815
                 F62as2z0 = F62as20z*(F62as21+F62as22);  //Z=17816
 
                 F62as30z = preg4*preg3*pow(x12z,-a1)*pow(x1z,c);  //Z=17818
                 F62as24 = d0*e0*pzac*(cos(M_PI*c/2.0)*cos(arg61)/nen61-sin(M_PI*c/2.0)*sin(arg61)/nen61);  //Z=17819
-                F62as25 = d1*e0*pzac2*(-x12z)*(cos(M_PI*(c+1)/2.0)*cos(arg63)/nen63-sin(M_PI*(c+1)/2.0)*sin(arg63)/nen63);  //Z=17820
+                //F62as25 = d1*e0*pzac2*(-x12z)*(cos(M_PI*(c+1)/2.0)*cos(arg63)/nen63-sin(M_PI*(c+1)/2.0)*sin(arg63)/nen63);  //Z=17820
                 F62as26 = d0*e1*pzac1*(1/(2.0*x1z))*(cos(M_PI*(c-1)/2.0)*cos(arg62)/nen62-sin(M_PI*(c-1)/2.0)*sin(arg62)/nen62);  //Z=17821
-                F62as3z = F62as30z*(F62as24+F62as25+F62as26);  //Z=17822
+                //F62as3z = F62as30z*(F62as24+F62as25+F62as26);  //Z=17822
                 F62as3z0 = F62as30z*(F62as24+F62as26);  //Z=17823
 
                 F62as40z = preg3*preg3*pow(x1z*x1z,c);  //Z=17825
@@ -8286,7 +8075,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 F62as28 = (1/2.0)*e0*e1*(1/(2.0*x1z))*pzc1*(cos(M_PI*(2*c-1)/2.0)*cos(arg65)/nen65-sin(M_PI*(2*c-1)/2.0)*sin(arg65)/nen65);  //Z=17831
                 F62as29 = (1/2.0)*e1*e0*(1/(2.0*x1z))*pzc1*(cos(M_PI*(2*c-1)/2.0)*cos(arg65)/nen65-sin(M_PI*(2*c-1)/2.0)*sin(arg65)/nen65);  //Z=17832
                 F62as4z = F62as40z*(F62as27+F62as28+F62as29);  //Z=17833
-                F62asz = F62as1z+F62as2z+F62as3z+F62as4z;  //Z=17834
+                //F62asz = F62as1z+F62as2z+F62as3z+F62as4z;  //Z=17834
                 F62asz0 = F62as1z0+F62as2z0+F62as3z0+F62as4z;  //Z=17835
                 F62 = F62asz0;  //Z=17836
             }/*4*/  //Z=17837
@@ -8300,7 +8089,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
         }/*3*/ /*  of inhomogeneous core/shell-disk  */  //Z=17845
 
         /*  myelin disk  */  //Z=17847
-        if ( (cs==3) || (cs==4) )
+        if ( (params.cs==3) || (params.cs==4) )
         {/*3*/  //Z=17848
 
             /*  disk parameters  */  //Z=17850
@@ -8311,12 +8100,12 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             pz2v = 1/(zr*(zr-1));  //Z=17855
             pz2v1 = pz2v/(zr-2);  //Z=17856
             pz2v2 = pz2v1/(zr-3);  //Z=17857
-            lim = 18*exp(-5*sigmar);  //Z=17858
+            lim = 18*exp(-5*params.sigma);  //Z=17858
             lim1 = lim*1.2;  //Z=17859
-            rad = myarray[1];  //Z=17860
-            inmax = round(myarray[14]);  //Z=17861
-            vvm = myarray[15];  //Z=17862
-            rmax = myarray[16];  //Z=17863
+            rad = params.CR->myarray[1];  //Z=17860
+            inmax = round(params.CR->myarray[14]);  //Z=17861
+            vvm = params.CR->myarray[15];  //Z=17862
+            rmax = params.CR->myarray[16];  //Z=17863
             xmax = q*rmax;  //Z=17864
 
             if ( xmax<(lim1) )
@@ -8342,18 +8131,18 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                             for ( mser=0; mser<=nser; mser++ )
                             {/*8*/  //Z=17881
                                 /* pqsum:=pqsum+power(carr7p[ii],2*mser)*power(carr7p[jj],2*(nser-mser))/((mser+1)*fkv[mser]*(nser-mser+1)*fkv[nser-mser]*fkv[mser]*fkv[nser-mser]);  //Z=17882 */
-                                pqsum = pqsum+pow(carr7p[ii],2*mser)*pow(carr7p[jj],2*(nser-mser))/(carr6p[mser]*carr6p[nser-mser]);  //Z=17883
+                                pqsum = pqsum+pow(params.CR->carr7p[ii],2*mser)*pow(params.CR->carr7p[jj],2*(nser-mser))/(params.CR->carr6p[mser]*params.CR->carr6p[nser-mser]);  //Z=17883
 
                                 /* indx:=mser+1+round(nser*(nser+1)/2);  //Z=17885 */
                                 /* pqsum:=pqsum+power(carr7p[ii],2*mser)*power(carr7p[jj],2*(nser-mser))*carr1pm[indx];  //Z=17886 */
                             }/*8*/  //Z=17887
-                            F12sez = F12sez+carr4p[nser]*qqn[nser]*pqsum;  //Z=17888
+                            F12sez = F12sez+params.CR->carr4p[nser]*qqn[nser]*pqsum;  //Z=17888
                             delser = fabs((F12sez-oldF12sez)/F12sez);  //Z=17889
                             if ( delser<0.0001 ) break; /* goto 251; */  //Z=17890
                             oldF12sez = F12sez;  //Z=17891
                         }/*7*/  //Z=17892
                         /*251:*/  //Z=17893
-                        F12sum = F12sum+carr5p[ii]*carr5p[jj]*F12sez;  //Z=17894
+                        F12sum = F12sum+params.CR->carr5p[ii]*params.CR->carr5p[jj]*F12sez;  //Z=17894
                     }/*6*/  //Z=17895
                 }/*5*/  //Z=17896
                 F12ser = F12sum/vvm;  //Z=17897
@@ -8372,20 +8161,20 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 F12asz = 0.0;  //Z=17909
                 for ( ii=1; ii<=inmax; ii++ )
                 {/*5*/  //Z=17910
-                    a1m = carr5p[ii]*pow(carr7p[ii],v);   /*  carr7p[ii]:=pp[ii];  //Z=17911 */
+                    a1m = params.CR->carr5p[ii]*pow(params.CR->carr7p[ii],v);   /*  carr7p[ii]:=pp[ii];  //Z=17911 */
                     for ( jj=1; jj<=inmax; jj++ )
                     {/*6*/  //Z=17912
-                        a2m = carr5p[jj]*pow(carr7p[jj],v);  //Z=17913
-                        xijm = (carr3p[ii]-carr3p[jj])*q/(zr+1);      /*   carr3p[ii]:=ll[ii];  //Z=17914 */
+                        a2m = params.CR->carr5p[jj]*pow(params.CR->carr7p[jj],v);  //Z=17913
+                        xijm = (params.CR->carr3p[ii]-params.CR->carr3p[jj])*q/(zr+1);      /*   carr3p[ii]:=ll[ii];  //Z=17914 */
                         arglmz = (zr+1)*atan(xijm);  //Z=17915
                         nenlmz = pow(1.0+xijm*xijm,(zr+1)/2.0);  //Z=17916
-                        xijp = (carr3p[ii]+carr3p[jj])*q/(zr+1);  //Z=17917
+                        xijp = (params.CR->carr3p[ii]+params.CR->carr3p[jj])*q/(zr+1);  //Z=17917
                         arglpz = (zr+1)*atan(xijp);  //Z=17918
                         nenlpz = pow(1.0+xijp*xijp,(zr+1)/2.0);  //Z=17919
                         F12as1z = e0*e0*pz2v*(cos(arglmz)/nenlmz+(cos(M_PI*v)*(cos(arg)*cos(arglpz)-sin(arg)*sin(arglpz))-sin(M_PI*v)*(sin(arg)*cos(arglpz)+cos(arg)*sin(arglpz)))/(nen*nenlpz));  //Z=17920
-                        F12as2z = e0*e1*(1/(carr7p[jj]*xrz))*pz2v1*(-sin(arglmz)/nenlmz+(cos(M_PI*(2*v-1)/2.0)*(cos(arg1)*cos(arglpz)-sin(arg1)*sin(arglpz))-sin(M_PI*(2*v-1)/2.0)*(sin(arg1)*cos(arglpz)+cos(arg1)*sin(arglpz)))/(nen1*nenlpz));  //Z=17921
-                        F12as3z = e1*e0*(1/(carr7p[ii]*xrz))*pz2v1*(sin(arglmz)/nenlmz+(cos(M_PI*(2*v-1)/2.0)*(cos(arg1)*cos(arglpz)-sin(arg1)*sin(arglpz))-sin(M_PI*(2*v-1)/2.0)*(sin(arg1)*cos(arglpz)+cos(arg1)*sin(arglpz)))/(nen1*nenlpz));  //Z=17922
-                        F12as4z = e1*e1*(1/(carr7p[ii]*carr7p[jj]*xrz*xrz))*pz2v2*(cos(arglmz)/nenlmz+(cos(M_PI*(v-1))*(cos(arg2)*cos(arglpz)-sin(arg2)*sin(arglpz))-sin(M_PI*(v-1))*(sin(arg2)*cos(arglpz)+cos(arg2)*sin(arglpz)))/(nen2*nenlpz));  //Z=17923
+                        F12as2z = e0*e1*(1/(params.CR->carr7p[jj]*xrz))*pz2v1*(-sin(arglmz)/nenlmz+(cos(M_PI*(2*v-1)/2.0)*(cos(arg1)*cos(arglpz)-sin(arg1)*sin(arglpz))-sin(M_PI*(2*v-1)/2.0)*(sin(arg1)*cos(arglpz)+cos(arg1)*sin(arglpz)))/(nen1*nenlpz));  //Z=17921
+                        F12as3z = e1*e0*(1/(params.CR->carr7p[ii]*xrz))*pz2v1*(sin(arglmz)/nenlmz+(cos(M_PI*(2*v-1)/2.0)*(cos(arg1)*cos(arglpz)-sin(arg1)*sin(arglpz))-sin(M_PI*(2*v-1)/2.0)*(sin(arg1)*cos(arglpz)+cos(arg1)*sin(arglpz)))/(nen1*nenlpz));  //Z=17922
+                        F12as4z = e1*e1*(1/(params.CR->carr7p[ii]*params.CR->carr7p[jj]*xrz*xrz))*pz2v2*(cos(arglmz)/nenlmz+(cos(M_PI*(v-1))*(cos(arg2)*cos(arglpz)-sin(arg2)*sin(arglpz))-sin(M_PI*(v-1))*(sin(arg2)*cos(arglpz)+cos(arg2)*sin(arglpz)))/(nen2*nenlpz));  //Z=17923
 
                         F12asz = F12asz+a1m*a2m*(F12as1z+F12as2z+F12as3z+F12as4z);  //Z=17925
                     }/*6*/  //Z=17926
@@ -8405,7 +8194,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
 
 
     /*  cube  */  //Z=17942
-    if ( part==4 )
+    if ( params.part==4 )
     {/*2*/  //Z=17943
 
         //if ( q<0.02 )
@@ -8414,9 +8203,9 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
         /*  homogeneous isotropic cube  */  //Z=17944
         if ( ordis==7 )
         {/*3*/  //Z=17945
-            if ( cs==0 )
+            if ( params.cs==0 )
             {/*4*/  //Z=17946
-                if ( q<0.7*limq4 )
+                if ( q<0.7*params.limq4 )
                 {/*5*/  //Z=17947
                     pqsum = 1.0;  //Z=17948
                     oldpqsum = 0.0;  //Z=17949
@@ -8424,7 +8213,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=17951
                         qqn = qqn*q*q;  //Z=17952
-                        pqsum = pqsum+carr4p[nser]*qqn;  //Z=17953
+                        pqsum = pqsum+params.CR->carr4p[nser]*qqn;  //Z=17953
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17954
                         if ( delser<0.0001 ) break; /* goto 81; */  //Z=17955
                         oldpqsum = pqsum;  //Z=17956
@@ -8437,14 +8226,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 {
                     //if ( q < 0.75*limq4 )
                     //    qDebug() << "formpq B" << q << 0.7*limq4 << "=" << por/(q*q*q*q) << "por" << por;
-                    /*formpq:=*/ return por/(q*q*q*q);  //Z=17961
+                    /*formpq:=*/ return params.por/(q*q*q*q);  //Z=17961
                 }
             }/*4*/ /*  of homogeneous isotropic cube */  //Z=17962
 
             /*  core/shell isotropic cube  */  //Z=17964
-            if ( cs==1 )
+            if ( params.cs==1 )
             {/*4*/  //Z=17965
-                /*formpq:=*/ return polycscube(1.0,rho,p1,1.0,0.001,0.0001,2*params.radiusi,0,params.sigma,q);  //Z=17966
+                /*formpq:=*/ return polycscube(1.0,params.rho,params.p1,1.0,0.001,0.0001,2*params.radiusi,0,params.sigma,q);  //Z=17966
             }/*4*/  //Z=17967
         }/*3*/  /*  of isotropic cube  */  //Z=17968
 
@@ -8455,7 +8244,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             if ( 1==1 )
             {/*4*/  //Z=17973
 
-                if ( q<(1/radius) )
+                if ( q<(1/params.radius) )
                 {/*5*/  //Z=17975
                     pqsum = 1.0;  //Z=17976
                     oldpqsum = 0.0;  //Z=17977
@@ -8483,8 +8272,8 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 }/*5*/  //Z=17997
                 else
                 {/*5*/  //Z=17998
-                    argqx = qxs*radius/(zr+1)+eps9;  //Z=17999
-                    argqy = qys*radius/(zr+1)+eps9;  //Z=18000
+                    argqx = qxs*params.radius/(zr+1)+eps9;  //Z=17999
+                    argqy = qys*params.radius/(zr+1)+eps9;  //Z=18000
                     pqrx = (1/(2.0*zr*(zr-1)))*(1/(argqx*argqx))*(1-cos((zr-1)*atan(2.0*argqx))/pow(1.0+4*argqx*argqx,(zr-1)/2.0));  //Z=18001
                     pqry = (1/(2.0*zr*(zr-1)))*(1/(argqy*argqy))*(1-cos((zr-1)*atan(2.0*argqy))/pow(1.0+4*argqy*argqy,(zr-1)/2.0));  //Z=18002
                     pql = pqrx*pqry;  //Z=18003
@@ -8496,14 +8285,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
 
 
     /* ** biaxial ellipsoid ** */  //Z=18011
-    if ( part==5 )
+    if ( params.part==5 )
     {/*2*/  //Z=18012
         /*  homogeneous isotropic ellipsoid  */  //Z=18013
         if ( ordis==7 )
         {/*3*/  //Z=18014
-            if ( cs==0 )
+            if ( params.cs==0 )
             {/*4*/  //Z=18015
-                if ( q<0.8*limq4 )
+                if ( q<0.8*params.limq4 )
                 {/*5*/  //Z=18016
                     pqsum = 1.0;  //Z=18017
                     oldpqsum = 0.0;  //Z=18018
@@ -8511,7 +8300,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=18020
                         qqn[nser] = qqn[nser-1]*q*q;  //Z=18021
-                        pqsum = pqsum+carr4p[nser]*qqn[nser];  //Z=18022
+                        pqsum = pqsum+params.CR->carr4p[nser]*qqn[nser];  //Z=18022
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18023
                         if ( delser<0.0001 ) break; /* goto 260; */  //Z=18024
                         oldpqsum = pqsum;  //Z=18025
@@ -8521,13 +8310,13 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 }/*5*/  //Z=18029
                 else
                 {/*5*/  //Z=18030
-                    if ( q>=1.5*limq4 )
-                        pq = por/(q*q*q*q);  //Z=18031
+                    if ( q>=1.5*params.limq4 )
+                        pq = params.por/(q*q*q*q);  //Z=18031
                     else
                     {/*6*/  //Z=18032
                         //qrombchid(l,r,p1,sigma,alfa,dbeta,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,i1,i2,i3,i4,carr1,pa);  //Zupq1=2053
                         double qhkl = 1;
-                        qrombchid(length,radius,p1,params.sigma,alfa,params.dbeta,epsi,theta,phi,
+                        qrombchid(params.length,params.radius,params.p1,params.sigma,params.alphash1,epsi,params.polTheta,params.polPhi,
                                   qx,qy,qz,params.p11,params.p12,params.p13,params.p21,params.p22,
                                   params.p23,params.p31,params.p32,params.p33,qx,qy,0,qhkl,
                                   params.ax1.length(),params.ax2.length(),params.ax3.length(),
@@ -8535,7 +8324,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                                   params.ax2.x(),params.ax2.y(),params.ax2.z(),
                                   params.ax3.x(),params.ax3.y(),params.ax3.z(),
                                   params.sig.x(),params.sig.y(),params.sig.z(),
-                                  ordis,3,8,13,7,0,0,carr1p,pql);  //Z=18033
+                                  ordis,3,8,13,7,0,0,params.CR->carr1p,pql);  //Z=18033
                         pq = pql;  //Z=18034
                     }/*6*/  //Z=18035
                     /*formpq:=*/ return pq;  //Z=18036
@@ -8543,9 +8332,9 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             }/*4*/ /*  of homogeneous isotropic ellipsoid */  //Z=18038
 
             /*  core/shell isotropic ellipsoid  */  //Z=18040
-            if ( cs==1 )
+            if ( params.cs==1 )
             {/*4*/  //Z=18041
-                /*formpq:=*/ return polycscube(1.0,rho,p1,1.0,0.001,0.0001,2*params.radiusi,0,params.sigma,q);  //Z=18042
+                /*formpq:=*/ return polycscube(1.0,params.rho,params.p1,1.0,0.001,0.0001,2*params.radiusi,0,params.sigma,q);  //Z=18042
             }/*4*/  //Z=18043
         }/*3*/  /*  of isotropic ellipsoid  */  //Z=18044
 
@@ -8556,7 +8345,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             if ( 1==1 )
             {/*4*/  //Z=18049
 
-                if ( sqrt(qx*qx*length*length+qy*qy*radius*radius+eps9)<15 )
+                if ( sqrt(qx*qx*sqr(params.length)+qy*qy*sqr(params.radius)+eps9)<15 )
                 {/*5*/  //Z=18051
                     qxn[0] = 1.0;  //Z=18052
                     qyn[0] = 1.0;  //Z=18053
@@ -8570,8 +8359,8 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                     for ( nser=0; nser<=80; nser++ )
                     {/*6*/  //Z=18060
                         binsum = 0.0;  //Z=18061
-                        for ( mser=0; mser<=80; mser++ ) binsum = binsum+carr5p[mser]*params.CR->carr11pm[nser][mser]*qyn[mser];  //Z=18062
-                        pqsum = pqsum+carr4p[nser]*qxn[nser]*binsum;  //Z=18063
+                        for ( mser=0; mser<=80; mser++ ) binsum = binsum+params.CR->carr5p[mser]*params.CR->carr11pm[nser][mser]*qyn[mser];  //Z=18062
+                        pqsum = pqsum+params.CR->carr4p[nser]*qxn[nser]*binsum;  //Z=18063
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18064
                         if ( delser<0.0001 ) break; /* goto 261; */  //Z=18065
                         oldpqsum = pqsum;  //Z=18066
@@ -8582,7 +8371,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 else
                 {/*5*/  //Z=18071
                     a1 = 9*pow(zr+1,4)/(2.0*zr*(zr-1)*(zr-2)*(zr-3));  //Z=18072
-                    pql = a1/(sqr(qy*qy*radius*radius+qx*qx*length*length)+eps9);  //Z=18073
+                    pql = a1/(sqr(qy*qy*sqr(params.radius)+qx*qx*sqr(params.length))+eps9);  //Z=18073
                 }/*5*/  //Z=18074
                 /*formpq:=*/ return pql;  //Z=18075
             }/*4*/  /*  of orcase=1  */  //Z=18076
@@ -8592,11 +8381,11 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
         /*  general  */  //Z=18080
         if ( ordis==0 )
         {/*3*/  //Z=18081
-            if ( orcase==4 )
+            if ( params.orcase==4 )
                 pql = 1.0;  //Z=18082
             else
             {/*4*/  //Z=18083
-                if ( sqrt(qx*qx*length*length+qy*qy*radius*radius+eps9)<10 )
+                if ( sqrt(qx*qx*sqr(params.length)+qy*qy*sqr(params.radius)+eps9)<10 )
                 {/*5*/  //Z=18084
                     pqsum = 0.0;  //Z=18085
                     oldpqsum = -10.0;  //Z=18086
@@ -8604,7 +8393,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                     qyn[0] = 1.0;  //Z=18088
                     qqn[0] = 1.0;  //Z=18089
 
-                    if ( orcase==1 )
+                    if ( params.orcase==1 )
                     {/*6*/  //Z=18091
                         for ( nser=1; nser<=120; nser++ )
                         {/*7*/  //Z=18092
@@ -8616,18 +8405,18 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                         {/*7*/  //Z=18097
                             binsum1 = 0.0;  //Z=18098
                             for ( lser=0; lser<=nser; lser++ )  //Z=18099
-                                binsum1 = binsum1+carr1p[lser]*qxn[lser]*qyn[nser-lser];  //Z=18100
+                                binsum1 = binsum1+params.CR->carr1p[lser]*qxn[lser]*qyn[nser-lser];  //Z=18100
                             binsum = 0.0;  //Z=18101
                             for ( mser=0; mser<=120; mser++ )  //Z=18102
-                                binsum = binsum+carr2p[mser]*qqn[mser]*params.CR->carr11pm[nser][mser];  //Z=18103
-                            pqsum = pqsum+carr3p[nser]*qqn[nser]*binsum*binsum1/pow(4.0,nser);  //Z=18104  org: pow(4,n)
+                                binsum = binsum+params.CR->carr2p[mser]*qqn[mser]*params.CR->carr11pm[nser][mser];  //Z=18103
+                            pqsum = pqsum+params.CR->carr3p[nser]*qqn[nser]*binsum*binsum1/pow(4.0,nser);  //Z=18104  TODO es stand: pow(4,n)
                             delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18105
                             if ( delser<0.0001 ) break; /* goto 273; */  //Z=18106
                             oldpqsum = pqsum;  //Z=18107
                         }/*7*/  //Z=18108
                     }/*6*/  //Z=18109
 
-                    if ( orcase==2 )
+                    if ( params.orcase==2 )
                     {/*6*/  /*  x-axis  */  //Z=18111
                         for ( nser=1; nser<=110; nser++ )
                         {/*7*/  //Z=18112
@@ -8640,18 +8429,18 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                             binsum1 = 0.0;  //Z=18118
                             for ( lser=0; lser<=nser; lser++ )  //Z=18119
                                 /* binsum1:=binsum1+carr4p[lser]*qxn[lser]*qyn[nser-lser];  //Z=18120 */
-                                binsum1 = binsum1+params.CR->carr11pm[nser][lser]*qxn[lser]*qyn[nser-lser];  //Z=18121
+                                binsum1 = binsum1+params.CR->carr22pm[nser][lser]*qxn[lser]*qyn[nser-lser];  //Z=18121
                             binsum = 0.0;  //Z=18122
                             for ( mser=0; mser<=100; mser++ )  //Z=18123
-                                binsum = binsum+carr5p[mser]*qqn[mser]*params.CR->carr11pm[nser][mser];  //Z=18124
-                            pqsum = pqsum+carr6p[nser]*qqn[nser]*binsum*binsum1/pow(4.0,nser);  //Z=18125
+                                binsum = binsum+params.CR->carr5p[mser]*qqn[mser]*params.CR->carr11pm[nser][mser];  //Z=18124
+                            pqsum = pqsum+params.CR->carr6p[nser]*qqn[nser]*binsum*binsum1/pow(4.0,nser);  //Z=18125
                             delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18126
                             if ( delser<0.0001 ) break; /* goto 273; */  //Z=18127
                             oldpqsum = pqsum;  //Z=18128
                         }/*7*/  //Z=18129
                     }/*6*/  //Z=18130
 
-                    if ( orcase==3 )
+                    if ( params.orcase==3 )
                     {/*6*/  /*  y-axis  */  //Z=18132
                         for ( nser=1; nser<=120; nser++ )
                         {/*7*/  //Z=18133
@@ -8664,7 +8453,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                                 /* binsum:=binsum+carr1pm[indx]*qxn[mser]*qyn[nser-mser];  //Z=18139 */
                                 binsum = binsum+params.CR->carr11pm[nser-mser][mser]*qyn[mser]*qxn[nser-mser];  //Z=18140
                             }/*8*/  //Z=18141
-                            pqsum = pqsum+carr1p[nser]*binsum;  //Z=18142
+                            pqsum = pqsum+params.CR->carr1p[nser]*binsum;  //Z=18142
                             delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18143
                             if ( delser<0.0001 ) break; /* goto 273; */  //Z=18144
                             oldpqsum = pqsum;  //Z=18145
@@ -8675,8 +8464,8 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 }/*5*/   /*  of q<lim  */  //Z=18150
                 else
                 {/*5*/  //Z=18151
-                    qrombdeltac(length,radius,p1,sigmal,alfa,params.dbeta,theta,0,qxs,qys,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,4,16,0,0,0,carr1p,pql);  //Z=18152
-                    pql = pql/norm;  //Z=18153
+                    qrombdeltac(params.p1,sigmal,params.alphash1,params.polTheta,0,qxs,qys,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,4,16,0,0,0,params.CR->carr1p,pql);  //Z=18152
+                    pql = pql/params.norm;  //Z=18153
                 }/*5*/  //Z=18154
             }/*4*/  /*  of orcase=1,2,3  */  //Z=18155
             /*formpq:=*/ return pql;  //Z=18156
@@ -8685,14 +8474,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
 
 
     /* ** triaxial ellipsoid ** */  //Z=18161
-    if ( part==6 )
+    if ( params.part==6 )
     {/*2*/  //Z=18162
         /*  homogeneous isotropic triaxial ellipsoid  */  //Z=18163
         if ( ordis==7 )
         {/*3*/  //Z=18164
-            if ( cs==0 )
+            if ( params.cs==0 )
             {/*4*/  //Z=18165
-                if ( q<0.05*limq4 )
+                if ( q<0.05*params.limq4 )
                 {/*5*/  //Z=18166
                     pqsum = 1.0;  //Z=18167
                     oldpqsum = 0.0;  //Z=18168
@@ -8700,7 +8489,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=18170
                         qqn[nser] = qqn[nser-1]*q*q;  //Z=18171
-                        pqsum = pqsum+carr4p[nser]*qqn[nser];  //Z=18172
+                        pqsum = pqsum+params.CR->carr4p[nser]*qqn[nser];  //Z=18172
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18173
                         if ( delser<0.0001 ) break; /* goto 263; */  //Z=18174
                         oldpqsum = pqsum;  //Z=18175
@@ -8710,11 +8499,11 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 }/*5*/  //Z=18179
                 else
                 {/*5*/  //Z=18180
-                    if ( q>2*limq4 )
-                        pq = por/(q*q*q*q);  //Z=18181
+                    if ( q>2*params.limq4 )
+                        pq = params.por/(q*q*q*q);  //Z=18181
                     else
                     {/*6*/  //Z=18182
-                        qrombdeltac(length,radius,p1,params.sigma,alfa,params.dbeta,theta,0,qxs,qys,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,7,14,7,0,0,carr1p,pql);  //Z=18183
+                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,0,qxs,qys,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,7,14,7,0,0,params.CR->carr1p,pql);  //Z=18183
                         pq = pql/(M_PI/2.0);  //Z=18184
                     }/*6*/  //Z=18185
                     /*formpq:=*/ return pq;  //Z=18186
@@ -8722,9 +8511,9 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             }/*4*/ /*  of homogeneous isotropic ellipsoid */  //Z=18188
 
             /*  core/shell isotropic ellipsoid  */  //Z=18190
-            if ( cs==1 )
+            if ( params.cs==1 )
             {/*4*/  //Z=18191
-                /*formpq:=*/ return polycscube(1.0,rho,p1,1.0,0.001,0.0001,2*params.radiusi,0,params.sigma,q);  //Z=18192
+                /*formpq:=*/ return polycscube(1.0,params.rho,params.p1,1.0,0.001,0.0001,2*params.radiusi,0,params.sigma,q);  //Z=18192
             }/*4*/  //Z=18193
         }/*3*/  /*  of isotropic triaxial ellipsoid  */  //Z=18194
 
@@ -8735,7 +8524,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             if ( 1==1 )
             {/*4*/  //Z=18199
 
-                if ( q<(1/radius) )
+                if ( q<(1/params.radius) )
                 {/*5*/  //Z=18201
                     pqsum = 1.0;  //Z=18202
                     oldpqsum = 0.0;  //Z=18203
@@ -8763,8 +8552,8 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 }/*5*/  //Z=18223
                 else
                 {/*5*/  //Z=18224
-                    argqx = qxs*radius/(zr+1)+eps9;  //Z=18225
-                    argqy = qys*radius/(zr+1)+eps9;  //Z=18226
+                    argqx = qxs*params.radius/(zr+1)+eps9;  //Z=18225
+                    argqy = qys*params.radius/(zr+1)+eps9;  //Z=18226
                     pqrx = (1/(2.0*zr*(zr-1)))*(1/(argqx*argqx))*(1-cos((zr-1)*atan(2.0*argqx))/pow(1.0+4*argqx*argqx,(zr-1)/2.0));  //Z=18227
                     pqry = (1/(2.0*zr*(zr-1)))*(1/(argqy*argqy))*(1-cos((zr-1)*atan(2.0*argqy))/pow(1.0+4*argqy*argqy,(zr-1)/2.0));  //Z=18228
                     pql = pqrx*pqry;  //Z=18229
@@ -8776,14 +8565,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
 
 
     /* ** super ellipsoid, barrel ** */  //Z=18237
-    if ( part==7 )
+    if ( params.part==7 )
     {/*2*/  //Z=18238
         /*  homogeneous isotropic super ellipsoid  */  //Z=18239
         if ( ordis==7 )
         {/*3*/  //Z=18240
-            if ( cs==0 )
+            if ( params.cs==0 )
             {/*4*/  //Z=18241
-                if ( q<0.9*limq4 )
+                if ( q<0.9*params.limq4 )
                 {/*5*/  //Z=18242
                     pqsum = 1.0;  //Z=18243
                     oldpqsum = 0.0;  //Z=18244
@@ -8791,7 +8580,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=18246
                         qqn[nser] = qqn[nser-1]*q*q;  //Z=18247
-                        pqsum = pqsum+carr4p[nser]*qqn[nser];  //Z=18248
+                        pqsum = pqsum+params.CR->carr4p[nser]*qqn[nser];  //Z=18248
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18249
                         if ( delser<0.0001 ) break; /* goto 270; */  //Z=18250
                         oldpqsum = pqsum;  //Z=18251
@@ -8802,7 +8591,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 else
                 {/*5*/  //Z=18256
                     //if ( q>=0.9*limq4 ) <<< macht keinen Sinn
-                    pq = por/(q*q*q*q);  //Z=18257
+                    pq = params.por/(q*q*q*q);  //Z=18257
                     /* else begin  //Z=18258 */
                     /*    qrombdeltac(length,radius,p1,sigma,dbeta,theta,0,qxs,qys,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,7,14,7,0,0,carr1p,pql);  //Z=18259 */
                     /*    pq:=pql/(pi/2);  //Z=18260 */
@@ -8812,9 +8601,9 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             }/*4*/ /*  of homogeneous isotropic ellipsoid */  //Z=18264
 
             /*  core/shell isotropic ellipsoid  */  //Z=18266
-            if ( cs==1 )
+            if ( params.cs==1 )
             {/*4*/  //Z=18267
-                /*formpq:=*/ return polycscube(1.0,rho,p1,1.0,0.001,0.0001,2*params.radiusi,0,params.sigma,q);  //Z=18268
+                /*formpq:=*/ return polycscube(1.0,params.rho,params.p1,1.0,0.001,0.0001,2*params.radiusi,0,params.sigma,q);  //Z=18268
             }/*4*/  //Z=18269
         }/*3*/  /*  of isotropic triaxial ellipsoid  */  //Z=18270
 
@@ -8825,7 +8614,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             if ( 1==1 )
             {/*4*/  //Z=18275
 
-                if ( q<(1/radius) )
+                if ( q<(1/params.radius) )
                 {/*5*/  //Z=18277
                     pqsum = 1.0;  //Z=18278
                     oldpqsum = 0.0;  //Z=18279
@@ -8853,8 +8642,8 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 }/*5*/  //Z=18299
                 else
                 {/*5*/  //Z=18300
-                    argqx = qxs*radius/(zr+1)+eps9;  //Z=18301
-                    argqy = qys*radius/(zr+1)+eps9;  //Z=18302
+                    argqx = qxs*params.radius/(zr+1)+eps9;  //Z=18301
+                    argqy = qys*params.radius/(zr+1)+eps9;  //Z=18302
                     pqrx = (1/(2.0*zr*(zr-1)))*(1/(argqx*argqx))*(1-cos((zr-1)*atan(2.0*argqx))/pow(1.0+4*argqx*argqx,(zr-1)/2.0));  //Z=18303
                     pqry = (1/(2.0*zr*(zr-1)))*(1/(argqy*argqy))*(1-cos((zr-1)*atan(2.0*argqy))/pow(1.0+4*argqy*argqy,(zr-1)/2.0));  //Z=18304
                     pql = pqrx*pqry;  //Z=18305
@@ -8865,14 +8654,14 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
     }/*2*/  /*  of super ellipsoid  */  //Z=18310
 
     /* ** superball ** */  //Z=18312
-    if ( part==8 )
+    if ( params.part==8 )
     {/*2*/  //Z=18313
         /*  homogeneous isotropic superball  */  //Z=18314
         if ( ordis==7 )
         {/*3*/  //Z=18315
-            if ( cs==0 )
+            if ( params.cs==0 )
             {/*4*/  //Z=18316
-                if ( q<1.1*limq4 )
+                if ( q<1.1*params.limq4 )
                 {/*5*/  //Z=18317
                     pqsum = 1.0;  //Z=18318
                     oldpqsum = 0.0;  //Z=18319
@@ -8880,7 +8669,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                     for ( nser=1; nser<=40; nser++ )
                     {/*6*/  //Z=18321
                         qqn[nser] = qqn[nser-1]*q*q;  //Z=18322
-                        pqsum = pqsum+carr4p[nser]*qqn[nser];  //Z=18323
+                        pqsum = pqsum+params.CR->carr4p[nser]*qqn[nser];  //Z=18323
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18324
                         if ( delser<0.0001 ) break; /* goto 274; */  //Z=18325
                         oldpqsum = pqsum;  //Z=18326
@@ -8891,7 +8680,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 else
                 {/*5*/  //Z=18331
                     //if ( q>=1.1*limq4 ) <<< macht keinen Sinn
-                    pq = por/(q*q*q*q);  //Z=18332
+                    pq = params.por/(q*q*q*q);  //Z=18332
                     /* else begin  //Z=18333 */
                     /*    qrombdeltac(length,radius,p1,sigma,dbeta,theta,0,qxs,qys,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,7,14,7,0,0,carr1p,pql);  //Z=18334 */
                     /*    pq:=pql/(pi/2);  //Z=18335 */
@@ -8901,9 +8690,9 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             }/*4*/ /*  of homogeneous isotropic ellipsoid */  //Z=18339
 
             /*  core/shell isotropic ellipsoid  */  //Z=18341
-            if ( cs==1 )
+            if ( params.cs==1 )
             {/*4*/  //Z=18342
-                /*formpq:=*/ return polycscube(1.0,rho,p1,1.0,0.001,0.0001,2*params.radiusi,0,params.sigma,q);  //Z=18343
+                /*formpq:=*/ return polycscube(1.0,params.rho,params.p1,1.0,0.001,0.0001,2*params.radiusi,0,params.sigma,q);  //Z=18343
             }/*4*/  //Z=18344
         }/*3*/  /*  of isotropic superball  */  //Z=18345
 
@@ -8914,7 +8703,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
             if ( 1==1 )
             {/*4*/  //Z=18350
 
-                if ( q<(1/radius) )
+                if ( q<(1/params.radius) )
                 {/*5*/  //Z=18352
                     pqsum = 1.0;  //Z=18353
                     oldpqsum = 0.0;  //Z=18354
@@ -8942,8 +8731,8 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
                 }/*5*/  //Z=18374
                 else
                 {/*5*/  //Z=18375
-                    argqx = qxs*radius/(zr+1)+eps9;  //Z=18376
-                    argqy = qys*radius/(zr+1)+eps9;  //Z=18377
+                    argqx = qxs*params.radius/(zr+1)+eps9;  //Z=18376
+                    argqy = qys*params.radius/(zr+1)+eps9;  //Z=18377
                     pqrx = (1/(2.0*zr*(zr-1)))*(1/(argqx*argqx))*(1-cos((zr-1)*atan(2.0*argqx))/pow(1.0+4*argqx*argqx,(zr-1)/2.0));  //Z=18378
                     pqry = (1/(2.0*zr*(zr-1)))*(1/(argqy*argqy))*(1-cos((zr-1)*atan(2.0*argqy))/pow(1.0+4*argqy*argqy,(zr-1)/2.0));  //Z=18379
                     pql = pqrx*pqry;  //Z=18380
@@ -8954,7 +8743,7 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
     }/*2*/  /*  of superball  */  //Z=18385
 
 #ifndef __CUDACC__
-    qDebug() << "formpq: part unknown" << part;
+    qDebug() << "formpq: part unknown" << params.part;
 #endif
     return 0.0;
 }/*1*/  //Z=18387
@@ -8969,40 +8758,41 @@ double SasCalc_GENERIC_calculation::formpq(double length, double radius, double 
 #ifdef __CUDACC__
 __host__ __device__
 #endif
-double SasCalc_GENERIC_calculation::formfq( double length, double radius, double sigmal, double sigmar, double p1, double rho,
-                         double alfa, double theta, double phi, double limql, double limq1, double /*limq2*/,
-                         double /*limq3*/, double limq4, double limq5, double limq6, double qx, double qy,
-                         double qxs, double qys, double q, double norm,
-                         int part, int cs, int ordis, int orcase,
-                         const double */*myarray*/, // CoeffArrayType
-                         double *carr1p, double *carr2p, double */*carr3p*/, double *carr4p, double *carr5p,
-                         double *carr6p, double */*carr7p*/ //: CoeffArrayType;   /*Z0311=17704*/,
-                         /*ArrayImax2D &carr11pm, ArrayImax2D &carr22pm*/ ) const //: ArrayImax2D);   /*Z0311=17705*/
+//double SasCalc_GENERIC_calculation::formfq( double length, double radius, double sigmal, double sigmar, double p1, double rho,
+//                                        double alfa, double theta, double phi, double limql, double limq1, double /*limq2*/,
+//                                        double /*limq3*/, double limq4, double limq5, double limq6, double qx, double qy,
+//                                        double qxs, double qys, double q, double norm,
+//                                        int part, int cs, int ordis, int orcase,
+//                                        const double */*myarray*/, // CoeffArrayType
+//                                        double *carr1p, double *carr2p, double */*carr3p*/, double *carr4p, double *carr5p,
+//                                        double *carr6p, double */*carr7p*/ //: CoeffArrayType;   /*Z0311=17704*/,
+//                                        /*ArrayImax2D &carr11pm, ArrayImax2D &carr22pm*/ ) const //: ArrayImax2D);   /*Z0311=17705*/
+double SasCalc_GENERIC_calculation::formfq( double limql, double qx, double qy, double qxs, double qys, double q, int ordis ) const
 {  //Z=18395
 
-    /* label 50,51,52,53,60,61,62,63,64,65,66,70,71,72,73,74,75,76,77,78,79,80,81,82,83; */  //Z=18397
-    /* label 101,102,103,104,105,106,111,112,113,114,115,116,121,122,123,124,125,126; */  //Z=18398
+    // Tests mit LOAD PARAMS C:\SimLab\sas-crystal\Manuskript HyperSeries (Prof.Förster)\SimulTest(Disks-gaus).ini
+    // Gespräch mit Prof. Förster (05.Jun.2023): Es sollten immer die mit f hinten genutzt werden...
 
-    int    n, m, nser, mser, lser, indx;  //Z=18400
-    double pqsum, oldpqsum, binsum, delser, argq, arglq, argp1, pqr, pqr1, pqr2, pql, pq1, pq2, pq3, pq4, pq5, pq6;  //Z=18401
+    int    n, /*m,*/ nser, mser, lser; //, indx;  //Z=18400
+    double pqsum, oldpqsum, binsum, delser, argq, arglq, /*argp1,*/ pqr, pqr1, pqr2, pql, pq1, pq2, pq3, pq4, pq5, pq6;  //Z=18401
     double ccc1, ccc2, ccc3, vv3, zl, zr, radiusm;  //Z=18402
-    double cc1, cc2, cc3, cc4, cc5, cc6, cc7, cc8, cc9, cc10;  //Z=18403
-    double ac1, ac2, ac3, ac4, ac5, ac6, ac7, ac8, ac9, ac10;  //Z=18404
-    double argbm, nenbm, argbp, nenbp, argep, nenep, argem, nenem, arggp, nengp;  //Z=18405
-    double arggm, nengm, argim, nenim, argip, nenip, F121, F122, F123;  //Z=18406
-    double qqn[200], qqnx[200], qqny[200], z12v[200], a1v[200], b1v[200], b2v[200], b1sv[200], fkv[200], gam3[200];  //Z=18407
-    double dim, xrad, xradp, x1z, x12z, x2z, x22z, lim, lim1, lim2, lim3, lim4, lim5, lim6;  //Z=18408
-    double a1, b1, b2, b1s, v, c, d0, d1, e0, e1, ee0, ee1;  //Z=18409
-    double gb1s, pz2v, pz2v1, pz2v2, gz1, preg1, preg3, preg4, pzvc, pzvc1, pzvc2, pzac, pzac1, pzac2;  //Z=18410
-    double pzc, pzc1, pza, pzva, pzva1, dnv0, pvav0, pvav10, pva0, sumc;  //Z=18411
+    double cc1, /*cc2, cc3,*/ cc4, /*cc5,*/ cc6; //, cc7, cc8, cc9, cc10;  //Z=18403
+    //double ac1, ac2, ac3, ac4, ac5, ac6, ac7, ac8, ac9, ac10;  //Z=18404
+    //double argbm, nenbm, argbp, nenbp, argep, nenep, argem, nenem, arggp, nengp;  //Z=18405
+    double /*arggm, nengm, argim, nenim, argip, nenip,*/ F121, F122, F123;  //Z=18406
+    double /*qqn[200], qqnx[200], qqny[200],*/ z12v[200], a1v[200], b1v[200], b2v[200], b1sv[200], fkv[200]; //, gam3[200];  //Z=18407
+    double dim, xrad, xradp, x1z, x12z, x2z, x22z, lim, lim1, /*lim2, lim3,*/ lim4, /*lim5,*/ lim6;  //Z=18408
+    double a1, b1, b2, b1s, v, c, /*d0, d1,*/ e0, e1, ee0, ee1;  //Z=18409
+    double gb1s, pz2v, pz2v1, /*pz2v2,*/ gz1, preg1, preg3, preg4; //, pzvc, pzvc1, pzvc2, pzac, pzac1, pzac2;  //Z=18410
+    double pzc, pzc1, pza, /*pzva, pzva1, dnv0, pvav0, pvav10, pva0,*/ sumc;  //Z=18411
     double del, delc, F12, F12sez, oldF12sez, F42, F42sez, oldF42sez, F62, F62sez, oldF62sez;  //Z=18412
     double arg11, nen11, arg12, nen12, F12as1z, F12as2z, F12asz;  //Z=18413
-    double arg44, nen44, arg45, nen45, F42as10z, F42as1sumz, F42as1z, F42as1z0, F42as40z, F42as27, F42as28, F42as4z, F42asz, F42asz0;  //Z=18414
-    double arg64, nen64, arg65, nen65, F62as10z, F62as1z, F62as1z0, F62as40z, F62as1sumz, F62as27, F62as28, F62as4z, F62asz, F62asz0, FF1;  //Z=18415
+    double arg44, nen44, arg45, nen45, F42as10z, /*F42as1sumz, F42as1z,*/ F42as1z0, F42as40z, F42as27, F42as28, F42as4z, /*F42asz,*/ F42asz0;  //Z=18414
+    double arg64, nen64, arg65, nen65, F62as10z, /*F62as1z,*/ F62as1z0, F62as40z, /*F62as1sumz,*/ F62as27, F62as28, F62as4z, /*F62asz,*/ F62asz0, FF1;  //Z=18415
 
-    zl = (1-sigmal*sigmal)/(sigmal*sigmal);  //Z=18418
-    zr = (1-sigmar*sigmar)/(sigmar*sigmar);  //Z=18419
-    radiusm = radius/p1;   /*  outer radius of core/shell particle  */  //Z=18420
+    zl = (1-sqr(params.sigmal))/sqr(params.sigmal);  //Z=18418
+    zr = (1-sqr(params.sigma))/sqr(params.sigma);  //Z=18419
+    radiusm = params.radius/params.p1;   /*  outer radius of core/shell particle  */  //Z=18420
 
     // TODO Unbekannte Variablen:
     double argpq, zz, pqr3, pqr4, qnarg, binsum1;
@@ -9014,20 +8804,20 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
     /* ************ */  //Z=18422
     /* ** sphere ** */  //Z=18423
     /* ************ */  //Z=18424
-    if ( part==0 )
+    if ( params.part==0 )
     {/*2*/  //Z=18425
         /* ** homogeneous sphere ** */  //Z=18426
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=18427
-            if ( q<(0.4*limq4) )
+            if ( q<(0.4*params.limq4f) )
             {/*4*/  //Z=18428
                 pqsum = 1.0;  //Z=18429
                 oldpqsum = 0.0;  //Z=18430
-                qqn[0] = 1.0;  //Z=18431
+                double qqnn = 1.0;  //Z=18431
                 for ( nser=1; nser<=100; nser++ )
                 {/*5*/  //Z=18432
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=18433
-                    pqsum = pqsum+carr4p[nser]*qqn[nser];  //Z=18434
+                    qqnn = qqnn*q*q;  //Z=18433
+                    pqsum = pqsum+params.CR->carr4f[nser]*qqnn;  //Z=18434
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18435
                     if ( delser<0.0001 ) break; /* goto 50; */  //Z=18436
                     oldpqsum = pqsum;  //Z=18437
@@ -9037,7 +8827,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             }/*4*/  //Z=18441
             else
             {/*4*/  //Z=18442
-                argq = q*radius/(zr+1);  //Z=18443
+                argq = q*params.radius/(zr+1);  //Z=18443
                 pqr = (1/(zr*(zr-1))*pow(argq,-2));  //Z=18444
                 pq1 = pqr*cos((zr-1)*atan(argq))/pow(1.0+argq*argq,(zr-1)/2.0);  //Z=18445
                 pq2 = (pqr/((zr-2)*argq))*sin((zr-2)*atan(argq))/pow(1.0+argq*argq,(zr-2)/2.0);  //Z=18446
@@ -9047,26 +8837,26 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
         }/*3*/ /*  of homogeneous sphere */  //Z=18450
 
         /* ** core/shell sphere ** */  //Z=18452
-        if ( cs==1 )
+        if ( params.cs==1 )
         {/*3*/  //Z=18453
-            ccc1 = sqr(1-rho)*pow(p1,6);  //Z=18454
-            ccc2 = 2*rho*(1-rho)*pow(p1,3);  //Z=18455
-            ccc3 = rho*rho;  //Z=18456
-            vv3 = sqr((1-rho)*pow(p1,3)+rho);  //Z=18457
+            ccc1 = sqr(1-params.rho)*pow(params.p1,6);  //Z=18454
+            ccc2 = 2*params.rho*(1-params.rho)*pow(params.p1,3);  //Z=18455
+            ccc3 = sqr(params.rho);  //Z=18456
+            vv3 = sqr((1-params.rho)*pow(params.p1,3)+params.rho);  //Z=18457
 
             argq = q*radiusm/(zr+1);  //Z=18459
-            argpq = q*radius/(zr+1);  //Z=18460
+            argpq = q*params.radius/(zr+1);  //Z=18460
 
             /*  F121 sphere  */  //Z=18462
-            if ( q<(limq4/2.0) )
+            if ( q<(params.limq4f/2.0) )
             {/*4*/  //Z=18463
-                qqn[0] = 1.0;  //Z=18464
+                double qqnn = 1.0;  //Z=18464
                 pqsum = 1.0;  //Z=18465
                 oldpqsum = 0.0;  //Z=18466
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=18467
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=18468
-                    pqsum = pqsum+qqn[nser]*carr4p[nser];  //Z=18469
+                    qqnn = qqnn*q*q;  //Z=18468
+                    pqsum = pqsum+qqnn*params.CR->carr4f[nser];  //Z=18469
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18470
                     if ( delser<0.0001 ) break; /* goto 51; */  //Z=18471
                     oldpqsum = pqsum;  //Z=18472
@@ -9084,15 +8874,15 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             }/*4*/  //Z=18483
 
             /*  F122 sphere  */  //Z=18485
-            if ( q<(0.3*limq5) )
+            if ( q<(0.3*params.limq5f) )
             {/*4*/  //Z=18486
-                qqn[0] = 1.0;  //Z=18487
+                double qqnn = 1.0;  //Z=18487
                 pqsum = 1.0;  //Z=18488
                 oldpqsum = 0.0;  //Z=18489
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=18490
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=18491
-                    pqsum = pqsum+qqn[nser]*carr5p[nser];  //Z=18492
+                    qqnn = qqnn*q*q;  //Z=18491
+                    pqsum = pqsum+qqnn*params.CR->carr5f[nser];  //Z=18492
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18493
                     if ( delser<0.0001 ) break; /* goto 52; */  //Z=18494
                     oldpqsum = pqsum;  //Z=18495
@@ -9116,15 +8906,15 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             }/*4*/  //Z=18512
 
             /*  F123 sphere  */  //Z=18514
-            if ( q<(limq6/2) )
+            if ( q<(params.limq6f/2.0) )
             {/*4*/  //Z=18515
-                qqn[0] = 1.0;  //Z=18516
+                double qqnn = 1.0;  //Z=18516
                 pqsum = 1.0;  //Z=18517
                 oldpqsum = 0.0;  //Z=18518
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=18519
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=18520
-                    pqsum = pqsum+qqn[nser]*carr6p[nser];  //Z=18521
+                    qqnn = qqnn*q*q;  //Z=18520
+                    pqsum = pqsum+qqnn*params.CR->carr6f[nser];  //Z=18521
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18522
                     if ( delser<0.0001 ) break; /* goto 53; */  //Z=18523
                     oldpqsum = pqsum;  //Z=18524
@@ -9145,35 +8935,35 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
         }/*3*/  /*  of core/shell sphere  */  //Z=18538
 
         /* ** inhomogeneous core/shell sphere ** */  //Z=18540
-        if ( cs==2 )
+        if ( params.cs==2 )
         {/*3*/  //Z=18541
 
             dim = 3;  //Z=18543
             delc = 0.0001;  //Z=18544
             zz = zr;  //Z=18545
             xrad = q*radiusm;  //Z=18546
-            xradp = q*radius;  //Z=18547
-            x1z = q*radius/(2.0*(zz+1));  //Z=18548
+            xradp = q*params.radius;  //Z=18547
+            x1z = q*params.radius/(2.0*(zz+1));  //Z=18548
             x12z = x1z*x1z;  //Z=18549
             x2z = q*radiusm/(2.0*(zz+1));  //Z=18550
             x22z = x2z*x2z;  //Z=18551
 
             lim = 18*exp(-5*params.sigma);  //Z=18553
             lim1 = lim;  //Z=18554
-            lim2 = lim*0.7;  //Z=18555
-            lim3 = lim;  //Z=18556
+            //lim2 = lim*0.7;  //Z=18555
+            //lim3 = lim;  //Z=18556
             lim4 = lim;  //Z=18557
-            lim5 = lim*0.7;  //Z=18558
+            //lim5 = lim*0.7;  //Z=18558
             lim6 = lim*1.2;  //Z=18559
 
-            a1 = (dim-alfa)/2.0;  //Z=18561
+            a1 = (dim-params.alphash1)/2.0;  //Z=18561
             b1 = dim/2.0;  //Z=18562
-            b2 = (dim+2-alfa)/2.0;  //Z=18563
+            b2 = (dim+2-params.alphash1)/2.0;  //Z=18563
             b1s = (dim+2)/2.0;  //Z=18564
             v = -b1s+1/2.0;  //Z=18565
             c = a1-b1-b2+1/2.0;  //Z=18566
-            d0 = 1;  //Z=18567
-            d1 = a1*(1+a1-b1)*(1+a1-b2);  //Z=18568
+            //d0 = 1;  //Z=18567
+            //d1 = a1*(1+a1-b1)*(1+a1-b2);  //Z=18568
             e0 = 1.0;  //Z=18569
             e1 = (3/8.0)-(b1+b2)+((b1-b2)*(b1-b2)-3*a1*a1+2*a1*(1+b1+b2))/2.0;  //Z=18570
             ee0 = 1.0;  //Z=18571
@@ -9182,31 +8972,31 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             gb1s = 3*sqrt(M_PI)/4.0;  //Z=18574
             pz2v = 1/(zr*(zr-1));  //Z=18575
             pz2v1 = pz2v/(zr-2);  //Z=18576
-            pz2v2 = pz2v1/(zr-3);  //Z=18577
+            //pz2v2 = pz2v1/(zr-3);  //Z=18577
 
             gz1 = gamma(zr+1);  //Z=18579
             preg1 = gb1s/sqrt(M_PI);  //Z=18580
             preg3 = gamma(b1)*gamma(b2)/(gamma(a1)*sqrt(M_PI));  //Z=18581
             preg4 = gamma(b1)*gamma(b2)/(gamma(b1-a1)*gamma(b2-a1));  //Z=18582
-            pzvc = gamma(zr+1+v+c)/gz1;  //Z=18583
-            pzvc1 = gamma(zr+1+v+c-1)/gz1;  //Z=18584
-            pzvc2 = gamma(zr+1+v+c-2)/gz1;  //Z=18585
-            pzac = gamma(zr+1-2*a1+c)/gz1;  //Z=18586
-            pzac1 = gamma(zr+1-2*a1+c-1)/gz1;  //Z=18587
-            pzac2 = gamma(zr+1-2*a1+c+2)/gz1;  //Z=18588
+            //pzvc = gamma(zr+1+v+c)/gz1;  //Z=18583
+            //pzvc1 = gamma(zr+1+v+c-1)/gz1;  //Z=18584
+            //pzvc2 = gamma(zr+1+v+c-2)/gz1;  //Z=18585
+            //pzac = gamma(zr+1-2*a1+c)/gz1;  //Z=18586
+            //pzac1 = gamma(zr+1-2*a1+c-1)/gz1;  //Z=18587
+            //pzac2 = gamma(zr+1-2*a1+c+2)/gz1;  //Z=18588
             pzc = gamma(zr+1+c)/gz1;  //Z=18589
             pzc1 = gamma(zr+1+c-1)/gz1;  //Z=18590
             pza = gamma(zr+1-2*a1)/gz1;  //Z=18591
-            pzva = gamma(zr+1+v-2*a1)/gz1;  //Z=18592
-            pzva1 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=18593
-            dnv0 = 1;  //Z=18594
-            pvav0 = gamma(zr+1+v-2*a1)/gz1;  //Z=18595
-            pvav10 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=18596
-            pva0 = gamma(zr+1-2*a1)/gz1;  //Z=18597
+            //pzva = gamma(zr+1+v-2*a1)/gz1;  //Z=18592
+            //pzva1 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=18593
+            //dnv0 = 1;  //Z=18594
+            //pvav0 = gamma(zr+1+v-2*a1)/gz1;  //Z=18595
+            //pvav10 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=18596
+            //pva0 = gamma(zr+1-2*a1)/gz1;  //Z=18597
 
             cc1 = 1/dim;  //Z=18599
-            cc4 = rho/((dim-alfa)*pow(p1,dim-alfa));  //Z=18600
-            cc6 = -rho/(dim-alfa);  //Z=18601
+            cc4 = params.rho/((dim-params.alphash1)*pow(params.p1,dim-params.alphash1));  //Z=18600
+            cc6 = -params.rho/(dim-params.alphash1);  //Z=18601
             sumc = cc1+cc4+cc6;  //Z=18602
 
             /*  term #1 series  */  //Z=18604
@@ -9215,18 +9005,18 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                 z12v[0] = 1;  //Z=18606
                 b1sv[0] = 1;  //Z=18607
                 fkv[0] = 1;  //Z=18608
-                qqn[0] = 1.0;  //Z=18609
+                double qqnn = 1.0;  //Z=18609
                 F12sez = 1.0;  //Z=18610
                 oldF12sez = 1.0;  //Z=18611
                 for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=18612
-                    qqn[n] = qqn[n-1]*q*q;  //Z=18613 war: qnn[..], ist zwar definiert, aber oben wurde qqn[0]=1 gesetzt... (TODO)
+                    qqnn = qqnn*q*q;  //Z=18613 war: qnn[..], ist zwar definiert, aber oben wurde qqn[0]=1 gesetzt... (TODO)
                     z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=18614
                     b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=18615
                     fkv[n] = fkv[n-1]*n;  //Z=18616
                     /* F12sez:=F12sez+power(-x12z,n)*z12v[n]/(b1sv[n]*fkv[n]);  //Z=18617 */
 
-                    F12sez = F12sez+carr4p[n]*qqn[n];  //Z=18619
+                    F12sez = F12sez+params.CR->carr4f[n]*qqnn;  //Z=18619
 
                     del = fabs((F12sez-oldF12sez)/F12sez);  //Z=18621
                     if ( del<delc ) break; /* goto 101; */  //Z=18622
@@ -9245,12 +9035,12 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                 b2v[0] = 1;  //Z=18634
                 b1sv[0] = 1;  //Z=18635
                 fkv[0] = 1;  //Z=18636
-                qqn[0] = 1.0;  //Z=18637
+                double qqnn = 1.0;  //Z=18637
                 F42sez = 1.0;  //Z=18638
                 oldF42sez = 1.0;  //Z=18639
                 for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=18640
-                    qqn[n] = qqn[n-1]*q*q;  //Z=18641
+                    qqnn = qqnn*q*q;  //Z=18641
                     z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=18642
                     a1v[n] = a1v[n-1]*(a1-1+n);  //Z=18643
                     b1v[n] = b1v[n-1]*(b1-1+n);  //Z=18644
@@ -9259,7 +9049,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                     fkv[n] = fkv[n-1]*n;  //Z=18647
                     /* F42sez:=F42sez+power(-x22z,n)*z12v[n]*a1v[n]/(b1v[n]*b2v[n]*fkv[n]);  //Z=18648 */
 
-                    F42sez = F42sez+carr5p[n]*qqn[n];  //Z=18650
+                    F42sez = F42sez+params.CR->carr5f[n]*qqnn;  //Z=18650
 
                     del = fabs((F42sez-oldF42sez)/F42sez);  //Z=18652
                     if ( del<delc ) break; /* goto 104; */  //Z=18653
@@ -9278,12 +9068,12 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                 b2v[0] = 1;  //Z=18665
                 b1sv[0] = 1;  //Z=18666
                 fkv[0] = 1;  //Z=18667
-                qqn[0] = 1.0;  //Z=18668
+                double qqnn = 1.0;  //Z=18668
                 F62sez = 1.0;  //Z=18669
                 oldF62sez = 1.0;  //Z=18670
                 for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=18671
-                    qqn[n] = qqn[n-1]*q*q;  //Z=18672
+                    qqnn = qqnn*q*q;  //Z=18672
                     z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=18673
                     a1v[n] = a1v[n-1]*(a1-1+n);  //Z=18674
                     b1v[n] = b1v[n-1]*(b1-1+n);  //Z=18675
@@ -9292,7 +9082,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                     fkv[n] = fkv[n-1]*n;  //Z=18678
                     /* F62sez:=F62sez+power(-x12z,n)*z12v[n]*a1v[n]/(b1v[n]*b2v[n]*fkv[n]);  //Z=18679 */
 
-                    F62sez = F62sez+carr6p[n]*qqn[n];  //Z=18681
+                    F62sez = F62sez+params.CR->carr6f[n]*qqnn;  //Z=18681
 
                     del = fabs((F62sez-oldF62sez)/F62sez);  //Z=18683
                     if ( del<delc ) break; /* goto 106; */  //Z=18684
@@ -9320,8 +9110,8 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             if ( xrad>=lim4 )
             {/*4*/  //Z=18705
                 F42as10z = preg4*pow(x22z,-a1);  //Z=18706
-                F42as1sumz = pva0;  //Z=18707
-                F42as1z = F42as10z*F42as1sumz;  //Z=18708
+                //F42as1sumz = pva0;  //Z=18707
+                //F42as1z = F42as10z*F42as1sumz;  //Z=18708
                 F42as1z0 = F42as10z*pza;   /* * */  //Z=18709
 
                 F42as40z = preg3*pow(x2z,c);  //Z=18711
@@ -9332,7 +9122,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                 F42as27 = e0*pzc*(cos(M_PI*c/2.0)*cos(arg44)/nen44-sin(M_PI*c/2.0)*sin(arg44)/nen44);  //Z=18716
                 F42as28 = e1*(1/(2.0*x2z))*pzc1*(cos(M_PI*(c-1)/2.0)*cos(arg45)/nen45-sin(M_PI*(c-1)/2.0)*sin(arg45)/nen45);  //Z=18717
                 F42as4z = F42as40z*(F42as27+F42as28);  //Z=18718
-                F42asz = F42as1z+F42as4z;  //Z=18719
+                //F42asz = F42as1z+F42as4z;  //Z=18719
                 F42asz0 = F42as1z0+F42as4z;  //Z=18720
                 F42 = F42asz0;  //Z=18721
             }/*4*/  //Z=18722
@@ -9341,8 +9131,8 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             if ( xradp>=lim6 )
             {/*4*/  //Z=18725
                 F62as10z = preg4*pow(x12z,-a1);  //Z=18726
-                F62as1sumz = pva0;  //Z=18727
-                F62as1z = F62as10z*F62as1sumz;  //Z=18728
+                //F62as1sumz = pva0;  //Z=18727
+                //F62as1z = F62as10z*F62as1sumz;  //Z=18728
                 F62as1z0 = F62as10z*pza;     /* * */  //Z=18729
 
                 F62as40z = preg3*pow(x1z,c);  //Z=18731
@@ -9353,7 +9143,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                 F62as27 = e0*pzc*(cos(M_PI*c/2.0)*cos(arg64)/nen64-sin(M_PI*c/2.0)*sin(arg64)/nen64);  //Z=18736
                 F62as28 = e1*(1/(2.0*x1z))*pzc1*(cos(M_PI*(c-1)/2.0)*cos(arg65)/nen65-sin(M_PI*(c-1)/2.0)*sin(arg65)/nen65);  //Z=18737
                 F62as4z = F62as40z*(F62as27+F62as28);  //Z=18738
-                F62asz = F62as1z+F62as4z;  //Z=18739
+                //F62asz = F62as1z+F62as4z;  //Z=18739
                 F62asz0 = F62as1z0+F62as4z;  //Z=18740
                 F62 = F62asz0;  //Z=18741
             }/*4*/  //Z=18742
@@ -9375,22 +9165,22 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
     /* ********** */  //Z=18758
     /*  cylinder  */  //Z=18759
     /* ********** */  //Z=18760
-    if ( part==1 )
+    if ( params.part==1 )
     {/*2*/  //Z=18761
 
         /* ** longitudinal part ** */  //Z=18763
         /* ** isotropic ** */  //Z=18764
         if ( ordis==7 )
         {/*3*/  //Z=18765
-            if ( q<(0.6*limq1) )
+            if ( q<(0.6*params.limq1f) )
             {/*4*/  //Z=18766
                 pqsum = 1.0;  //Z=18767
                 oldpqsum = 0.0;  //Z=18768
-                qqn[0] = 1.0;  //Z=18769
+                double qqnn = 1.0;  //Z=18769
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=18770
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=18771
-                    pqsum = pqsum+carr1p[nser]*qqn[nser];  //Z=18772
+                    qqnn = qqnn*q*q;  //Z=18771
+                    pqsum = pqsum+params.CR->carr1f[nser]*qqnn;  //Z=18772
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18773
                     if ( delser<0.0001 ) break; /* goto 60; */  //Z=18774
                     oldpqsum = pqsum;  //Z=18775
@@ -9400,7 +9190,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             }/*4*/  //Z=18779
             else
             {/*4*/   /*  = P(q)  */  //Z=18780
-                arglq = q*length/(zl+1);  //Z=18781
+                arglq = q*params.length/(zl+1);  //Z=18781
                 /* pql:=(1/(2*zl*(zl-1)))*(1/(arglq*arglq))*(1-cos((zl-1)*arctan(2*arglq))/power(1+4*arglq*arglq,(zl-1)/2));  //Z=18782 */
                 pql = (M_PI/(2.0*zl))*(1/arglq);  //Z=18783
                 pql = pql-(1/(2.0*zl*(zl-1)*arglq*arglq))*cos((zl-1)*atan(2.0*arglq))/pow(1.0+4*arglq*arglq,(zl-1)/2.0);  //Z=18784
@@ -9410,19 +9200,19 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
         /*  perfect  */  //Z=18788
         if ( ordis==6 )
         {/*3*/  //Z=18789
-            if ( orcase==4 )
+            if ( params.orcase==4 )
                 pql = 1.0;  //Z=18790
             else
             {/*4*/  //Z=18791
-                if ( limql<(4*limq1) )
+                if ( limql<(4*params.limq1f) )
                 {/*5*/  //Z=18792
                     pqsum = 1.0;  //Z=18793
                     oldpqsum = 0.0;  //Z=18794
-                    qqn[0] = 1.0;  //Z=18795
+                    double qqnn = 1.0;  //Z=18795
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=18796
-                        qqn[nser] = qqn[nser-1]*(qxs+qys)*(qxs+qys);  //Z=18797
-                        pqsum = pqsum+carr1p[nser]*qqn[nser];  //Z=18798
+                        qqnn = qqnn*(qxs+qys)*(qxs+qys);  //Z=18797
+                        pqsum = pqsum+params.CR->carr1f[nser]*qqnn;  //Z=18798
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18799
                         if ( delser<0.0001 ) break; /* goto 65; */  //Z=18800
                         oldpqsum = pqsum;  //Z=18801
@@ -9432,7 +9222,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                 }/*5*/  //Z=18805
                 else
                 {/*5*/  //Z=18806
-                    arglq = (qxs+qys+eps9)*length/(zl+1);  //Z=18807
+                    arglq = (qxs+qys+eps9)*params.length/(zl+1);  //Z=18807
                     /*  F(q)  */  //Z=18808
                     /* pql:=(1/zl)*(1/arglq)*sin(zl*arctan(arglq))/power(1+arglq*arglq,zl/2);  //Z=18809 */
                     /* pql:=pql*pql;  //Z=18810 */
@@ -9445,17 +9235,17 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
         /*  general  */  //Z=18817
         if ( ordis==0 )
         {/*3*/  //Z=18818
-            if ( orcase==4 )
+            if ( params.orcase==4 )
                 pql = 1.0;  //Z=18819
             else
             {/*4*/  //Z=18820
-                if ( limql<(0.7*limq1) )
+                if ( limql<(0.7*params.limq1f) )
                 {/*5*/  //Z=18821
                     pqsum = 1.0;  //Z=18822
                     oldpqsum = 0.0;  //Z=18823
                     qxn[0] = 1.0;  //Z=18824
                     qyn[0] = 1.0;  //Z=18825
-                    if ( orcase==1 )
+                    if ( params.orcase==1 )
                     {/*6*/  //Z=18826
                         for ( nser=1; nser<=120; nser++ )
                         {/*7*/  //Z=18827
@@ -9468,14 +9258,14 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                                 /* binsum:=binsum+carr1pm[indx]*qxn[mser]*qyn[nser-mser];  //Z=18833 */
                                 binsum = binsum+params.CR->carr11pm[mser][nser-mser]*qyn[mser]*qxn[nser-mser];  //Z=18834
                             }/*8*/  //Z=18835
-                            pqsum = pqsum+carr1p[nser]*binsum;  //Z=18836
+                            pqsum = pqsum+params.CR->carr1f[nser]*binsum;  //Z=18836
                             delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18837
                             if ( delser<0.0001 ) break; /* goto 66; */  //Z=18838
                             oldpqsum = pqsum;  //Z=18839
                         }/*7*/  //Z=18840
                     }/*6*/  //Z=18841
 
-                    if ( orcase==2 )
+                    if ( params.orcase==2 )
                     {/*6*/  /*  x-axis  */  //Z=18843
                         for ( nser=1; nser<=120; nser++ )
                         {/*7*/  //Z=18844
@@ -9488,7 +9278,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                                 /* binsum:=binsum+carr1pm[indx]*qxn[mser]*qyn[nser-mser];  //Z=18850 */
                                 binsum = binsum+params.CR->carr11pm[nser-mser][mser]*qxn[mser]*qyn[nser-mser];  //Z=18851
                             }/*8*/  //Z=18852
-                            pqsum = pqsum+carr1p[nser]*binsum;  //Z=18853
+                            pqsum = pqsum+params.CR->carr1f[nser]*binsum;  //Z=18853
                             delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18854
                             if ( delser<0.0001 ) break; /* goto 66; */  //Z=18855
                             oldpqsum = pqsum;  //Z=18856
@@ -9496,7 +9286,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                     }/*6*/  //Z=18858
                     pql = pqsum;  //Z=18859
 
-                    if ( orcase==3 )
+                    if ( params.orcase==3 )
                     {/*6*/  /*  y-axis  */  //Z=18861
                         for ( nser=1; nser<=120; nser++ )
                         {/*7*/  //Z=18862
@@ -9509,7 +9299,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                                 /* binsum:=binsum+carr1pm[indx]*qxn[mser]*qyn[nser-mser];  //Z=18868 */
                                 binsum = binsum+params.CR->carr11pm[mser][nser-mser]*qxn[mser]*qyn[nser-mser];  //Z=18869
                             }/*8*/  //Z=18870
-                            pqsum = pqsum+carr1p[nser]*binsum;  //Z=18871
+                            pqsum = pqsum+params.CR->carr1f[nser]*binsum;  //Z=18871
                             delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18872
                             if ( delser<0.0001 ) break; /* goto 66; */  //Z=18873
                             oldpqsum = pqsum;  //Z=18874
@@ -9523,25 +9313,26 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                     /*  F(q)  */  //Z=18881
                     /* qrombdeltac(length,sigmal,dbeta,theta,0,qxs,qys,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,1,4,orcase,0,1,0,carr1p,pql);  //Z=18882 */
                     /*  P(q)  */  //Z=18883
-                    qrombdeltac(length,radius,p1,sigmal,alfa,params.dbeta,theta,0,qxs,qys,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,1,4,orcase,0,0,0,carr1p,pql);  //Z=18884
-                    pql = pql/norm;  //Z=18885
+                    qrombdeltac(params.p1,params.sigmal,params.alphash1,params.polTheta,0,qxs,qys,qz,
+                                9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,1,4,params.orcase,0,0,0,params.CR->carr1f,pql);  //Z=18884
+                    pql = pql/params.norm;  //Z=18885
                 }/*5*/  //Z=18886
             }/*4*/  //Z=18887
         }/*3*/   /*  of general  */  //Z=18888
 
         /*  transverse part  */  //Z=18890
         /*  homogeneous cylinder  */  //Z=18891
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=18892
-            if ( q<(1.5*limq4) )
+            if ( q<(1.5*params.limq4f) )
             {/*4*/  //Z=18893
                 pqsum = 1.0;  //Z=18894
                 oldpqsum = 0.0;  //Z=18895
-                qqn[0] = 1.0;  //Z=18896
+                double qqnn = 1.0;  //Z=18896
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=18897
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=18898
-                    pqsum = pqsum+carr4p[nser]*qqn[nser];  //Z=18899
+                    qqnn = qqnn*q*q;  //Z=18898
+                    pqsum = pqsum+params.CR->carr4f[nser]*qqnn;  //Z=18899
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18900
                     if ( delser<0.0001 ) break; /* goto 61; */  //Z=18901
                     oldpqsum = pqsum;  //Z=18902
@@ -9551,7 +9342,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             }/*4*/  //Z=18906
             else
             {/*4*/  //Z=18907
-                argpq = q*radius/(zr+1);  //Z=18908
+                argpq = q*params.radius/(zr+1);  //Z=18908
                 pqr1 = (gamma(zr-1/2.0)/gamma(zr+1))*pow(argpq,-3/2.0)*(sin((zr-1/2.0)*atan(argpq))-cos((zr-1/2.0)*atan(argpq)))/pow(1.0+argpq*argpq,(zr-1/2.0)/2.0);  //Z=18909
                 pqr2 = (gamma(zr-3/2.0)/gamma(zr+1))*pow(argpq,-5/2.0)*(sin((zr-3/2.0)*atan(argpq))+cos((zr-3/2.0)*atan(argpq)))/pow(1.0+argpq*argpq,(zr-3/2.0)/2.0);  //Z=18910
                 pqr3 = (2/sqrt(M_PI))*(pqr1+(9/16.0)*pqr2);  //Z=18911
@@ -9562,27 +9353,28 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
         }/*3*/ /*  of homogeneous cylinder  */  //Z=18916
 
         /*  homogeneous core/shell cylinder  */  //Z=18918
-        if ( cs==1 )
+        if ( params.cs==1 )
         {/*3*/  //Z=18919
-            ccc1 = sqr(1-rho)*pow(p1,4);  //Z=18920
-            ccc2 = 2*rho*(1-rho)*pow(p1,2);  //Z=18921
-            ccc3 = rho*rho;  //Z=18922
-            vv3 = sqr((1-rho)*pow(p1,2)+rho);  //Z=18923
+            ccc1 = sqr(1-params.rho)*pow(params.p1,4);  //Z=18920
+            ccc2 = 2*params.rho*(1-params.rho)*pow(params.p1,2);  //Z=18921
+            ccc3 = sqr(params.rho);  //Z=18922
+            vv3 = sqr((1-params.rho)*pow(params.p1,2)+params.rho);  //Z=18923
 
+            zz = zr;  // TODO: zz war in diesem Zweig nicht gesetzt
             argq = q*radiusm/(zz+1);  //Z=18925
-            argpq = q*radius/(zz+1);  //Z=18926
+            argpq = q*params.radius/(zz+1);  //Z=18926
 
             /*  F121 cylinder  */  //Z=18928
-            if ( q<(0.7*limq4) )
+            if ( q<(0.7*params.limq4f) )
             {/*4*/  //Z=18929
                 /* ** series expansion ** */  //Z=18930
                 pqsum = 1.0;  //Z=18931
                 oldpqsum = 0.0;  //Z=18932
-                qqn[0] = 1.0;  //Z=18933
+                double qqnn = 1.0;  //Z=18933
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=18934
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=18935
-                    pqsum = pqsum+carr4p[nser]*qqn[nser];  //Z=18936
+                    qqnn = qqnn*q*q;  //Z=18935
+                    pqsum = pqsum+params.CR->carr4f[nser]*qqnn;  //Z=18936
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18937
                     if ( delser<0.0001 ) break; /* goto 62; */  //Z=18938
                     oldpqsum = pqsum;  //Z=18939
@@ -9600,16 +9392,16 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             }/*4*/  //Z=18950
 
             /*  F122 cylinder  */  //Z=18952
-            if ( q<(0.3*limq5) )
+            if ( q<(0.3*params.limq5f) )
             {/*4*/  //Z=18953
                 /* ** series expansion ** */  //Z=18954
                 pqsum = 1.0;  //Z=18955
                 oldpqsum = 0.0;  //Z=18956
-                qqn[0] = 1.0;  //Z=18957
+                double qqnn = 1.0;  //Z=18957
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=18958
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=18959
-                    pqsum = pqsum+carr5p[nser]*qqn[nser];  //Z=18960
+                    qqnn = qqnn*q*q;  //Z=18959
+                    pqsum = pqsum+params.CR->carr5f[nser]*qqnn;  //Z=18960
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18961
                     if ( delser<0.0001 ) break; /* goto 63; */  //Z=18962
                     oldpqsum = pqsum;  //Z=18963
@@ -9628,16 +9420,16 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             }/*4*/  //Z=18975
 
             /*  F123 cylinder  */  //Z=18977
-            if ( q<(0.6*limq6) )
+            if ( q<(0.6*params.limq6f) )
             {/*4*/  //Z=18978
                 /* ** series expansion ** */  //Z=18979
                 pqsum = 1.0;  //Z=18980
                 oldpqsum = 0.0;  //Z=18981
-                qqn[0] = 1.0;  //Z=18982
+                double qqnn = 1.0;  //Z=18982
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=18983
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=18984
-                    pqsum = pqsum+carr6p[nser]*qqn[nser];  //Z=18985
+                    qqnn = qqnn*q*q;  //Z=18984
+                    pqsum = pqsum+params.CR->carr6f[nser]*qqnn;  //Z=18985
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18986
                     if ( delser<0.0001 ) break; /* goto 64; */  //Z=18987
                     oldpqsum = pqsum;  //Z=18988
@@ -9658,35 +9450,35 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
         }/*3*/ /*  of homogeneous core/shell cylinder  */  //Z=19002
 
         /* ** inhomogeneous core/shell cylinder ** */  //Z=19004
-        if ( cs==2 )
+        if ( params.cs==2 )
         {/*3*/  //Z=19005
 
             dim = 2;  //Z=19007
             delc = 0.0001;  //Z=19008
             zz = zr;  //Z=19009
             xrad = q*radiusm;  //Z=19010
-            xradp = q*radius;  //Z=19011
-            x1z = q*radius/(2.0*(zz+1));  //Z=19012
+            xradp = q*params.radius;  //Z=19011
+            x1z = q*params.radius/(2.0*(zz+1));  //Z=19012
             x12z = x1z*x1z;  //Z=19013
             x2z = q*radiusm/(2.0*(zz+1));  //Z=19014
             x22z = x2z*x2z;  //Z=19015
 
             lim = 18*exp(-5*params.sigma);  //Z=19017
             lim1 = lim;  //Z=19018
-            lim2 = lim*0.7;  //Z=19019
-            lim3 = lim;  //Z=19020
+            //lim2 = lim*0.7;  //Z=19019
+            //lim3 = lim;  //Z=19020
             lim4 = lim;  //Z=19021
-            lim5 = lim*0.7;  //Z=19022
+            //lim5 = lim*0.7;  //Z=19022
             lim6 = lim*1.2;  //Z=19023
 
-            a1 = (dim-alfa)/2.0;  //Z=19025
+            a1 = (dim-params.alphash1)/2.0;  //Z=19025
             b1 = dim/2.0;  //Z=19026
-            b2 = (dim+2-alfa)/2.0;  //Z=19027
+            b2 = (dim+2-params.alphash1)/2.0;  //Z=19027
             b1s = (dim+2)/2.0;  //Z=19028
             v = -b1s+1/2.0;  //Z=19029
             c = a1-b1-b2+1/2.0;  //Z=19030
-            d0 = 1;  //Z=19031
-            d1 = a1*(1+a1-b1)*(1+a1-b2);  //Z=19032
+            //d0 = 1;  //Z=19031
+            //d1 = a1*(1+a1-b1)*(1+a1-b2);  //Z=19032
             e0 = 1.0;  //Z=19033
             e1 = (3/8.0)-(b1+b2)+((b1-b2)*(b1-b2)-3*a1*a1+2*a1*(1+b1+b2))/2.0;  //Z=19034
             ee0 = 1.0;  //Z=19035
@@ -9695,31 +9487,31 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             gb1s = 3*sqrt(M_PI)/4.0;  //Z=19038
             pz2v = 1/(zr*(zr-1));  //Z=19039
             pz2v1 = pz2v/(zr-2);  //Z=19040
-            pz2v2 = pz2v1/(zr-3);  //Z=19041
+            //pz2v2 = pz2v1/(zr-3);  //Z=19041
 
             gz1 = gamma(zr+1);  //Z=19043
             preg1 = gb1s/sqrt(M_PI);  //Z=19044
             preg3 = gamma(b1)*gamma(b2)/(gamma(a1)*sqrt(M_PI));  //Z=19045
             preg4 = gamma(b1)*gamma(b2)/(gamma(b1-a1)*gamma(b2-a1));  //Z=19046
-            pzvc = gamma(zr+1+v+c)/gz1;  //Z=19047
-            pzvc1 = gamma(zr+1+v+c-1)/gz1;  //Z=19048
-            pzvc2 = gamma(zr+1+v+c-2)/gz1;  //Z=19049
-            pzac = gamma(zr+1-2*a1+c)/gz1;  //Z=19050
-            pzac1 = gamma(zr+1-2*a1+c-1)/gz1;  //Z=19051
-            pzac2 = gamma(zr+1-2*a1+c+2)/gz1;  //Z=19052
+            //pzvc = gamma(zr+1+v+c)/gz1;  //Z=19047
+            //pzvc1 = gamma(zr+1+v+c-1)/gz1;  //Z=19048
+            //pzvc2 = gamma(zr+1+v+c-2)/gz1;  //Z=19049
+            //pzac = gamma(zr+1-2*a1+c)/gz1;  //Z=19050
+            //pzac1 = gamma(zr+1-2*a1+c-1)/gz1;  //Z=19051
+            //pzac2 = gamma(zr+1-2*a1+c+2)/gz1;  //Z=19052
             pzc = gamma(zr+1+c)/gz1;  //Z=19053
             pzc1 = gamma(zr+1+c-1)/gz1;  //Z=19054
             pza = gamma(zr+1-2*a1)/gz1;  //Z=19055
-            pzva = gamma(zr+1+v-2*a1)/gz1;  //Z=19056
-            pzva1 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=19057
-            dnv0 = 1;  //Z=19058
-            pvav0 = gamma(zr+1+v-2*a1)/gz1;  //Z=19059
-            pvav10 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=19060
-            pva0 = gamma(zr+1-2*a1)/gz1;  //Z=19061
+            //pzva = gamma(zr+1+v-2*a1)/gz1;  //Z=19056
+            //pzva1 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=19057
+            //dnv0 = 1;  //Z=19058
+            //pvav0 = gamma(zr+1+v-2*a1)/gz1;  //Z=19059
+            //pvav10 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=19060
+            //pva0 = gamma(zr+1-2*a1)/gz1;  //Z=19061
 
             cc1 = 1/dim;  //Z=19063
-            cc4 = rho/((dim-alfa)*pow(p1,dim-alfa));  //Z=19064
-            cc6 = -rho/(dim-alfa);  //Z=19065
+            cc4 = params.rho/((dim-params.alphash1)*pow(params.p1,dim-params.alphash1));  //Z=19064
+            cc6 = -params.rho/(dim-params.alphash1);  //Z=19065
             sumc = cc1+cc4+cc6;  //Z=19066
 
             /*  term #1 series  */  //Z=19068
@@ -9728,18 +9520,18 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                 z12v[0] = 1;  //Z=19070
                 b1sv[0] = 1;  //Z=19071
                 fkv[0] = 1;  //Z=19072
-                qqn[0] = 1.0;  //Z=19073
+                double qqnn = 1.0;  //Z=19073
                 F12sez = 1.0;  //Z=19074
                 oldF12sez = 1.0;  //Z=19075
                 for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=19076
-                    qqn[n] = qqn[n-1]*q*q;  //Z=19077
+                    qqnn = qqnn*q*q;  //Z=19077
                     z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=19078
                     b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=19079
                     fkv[n] = fkv[n-1]*n;  //Z=19080
                     /* F12sez:=F12sez+power(-x12z,n)*z12v[n]/(b1sv[n]*fkv[n]);  //Z=19081 */
 
-                    F12sez = F12sez+carr4p[n]*qqn[n];  //Z=19083
+                    F12sez = F12sez+params.CR->carr4f[n]*qqnn;  //Z=19083
 
                     del = fabs((F12sez-oldF12sez)/F12sez);  //Z=19085
                     if ( del<delc ) break; /* goto 111; */  //Z=19086
@@ -9758,12 +9550,12 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                 b2v[0] = 1;  //Z=19098
                 b1sv[0] = 1;  //Z=19099
                 fkv[0] = 1;  //Z=19100
-                qqn[0] = 1.0;  //Z=19101
+                double qqnn = 1.0;  //Z=19101
                 F42sez = 1.0;  //Z=19102
                 oldF42sez = 1.0;  //Z=19103
                 for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=19104
-                    qqn[n] = qqn[n-1]*q*q;  //Z=19105
+                    qqnn = qqnn*q*q;  //Z=19105
                     z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=19106
                     a1v[n] = a1v[n-1]*(a1-1+n);  //Z=19107
                     b1v[n] = b1v[n-1]*(b1-1+n);  //Z=19108
@@ -9772,7 +9564,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                     fkv[n] = fkv[n-1]*n;  //Z=19111
                     /* F42sez:=F42sez+power(-x22z,n)*z12v[n]*a1v[n]/(b1v[n]*b2v[n]*fkv[n]);  //Z=19112 */
 
-                    F42sez = F42sez+carr5p[n]*qqn[n];  //Z=19114
+                    F42sez = F42sez+params.CR->carr5f[n]*qqnn;  //Z=19114
 
                     del = fabs((F42sez-oldF42sez)/F42sez);  //Z=19116
                     if ( del<delc ) break; /* goto 114; */  //Z=19117
@@ -9791,12 +9583,12 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                 b2v[0] = 1;  //Z=19129
                 b1sv[0] = 1;  //Z=19130
                 fkv[0] = 1;  //Z=19131
-                qqn[0] = 1.0;  //Z=19132
+                double qqnn = 1.0;  //Z=19132
                 F62sez = 1.0;  //Z=19133
                 oldF62sez = 1.0;  //Z=19134
                 for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=19135
-                    qqn[n] = qqn[n-1]*q*q;  //Z=19136
+                    qqnn = qqnn*q*q;  //Z=19136
                     z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=19137
                     a1v[n] = a1v[n-1]*(a1-1+n);  //Z=19138
                     b1v[n] = b1v[n-1]*(b1-1+n);  //Z=19139
@@ -9805,7 +9597,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                     fkv[n] = fkv[n-1]*n;  //Z=19142
                     /* F62sez:=F62sez+power(-x12z,n)*z12v[n]*a1v[n]/(b1v[n]*b2v[n]*fkv[n]);  //Z=19143 */
 
-                    F62sez = F62sez+carr6p[n]*qqn[n];  //Z=19145
+                    F62sez = F62sez+params.CR->carr6f[n]*qqnn;  //Z=19145
 
                     del = fabs((F62sez-oldF62sez)/F62sez);  //Z=19147
                     if ( del<delc ) break; /* goto 116; */  //Z=19148
@@ -9833,8 +9625,8 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             if ( xrad>=lim4 )
             {/*4*/  //Z=19169
                 F42as10z = preg4*pow(x22z,-a1);  //Z=19170
-                F42as1sumz = pva0;  //Z=19171
-                F42as1z = F42as10z*F42as1sumz;  //Z=19172
+                //F42as1sumz = pva0;  //Z=19171
+                //F42as1z = F42as10z*F42as1sumz;  //Z=19172
                 F42as1z0 = F42as10z*pza;   /* * */  //Z=19173
 
                 F42as40z = preg3*pow(x2z,c);  //Z=19175
@@ -9845,7 +9637,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                 F42as27 = e0*pzc*(cos(M_PI*c/2.0)*cos(arg44)/nen44-sin(M_PI*c/2.0)*sin(arg44)/nen44);  //Z=19180
                 F42as28 = e1*(1/(2.0*x2z))*pzc1*(cos(M_PI*(c-1)/2.0)*cos(arg45)/nen45-sin(M_PI*(c-1)/2.0)*sin(arg45)/nen45);  //Z=19181
                 F42as4z = F42as40z*(F42as27+F42as28);  //Z=19182
-                F42asz = F42as1z+F42as4z;  //Z=19183
+                //F42asz = F42as1z+F42as4z;  //Z=19183
                 F42asz0 = F42as1z0+F42as4z;  //Z=19184
                 F42 = F42asz0;  //Z=19185
             }/*4*/  //Z=19186
@@ -9854,8 +9646,8 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             if ( xradp>=lim6 )
             {/*4*/  //Z=19189
                 F62as10z = preg4*pow(x12z,-a1);  //Z=19190
-                F62as1sumz = pva0;  //Z=19191
-                F62as1z = F62as10z*F62as1sumz;  //Z=19192
+                //F62as1sumz = pva0;  //Z=19191
+                //F62as1z = F62as10z*F62as1sumz;  //Z=19192
                 F62as1z0 = F62as10z*pza;     /* * */  //Z=19193
 
                 F62as40z = preg3*pow(x1z,c);  //Z=19195
@@ -9866,7 +9658,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                 F62as27 = e0*pzc*(cos(M_PI*c/2.0)*cos(arg64)/nen64-sin(M_PI*c/2.0)*sin(arg64)/nen64);  //Z=19200
                 F62as28 = e1*(1/(2.0*x1z))*pzc1*(cos(M_PI*(c-1)/2.0)*cos(arg65)/nen65-sin(M_PI*(c-1)/2.0)*sin(arg65)/nen65);  //Z=19201
                 F62as4z = F62as40z*(F62as27+F62as28);  //Z=19202
-                F62asz = F62as1z+F62as4z;  //Z=19203
+                //F62asz = F62as1z+F62as4z;  //Z=19203
                 F62asz0 = F62as1z0+F62as4z;  //Z=19204
                 F62 = F62asz0;  //Z=19205
             }/*4*/  //Z=19206
@@ -9888,22 +9680,22 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
     /* ****** */  //Z=19222
     /*  disk  */  //Z=19223
     /* ****** */  //Z=19224
-    if ( part==2 )
+    if ( params.part==2 )
     {/*2*/  //Z=19225
 
         /* ** longitudinal part ** */  //Z=19227
         /* ** isotropic ** */  //Z=19228
         if ( ordis==7 )
         {/*3*/  //Z=19229
-            if ( q<(0.5*limq1) )
+            if ( q<(0.5*params.limq1f) )
             {/*4*/  //Z=19230
                 pqsum = 1.0;  //Z=19231
                 oldpqsum = 0.0;  //Z=19232
-                qqn[0] = 1.0;  //Z=19233
+                double qqnn = 1.0;  //Z=19233
                 for ( nser=1; nser<=80; nser++ )
                 {/*5*/  //Z=19234
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=19235
-                    pqsum = pqsum+carr1p[nser]*qqn[nser];  //Z=19236
+                    qqnn = qqnn*q*q;  //Z=19235
+                    pqsum = pqsum+params.CR->carr1f[nser]*qqnn;  //Z=19236
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=19237
                     if ( delser<0.0001 ) break; /* goto 70; */  //Z=19238
                     oldpqsum = pqsum;  //Z=19239
@@ -9913,7 +9705,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             }/*4*/  //Z=19243
             else
             {/*4*/  /*   = P||(q)   */  //Z=19244
-                arglq = q*length/(zl+1);  //Z=19245
+                arglq = q*params.length/(zl+1);  //Z=19245
                 pql = (2/(zl*(zl-1)))*pow(arglq,-2);  //Z=19246
             }/*4*/  //Z=19247
         }/*3*/  /*  of isotropic  */  //Z=19248
@@ -9921,51 +9713,51 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
         /*  perfect  */  //Z=19250
         if ( ordis==6 )
         {/*3*/  //Z=19251
-            if ( q<(0.5*limq1) )
+            if ( q<(0.5*params.limq1f) )
             {/*4*/  //Z=19252
                 pqsum = 1.0;  //Z=19253
                 oldpqsum = 0.0;  //Z=19254
-                qqn[0] = 1.0;  //Z=19255
-                if ( orcase==1 )
+                double qqnn = 1.0;  //Z=19255
+                if ( params.orcase==1 )
                 {/*5*/  //Z=19256
                     argq = qxs+qys;  //Z=19257
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=19258
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=19259
-                        pqsum = pqsum+carr1p[nser]*qqn[nser]*pow(1.0-argq*argq,nser);  //Z=19260
+                        qqnn = qqnn*q*q;  //Z=19259
+                        pqsum = pqsum+params.CR->carr1f[nser]*qqnn*pow(1.0-argq*argq,nser);  //Z=19260
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=19261
                         if ( delser<0.0001 ) break; /* goto 76; */  //Z=19262
                         oldpqsum = pqsum;  //Z=19263
                     }/*6*/  //Z=19264
                 }/*5*/  //Z=19265
-                if ( orcase==2 )
+                if ( params.orcase==2 )
                 {/*5*/  //Z=19266
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=19267
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=19268
-                        pqsum = pqsum+carr1p[nser]*qqn[nser]*pow(1.0-qxs*qxs,nser);  //Z=19269
+                        qqnn = qqnn*q*q;  //Z=19268
+                        pqsum = pqsum+params.CR->carr1f[nser]*qqnn*pow(1.0-qxs*qxs,nser);  //Z=19269
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=19270
                         if ( delser<0.0001 ) break; /* goto 76; */  //Z=19271
                         oldpqsum = pqsum;  //Z=19272
                     }/*6*/  //Z=19273
                 }/*5*/  //Z=19274
-                if ( orcase==3 )
+                if ( params.orcase==3 )
                 {/*5*/  //Z=19275
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=19276
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=19277
-                        pqsum = pqsum+carr1p[nser]*qqn[nser]*pow(1.0-qys*qys,nser);  //Z=19278
+                        qqnn = qqnn*q*q;  //Z=19277
+                        pqsum = pqsum+params.CR->carr1f[nser]*qqnn*pow(1.0-qys*qys,nser);  //Z=19278
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=19279
                         if ( delser<0.0001 ) break; /* goto 76; */  //Z=19280
                         oldpqsum = pqsum;  //Z=19281
                     }/*6*/  //Z=19282
                 }/*5*/  //Z=19283
-                if ( orcase==4 )
+                if ( params.orcase==4 )
                 {/*5*/  //Z=19284
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=19285
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=19286
-                        pqsum = pqsum+carr1p[nser]*qqn[nser];  //Z=19287
+                        qqnn = qqnn*q*q;  //Z=19286
+                        pqsum = pqsum+params.CR->carr1f[nser]*qqnn;  //Z=19287
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=19288
                         if ( delser<0.0001 ) break; /* goto 76; */  //Z=19289
                         oldpqsum = pqsum;  //Z=19290
@@ -9976,14 +9768,14 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             }/*4*/  //Z=19295
             else
             {/*4*/      /*  ok  */  //Z=19296
-                if ( orcase==1 )
+                if ( params.orcase==1 )
                 {/*5*/  //Z=19297
                     qnarg = qxs+qys;  //Z=19298
-                    arglq = sqrt(1.0-qnarg*qnarg)*q*length/(zl+1)+eps9;  //Z=19299
+                    arglq = sqrt(1.0-qnarg*qnarg)*q*params.length/(zl+1)+eps9;  //Z=19299
                 }/*5*/  //Z=19300
-                if ( orcase==2 ) arglq = sqrt(1.0-qxs*qxs)*q*length/(zl+1)+eps9;  //Z=19301
-                if ( orcase==3 ) arglq = sqrt(1.0-qys*qys)*q*length/(zl+1)+eps9;  //Z=19302
-                if ( orcase==4 ) arglq = q*length/(zl+1)+eps9;  //Z=19303
+                if ( params.orcase==2 ) arglq = sqrt(1.0-qxs*qxs)*q*params.length/(zl+1)+eps9;  //Z=19301
+                if ( params.orcase==3 ) arglq = sqrt(1.0-qys*qys)*q*params.length/(zl+1)+eps9;  //Z=19302
+                if ( params.orcase==4 ) arglq = q*params.length/(zl+1)+eps9;  //Z=19303
 
                 /*  F(q)  */  //Z=19305
                 /* pqr1:=(gamma(zl-1/2)/gamma(zl+1))*power(arglq,-3/2)*(sin((zl-1/2)*arctan(arglq))-cos((zl-1/2)*arctan(arglq)))/power(1+arglq*arglq,(zl-1/2)/2);  //Z=19306 */
@@ -10002,19 +9794,19 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
         /*  orientational distribution  */  //Z=19319
         if ( ordis==0 )
         {/*3*/  //Z=19320
-            if ( orcase==1 )
+            if ( params.orcase==1 )
             {/*4*/  //Z=19321
-                if ( q<(1.2*limq1) )
+                if ( q<(1.2*params.limq1f) )  // war 1.2
                 {/*5*/  //Z=19322
                     pqsum = 1.0;  //Z=19323
                     oldpqsum = 0.0;  //Z=19324
-                    qqn[0] = 1.0;  //Z=19325
+                    double qqnn = 1.0;  //Z=19325
                     qxn[0] = 1.0;  //Z=19326
                     qyn[0] = 1.0;  //Z=19327
 
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=19329
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=19330
+                        qqnn = qqnn*q*q;  //Z=19330
                         qxn[nser] = qxn[nser-1]*qxs*qxs;  //Z=19331
                         qyn[nser] = qyn[nser-1]*qys*qys;  //Z=19332
 
@@ -10026,13 +9818,13 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                             {/*8*/  //Z=19337
                                 /* indx:=lser+1+round(mser*(mser+1)/2);  //Z=19338 */
                                 /* binsum1:=binsum1+carr2pm[indx]*qxn[lser]*qyn[mser-lser];  //Z=19339 */
-                                binsum1 = binsum1+params.CR->carr11pm[mser][lser]*qxn[lser]*qyn[mser-lser];  //Z=19340
+                                binsum1 = binsum1+params.CR->carr22pm[mser][lser]*qxn[lser]*qyn[mser-lser];  //Z=19340
                             }/*8*/  //Z=19341
                             /* indx:=mser+1+round(nser*(nser+1)/2);  //Z=19342 */
                             /* binsum:=binsum+carr1pm[indx]*binsum1;  //Z=19343 */
                             binsum = binsum+params.CR->carr11pm[nser][mser]*binsum1;  //Z=19344
                         }/*7*/  //Z=19345
-                        pqsum = pqsum+carr1p[nser]*qqn[nser]*binsum;  //Z=19346
+                        pqsum = pqsum+params.CR->carr1f[nser]*qqnn*binsum;  //Z=19346
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=19347
                         if ( delser<0.0001 ) break; /* goto 77; */  //Z=19348
                         oldpqsum = pqsum;  //Z=19349
@@ -10047,24 +9839,25 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                     /*  F(q)  */  //Z=19357
                     /* qrombdeltac(length,radius,p1,sigmal,dbeta,theta,phi,qx,qy,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,orcase+7,0,1,0,carr2p,pql);  //Z=19358 */
                     /*  P(q)  */  //Z=19359
-                    qrombdeltac(length,radius,p1,sigmal,alfa,params.dbeta,theta,phi,qx,qy,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,orcase+7,0,0,0,carr2p,pql);  //Z=19360
-                    pql = pql/norm;  //Z=19361
+                    qrombdeltac(params.p1,params.sigmal,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz,
+                                9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,params.orcase+7,0,0,0,params.CR->carr2f,pql);  //Z=19360
+                    pql = pql/params.norm;  //Z=19361
                 }/*5*/  //Z=19362
             }/*4*/  //Z=19363
 
-            if ( orcase==2 )
+            if ( params.orcase==2 )
             {/*4*/  //Z=19365
-                if ( q<(0.9*limq1) )
+                if ( q<(0.9*params.limq1f) )
                 {/*5*/  //Z=19366
                     pqsum = 1.0;  //Z=19367
                     oldpqsum = 0.0;  //Z=19368
-                    qqn[0] = 1.0;  //Z=19369
+                    double qqnn = 1.0;  //Z=19369
                     qxn[0] = 1.0;  //Z=19370
                     qyn[0] = 1.0;  //Z=19371
 
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=19373
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=19374
+                        qqnn = qqnn*q*q;  //Z=19374
                         qxn[nser] = qxn[nser-1]*qxs*qxs;  //Z=19375
                         qyn[nser] = qyn[nser-1]*qys*qys;  //Z=19376
 
@@ -10076,13 +9869,13 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                             {/*8*/  //Z=19381
                                 /* indx:=lser+1+round(mser*(mser+1)/2);  //Z=19382 */
                                 /* binsum1:=binsum1+carr2pm[indx]*qxn[lser]*qyn[mser-lser];  //Z=19383 */
-                                binsum1 = binsum1+params.CR->carr11pm[mser][lser]*qxn[lser]*qyn[mser-lser];  //Z=19384
+                                binsum1 = binsum1+params.CR->carr22pm[mser][lser]*qxn[lser]*qyn[mser-lser];  //Z=19384
                             }/*8*/  //Z=19385
                             /* indx:=mser+1+round(nser*(nser+1)/2);  //Z=19386 */
                             /* binsum:=binsum+carr1pm[indx]*binsum1;  //Z=19387 */
                             binsum = binsum+params.CR->carr11pm[nser][mser]*binsum1;  //Z=19388
                         }/*7*/  //Z=19389
-                        pqsum = pqsum+carr1p[nser]*qqn[nser]*binsum;  //Z=19390
+                        pqsum = pqsum+params.CR->carr1f[nser]*qqnn*binsum;  //Z=19390
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=19391
                         if ( delser<0.0001 ) break; /* goto 78; */  //Z=19392
                         oldpqsum = pqsum;  //Z=19393
@@ -10097,24 +9890,25 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                         /*  F(q)  */  //Z=19401
                         /* qrombdeltac(length,radius,p1,sigmal,dbeta,theta,phi,qx,qy,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,orcase+7,0,1,0,carr2p,pql);  //Z=19402 */
                         /*  P(q)  */  //Z=19403
-                        qrombdeltac(length,radius,p1,sigmal,alfa,params.dbeta,theta,phi,qx,qy,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,orcase+7,0,0,0,carr2p,pql);  //Z=19404
-                        pql = pql/norm;  //Z=19405
+                        qrombdeltac(params.p1,params.sigmal,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz,
+                                9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,params.orcase+7,0,0,0,params.CR->carr2f,pql);  //Z=19404
+                        pql = pql/params.norm;  //Z=19405
                 }/*5*/  //Z=19406
             }/*4*/  //Z=19407
 
-            if ( orcase==3 )
+            if ( params.orcase==3 )
             {/*4*/  //Z=19409
-                if ( q<(0.9*limq1) )
+                if ( q<(0.9*params.limq1f) )
                 {/*5*/  //Z=19410
                     pqsum = 1.0;  //Z=19411
                     oldpqsum = 0.0;  //Z=19412
-                    qqn[0] = 1.0;  //Z=19413
+                    double qqnn = 1.0;  //Z=19413
                     qxn[0] = 1.0;  //Z=19414
                     qyn[0] = 1.0;  //Z=19415
 
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=19417
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=19418
+                        qqnn = qqnn*q*q;  //Z=19418
                         qxn[nser] = qxn[nser-1]*qxs*qxs;  //Z=19419
                         qyn[nser] = qyn[nser-1]*qys*qys;  //Z=19420
 
@@ -10126,13 +9920,13 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                             {/*8*/  //Z=19425
                                 /* indx:=lser+1+round(mser*(mser+1)/2);  //Z=19426 */
                                 /* binsum1:=binsum1+carr2pm[indx]*qxn[lser]*qyn[mser-lser];  //Z=19427 */
-                                binsum1 = binsum1+params.CR->carr11pm[mser][lser]*qxn[lser]*qyn[mser-lser];  //Z=19428
+                                binsum1 = binsum1+params.CR->carr22pm[mser][lser]*qxn[lser]*qyn[mser-lser];  //Z=19428
                             }/*8*/  //Z=19429
                             /* indx:=mser+1+round(nser*(nser+1)/2);  //Z=19430 */
                             /* binsum:=binsum+carr1pm[indx]*binsum1;  //Z=19431 */
                             binsum = binsum+params.CR->carr11pm[nser][mser]*binsum1;  //Z=19432
                         }/*7*/  //Z=19433
-                        pqsum = pqsum+carr1p[nser]*qqn[nser]*binsum;  //Z=19434
+                        pqsum = pqsum+params.CR->carr1f[nser]*qqnn*binsum;  //Z=19434
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=19435
                         if ( delser<0.0001 ) break; /* goto 79; */  //Z=19436
                         oldpqsum = pqsum;  //Z=19437
@@ -10147,22 +9941,23 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                     /*  F(q)  */  //Z=19445
                     /* qrombdeltac(length,radius,p1,sigmal,dbeta,theta,phi,qx,qy,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,orcase+7,0,1,0,carr2p,pql);  //Z=19446 */
                     /*  P(q)  */  //Z=19447
-                    qrombdeltac(length,radius,p1,sigmal,alfa,params.dbeta,theta,phi,qx,qy,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,orcase+7,0,0,0,carr2p,pql);  //Z=19448
-                    pql = pql/norm;  //Z=19449
+                    qrombdeltac(params.p1,params.sigmal,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz,
+                                9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,params.orcase+7,0,0,0,params.CR->carr2f,pql);  //Z=19448
+                    pql = pql/params.norm;  //Z=19449
                 }/*5*/  //Z=19450
             }/*4*/  //Z=19451
 
-            if ( orcase==4 )
+            if ( params.orcase==4 )
             {/*4*/  //Z=19453
-                if ( q<(0.5*limq1) )
+                if ( q<(0.5*params.limq1f) )
                 {/*5*/  //Z=19454
                     pqsum = 1.0;  //Z=19455
                     oldpqsum = 0.0;  //Z=19456
-                    qqn[0] = 1.0;  //Z=19457
+                    double qqnn = 1.0;  //Z=19457
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=19458
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=19459
-                        pqsum = pqsum+carr1p[nser]*qqn[nser];  //Z=19460
+                        qqnn = qqnn*q*q;  //Z=19459
+                        pqsum = pqsum+params.CR->carr1f[nser]*qqnn;  //Z=19460
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=19461
                         if ( delser<0.0001 ) break; /* goto 80; */  //Z=19462
                         oldpqsum = pqsum;  //Z=19463
@@ -10177,8 +9972,9 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                     /*  F(q)  */  //Z=19471
                     /* qrombdeltac(length,radius,p1,sigmal,dbeta,theta,phi,qx,qy,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,orcase+7,0,1,0,carr2p,pql);  //Z=19472 */
                     /*  P(q)  */  //Z=19473
-                    qrombdeltac(length,radius,p1,sigmal,alfa,params.dbeta,theta,phi,qx,qy,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,orcase+7,0,0,0,carr2p,pql);  //Z=19474
-                    pql = pql/norm;  //Z=19475
+                    qrombdeltac(params.p1,params.sigmal,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz,
+                                9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,params.orcase+7,0,0,0,params.CR->carr2f,pql);  //Z=19474
+                    pql = pql/params.norm;  //Z=19475
                 }/*5*/  //Z=19476
             }/*4*/  //Z=19477
         }/*3*/   /*  of orientational distribution  */  //Z=19478
@@ -10186,17 +9982,17 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
         /*  transverse part  */  //Z=19480
         /*  disk: radius = disk thickness/2  */  //Z=19481
         /*  homogeneous disk  */  //Z=19482
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=19483
-            if ( q<(0.5*limq4) )
+            if ( q<(0.5*params.limq4f) )
             {/*4*/  //Z=19484
                 pqsum = 1.0;  //Z=19485
                 oldpqsum = 0.0;  //Z=19486
-                qqn[0] = 1.0;  //Z=19487
+                double qqnn = 1.0;  //Z=19487
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=19488
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=19489
-                    pqsum = pqsum+carr4p[nser]*qqn[nser];  //Z=19490
+                    qqnn = qqnn*q*q;  //Z=19489
+                    pqsum = pqsum+params.CR->carr4f[nser]*qqnn;  //Z=19490
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=19491
                     if ( delser<0.0001 ) break; /* goto 71; */  //Z=19492
                     oldpqsum = pqsum;  //Z=19493
@@ -10206,7 +10002,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             }/*4*/  //Z=19497
             else
             {/*4*/  //Z=19498
-                argpq = q*radius/(zr+1);  //Z=19499
+                argpq = q*params.radius/(zr+1);  //Z=19499
                 pqr = (1/zr)*pow(argpq,-1)*sin(zr*atan(argpq))/pow(1.0+argpq*argpq,zr/2.0);  //Z=19500
             }/*4*/  //Z=19501
             /*formfq:=*/ return pql*pqr*pqr;  //Z=19502
@@ -10214,27 +10010,28 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
         }/*3*/ /*  of homogeneous  */  //Z=19504
 
         /*  core/shell disk  */  //Z=19506
-        if ( cs==1 )
+        if ( params.cs==1 )
         {/*3*/  //Z=19507
-            ccc1 = sqr(1-rho)*pow(p1,2);  //Z=19508
-            ccc2 = 2*rho*(1-rho)*pow(p1,1);  //Z=19509
-            ccc3 = rho*rho;  //Z=19510
-            vv3 = sqr((1-rho)*pow(p1,1)+rho);  //Z=19511
+            ccc1 = sqr(1-params.rho)*pow(params.p1,2);  //Z=19508
+            ccc2 = 2*params.rho*(1-params.rho)*pow(params.p1,1);  //Z=19509
+            ccc3 = sqr(params.rho);  //Z=19510
+            vv3 = sqr((1-params.rho)*pow(params.p1,1)+params.rho);  //Z=19511
 
+            zz = zr;  // TODO: zz war in diesem Zweig nicht gesetzt
             argq = q*radiusm/(zz+1);  //Z=19513
-            argpq = q*radius/(zz+1);  //Z=19514
+            argpq = q*params.radius/(zz+1);  //Z=19514
 
             /*  F121 disk  */  //Z=19516
-            if ( q<(0.8*limq4) )
+            if ( q<(0.8*params.limq4f) )
             {/*4*/  //Z=19517
                 /* ** series expansion ** */  //Z=19518
                 pqsum = 1.0;  //Z=19519
                 oldpqsum = 0.0;  //Z=19520
-                qqn[0] = 1.0;  //Z=19521
+                double qqnn = 1.0;  //Z=19521
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=19522
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=19523
-                    pqsum = pqsum+carr4p[nser]*qqn[nser];  //Z=19524
+                    qqnn = qqnn*q*q;  //Z=19523
+                    pqsum = pqsum+params.CR->carr4f[nser]*qqnn;  //Z=19524
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=19525
                     if ( delser<0.0001 ) break; /* goto 72; */  //Z=19526
                     oldpqsum = pqsum;  //Z=19527
@@ -10249,16 +10046,16 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             }/*4*/  //Z=19535
 
             /*  F122 disk  */  //Z=19537
-            if ( q<(1.0*limq5) )
+            if ( q<(1.0*params.limq5f) )
             {/*4*/  //Z=19538
                 /* ** series expansion ** */  //Z=19539
                 pqsum = 1.0;  //Z=19540
                 oldpqsum = 0.0;  //Z=19541
-                qqn[0] = 1.0;  //Z=19542
+                double qqnn = 1.0;  //Z=19542
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=19543
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=19544
-                    pqsum = pqsum+carr5p[nser]*qqn[nser];  //Z=19545
+                    qqnn = qqnn*q*q;  //Z=19544
+                    pqsum = pqsum+params.CR->carr5f[nser]*qqnn;  //Z=19545
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=19546
                     if ( delser<0.0001 ) break; /* goto 73; */  //Z=19547
                     oldpqsum = pqsum;  //Z=19548
@@ -10274,16 +10071,16 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             }/*4*/  //Z=19557
 
             /*  F123 disk  */  //Z=19559
-            if ( q<(0.3*limq6) )
+            if ( q<(0.3*params.limq6f) )
             {/*4*/  //Z=19560
                 /* ** series expansion ** */  //Z=19561
                 pqsum = 1.0;  //Z=19562
                 oldpqsum = 0.0;  //Z=19563
-                qqn[0] = 1.0;  //Z=19564
+                double qqnn = 1.0;  //Z=19564
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=19565
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=19566
-                    pqsum = pqsum+carr6p[nser]*qqn[nser];  //Z=19567
+                    qqnn = qqnn*q*q;  //Z=19566
+                    pqsum = pqsum+params.CR->carr6f[nser]*qqnn;  //Z=19567
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=19568
                     if ( delser<0.0001 ) break; /* goto 74; */  //Z=19569
                     oldpqsum = pqsum;  //Z=19570
@@ -10302,35 +10099,35 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
         }/*3*/ /*  of core/shell-disk  */  //Z=19582
 
         /* ** inhomogeneous core/shell disk ** */  //Z=19584
-        if ( cs==2 )
+        if ( params.cs==2 )
         {/*3*/  //Z=19585
 
             dim = 1;  //Z=19587
             delc = 0.0001;  //Z=19588
             zz = zr;  //Z=19589
             xrad = q*radiusm;  //Z=19590
-            xradp = q*radius;  //Z=19591
-            x1z = q*radius/(2.0*(zz+1));  //Z=19592
+            xradp = q*params.radius;  //Z=19591
+            x1z = q*params.radius/(2.0*(zz+1));  //Z=19592
             x12z = x1z*x1z;  //Z=19593
             x2z = q*radiusm/(2.0*(zz+1));  //Z=19594
             x22z = x2z*x2z;  //Z=19595
 
             lim = 18*exp(-5*params.sigma);  //Z=19597
             lim1 = lim;  //Z=19598
-            lim2 = lim*0.7;  //Z=19599
-            lim3 = lim;  //Z=19600
+            //lim2 = lim*0.7;  //Z=19599
+            //lim3 = lim;  //Z=19600
             lim4 = lim;  //Z=19601
-            lim5 = lim*0.7;  //Z=19602
+            //lim5 = lim*0.7;  //Z=19602
             lim6 = lim*1.2;  //Z=19603
 
-            a1 = (dim-alfa)/2.0;  //Z=19605
+            a1 = (dim-params.alphash1)/2.0;  //Z=19605
             b1 = dim/2.0;  //Z=19606
-            b2 = (dim+2-alfa)/2.0;  //Z=19607
+            b2 = (dim+2-params.alphash1)/2.0;  //Z=19607
             b1s = (dim+2)/2.0;  //Z=19608
             v = -b1s+1/2.0;  //Z=19609
             c = a1-b1-b2+1/2.0;  //Z=19610
-            d0 = 1;  //Z=19611
-            d1 = a1*(1+a1-b1)*(1+a1-b2);  //Z=19612
+            //d0 = 1;  //Z=19611
+            //d1 = a1*(1+a1-b1)*(1+a1-b2);  //Z=19612
             e0 = 1.0;  //Z=19613
             e1 = (3/8.0)-(b1+b2)+((b1-b2)*(b1-b2)-3*a1*a1+2*a1*(1+b1+b2))/2.0;  //Z=19614
             ee0 = 1.0;  //Z=19615
@@ -10339,31 +10136,31 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             gb1s = 3*sqrt(M_PI)/4.0;  //Z=19618
             pz2v = 1/(zr*(zr-1));  //Z=19619
             pz2v1 = pz2v/(zr-2);  //Z=19620
-            pz2v2 = pz2v1/(zr-3);  //Z=19621
+            //pz2v2 = pz2v1/(zr-3);  //Z=19621
 
             gz1 = gamma(zr+1);  //Z=19623
             preg1 = gb1s/sqrt(M_PI);  //Z=19624
             preg3 = gamma(b1)*gamma(b2)/(gamma(a1)*sqrt(M_PI));  //Z=19625
             preg4 = gamma(b1)*gamma(b2)/(gamma(b1-a1)*gamma(b2-a1));  //Z=19626
-            pzvc = gamma(zr+1+v+c)/gz1;  //Z=19627
-            pzvc1 = gamma(zr+1+v+c-1)/gz1;  //Z=19628
-            pzvc2 = gamma(zr+1+v+c-2)/gz1;  //Z=19629
-            pzac = gamma(zr+1-2*a1+c)/gz1;  //Z=19630
-            pzac1 = gamma(zr+1-2*a1+c-1)/gz1;  //Z=19631
-            pzac2 = gamma(zr+1-2*a1+c+2)/gz1;  //Z=19632
+            //pzvc = gamma(zr+1+v+c)/gz1;  //Z=19627
+            //pzvc1 = gamma(zr+1+v+c-1)/gz1;  //Z=19628
+            //pzvc2 = gamma(zr+1+v+c-2)/gz1;  //Z=19629
+            //pzac = gamma(zr+1-2*a1+c)/gz1;  //Z=19630
+            //pzac1 = gamma(zr+1-2*a1+c-1)/gz1;  //Z=19631
+            //pzac2 = gamma(zr+1-2*a1+c+2)/gz1;  //Z=19632
             pzc = gamma(zr+1+c)/gz1;  //Z=19633
             pzc1 = gamma(zr+1+c-1)/gz1;  //Z=19634
             pza = gamma(zr+1-2*a1)/gz1;  //Z=19635
-            pzva = gamma(zr+1+v-2*a1)/gz1;  //Z=19636
-            pzva1 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=19637
-            dnv0 = 1;  //Z=19638
-            pvav0 = gamma(zr+1+v-2*a1)/gz1;  //Z=19639
-            pvav10 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=19640
-            pva0 = gamma(zr+1-2*a1)/gz1;  //Z=19641
+            //pzva = gamma(zr+1+v-2*a1)/gz1;  //Z=19636
+            //pzva1 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=19637
+            //dnv0 = 1;  //Z=19638
+            //pvav0 = gamma(zr+1+v-2*a1)/gz1;  //Z=19639
+            //pvav10 = gamma(zr+1+v-2*a1-1)/gz1;  //Z=19640
+            //pva0 = gamma(zr+1-2*a1)/gz1;  //Z=19641
 
             cc1 = 1/dim;  //Z=19643
-            cc4 = rho/((dim-alfa)*pow(p1,dim-alfa));  //Z=19644
-            cc6 = -rho/(dim-alfa);  //Z=19645
+            cc4 = params.rho/((dim-params.alphash1)*pow(params.p1,dim-params.alphash1));  //Z=19644
+            cc6 = -params.rho/(dim-params.alphash1);  //Z=19645
             sumc = cc1+cc4+cc6;  //Z=19646
 
             /*  term #1 series  */  //Z=19648
@@ -10372,18 +10169,18 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                 z12v[0] = 1;  //Z=19650
                 b1sv[0] = 1;  //Z=19651
                 fkv[0] = 1;  //Z=19652
-                qqn[0] = 1.0;  //Z=19653
+                double qqnn = 1.0;  //Z=19653
                 F12sez = 1.0;  //Z=19654
                 oldF12sez = 1.0;  //Z=19655
                 for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=19656
-                    qqn[n] = qqn[n-1]*q*q;  //Z=19657
+                    qqnn = qqnn*q*q;  //Z=19657
                     z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=19658
                     b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=19659
                     fkv[n] = fkv[n-1]*n;  //Z=19660
                     /* F12sez:=F12sez+power(-x12z,n)*z12v[n]/(b1sv[n]*fkv[n]);  //Z=19661 */
 
-                    F12sez = F12sez+carr4p[n]*qqn[n];  //Z=19663
+                    F12sez = F12sez+params.CR->carr4f[n]*qqnn;  //Z=19663
 
                     del = fabs((F12sez-oldF12sez)/F12sez);  //Z=19665
                     if ( del<delc ) break; /* goto 121; */  //Z=19666
@@ -10402,12 +10199,12 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                 b2v[0] = 1;  //Z=19678
                 b1sv[0] = 1;  //Z=19679
                 fkv[0] = 1;  //Z=19680
-                qqn[0] = 1.0;  //Z=19681
+                double qqnn = 1.0;  //Z=19681
                 F42sez = 1.0;  //Z=19682
                 oldF42sez = 1.0;  //Z=19683
                 for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=19684
-                    qqn[n] = qqn[n-1]*q*q;  //Z=19685
+                    qqnn = qqnn*q*q;  //Z=19685
                     z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=19686
                     a1v[n] = a1v[n-1]*(a1-1+n);  //Z=19687
                     b1v[n] = b1v[n-1]*(b1-1+n);  //Z=19688
@@ -10416,7 +10213,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                     fkv[n] = fkv[n-1]*n;  //Z=19691
                     /* F42sez:=F42sez+power(-x22z,n)*z12v[n]*a1v[n]/(b1v[n]*b2v[n]*fkv[n]);  //Z=19692 */
 
-                    F42sez = F42sez+carr5p[n]*qqn[n];  //Z=19694
+                    F42sez = F42sez+params.CR->carr5f[n]*qqnn;  //Z=19694
 
                     del = fabs((F42sez-oldF42sez)/F42sez);  //Z=19696
                     if ( del<delc ) break; /* goto 124; */  //Z=19697
@@ -10435,12 +10232,12 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                 b2v[0] = 1;  //Z=19709
                 b1sv[0] = 1;  //Z=19710
                 fkv[0] = 1;  //Z=19711
-                qqn[0] = 1.0;  //Z=19712
+                double qqnn = 1.0;  //Z=19712
                 F62sez = 1.0;  //Z=19713
                 oldF62sez = 1.0;  //Z=19714
                 for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=19715
-                    qqn[n] = qqn[n-1]*q*q;  //Z=19716
+                    qqnn = qqnn*q*q;  //Z=19716
                     z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=19717
                     a1v[n] = a1v[n-1]*(a1-1+n);  //Z=19718
                     b1v[n] = b1v[n-1]*(b1-1+n);  //Z=19719
@@ -10449,7 +10246,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                     fkv[n] = fkv[n-1]*n;  //Z=19722
                     /* F62sez:=F62sez+power(-x12z,n)*z12v[n]*a1v[n]/(b1v[n]*b2v[n]*fkv[n]);  //Z=19723 */
 
-                    F62sez = F62sez+carr6p[n]*qqn[n];  //Z=19725
+                    F62sez = F62sez+params.CR->carr6f[n]*qqnn;  //Z=19725
 
                     del = fabs((F62sez-oldF62sez)/F62sez);  //Z=19727
                     if ( del<delc ) break; /* goto 126; */  //Z=19728
@@ -10477,8 +10274,8 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             if ( xrad>=lim4 )
             {/*4*/  //Z=19749
                 F42as10z = preg4*pow(x22z,-a1);  //Z=19750
-                F42as1sumz = pva0;  //Z=19751
-                F42as1z = F42as10z*F42as1sumz;  //Z=19752
+                //F42as1sumz = pva0;  //Z=19751
+                //F42as1z = F42as10z*F42as1sumz;  //Z=19752
                 F42as1z0 = F42as10z*pza;   /* * */  //Z=19753
 
                 F42as40z = preg3*pow(x2z,c);  //Z=19755
@@ -10489,7 +10286,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                 F42as27 = e0*pzc*(cos(M_PI*c/2.0)*cos(arg44)/nen44-sin(M_PI*c/2.0)*sin(arg44)/nen44);  //Z=19760
                 F42as28 = e1*(1/(2.0*x2z))*pzc1*(cos(M_PI*(c-1)/2.0)*cos(arg45)/nen45-sin(M_PI*(c-1)/2.0)*sin(arg45)/nen45);  //Z=19761
                 F42as4z = F42as40z*(F42as27+F42as28);  //Z=19762
-                F42asz = F42as1z+F42as4z;  //Z=19763
+                //F42asz = F42as1z+F42as4z;  //Z=19763
                 F42asz0 = F42as1z0+F42as4z;  //Z=19764
                 F42 = F42asz0;  //Z=19765
             }/*4*/  //Z=19766
@@ -10498,8 +10295,8 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             if ( xradp>=lim6 )
             {/*4*/  //Z=19769
                 F62as10z = preg4*pow(x12z,-a1);  //Z=19770
-                F62as1sumz = pva0;  //Z=19771
-                F62as1z = F62as10z*F62as1sumz;  //Z=19772
+                //F62as1sumz = pva0;  //Z=19771
+                //F62as1z = F62as10z*F62as1sumz;  //Z=19772
                 F62as1z0 = F62as10z*pza;     /* * */  //Z=19773
 
                 F62as40z = preg3*pow(x1z,c);  //Z=19775
@@ -10510,7 +10307,7 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
                 F62as27 = e0*pzc*(cos(M_PI*c/2.0)*cos(arg64)/nen64-sin(M_PI*c/2.0)*sin(arg64)/nen64);  //Z=19780
                 F62as28 = e1*(1/(2.0*x1z))*pzc1*(cos(M_PI*(c-1)/2.0)*cos(arg65)/nen65-sin(M_PI*(c-1)/2.0)*sin(arg65)/nen65);  //Z=19781
                 F62as4z = F62as40z*(F62as27+F62as28);  //Z=19782
-                F62asz = F62as1z+F62as4z;  //Z=19783
+                //F62asz = F62as1z+F62as4z;  //Z=19783
                 F62asz0 = F62as1z0+F62as4z;  //Z=19784
                 F62 = F62asz0;  //Z=19785
             }/*4*/  //Z=19786
@@ -10527,20 +10324,20 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
 
 
     /*  cube  */  //Z=19799
-    if ( part==5 )
+    if ( params.part==5 )
     {/*2*/  //Z=19800
         /*  homogeneous cube  */  //Z=19801
-        if ( cs==0 )
+        if ( params.cs==0 )
         {/*3*/  //Z=19802
-            if ( q<0.7*limq4 )
+            if ( q<0.7*params.limq4f )
             {/*4*/  //Z=19803
                 pqsum = 1.0;  //Z=19804
                 oldpqsum = 0.0;  //Z=19805
-                qqn[0] = 1.0;  //Z=19806
+                double qqnn = 1.0;  //Z=19806
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=19807
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=19808
-                    pqsum = pqsum+carr4p[nser]*qqn[nser];  //Z=19809
+                    qqnn = qqnn*q*q;  //Z=19808
+                    pqsum = pqsum+params.CR->carr4f[nser]*qqnn;  //Z=19809
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=19810
                     if ( delser<0.0001 ) break; /* goto 81; */  //Z=19811
                     oldpqsum = pqsum;  //Z=19812
@@ -10550,21 +10347,21 @@ double SasCalc_GENERIC_calculation::formfq( double length, double radius, double
             }/*4*/  //Z=19816
             else
             {/*4*/  //Z=19817
-                qrombdeltac(length,radius,p1,params.sigma,alfa,params.dbeta,theta,phi,qx,qy,qz,qxhklt,qyhklt,qzhklt,qhkl,
+                qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz,qxhklt,qyhklt,qzhklt,qhkl,
                             params.ax1.length(),params.ax2.length(),params.ax3.length(),
                             params.ax1.x(),params.ax1.y(),params.ax1.z(),
                             params.ax2.x(),params.ax2.y(),params.ax2.z(),
                             params.ax3.x(),params.ax3.y(),params.ax3.z(),
                             params.sig.x(),params.sig.y(),params.sig.z(),
-                            ordis,3,7,12,7,1,0,carr1p,pql);  //Z=19818
+                            ordis,3,7,12,7,1,0,params.CR->carr1f,pql);  //Z=19818
                     /*formfq:=*/ return pql/(M_PI/2.0);  //Z=19819
                 }/*4*/  //Z=19820
             }/*3*/ /*  of homogeneous cube */  //Z=19821
 
             /*  core/shell cube  */  //Z=19823
-            if ( cs==1 )
+            if ( params.cs==1 )
             {/*3*/  //Z=19824
-                /*formfq:=*/ return polycscube(1.0,rho,p1,1.0,0.001,0.0001,2*params.radiusi,0,params.sigma,q);  //Z=19825
+                /*formfq:=*/ return polycscube(1.0,params.rho,params.p1,1.0,0.001,0.0001,2*params.radiusi,0,params.sigma,q);  //Z=19825
             }/*3*/  //Z=19826
 
     }/*2*/  /*  of cube  */  //Z=19828
@@ -10595,29 +10392,10 @@ double SasCalc_GENERIC_calculation::gammln( double xx ) const
 #ifdef __CUDACC__
 __host__ __device__
 #endif
-double SasCalc_GENERIC_calculation::polycscube(double /*rho1*/, double /*rho2*/, double /*p1*/, double /*p2*/, double /*alf1*/, double /*alf2*/, double /*rn*/, double /*pf*/,
-                            double /*sigma*/, double /*q*/) const
+double SasCalc_GENERIC_calculation::polycscube(double /*rho1*/, double /*rho2*/, double /*p1*/, double /*p2*/,
+                                            double /*alf1*/, double /*alf2*/, double /*rn*/, double /*pf*/,
+                                            double /*sigma*/, double /*q*/) const
 {
+    // Gespräch mit Prof. Förster (05.Jun.2023): Diese Routinen werden noch nicht verwendet, sie werden bei Erweiterungen kommen.
     return 0;
-#ifdef undef
-    const int maxit = 10;
-    const double eps = 0.00001;
-
-    double intrc,oldintrc;
-    int    itrc,trapzditrc;
-
-    intrc = 0;
-    /*** integral over alpha = 0 .. pi ***/
-    /*** integrate over alpha = 0 .. pi/2 due to 4-fold symmetry ***/
-    trapcscube(0+eps,M_PI/2.0-eps,rho1,rho2,p1,p2,alf1,alf2,rn,pf,sigma,q,intrc,1,trapzditrc);
-    oldintrc = intrc;
-    for ( itrc=2; itrc<=maxit; itrc++ )
-    {
-        trapcscube(0+eps,M_PI/2.0-eps,rho1,rho2,p1,p2,alf1,alf2,rn,pf,sigma,q,intrc,itrc,trapzditrc);
-        if ( (oldintrc != 0.0) && (fabs(1-intrc/oldintrc) < eps) ) break;
-        oldintrc = intrc;
-    }
-    /* normalization: division by  integral 0..pi/2  sin(theta) d(theta) = 1 */
-    return intrc;
-#endif
 }

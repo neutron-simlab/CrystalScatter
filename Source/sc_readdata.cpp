@@ -1205,12 +1205,12 @@ int SC_ReadData::iterate( QString file_name, QString grp_path, const hid_t loc_i
         //////////////////////////////////////////////////////////////////////////////////////
         case H5G_DATASET:
         {
-            hid_t did, sid, ftid, mtid, attr;
+            hid_t did, sid, ftid, mtid;
             size_t datatype_size;
             H5T_sign_t datatype_sign;
             H5T_class_t datatype_class;
             hsize_t dims[H5S_MAX_RANK];
-            herr_t ret;
+            //herr_t ret;
             int rank;
 
             did = H5Dopen2(loc_id, info.name, H5P_DEFAULT);

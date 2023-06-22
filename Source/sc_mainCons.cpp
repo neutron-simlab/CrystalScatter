@@ -12,7 +12,6 @@
 #include "widimage.h"
 #include "sc_readdata.h"
 #include "sc_simplexfit2d.h"
-#include "sc_maingui.h"  // mittels #ifndef CONSOLENPROG alles bis auf Definitionen ausgeblendet
 
 #include <QDebug> // nur zum Test
 
@@ -28,7 +27,6 @@
 #define INTDEF_CSVFILE   "20211206 - Fit Rezept/AutoFit-Test" // -Win.csv oder -Gpu.csv
 #define INTDEF_AUTOFIT   "20211206 - Fit Rezept/AutoFit-Multifile/autoFitCommands.txt"
 #define INTDEF_AFOUTPUT  "20211206 - Fit Rezept/AutoFit-Multifile"
-#define INTDEF_METHOD    "bct"
 
 
 #ifdef Q_OS_LINUX
@@ -46,7 +44,7 @@
 #endif
 
 
-QStringList slCalcArt;
+//QStringList slCalcArt;
 int iCurCalcArt;
 
 QString category;
@@ -133,11 +131,6 @@ int main(int argc, char *argv[])
                                      "output" );
     parser.addOption(outputOption);
 
-    QCommandLineOption methodOption( QStringList() << "m" << "method",
-                                     "Method to be used for single image calculation and 2D-Fit.",
-                                     "method" );
-    parser.addOption(methodOption);
-
     QCommandLineOption nofftOption( "nofft",
                                     "If set, the FFT calculation during AI generation is skipped." );
     parser.addOption(nofftOption);
@@ -168,7 +161,7 @@ int main(int argc, char *argv[])
 
     QCommandLineOption tpvOption( "tpv",
                                   "Inputfile (*.sas_tpv) for the train parameter variation section to generate a number of random modified datasets (incl. r,phi and fft images)."
-                                  " This parameter can be given more than once.",
+                                  " This parameter can be given more than once. If this is the last parameter, a wildcard for the filename can be used too.",
                                   "tpv" );
     parser.addOption(tpvOption);
 
@@ -234,7 +227,6 @@ int main(int argc, char *argv[])
     QString csvfile   = parser.value(csvOption);
     QString autofit   = parser.value(autofitOption);
     QString af_output = parser.value(outputOption);
-    QString parMethod = parser.value(methodOption);
     bool nofft        = parser.isSet(nofftOption);
     noConsolOutput    = parser.isSet(noConsolOption);
 
@@ -277,7 +269,7 @@ int main(int argc, char *argv[])
     imgSwapH = parser.value(imgSwapOption).contains("H",Qt::CaseInsensitive);
     imgSwapV = parser.value(imgSwapOption).contains("V",Qt::CaseInsensitive);
     imgRot   = parser.value(imgRotateOption).toInt(&ok);
-    if ( !ok || imgRot < 0 || imgRot > 3 ) imgRot = 0;
+    if ( !ok || (imgRot < 0) || (imgRot > 3) ) imgRot = 0;
     imgZoom  = parser.value(imgZoomOption).toInt(&ok);
     if ( !ok || (imgZoom!=1 && imgZoom!=2 && imgZoom!=4) ) imgZoom = 1;
     if ( parser.value(imgColorOption).startsWith("grey",Qt::CaseInsensitive) )
@@ -314,8 +306,6 @@ int main(int argc, char *argv[])
         autofit = "C:/SimLab/sas-crystal/20211206 - Fit Rezept/AutoFit-Multifile/autoFitCommands.txt";
     if ( af_output.isEmpty() )
         af_output = "C:/SimLab/sas-crystal/20211206 - Fit Rezept/AutoFit-Multifile"; // AutoFit-Test-Win.png";
-    if ( parMethod.isEmpty() )
-        parMethod = "bct";
     nofft = true;
 #else
     // Autofit-Test
@@ -333,8 +323,6 @@ int main(int argc, char *argv[])
         autofit = "/home/wagener/sas-crystal/20211206 - Fit Rezept/AutoFit-Multifile/AutoFit/autoFitCommands.txt";
     if ( af_output.isEmpty() )
         af_output = "/home/wagener/sas-crystal/20211206 - Fit Rezept/AutoFit-Multifile"; // AutoFit-Test-CPU.png";
-    if ( parMethod.isEmpty() )
-        parMethod = "bct";
     nofft = true;
 #endif
 #endif // USE_INTERNAL_DEFAULTS
@@ -355,7 +343,6 @@ int main(int argc, char *argv[])
     {   // Bei automatischem Fit wird die Eingabe von AI ignoriert
         aifile = "";
         tpvfiles.clear();
-        //if ( parMethod.isEmpty() ) parMethod = "bct"; - jetzt nur noch Generic
     }
 
     //------------------------------------------------------------------
@@ -399,7 +386,6 @@ int main(int argc, char *argv[])
         flog->write( qPrintable(        "   Auto fit output: "+af_output+EOL) );
         flog->write( qPrintable(        "    CSV-Outputfile: "+csvfile+EOL) );
         flog->write( qPrintable(        "    TPV-Inputfiles: "+QString::number(tpvfiles.size())+EOL) );
-        flog->write( qPrintable(        "   Selected method: "+parMethod+EOL) );
         flog->write( qPrintable(QString("       No FFT Flag: %1").arg(nofft)+EOL) );
         flog->write( qPrintable(QString("             Image:%1%2 Rot=%3deg, Zoom=%4, Color=%5")
                                .arg(imgSwapH?" SwapHor,":"").arg(imgSwapV?" SwapVert,":"")
@@ -414,7 +400,6 @@ int main(int argc, char *argv[])
     std::cerr << "LOGFILE: " << qPrintable(logfile)   << std::endl;
     std::cerr << "    CSV: " << qPrintable(csvfile)   << std::endl;
     std::cerr << "    TPV: " << qPrintable(tpvfiles.join(", ")) << std::endl;
-    std::cerr << " METHOD: " << qPrintable(parMethod) << std::endl;
     std::cerr << " no FFT: " << nofft                 << std::endl;
     std::cerr << qPrintable(QString("  Image:%1%2 Rot=%3deg, Zoom=%4, Color=%5")
                            .arg(imgSwapH?" SwapHor,":"").arg(imgSwapV?" SwapVert,":"")
@@ -424,7 +409,7 @@ int main(int argc, char *argv[])
 
     SC_CalcCons *calc = new SC_CalcCons;
 
-    slCalcArt = calc->getCalcTypes();
+    //slCalcArt = calc->getCalcTypes();
     if ( !paramfile.isEmpty() ) calc->loadParameter( paramfile );
 
     if ( tpvfiles.size() > 0 )
@@ -571,25 +556,25 @@ int main(int argc, char *argv[])
     else if ( ! autofit.isEmpty() )
     {   // Calculate 2D Fits
         void automaticFit( SC_CalcCons *calc, QString imgfile, QString autofit, int nthreads,
-                           QString parMethod, QString fnpng );
+                           QString fnpng );
         if ( flog )
         {
             flog->write("*****************************************" EOL);
             flog->write("* Perform automatic fit                 *" EOL);
             flog->write("*****************************************" EOL);
         }
-        automaticFit( calc, imgfile, autofit, nthreads, parMethod, af_output );
+        automaticFit( calc, imgfile, autofit, nthreads, af_output );
     }
-    else
+    else if ( !imgfile.isEmpty() )
     {   // Generate only one image
-        void generateSingleImage( SC_CalcCons *calc, QString fnpng, int nthreads, QString parMethod );
+        void generateSingleImage( SC_CalcCons *calc, QString fnpng, int nthreads );
         if ( flog )
         {
             flog->write("*****************************************" EOL);
             flog->write("* Generate single image file            *" EOL);
             flog->write("*****************************************" EOL);
         }
-        generateSingleImage( calc, imgfile, nthreads, parMethod );
+        generateSingleImage( calc, imgfile, nthreads );
     }
 
     QDateTime dtEnd = QDateTime::currentDateTime();
@@ -665,16 +650,16 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
     int imgCount = 0;
 
     SasCalc_PostProc::inst()->setLogging(false);
-    bool fftInputLin,
-         fftRphiScale, fftRphiClip, fftRphiClip40,
-         fftOutScale,  fftOutClip,  fftOutClip40,
-         fftOutputSwap;
+    bool fftInputLin=false,
+         fftRphiScale=false, fftRphiClip=false, fftRphiClip40=false,    // to avoid compiler warnings
+         fftOutScale=false,  fftOutClip=false,  fftOutClip40=false,
+         fftOutputSwap=false;
     int  fftRphiSize=0, fftOutSize=0;
 #define fftOutRe   0
 #define fftOutIm   1
 #define fftOutAbs  2
 #define fftOutSpec 3
-    int fftOutFormat;
+    int fftOutFormat=0;
     int fftOutCutX=0, fftOutCutY=0;
 
     QString fn, fnpng;
@@ -740,31 +725,6 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
                 }
                 if ( sl[0] == "FFT" && !nofft )
                 {
-                    /*
-                    QString fftOutFormat = "";
-                    if (      ui->radFFToutReal->isChecked()     ) fftOutFormat = "OutRe";
-                    else if ( ui->radFFToutImag->isChecked()     ) fftOutFormat = "OutIm";
-                    else if ( ui->radFFToutBetrag->isChecked()   ) fftOutFormat = "OutAbs";
-                    else if ( ui->radFFToutSpectrum->isChecked() ) fftOutFormat = "OutSpec";
-                    QString rphiScale = "";
-                    if ( ui->togFFTscaleRphi->isChecked()  ) rphiScale += "Scale ";
-                    if ( ui->togFFTclipRphi->isChecked()   ) rphiScale += "Clip1 ";
-                    if ( ui->togFFTclip40Rphi->isChecked() ) rphiScale += "Clip4 ";
-                    QString fftScale = "";
-                    if ( ui->togFFTscaleOut->isChecked()  ) fftScale += "Scale ";
-                    if ( ui->togFFTclipOut->isChecked()   ) fftScale += "Clip1 ";
-                    if ( ui->togFFTclip40Out->isChecked() ) fftScale += "Clip4 ";
-
-                    f.write( qPrintable(QString("FFT|%1;%2;%3;%4;%5;%6;%7")
-                                           .arg(ui->radFFTLinInput->isChecked()?"InLin":"InLog")
-                                           .arg(ui->cbsFFTsizeRphi->currentText().left(3).trimmed())
-                                           .arg(rphiScale.trimmed())
-                                           .arg(ui->cbsFFTsizeOut->currentText().left(3).trimmed())
-                                           .arg(fftOutFormat)
-                                           .arg(fftScale.trimmed())
-                                           .arg(ui->togIFFTSwap->isChecked()?"OutSwap":"OutNoSwap")
-                                       +EOL) );
-                    */
                     static QStringList fftOut = { "OutRe", "OutIm", "OutAbs", "OutSpec" };
                     QStringList fft = sl[1].split(";");
                     while ( fft.size() < 9 ) fft << "0";
@@ -783,6 +743,18 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
                     fftOutputSwap = fft[6] == "OutSwap";   // OutNoSwap
                     fftOutCutX    = fft[7].toInt();
                     fftOutCutY    = fft[8].toInt();
+                    continue;
+                }
+                if ( sl[0] == "RPHI" )
+                {
+                    QStringList fft = sl[1].split(";");
+                    while ( fft.size() < 2 ) fft << "0";
+                    // RPHI|256;Scale
+                    //       0   1
+                    fftRphiSize   = fft[0].toInt();
+                    fftRphiScale  = fft[1].contains("Scale");
+                    fftRphiClip   = fft[1].contains("Clip1");
+                    fftRphiClip40 = fft[1].contains("Clip4");
                     continue;
                 }
             } // if ( sl.size() == 2 )
@@ -847,18 +819,18 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
                         continue;
                     }
                 }
-                std::cerr << "TPV params:";
-                if ( tpvBSx0 > 0 ) std::cerr << " BS: " << tpvBSx0 << "/" << tpvBSy0
-                              << " (" << tpvBSxs << "x" << tpvBSys << ")";
-                if ( tpvLinesX > 0 ) std::cerr << " Lines: " << tpvLinesX << " (" << tpvLinesXwidth << "px) / "
-                              << tpvLinesY << " (" << tpvLinesYwidth << "px)";
-                if ( tpvAddNoise ) std::cerr << " Noise";
-                if ( tpvConvolute ) std::cerr << " Convolute";
-                if ( tpvAddRphi ) std::cerr << " Save(r,phi)";
-                if ( tpvSaveExtra ) std::cerr << " SaveExtra";
-                if ( tpvGenPNG ) std::cerr << " GeneratePNG";
-                if ( tpvScaleScat ) std::cerr << " ScaleScat";
-                std::cerr << std::endl;
+                QStringList parstr;
+                if ( tpvBSx0 > 0 )
+                    parstr << QString("BS=%1x%2 (%3x%4px)").arg(tpvBSx0).arg(tpvBSy0).arg(tpvBSxs).arg(tpvBSys);
+                if ( tpvLinesX > 0 || tpvLinesY > 0 )
+                    parstr << QString("Lines: X=%1(%2px) / Y=%3(%4px)").arg(tpvLinesX).arg(tpvLinesXwidth).arg(tpvLinesY).arg(tpvLinesYwidth);
+                if ( tpvAddNoise ) parstr << "Noise";
+                if ( tpvConvolute ) parstr << "Convolute(TODO)";
+                if ( tpvAddRphi ) parstr << QString("Save(r,phi) %1px").arg(fftRphiSize);
+                if ( tpvSaveExtra ) parstr << "SaveUnmodified";
+                if ( tpvGenPNG ) parstr << "GeneratePNG";
+                if ( tpvScaleScat ) parstr << "ScaleScat";
+                std::cerr << "TPV params: " << qPrintable(parstr.join("; ")) << std::endl;
                 continue;
             } // if ( sl[0] == "TPV" )
 
@@ -922,7 +894,7 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
                 }
                 else
                 {
-                    calc->updateParamValue( slCalcArt[iCurCalcArt], vv[0], vv[1].toDouble() );
+                    calc->updateParamValue( vv[0], vv[1].toDouble() );
                     if ( !fnfixed )
                         fn += QString("_%1=%2").arg(vv[0]).arg(vv[1].toDouble(),0,'f',3); // nur 3 Digits müssen reichen, sonst wird der Name zu lang
                 }
@@ -995,8 +967,8 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
         int sx = calc->maxX() - calc->minX();
         int sy = calc->maxY() - calc->minY();
         int len = sx * sy;
-        int bsx0 = calc->currentParamValue("","BeamPosX");   // Position
-        int bsy0 = calc->currentParamValue("","BeamPosY");
+        int bsx0 = calc->currentParamValue("BeamPosX");   // Position
+        int bsy0 = calc->currentParamValue("BeamPosY");
         int bsdx = 2; // TODO  Größe
         int bsdy = 2;
 
@@ -1274,21 +1246,10 @@ void saveAIfile( QString fn, double *src, int sx, int sy, int linflg )
 }
 
 
-void generateSingleImage( SC_CalcCons *calc, QString fnpng, int nthreads, QString parMethod )
+void generateSingleImage( SC_CalcCons *calc, QString fnpng, int nthreads )
 {
     if ( !fnpng.endsWith(".png",Qt::CaseInsensitive) ) fnpng += ".png";
-    if ( parMethod.isEmpty() )
-        iCurCalcArt = 0;
-    else
-    {
-        iCurCalcArt = 0;
-        foreach (QString s, slCalcArt)
-        {
-            if ( s.startsWith(parMethod,Qt::CaseInsensitive) )
-                break;
-            iCurCalcArt++;
-        }
-    }
+    iCurCalcArt = 0;
 
     // Berechnen
     calc->prepareCalculation( false );
@@ -1332,7 +1293,7 @@ bool myProgressLogging( char *msg )
 }
 
 
-double doFitStart( SC_CalcCons *calc, widImage *img, int nthreads, QString parMethod,
+double doFitStart( SC_CalcCons *calc, widImage *img, int nthreads,
                    double inpFitStepSize, double tolerance,
                    int inpFitRepetitions, int inpFitMaxIter,
                    int inpFitBorder, int inpFitBStop/*-1 for mask*/,
@@ -1454,12 +1415,10 @@ double doFitStart( SC_CalcCons *calc, widImage *img, int nthreads, QString parMe
  *                    empty if multiple images are fitted (given in recipe)
  * @param autofit   = filepath/name with recipe
  * @param nthreads  = number of threads to be used (0=GPU if available)
- * @param parMethod = calculation method to be used
  * @param fnpng     = output image filepath/name if only one image is fitted
  *                    filepath for all other output file if multiple images are fitted
  */
-void automaticFit( SC_CalcCons *calc, QString imgfile, QString autofit, int nthreads,
-                   QString parMethod, QString fnpng )
+void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthreads, QString fnpng)
 {
     QFile finp( autofit );
     if ( ! finp.open(QIODevice::ReadOnly) )
@@ -1495,8 +1454,8 @@ void automaticFit( SC_CalcCons *calc, QString imgfile, QString autofit, int nthr
         SC_ReadData::findBeamCenter( imgZiel, bs_x, bs_y );
         imgZiel->addMetaInfo( "BeamPosX", QString::number(bs_x) );
         imgZiel->addMetaInfo( "BeamPosY", QString::number(bs_y) );
-        calc->updateParamValue( parMethod, "BeamPosX", bs_x - imgZiel->myWidth()/2. );
-        calc->updateParamValue( parMethod, "BeamPosY", bs_y - imgZiel->myHeight()/2. );
+        calc->updateParamValue( "BeamPosX", bs_x - imgZiel->myWidth()/2. );
+        calc->updateParamValue( "BeamPosY", bs_y - imgZiel->myHeight()/2. );
         if ( flog )
             flog->write(qPrintable(QString("AutoBeamstop: in data (%1 / %2), in calc (%3 / %4)").arg(bs_x).arg(bs_y)
                                    .arg(bs_x - imgZiel->myWidth()/2.).arg(bs_y - imgZiel->myHeight()/2.)+EOL));
@@ -1513,7 +1472,7 @@ void automaticFit( SC_CalcCons *calc, QString imgfile, QString autofit, int nthr
     // und nutze die 'flog' um für jedes Bild der Serie eine eigene Logdatei zu schreiben, die bleibt dann kleiner.
     QFile *globLog = flog;
     flog = nullptr;
-
+/*
     // Da die Eingaben z.T. in anderer Groß/Kleinschreibung kommt als in der Definition
     // festgelegt, wird hier ein Angleich ausgeführt, damit die folgenden Routinen laufen.
     QStringList types = calc->getCalcTypes();
@@ -1525,20 +1484,20 @@ void automaticFit( SC_CalcCons *calc, QString imgfile, QString autofit, int nthr
             break;
         }
     }
-
+*/
     // Jetzt die Struktur p2f füllen mit allen fitbaren Variablen aus den Definitionne der angegebenen Methode
-    QStringList slParams = calc->paramsForMethod( parMethod, false, false, true );
+    QStringList slParams = calc->paramsForMethod( false, false, true );
     foreach (QString p, slParams)
     {
         bool cnt;
         double min, max;
         //qDebug() << "FIT: create new" << p;
         _fitLimits *fl = new _fitLimits;
-        fl->orgval = fl->fitstart = calc->currentParamValue( parMethod, p );
+        fl->orgval = fl->fitstart = calc->currentParamValue( p );
         fl->fitType  = _fitTypes::fitNone;
         fl->fitvalid = false;
         fl->used = false;
-        if ( calc->limitsOfParamValue( parMethod, p, min, max, cnt ) )
+        if ( calc->limitsOfParamValue( p, min, max, cnt ) )
         {
             if ( cnt )
                 fl->fitType = _fitTypes::fitCbs;
@@ -1561,12 +1520,12 @@ void automaticFit( SC_CalcCons *calc, QString imgfile, QString autofit, int nthr
     // Jetzt kommen die Min/Max/Start Werte Modifikationen aus den Settings
     // (wenn das Programm im manuellen Modus auf diesem Rechner schon mal lief)
     QSettings sets(SETT_APP,SETT_GUI);
-    sets.beginGroup( "Fit-"+parMethod );
+    sets.beginGroup( "Fit-Limits" );
     QStringList slKeys = sets.allKeys();
     //qDebug() << m << slKeys;
     foreach (QString k, slKeys)
     {
-        if ( ! calc->isCurrentParameterValid(parMethod,k) ) continue;
+        if ( ! calc->isCurrentParameterValid(k) ) continue;
         _fitLimits *fl = p2f.value(k,nullptr);
         if ( fl == nullptr ) continue;
         QStringList slVal = sets.value(k,"0:0:0:0").toString().split(":");
@@ -1764,7 +1723,7 @@ void automaticFit( SC_CalcCons *calc, QString imgfile, QString autofit, int nthr
                 while ( it != p2f.constEnd() )
                 {
                     it.value()->used = slNames.contains(it.key(),Qt::CaseInsensitive);
-                    it.value()->orgval = it.value()->fitstart = calc->currentParamValue( parMethod, it.key() );
+                    it.value()->orgval = it.value()->fitstart = calc->currentParamValue( it.key() );
                     oneUsed |= it.value()->used;
                     //qDebug() << it.key() << it.value()->used;
                     if ( ! param2values.contains(it.key()) && it.value()->used )
@@ -1850,8 +1809,8 @@ void automaticFit( SC_CalcCons *calc, QString imgfile, QString autofit, int nthr
                     SC_ReadData::findBeamCenter( imgZiel, bs_x, bs_y );
                     imgZiel->addMetaInfo( "BeamPosX", QString::number(bs_x) );
                     imgZiel->addMetaInfo( "BeamPosY", QString::number(bs_y) );
-                    calc->updateParamValue( parMethod, "BeamPosX", bs_x - imgZiel->myWidth()/2. );
-                    calc->updateParamValue( parMethod, "BeamPosY", bs_y - imgZiel->myHeight()/2. );
+                    calc->updateParamValue( "BeamPosX", bs_x - imgZiel->myWidth()/2. );
+                    calc->updateParamValue( "BeamPosY", bs_y - imgZiel->myHeight()/2. );
                     if ( flog )
                         flog->write(qPrintable(QString("AutoBeamstop: in data (%1 / %2), in calc (%3 / %4)").arg(bs_x).arg(bs_y)
                                                   .arg(bs_x - imgZiel->myWidth()/2.).arg(bs_y - imgZiel->myHeight()/2.)+EOL));
@@ -1879,7 +1838,7 @@ void automaticFit( SC_CalcCons *calc, QString imgfile, QString autofit, int nthr
                     double timeForOne;      // Summen über alle Repetitions/Iterations
                     int    loopsForOne;
                     int    imgGenForOne;
-                    double fitMeanChangePercent = doFitStart( calc, imgZiel, nthreads, parMethod,
+                    double fitMeanChangePercent = doFitStart( calc, imgZiel, nthreads,
                                                               stp, tol, rep, iter,
                                                               0, -1/* for mask*/,
                                                               timeForOne, loopsForOne, imgGenForOne );

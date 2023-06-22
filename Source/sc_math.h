@@ -19,10 +19,6 @@
 #endif
 
 
-typedef bool (*progressAndAbort)(int);  //!< Callback function type to update the progress bar and get the abort information
-                                        //!< ... only used without GPU
-
-
 typedef bool (*progressLogging)(char*);  //!< Callback function type to put informations in the logging list
                                          //!< only used during the Fit2D function
 

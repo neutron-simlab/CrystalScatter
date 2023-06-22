@@ -364,7 +364,7 @@ double *SasCalc_PostProc::generateRphi(int x0, int x1, int y0, int y1,
 double *SasCalc_PostProc::calculateIFFT(bool foreward,
                                         int x0, int x1, int y0, int y1, // Source size
                                         const double *d,                // Source data
-                                        int s,                          // Dest. size
+                                        int s,                          // Destination size
                                         _outType ot,
                                         bool scaled, bool clip, bool clip40,
                                         bool swapout,
@@ -763,35 +763,6 @@ int SasCalc_PostProc::calculateIndex(bool swap, int x, int y, int dim)
  */
 void SasCalc_PostProc::scaleAndClipData( double *data, int len, bool scale, bool clip, bool clip40, bool genlog )
 {
-    if ( scale )
-    {   // Scale to max
-        double max = 0;
-        double *ptr = data;
-        for ( int i=0; i<len; i++, ptr++)
-            if ( max < *ptr )
-                max = *ptr;
-        ptr = data;
-        for ( int i=0; i<len; i++, ptr++ )
-            *ptr = *ptr / max;
-    }
-    if ( clip )
-    {   // Clip auf [1e-6 .. 1]
-        double *ptr = data;
-        for ( int i=0; i<len; i++, ptr++)
-        {
-            *ptr = ( ( log( abs(*ptr) / 1e-20 ) / log(10) ) + 6.0 ) / 6.0;
-            if ( *ptr < 0 ) *ptr = 0;
-        }
-    }
-    if ( clip40 )
-    {   // Clip auf 40% .. 100%
-        double *ptr = data;
-        for ( int i=0; i<len; i++, ptr++ )
-        {
-            *ptr = 1.0 - ( 1.0 - *ptr ) / (1.0 - 0.4);
-            if ( *ptr < 0 ) *ptr = 0;
-        }
-    }
     if ( genlog )
     {   //
         double *ptr = data;
@@ -810,6 +781,43 @@ void SasCalc_PostProc::scaleAndClipData( double *data, int len, bool scale, bool
                 *ptr = (log10(*ptr) - vlogmin) / (vlogmax-vlogmin);
             else
                 *ptr = 0;
+        if ( _doLogOutput )
+            qDebug() << "POSTPROC:scaleAndClipData generate log" << vlogmin << vlogmax;
+    }
+    if ( scale )
+    {   // Scale to max
+        double max = 0;
+        double *ptr = data;
+        for ( int i=0; i<len; i++, ptr++)
+            if ( max < *ptr )
+                max = *ptr;
+        ptr = data;
+        for ( int i=0; i<len; i++, ptr++ )
+            *ptr = *ptr / max;
+        if ( _doLogOutput )
+            qDebug() << "POSTPROC:scaleAndClipData scale linear to" << max;
+    }
+    if ( clip )
+    {   // Clip auf [1e-6 .. 1]
+        double *ptr = data;
+        for ( int i=0; i<len; i++, ptr++)
+        {
+            *ptr = ( ( log( abs(*ptr) / 1e-20 ) / log(10) ) + 6.0 ) / 6.0;
+            if ( *ptr < 0 ) *ptr = 0;
+        }
+        if ( _doLogOutput )
+            qDebug() << "POSTPROC:scaleAndClipData clip to [1e-6 .. 1]";
+    }
+    if ( clip40 )
+    {   // Clip auf 40% .. 100%
+        double *ptr = data;
+        for ( int i=0; i<len; i++, ptr++ )
+        {
+            *ptr = 1.0 - ( 1.0 - *ptr ) / (1.0 - 0.4);
+            if ( *ptr < 0 ) *ptr = 0;
+        }
+        if ( _doLogOutput )
+            qDebug() << "POSTPROC:scaleAndClipData clip to [40% .. 100%]";
     }
 }
 

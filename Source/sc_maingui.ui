@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1827</width>
-    <height>1415</height>
+    <width>1240</width>
+    <height>1093</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -52,7 +52,7 @@
        <enum>QTabWidget::Triangular</enum>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="tabCalc">
        <attribute name="title">
@@ -428,32 +428,55 @@
              <string>Particle</string>
             </property>
             <layout class="QGridLayout" name="gridLayout_32">
-             <item row="9" column="2">
-              <widget class="QCheckBox" name="fitAlfa">
+             <item row="3" column="2">
+              <widget class="QCheckBox" name="fitEditRadius">
                <property name="text">
                 <string/>
                </property>
               </widget>
              </item>
-             <item row="4" column="2">
-              <widget class="QCheckBox" name="fitEditRadiusi">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
+             <item row="0" column="1" colspan="2">
+              <widget class="QComboBox" name="cbsComboBoxParticle"/>
              </item>
-             <item row="9" column="1">
-              <widget class="QDoubleSpinBox" name="inpAlfa"/>
-             </item>
-             <item row="9" column="0">
-              <widget class="QLabel" name="lblAlfa">
+             <item row="8" column="0">
+              <widget class="QLabel" name="lblSigmaL">
                <property name="text">
-                <string>Alfa:</string>
+                <string>SigmaL:</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
                </property>
               </widget>
+             </item>
+             <item row="14" column="0">
+              <widget class="QLabel" name="lblEditDist">
+               <property name="text">
+                <string>Dist:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="10" column="2">
+              <widget class="QCheckBox" name="fitEditRho">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="15" column="0">
+              <spacer name="verticalSpacer">
+               <property name="orientation">
+                <enum>Qt::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>40</height>
+                </size>
+               </property>
+              </spacer>
              </item>
              <item row="1" column="0">
               <widget class="QLabel" name="lblOrdis">
@@ -465,8 +488,8 @@
                </property>
               </widget>
              </item>
-             <item row="7" column="2">
-              <widget class="QCheckBox" name="fitLength">
+             <item row="6" column="2">
+              <widget class="QCheckBox" name="fitEditDbeta">
                <property name="text">
                 <string/>
                </property>
@@ -482,57 +505,8 @@
                </property>
               </widget>
              </item>
-             <item row="8" column="2">
-              <widget class="QCheckBox" name="fitSigmaL">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="1" colspan="2">
-              <widget class="QComboBox" name="cbsComboBoxParticle"/>
-             </item>
-             <item row="6" column="1">
-              <widget class="QDoubleSpinBox" name="inpEditDbeta"/>
-             </item>
-             <item row="6" column="2">
-              <widget class="QCheckBox" name="fitEditDbeta">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="1">
-              <widget class="QDoubleSpinBox" name="inpEditRadius"/>
-             </item>
-             <item row="7" column="1">
-              <widget class="QDoubleSpinBox" name="inpLength"/>
-             </item>
-             <item row="3" column="0">
-              <widget class="QLabel" name="lblEditRadius">
-               <property name="text">
-                <string>EditRadius:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="1" colspan="2">
-              <widget class="QComboBox" name="cbsOrdis"/>
-             </item>
-             <item row="8" column="0">
-              <widget class="QLabel" name="lblSigmaL">
-               <property name="text">
-                <string>SigmaL:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="10" column="1">
-              <widget class="QDoubleSpinBox" name="inpEditRho"/>
+             <item row="5" column="1">
+              <widget class="QDoubleSpinBox" name="inpEditSigma"/>
              </item>
              <item row="0" column="0">
               <widget class="QLabel" name="lblComboBoxParticle">
@@ -544,29 +518,6 @@
                </property>
               </widget>
              </item>
-             <item row="10" column="2">
-              <widget class="QCheckBox" name="fitEditRho">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="8" column="1">
-              <widget class="QDoubleSpinBox" name="inpSigmaL"/>
-             </item>
-             <item row="5" column="2">
-              <widget class="QCheckBox" name="fitEditSigma">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="5" column="1">
-              <widget class="QDoubleSpinBox" name="inpEditSigma"/>
-             </item>
-             <item row="2" column="1" colspan="2">
-              <widget class="QComboBox" name="cbsComboBoxInterior"/>
-             </item>
              <item row="4" column="0">
               <widget class="QLabel" name="lblEditRadiusi">
                <property name="text">
@@ -577,10 +528,43 @@
                </property>
               </widget>
              </item>
-             <item row="7" column="0">
-              <widget class="QLabel" name="lblLength">
+             <item row="14" column="1">
+              <widget class="QLineEdit" name="outEditDist">
+               <property name="readOnly">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="1">
+              <widget class="QDoubleSpinBox" name="inpEditRadius"/>
+             </item>
+             <item row="8" column="1">
+              <widget class="QDoubleSpinBox" name="inpSigmaL"/>
+             </item>
+             <item row="6" column="1">
+              <widget class="QDoubleSpinBox" name="inpEditDbeta"/>
+             </item>
+             <item row="13" column="1">
+              <widget class="QLineEdit" name="outEditRelDis">
+               <property name="readOnly">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="2">
+              <widget class="QCheckBox" name="fitEditSigma">
                <property name="text">
-                <string>Length:</string>
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1" colspan="2">
+              <widget class="QComboBox" name="cbsOrdis"/>
+             </item>
+             <item row="5" column="0">
+              <widget class="QLabel" name="lblEditSigma">
+               <property name="text">
+                <string>EditSigma:</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -597,28 +581,79 @@
                </property>
               </widget>
              </item>
-             <item row="5" column="0">
-              <widget class="QLabel" name="lblEditSigma">
+             <item row="7" column="2">
+              <widget class="QCheckBox" name="fitLength">
                <property name="text">
-                <string>EditSigma:</string>
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0">
+              <widget class="QLabel" name="lblEditRadius">
+               <property name="text">
+                <string>EditRadius:</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
                </property>
               </widget>
              </item>
-             <item row="11" column="0">
-              <spacer name="verticalSpacer">
+             <item row="8" column="2">
+              <widget class="QCheckBox" name="fitSigmaL">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="12" column="0" colspan="3">
+              <widget class="Line" name="line_4">
                <property name="orientation">
-                <enum>Qt::Vertical</enum>
+                <enum>Qt::Horizontal</enum>
                </property>
-               <property name="sizeHint" stdset="0">
-                <size>
-                 <width>20</width>
-                 <height>40</height>
-                </size>
+              </widget>
+             </item>
+             <item row="4" column="2">
+              <widget class="QCheckBox" name="fitEditRadiusi">
+               <property name="text">
+                <string/>
                </property>
-              </spacer>
+              </widget>
+             </item>
+             <item row="9" column="1">
+              <widget class="QDoubleSpinBox" name="inpAlpha"/>
+             </item>
+             <item row="13" column="0">
+              <widget class="QLabel" name="lblEditRelDis">
+               <property name="text">
+                <string>RelDis:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="9" column="0">
+              <widget class="QLabel" name="lblAlpha">
+               <property name="text">
+                <string>Alpha:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="0">
+              <widget class="QLabel" name="lblLength">
+               <property name="text">
+                <string>Length:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="10" column="1">
+              <widget class="QDoubleSpinBox" name="inpEditRho"/>
              </item>
              <item row="10" column="0">
               <widget class="QLabel" name="lblEditRho">
@@ -630,15 +665,41 @@
                </property>
               </widget>
              </item>
-             <item row="3" column="2">
-              <widget class="QCheckBox" name="fitEditRadius">
+             <item row="9" column="2">
+              <widget class="QCheckBox" name="fitAlpha">
                <property name="text">
                 <string/>
                </property>
               </widget>
              </item>
+             <item row="7" column="1">
+              <widget class="QDoubleSpinBox" name="inpLength"/>
+             </item>
              <item row="4" column="1">
               <widget class="QDoubleSpinBox" name="inpEditRadiusi"/>
+             </item>
+             <item row="2" column="1" colspan="2">
+              <widget class="QComboBox" name="cbsComboBoxInterior"/>
+             </item>
+             <item row="11" column="0">
+              <widget class="QLabel" name="lblRotAlpha">
+               <property name="text">
+                <string>RotAlpha:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="11" column="1">
+              <widget class="QDoubleSpinBox" name="inpRotAlpha"/>
+             </item>
+             <item row="11" column="2">
+              <widget class="QCheckBox" name="fitRotAlpha">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
              </item>
             </layout>
            </widget>
@@ -718,7 +779,7 @@
              <item row="6" column="0">
               <widget class="QLabel" name="lblRadioButtonPara">
                <property name="text">
-                <string>RadButPara:</string>
+                <string>Paracrystal:</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -2529,6 +2590,36 @@
              <property name="text">
               <string/>
              </property>
+            </widget>
+           </item>
+           <item row="3" column="0" colspan="2">
+            <widget class="QGroupBox" name="groupBox">
+             <property name="title">
+              <string>Image scaling</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_14">
+              <item>
+               <widget class="QCheckBox" name="togFFTscaleImg">
+                <property name="text">
+                 <string>Scale to maximum (result 0..1)</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="togFFTclipImg">
+                <property name="text">
+                 <string>Clip to the range of [1e-6, 1]</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="togFFTclip40Img">
+                <property name="text">
+                 <string>Clip to 40% .. 100% (best after clip range)</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
             </widget>
            </item>
           </layout>
@@ -4372,383 +4463,395 @@ with file definitions</string>
        <attribute name="title">
         <string>Configuration</string>
        </attribute>
-       <layout class="QGridLayout" name="gridLayout_8" columnstretch="1,1,1,0">
-        <item row="1" column="0" rowspan="4">
-         <widget class="QGroupBox" name="grpLastFitActions">
-          <property name="title">
-           <string>Last fit actions</string>
-          </property>
-          <layout class="QVBoxLayout" name="verticalLayout_10">
-           <item>
-            <widget class="QLabel" name="label_44">
-             <property name="text">
-              <string>Copy the text with the mouse and insert it into a text file to use as the automatic fit definition.</string>
-             </property>
-             <property name="wordWrap">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPlainTextEdit" name="editAutoFit">
-             <property name="lineWrapMode">
-              <enum>QPlainTextEdit::NoWrap</enum>
-             </property>
-             <property name="readOnly">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="butClearEditAutoFit">
-             <property name="text">
-              <string>Clear read only text field</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item row="1" column="1">
-         <widget class="QGroupBox" name="grpDefColTbl">
-          <property name="title">
-           <string>Default color table</string>
-          </property>
-          <layout class="QVBoxLayout" name="verticalLayout_8">
-           <item>
-            <widget class="QLabel" name="label_32">
-             <property name="text">
-              <string>to be used for all newly generated images</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QComboBox" name="cbsDefaultColTbl"/>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item row="0" column="0">
-         <widget class="QGroupBox" name="grpCalcDestConf">
-          <property name="title">
-           <string>Calculation destination</string>
-          </property>
-          <layout class="QVBoxLayout" name="verticalLayout">
-           <item>
-            <widget class="QRadioButton" name="radNewImageCfg">
-             <property name="toolTip">
-              <string>Same settings as in the Calculation tab</string>
-             </property>
-             <property name="text">
-              <string>New Image window</string>
-             </property>
-             <property name="checked">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QRadioButton" name="radLastImageCfg">
-             <property name="toolTip">
-              <string>Same settings as in the Calculation tab</string>
-             </property>
-             <property name="text">
-              <string>Last Image window</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QCheckBox" name="togOnlyNewWindow">
-             <property name="text">
-              <string>Use allways a new window</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QCheckBox" name="togAutoPosit">
-             <property name="toolTip">
-              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If &lt;span style=&quot; font-weight:600;&quot;&gt;checked&lt;/span&gt;: beginnning in the upper left corner, try to posit all windows side by side.&lt;/p&gt;&lt;p&gt;If&lt;span style=&quot; font-weight:600;&quot;&gt; not checked&lt;/span&gt;: all windows are positioned by the operating system (normally in the screen center).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-             </property>
-             <property name="text">
-              <string>Automatically stack all windows</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item row="0" column="1">
-         <widget class="QGroupBox" name="grpTimingInfo">
-          <property name="title">
-           <string>Timing informations</string>
-          </property>
-          <layout class="QGridLayout" name="gridLayout_5">
-           <item row="0" column="1">
-            <widget class="QSpinBox" name="inpNumCores">
-             <property name="toolTip">
-              <string>More than 1 makes only sense with HKLmax &gt; 5</string>
-             </property>
-             <property name="specialValueText">
-              <string>GPU</string>
-             </property>
-             <property name="minimum">
-              <number>0</number>
-             </property>
-            </widget>
-           </item>
-           <item row="2" column="0" colspan="2">
-            <widget class="QCheckBox" name="togIgnoreUpdates">
-             <property name="toolTip">
-              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When this is checked, the updates are ignored. This means the calculation with remote operation is faster.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-             </property>
-             <property name="text">
-              <string>No GUI updates at each step</string>
-             </property>
-            </widget>
-           </item>
-           <item row="4" column="0">
-            <widget class="QCheckBox" name="togLimitRuntime">
-             <property name="toolTip">
-              <string/>
-             </property>
-             <property name="text">
-              <string>Limit running time to</string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="0">
-            <widget class="QLabel" name="label_21">
-             <property name="text">
-              <string>Time of last calculation:</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item row="4" column="1">
-            <widget class="QSpinBox" name="inpLimitRuntime">
-             <property name="toolTip">
-              <string>After this time the calculation will be aborted</string>
-             </property>
-             <property name="suffix">
-              <string>s</string>
-             </property>
-             <property name="minimum">
-              <number>1</number>
-             </property>
-             <property name="maximum">
-              <number>99999</number>
-             </property>
-             <property name="value">
-              <number>100</number>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="1">
-            <widget class="QLabel" name="lblTimeUsed">
-             <property name="minimumSize">
-              <size>
-               <width>60</width>
-               <height>0</height>
-              </size>
-             </property>
-             <property name="text">
-              <string>555555 ms</string>
-             </property>
-            </widget>
-           </item>
-           <item row="0" column="0">
-            <widget class="QLabel" name="label_12">
-             <property name="text">
-              <string>Number of used cores / threads:</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item row="2" column="1">
-         <widget class="QGroupBox" name="grpValChg">
-          <property name="enabled">
-           <bool>false</bool>
-          </property>
-          <property name="title">
-           <string>Logging of all value changes at each calculation</string>
-          </property>
-          <layout class="QGridLayout" name="gridLayout_6">
-           <item row="1" column="0">
-            <widget class="QPushButton" name="butValChgClear">
-             <property name="text">
-              <string>Clear list</string>
-             </property>
-            </widget>
-           </item>
-           <item row="0" column="0" colspan="2">
-            <widget class="QListWidget" name="lisValChg"/>
-           </item>
-           <item row="1" column="1">
-            <widget class="QPushButton" name="butValChgBack">
-             <property name="text">
-              <string>Go back</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item row="0" column="2" colspan="2">
-         <widget class="QGroupBox" name="grpCalcTests">
-          <property name="title">
-           <string>Tests</string>
-          </property>
-          <layout class="QVBoxLayout" name="verticalLayout_7">
-           <item>
-            <widget class="QLabel" name="label">
-             <property name="text">
-              <string>Generate simple test images, best used for FFT</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QComboBox" name="cbsTestImgSelect">
+       <layout class="QHBoxLayout" name="horizontalLayout" stretch="1,1,1">
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayout_7">
+          <item>
+           <widget class="QGroupBox" name="grpCalcDestConf">
+            <property name="title">
+             <string>Calculation destination</string>
+            </property>
+            <layout class="QVBoxLayout" name="verticalLayout">
              <item>
-              <property name="text">
-               <string>Testimage 1 (-)</string>
-              </property>
+              <widget class="QRadioButton" name="radNewImageCfg">
+               <property name="toolTip">
+                <string>Same settings as in the Calculation tab</string>
+               </property>
+               <property name="text">
+                <string>New Image window</string>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
              </item>
              <item>
-              <property name="text">
-               <string>Testimage 2 (|)</string>
-              </property>
+              <widget class="QRadioButton" name="radLastImageCfg">
+               <property name="toolTip">
+                <string>Same settings as in the Calculation tab</string>
+               </property>
+               <property name="text">
+                <string>Last Image window</string>
+               </property>
+              </widget>
              </item>
              <item>
-              <property name="text">
-               <string>Testimage 3 (x)</string>
-              </property>
+              <widget class="QCheckBox" name="togOnlyNewWindow">
+               <property name="text">
+                <string>Use allways a new window</string>
+               </property>
+              </widget>
              </item>
              <item>
-              <property name="text">
-               <string>Testimage 4 (+)</string>
-              </property>
+              <widget class="QCheckBox" name="togAutoPosit">
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If &lt;span style=&quot; font-weight:600;&quot;&gt;checked&lt;/span&gt;: beginnning in the upper left corner, try to posit all windows side by side.&lt;/p&gt;&lt;p&gt;If&lt;span style=&quot; font-weight:600;&quot;&gt; not checked&lt;/span&gt;: all windows are positioned by the operating system (normally in the screen center).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+               <property name="text">
+                <string>Automatically stack all windows</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="grpLastFitActions">
+            <property name="title">
+             <string>Last fit actions</string>
+            </property>
+            <layout class="QVBoxLayout" name="verticalLayout_10">
+             <item>
+              <widget class="QLabel" name="label_44">
+               <property name="text">
+                <string>Copy the text with the mouse and insert it into a text file to use as the automatic fit definition.</string>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
              </item>
              <item>
-              <property name="text">
-               <string>Testimage 5 (: .)</string>
-              </property>
+              <widget class="QPlainTextEdit" name="editAutoFit">
+               <property name="lineWrapMode">
+                <enum>QPlainTextEdit::NoWrap</enum>
+               </property>
+               <property name="readOnly">
+                <bool>true</bool>
+               </property>
+              </widget>
              </item>
              <item>
-              <property name="text">
-               <string>Testimage 6 (.)</string>
-              </property>
+              <widget class="QPushButton" name="butClearEditAutoFit">
+               <property name="text">
+                <string>Clear read only text field</string>
+               </property>
+              </widget>
              </item>
-            </widget>
-           </item>
-           <item>
-            <widget class="QCheckBox" name="togTestUseFFT">
-             <property name="text">
-              <string>Automatically run FFT</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="butTestGo">
-             <property name="text">
-              <string>Go</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </widget>
+            </layout>
+           </widget>
+          </item>
+         </layout>
         </item>
-        <item row="1" column="2" rowspan="2" colspan="2">
-         <widget class="QGroupBox" name="grpScanFiles">
-          <property name="title">
-           <string>Scan for files and generate images</string>
-          </property>
-          <layout class="QGridLayout" name="gridLayout_21">
-           <item row="6" column="0" colspan="2">
-            <widget class="QListWidget" name="lisParamSearchResult">
-             <property name="editTriggers">
-              <set>QAbstractItemView::NoEditTriggers</set>
-             </property>
-             <property name="selectionMode">
-              <enum>QAbstractItemView::ExtendedSelection</enum>
-             </property>
-            </widget>
-           </item>
-           <item row="3" column="0" colspan="2">
-            <widget class="QPushButton" name="butDataSearchDoit">
-             <property name="text">
-              <string>Search for data files (*.*)</string>
-             </property>
-            </widget>
-           </item>
-           <item row="5" column="0">
-            <widget class="QLabel" name="label_20">
-             <property name="text">
-              <string>Found files:</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item row="5" column="1">
-            <widget class="QLabel" name="lblParamSearchCount">
-             <property name="text">
-              <string/>
-             </property>
-            </widget>
-           </item>
-           <item row="2" column="0" colspan="2">
-            <widget class="QPushButton" name="butParamSearchDoit">
-             <property name="text">
-              <string>Search for parameter files (*.ini)</string>
-             </property>
-            </widget>
-           </item>
-           <item row="0" column="0" colspan="2">
-            <widget class="QLabel" name="label_14">
-             <property name="text">
-              <string>Use this path as the basepath and search for all files in and below this path:</string>
-             </property>
-             <property name="wordWrap">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="0">
-            <widget class="QLineEdit" name="inpParamSearchPath"/>
-           </item>
-           <item row="1" column="1">
-            <widget class="QPushButton" name="butParamSearchPath">
-             <property name="maximumSize">
-              <size>
-               <width>30</width>
-               <height>16777215</height>
-              </size>
-             </property>
-             <property name="text">
-              <string>...</string>
-             </property>
-            </widget>
-           </item>
-           <item row="7" column="0" colspan="2">
-            <widget class="QPushButton" name="butParamSearchGenerate">
-             <property name="toolTip">
-              <string>and store them in the same folder as the input file</string>
-             </property>
-             <property name="text">
-              <string>Generate images for all selected files</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </widget>
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayout_11">
+          <item>
+           <widget class="QGroupBox" name="grpTimingInfo">
+            <property name="title">
+             <string>Timing informations</string>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_5">
+             <item row="0" column="1">
+              <widget class="QSpinBox" name="inpNumCores">
+               <property name="toolTip">
+                <string>More than 1 makes only sense with HKLmax &gt; 5</string>
+               </property>
+               <property name="specialValueText">
+                <string>GPU</string>
+               </property>
+               <property name="minimum">
+                <number>0</number>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0" colspan="2">
+              <widget class="QCheckBox" name="togIgnoreUpdates">
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When this is checked, the updates are ignored. This means the calculation with remote operation is faster.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+               <property name="text">
+                <string>No GUI updates at each step</string>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="0">
+              <widget class="QCheckBox" name="togLimitRuntime">
+               <property name="toolTip">
+                <string/>
+               </property>
+               <property name="text">
+                <string>Limit running time to</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="label_21">
+               <property name="text">
+                <string>Time of last calculation:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="1">
+              <widget class="QSpinBox" name="inpLimitRuntime">
+               <property name="toolTip">
+                <string>After this time the calculation will be aborted</string>
+               </property>
+               <property name="suffix">
+                <string>s</string>
+               </property>
+               <property name="minimum">
+                <number>1</number>
+               </property>
+               <property name="maximum">
+                <number>99999</number>
+               </property>
+               <property name="value">
+                <number>100</number>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QLabel" name="lblTimeUsed">
+               <property name="minimumSize">
+                <size>
+                 <width>60</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>555555 ms</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="0">
+              <widget class="QLabel" name="label_12">
+               <property name="text">
+                <string>Number of used cores / threads:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="grpDefColTbl">
+            <property name="title">
+             <string>Default color table</string>
+            </property>
+            <layout class="QVBoxLayout" name="verticalLayout_8">
+             <item>
+              <widget class="QLabel" name="label_32">
+               <property name="text">
+                <string>to be used for all newly generated images</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QComboBox" name="cbsDefaultColTbl"/>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="grpValChg">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="title">
+             <string>Logging of all value changes at each calculation</string>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_6">
+             <item row="1" column="0">
+              <widget class="QPushButton" name="butValChgClear">
+               <property name="text">
+                <string>Clear list</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="0" colspan="2">
+              <widget class="QListWidget" name="lisValChg"/>
+             </item>
+             <item row="1" column="1">
+              <widget class="QPushButton" name="butValChgBack">
+               <property name="text">
+                <string>Go back</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayout_13">
+          <item>
+           <widget class="QGroupBox" name="grpCalcTests">
+            <property name="title">
+             <string>Tests</string>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_30">
+             <item row="0" column="0">
+              <widget class="QLabel" name="label">
+               <property name="text">
+                <string>Generate simple test images, best used for FFT</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QComboBox" name="cbsTestImgSelect">
+               <item>
+                <property name="text">
+                 <string>Testimage 1 (-)</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Testimage 2 (|)</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Testimage 3 (x)</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Testimage 4 (+)</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Testimage 5 (: .)</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Testimage 6 (.)</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QCheckBox" name="togTestUseFFT">
+               <property name="text">
+                <string>Automatically run FFT</string>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0" colspan="2">
+              <widget class="QPushButton" name="butTestGo">
+               <property name="text">
+                <string>Go</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="grpScanFiles">
+            <property name="title">
+             <string>Scan for files and generate images</string>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_21">
+             <item row="6" column="0" colspan="2">
+              <widget class="QListWidget" name="lisParamSearchResult">
+               <property name="editTriggers">
+                <set>QAbstractItemView::NoEditTriggers</set>
+               </property>
+               <property name="selectionMode">
+                <enum>QAbstractItemView::ExtendedSelection</enum>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0" colspan="2">
+              <widget class="QPushButton" name="butDataSearchDoit">
+               <property name="text">
+                <string>Search for data files (*.*)</string>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="0">
+              <widget class="QLabel" name="label_20">
+               <property name="text">
+                <string>Found files:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="1">
+              <widget class="QLabel" name="lblParamSearchCount">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0" colspan="2">
+              <widget class="QPushButton" name="butParamSearchDoit">
+               <property name="text">
+                <string>Search for parameter files (*.ini)</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="0" colspan="2">
+              <widget class="QLabel" name="label_14">
+               <property name="text">
+                <string>Use this path as the basepath and search for all files in and below this path:</string>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLineEdit" name="inpParamSearchPath"/>
+             </item>
+             <item row="1" column="1">
+              <widget class="QPushButton" name="butParamSearchPath">
+               <property name="maximumSize">
+                <size>
+                 <width>30</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>...</string>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="0" colspan="2">
+              <widget class="QPushButton" name="butParamSearchGenerate">
+               <property name="toolTip">
+                <string>and store them in the same folder as the input file</string>
+               </property>
+               <property name="text">
+                <string>Generate images for all selected files</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+         </layout>
         </item>
        </layout>
       </widget>
@@ -4778,7 +4881,7 @@ with file definitions</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1827</width>
+     <width>1240</width>
      <height>26</height>
     </rect>
    </property>
@@ -4899,7 +5002,6 @@ with file definitions</string>
   <tabstop>togIgnoreUpdates</tabstop>
   <tabstop>togLimitRuntime</tabstop>
   <tabstop>inpLimitRuntime</tabstop>
-  <tabstop>togTestUseFFT</tabstop>
   <tabstop>butTestGo</tabstop>
   <tabstop>cbsDefaultColTbl</tabstop>
   <tabstop>editAutoFit</tabstop>

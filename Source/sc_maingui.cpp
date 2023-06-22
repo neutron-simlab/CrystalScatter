@@ -29,12 +29,7 @@
 
 
 // This version information is displayed in the top right corner
-#define MYVERSION "2.0.0  (Apr. 2023)"
-
-
-// Da CUDA nicht unter Windows nutzbar ist, versuche ich mal mit OpenCL
-// --> https://www.qt.io/blog/2010/04/07/using-opencl-with-qt
-// Ist jetzt aber erst nur ein Gedanke (noch nichts programmiert).
+#define MYVERSION "2.0.1  (May 2023)"
 
 
 // Global (static) variables
@@ -66,12 +61,13 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     useFixedScaling = false;
     noFitCurRect = -1;
     autoProcessingFile = nullptr;
+    fitparams = nullptr;
 
     ui->setupUi(this);
     current = this;
 
 #ifdef Q_OS_LINUX
-    // Sonst haben die GroupBox keinen Rahmen...
+    // To draw frames around the QGrupBox not visible in the default linux style
     QStyle *winstyle = QStyleFactory::create("Windows");
     ui->grpAIoptions->setStyle(winstyle);
     ui->grpAIoutdir->setStyle(winstyle);
@@ -117,7 +113,7 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
 
     //ui->actionFind_parameters_changing_image->setEnabled(false);
     ui->actionHide_unused_values->setChecked(true);  // Bei false werden nur die Labels ausgegraut
-    ui->inpRotX->hide();        // Werden nicht übergeben ....
+    ui->inpRotX->hide();        // Werden nicht übergeben .... sollten später rausfliegen
     ui->inpRotY_RotX->hide();
     ui->lblRotX->hide();
 
@@ -139,7 +135,7 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     numberCounter = 0;
     closeMainActive = false;
 
-    // Automatische Sicherung der Parameter beim Calc-Button.
+    // Set the filename for the automatic parameter saving before the calculation starts
     fnTempParamFile = fileDir.absoluteFilePath("TempParamSave.ini");
 
     restoreGeometry( sets.value("GUIgeometry").toByteArray() );
@@ -170,8 +166,9 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     on_togLimitRuntime_toggled( ui->togLimitRuntime->isChecked() );
 
     QStringList sl = widImage::slColorNames();
-    sl.removeOne(tblResGlo);
-    sl.removeOne(tblResTemp);
+    foreach ( QString s, sl )
+        if ( s.startsWith("Residuen") )
+            sl.removeOne(s);
     ui->cbsDefaultColTbl->addItems( sl );
     ui->cbsDefaultColTbl->setCurrentIndex( sets.value("DefColTbl",1).toInt() );
     on_cbsDefaultColTbl_activated( sets.value("DefColTbl",1).toInt() );
@@ -200,19 +197,18 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     // --------------------------
     ui->radNewImageCal->setChecked(true);
     calcGui = new SC_CalcGUI;
-    calcGui->createTabs( ui->statusbar );
     // Check number of threads
     if ( calcGui->gpuAvailable() )
     {
-        ui->inpNumCores->setValue(0); // 0=GPU
+        ui->inpNumCores->setValue(0);       // 0=GPU, =SpecialText, =Default
     }
     else
     {
         ui->inpNumCores->setSpecialValueText("");
-        ui->inpNumCores->setMinimum(1); // keine GPU möglich
-        ui->inpNumCores->setValue( nthreads ); // immer auf Maximum als Default
+        ui->inpNumCores->setMinimum(1);     // no GPU possible
+        ui->inpNumCores->setValue( nthreads ); // set max num of threads as default
     }
-    ui->intGridPoints->setValue( sets.value("GridPoints",64).toInt() );  // Damit BeamCenter gesetzt wird
+    ui->intGridPoints->setValue( sets.value("GridPoints",64).toInt() );  // calculate BeamCenter
     ui->butCalc->setEnabled(true);
     ui->butAbbruch->setEnabled(false);
     ui->progressBar->setEnabled(false);
@@ -267,6 +263,9 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     // Grp Input Preprocessing
     ui->radFFTLinInput->setChecked(  sets.value("FFTLinInput",true).toBool() );
     ui->radFFTLogInput->setChecked( !sets.value("FFTLinInput",true).toBool() );
+    ui->togFFTscaleImg->setChecked( sets.value("FFTScaleImg",true).toBool() );
+    ui->togFFTclipImg->setChecked( sets.value("FFTclipImg",false).toBool() );
+    ui->togFFTclip40Img->setChecked( sets.value("FFTclip40Img",false).toBool() );
     // Grp (r,phi)
     ui->grpFFTuseRphi->setChecked( sets.value("FFTuseRphi",true).toBool() );
     ui->cbsFFTsizeRphi->setCurrentIndex( sets.value("FFTsizeRphi",2).toInt() );
@@ -287,21 +286,13 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     ui->inpFFTcutY->setEnabled( ui->togFFTcutEnabled->isChecked() );
     switch ( sets.value("FFToutput",0).toInt() )
     {
-    case 0: // Real
-        ui->radFFToutReal->setChecked(true);
-        break;
-    case 1: // Imag
-        ui->radFFToutImag->setChecked(true);
-        break;
-    case 2: // Abs
-        ui->radFFToutBetrag->setChecked(true);
-        break;
-    case 3: // Spec
-        ui->radFFToutSpectrum->setChecked(true);
-        break;
+    case 0: ui->radFFToutReal->setChecked(true);     break;
+    case 1: ui->radFFToutImag->setChecked(true);     break;
+    case 2: ui->radFFToutBetrag->setChecked(true);   break;
+    case 3: ui->radFFToutSpectrum->setChecked(true); break;
     }
     ui->butIFFT->setEnabled(false); // Init
-    ui->butFFT->setEnabled(false); // Init
+    ui->butFFT->setEnabled(false);  // Init
     ui->butFFTverifyRphi->hide();   // war nur für mich zum Testen, daher im Normalbetrieb wegnehmen
 
     // -------------------------------------
@@ -368,7 +359,7 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     ui->butAIcheck->setEnabled(false);        // Erst freigegeben, wenn die AI-Tabelle gefüllt ist
     ui->butAIsaveBkgOp->setEnabled(false);    // -"-
     ui->butAIstart->setEnabled(false);        // -"-
-    ui->butSaveImagesAI->setEnabled(false); // Nur Freigegeben, wenn images da sind
+    ui->butSaveImagesAI->setEnabled(false);   // Nur Freigegeben, wenn images da sind
     ui->butRemoveVar->setEnabled(false);
 
     ui->lblAIbackProc->setEnabled(false);
@@ -528,24 +519,19 @@ void SC_MainGUI::closeEvent(QCloseEvent *event)
         sets.setValue( "ExpandImg", ui->togExpandImage->isChecked() );
         sets.setValue( "ParamSearchPath", ui->inpParamSearchPath->text() );
 
-        // FIT Tab (Subgroups)
-        // Bleibt hier!
-        QHash< QString/*method*/, _param2fitval* >::const_iterator im = method2fitparams.constBegin();
-        while ( im != method2fitparams.constEnd() )
+        if ( fitparams != nullptr )
         {
-            if ( im.value() != nullptr )
+            // FIT Tab (Subgroups)
+            sets.beginGroup( "Fit-Limits" );
+            QHash< QString/*name*/, _fitLimits* >::const_iterator il = fitparams->constBegin();
+            while ( il != fitparams->constEnd() )
             {
-                sets.beginGroup( "Fit-" + im.key() );
-                QHash< QString/*name*/, _fitLimits* >::const_iterator il = im.value()->constBegin();
-                while ( il != im.value()->constEnd() )
-                {
-                    sets.setValue( il.key(), QString("%1:%2:%3:%4").arg(il.value()->used).arg(il.value()->min).arg(il.value()->max).arg(il.value()->fitType) );
-                    ++il;
-                }
-                sets.endGroup();
+                sets.setValue( il.key(), QString("%1:%2:%3:%4").arg(il.value()->used).arg(il.value()->min).arg(il.value()->max).arg(il.value()->fitType) );
+                ++il;
             }
-            ++im;
+            sets.endGroup();
         }
+
         sets.beginGroup( "Fit-Globals" );
         sets.setValue( "BeamStop",    ui->inpFitBStop->value() );
         sets.setValue( "Border",      ui->inpFitBorder->value() );
@@ -558,6 +544,9 @@ void SC_MainGUI::closeEvent(QCloseEvent *event)
 
         // FFT Tab (Default group)
         sets.setValue( "FFTLinInput", ui->radFFTLinInput->isChecked() );
+        sets.setValue( "FFTScaleImg", ui->togFFTscaleImg->isChecked() );
+        sets.setValue( "FFTclipImg", ui->togFFTclipImg->isChecked() );
+        sets.setValue( "FFTclip40Img", ui->togFFTclip40Img->isChecked() );
         sets.setValue( "FFTScaleRphi", ui->togFFTscaleRphi->isChecked() );
         sets.setValue( "FFTclipRphi", ui->togFFTclipRphi->isChecked() );
         sets.setValue( "FFTclip40Rphi", ui->togFFTclip40Rphi->isChecked() );
@@ -736,7 +725,6 @@ void SC_MainGUI::fillDataFromInputs()
 
 /**
  * @brief SC_MainGUI::prepareCalculation
- * @param getMD   - if true, get all values from the input fields into local data
  * @param progbar - enable state of the progressBar
  * This procedure disables the gui elements during the calculation and starts it.
  */
@@ -767,6 +755,7 @@ void SC_MainGUI::finishCalculation(bool showtime)
         ui->lblTimeUsed->setText( QString("%1 ms").arg(calcGui->higResTimerElapsed(SC_CalcGUI::htimBoth)) );
         ui->statusbar->showMessage( QString("%1 ms").arg(calcGui->higResTimerElapsed(SC_CalcGUI::htimBoth)), 5000 );
     }
+    calcGui->updateOutputData();
     ui->progressBar->setValue(100); // it is possible (due to roundings) that the 100% is not reached. So set it here to avoid blinking.
     ui->butCalc->setEnabled(true);
     ui->butAbbruch->setEnabled(false);
@@ -871,25 +860,28 @@ void SC_MainGUI::local_butCalc_clicked()
     {
         QTimer::singleShot( 200, this, SLOT(autoProcessingTimer()) );
     }
-    //else
-    //    qDebug() << "butCalc:" << bIgnoreRecalc << ((autoProcessingFile!=nullptr)?autoProcessingFile->isOpen():false);
 }
 
 
 /**
  * @brief myCalcThread::myCalcThread
- * @param cg
- * @param parent
+ * @param cg     - CalcGUI object to be accessible by the thread
+ * @param parent - normal parent object for the thread
+ * Constructs the calculation thread
  */
 myCalcThread::myCalcThread(SC_CalcGUI *cg, QObject *parent ) : QThread(parent)
 {
-    _exit = false;
-    calcGui = cg;
+    //_exit = false;
+    calcGuiThread = cg;
 }
 
+/**
+ * @brief myCalcThread::run
+ * Thread run function, perform the real calculation
+ */
 void myCalcThread::run()
 {
-    calcGui->doCalculation( numThreads );
+    calcGuiThread->doCalculation( numThreads );
 }
 
 
@@ -902,9 +894,9 @@ void SC_MainGUI::automaticRecalc()
 {
     DT(QObject *oo = sender();
        if ( oo != nullptr )
-       qDebug() << "automaticRecalc(), ignore:" << bIgnoreRecalc << (static_cast<QWidget*>(oo))->objectName();
+         qDebug() << "automaticRecalc(), ignore:" << bIgnoreRecalc << (static_cast<QWidget*>(oo))->objectName();
        else
-        qDebug() << "automaticRecalc(), ignore:" << bIgnoreRecalc;
+         qDebug() << "automaticRecalc(), ignore:" << bIgnoreRecalc;
        )
     if ( bIgnoreRecalc ) return; // Werte wurden vom Programm geändert
     QObject *o = sender();
@@ -918,6 +910,10 @@ void SC_MainGUI::automaticRecalc()
     }
     automaticRecalcDoit();
 }
+
+/**
+ * @brief SC_MainGUI::automaticRecalcDoit
+ */
 void SC_MainGUI::automaticRecalcDoit()
 {
     DT( qDebug() << "automaticRecalcDoit(), toggle:" << ui->togAutoRecalc->isChecked() );
@@ -961,9 +957,9 @@ void SC_MainGUI::on_actionTest_10_Calculate_triggered()
                 qDebug() << saveFilename << f.errorString();
                 return;
             }
-        f.write( qPrintable(EOL "% " + dlg->getComment() + EOL) );
+        f.write( qPrintable("% " + dlg->getComment() + EOL) );
         f.write( qPrintable("% Loaded parameter: "+ui->lblLoadFilename->text()+EOL) );
-        f.write( " & Threads & HKLmax & Quadrants & Min/ Mean/ Max (Prep) in ms" EOL );
+        f.write( "Threads & HKLmax & Quadrants & Min/ Mean/ Max (Prep) in ms" EOL );
         f.close();
         QFileInfo fi(saveFilename);
         saveBasePath = fi.absolutePath()+"/"+fi.baseName(); // save images
@@ -1045,7 +1041,7 @@ void SC_MainGUI::on_actionTest_10_Calculate_triggered()
                 lastUsedImage->addMetaInfo( "@", "" ); // Sortieren der Meta-Tabelle
                 if ( saveImages )
                 {
-                    lastUsedImage->saveImage( saveBasePath + QString("-t=%1-hkl=%2.png").arg(ui->inpNumCores->value()).arg(hklmax[h]) );
+                    lastUsedImage->saveImage( saveBasePath + QString("-t=%1-hkl=%2-q=%3.png").arg(ui->inpNumCores->value()).arg(hklmax[h]).arg(quadr) );
                 }
                 qDebug() << "ERG T=" << ui->inpNumCores->value() << "HKLmax=" << hklmax[h]
                          << "Q=" << quadr
@@ -1053,7 +1049,7 @@ void SC_MainGUI::on_actionTest_10_Calculate_triggered()
                          << "Prep=" << minPrep << sumPrep/numLoops << maxPrep;
                 // LaTeX Ausgabe mit den Rundungen (am Ende auf der Konsole oder in eine Datei)
                 if ( saveFilename.isEmpty() )
-                    latex << QString(" & %1 & %2 & %7 & %3/ %4/ %5 (%6)").arg(ui->inpNumCores->value()).arg(hklmax[h])
+                    latex << QString("%1 & %2 & %7 & %3/ %4/ %5 (%6)").arg(ui->inpNumCores->value()).arg(hklmax[h])
                                  .arg(minCalc,0,'f',3).arg(sumCalc/numLoops,0,'f',3).arg(maxCalc,0,'f',3)
                                  .arg(sumPrep/numLoops,0,'f',3).arg(quadr);
                 else
@@ -1063,7 +1059,7 @@ void SC_MainGUI::on_actionTest_10_Calculate_triggered()
                         qDebug() << saveFilename << f.errorString();
                     if ( f.isOpen() )
                     {
-                        f.write( QString(" & %1 & %2 & %8 & %3/ %4/ %5 (%6)%7")
+                        f.write( QString("%1 & %2 & %8 & %3/ %4/ %5 (%6)%7")
                                     .arg(ui->inpNumCores->value()).arg(hklmax[h])
                                     .arg(minCalc,0,'f',3).arg(sumCalc/numLoops,0,'f',3).arg(maxCalc,0,'f',3)
                                     .arg(sumPrep/numLoops,0,'f',3).arg(EOL).arg(quadr).toLatin1() );
@@ -1103,6 +1099,13 @@ void SC_MainGUI::on_actionTest_10_Calculate_triggered()
     bIgnoreUpdates = savUpd;
 }
 
+/**
+ * @brief SC_MainGUI::on_butAbbruch_clicked
+ * The current calculation should be aborted.
+ * TODO: das Programm kann crashen, wenn die Berechnung abgebrochen wird.
+ *       Das passiert leider im Debugger nie, sodass eine genaue Analyse
+ *       fast unmöglich wird.
+ */
 void SC_MainGUI::on_butAbbruch_clicked()
 {
     _bAbbruch = true;
@@ -1111,12 +1114,10 @@ void SC_MainGUI::on_butAbbruch_clicked()
     qApp->processEvents();
 }
 
-bool SC_MainGUI::myProgressAndAbort( int val )
-{
-    if ( current ) current->updateProgBar(val);
-    return _bAbbruch;
-}
-
+/**
+ * @brief SC_MainGUI::updateProgBar
+ * @param val - percentage of the progress bar or -1 to denote GPU-Usage
+ */
 void SC_MainGUI::updateProgBar( int val )
 {
     if ( val < 0 )
@@ -1275,6 +1276,9 @@ QString SC_MainGUI::local_Load_all_Parameters(QString fn)
     bool isloaded = false;
     QString rv="";
 
+    //QList<QWidget*> wid = ui->tabCalc->findChildren<QWidget*>();
+    foreach ( QWidget *w, ui->tabCalc->findChildren<QWidget*>() ) w->blockSignals(true);
+
     bool hklloaded, gridloaded;
 
     // Wenn im aktuellen Entwicklungsschritt (nur die Methode "Generic" bekannt) alte Files geladen werden
@@ -1285,6 +1289,7 @@ QString SC_MainGUI::local_Load_all_Parameters(QString fn)
     QSettings sets( fn, QSettings::IniFormat );
     QStringList gr = sets.childGroups();
     gr.removeOne("Inputs");
+    gr.removeOne("FFT");
     gr.removeOne("AI");     // TODO: neue feste Gruppen hier ausblenden
     if ( gr.size() > 1 )
     {   // Jetzt gibt es mehr als eine Methode
@@ -1295,13 +1300,13 @@ QString SC_MainGUI::local_Load_all_Parameters(QString fn)
         {
             QString mm = m;
             if ( mm.indexOf(" ") > 0 ) mm.truncate(mm.indexOf(" "));
-            //qDebug() << "Load spec" << m << mm;
+            qDebug() << "Load spec" << m << mm;
             int val = 0;
             while ( true )
             {
                 calcGui->updateParamValue( "LType", val, Qt::black, false );
                 QString tmp = calcGui->currentParamValueStr( "LType", true ); // hier in aktueller Methode suchen...
-                //qDebug() << "    " << val << tmp;
+                qDebug() << "    " << val << tmp;
                 if ( tmp.isEmpty() || tmp[0] == '?' ) break; // Ende der Liste oder Fehlermeldung
                 if ( tmp.startsWith(mm,Qt::CaseInsensitive) ) break; // gefunden
                 val++;
@@ -1337,6 +1342,7 @@ QString SC_MainGUI::local_Load_all_Parameters(QString fn)
     ui->inpBeamPosY_BeamPosX->setValue( sets.value( "EditCenterY", 0 ).toDouble() );
 
     // EditHKLmax und EditGridPoints sind jetzt in die normalen Parameter gewandert...
+    qDebug() << "*** LOAD ***" << hklloaded << gridloaded;
     if ( !hklloaded )
         ui->intHKLmax->setValue( sets.value( "HKLmax", 3 ).toInt() );
     if ( !gridloaded )
@@ -1370,6 +1376,14 @@ QString SC_MainGUI::local_Load_all_Parameters(QString fn)
     ui->radAILogOutput->setChecked( ! sets.value("LinOut").toBool() );
     ui->togAIScaleOutput->setChecked( sets.value("ScaleOut").toBool() );
     sets.endGroup();
+
+    on_cbsLType_currentIndexChanged( ui->cbsLType->currentIndex() );
+    on_cbsComboBoxParticle_currentIndexChanged( ui->cbsComboBoxParticle->currentIndex() );
+    on_cbsOrdis_currentIndexChanged( ui->cbsOrdis->currentIndex() );
+    on_cbsComboBoxInterior_currentIndexChanged( ui->cbsComboBoxInterior->currentIndex() );
+    on_cbsComboBoxPeak_currentIndexChanged( ui->cbsComboBoxPeak->currentIndex() );
+
+    foreach ( QWidget *w, ui->tabCalc->findChildren<QWidget*>() ) w->blockSignals(false);
 
     bIgnoreRecalc = false;  // Load done
     DT( qDebug() << "... local load::adjustSize ..." );
@@ -1421,8 +1435,8 @@ widImage* SC_MainGUI::addImage( bool neu, int x0, int x1, int y0, int y1, double
         // Kommentar wird als Info über dem Image verwendet
         img->addMetaInfo( "_Calculation_", ui->txtComment->text() ); // calcGui->curMethod->subCalc->methodName() );
         // Methodenspezifische Metadaten
-        QHash<QString,paramHelper*>::iterator ip = calcGui->curMethod->params.begin();
-        while ( ip != calcGui->curMethod->params.end() )
+        QHash<QString,paramHelper*>::iterator ip = calcGui->params.begin();
+        while ( ip != calcGui->params.end() )
         {
             img->addMetaInfo( ip.key(), //ip.value()->str );
                               calcGui->currentParamValueStr( ip.key(), true ) );
@@ -1671,6 +1685,7 @@ void SC_MainGUI::performIFFTcalculations(int curimg, QString tit, bool foreward)
     //         << "X" << images[curimg]->getFileInfos()->li.centerX << images[curimg]->xmin()
     //         << "Y" << images[curimg]->getFileInfos()->li.centerY << images[curimg]->ymin();
 
+/*
     double *data = nullptr;
 
     if ( ui->radFFTLogInput->isChecked() )
@@ -1696,8 +1711,23 @@ void SC_MainGUI::performIFFTcalculations(int curimg, QString tit, bool foreward)
         metaData.insert( "LogMin", QString::number(vlogmin) );
         metaData.insert( "LogMax", QString::number(vlogmax) );
         for ( int i=0; i<sx*sy; i++ )
-            data[i] = (log10(src[i]) - vlogmin) / (vlogmax-vlogmin);
+        {
+            if ( src[i] > 0 )
+                data[i] = (log10(src[i]) - vlogmin) / (vlogmax-vlogmin);
+            else
+                data[i] = 0;
+        }
     }
+*/
+
+    double *data = new double[sx*sy];
+    memcpy( data, images[curimg]->dataPtr(), sx*sy*sizeof(double) );
+
+    SasCalc_PostProc::inst()->scaleAndClipData( data/*in and out*/, sx*sy,
+                                                ui->togFFTscaleImg->isChecked(),
+                                                ui->togFFTclipImg->isChecked(),
+                                                ui->togFFTclip40Img->isChecked(),
+                                                ui->radFFTLogInput->isChecked() );
 
     metaData.insert( "From Image", tit );
 
@@ -1711,8 +1741,7 @@ void SC_MainGUI::performIFFTcalculations(int curimg, QString tit, bool foreward)
 
         // Das (r,phi) Bild berechnen
         auto anfr = std::chrono::high_resolution_clock::now();
-        outr = SasCalc_PostProc::inst()->generateRphi(0, sx, 0, sy, bsx, bsy, srphi,
-                                                      (data==nullptr)?images[curimg]->dataPtr():data,
+        outr = SasCalc_PostProc::inst()->generateRphi(0, sx, 0, sy, bsx, bsy, srphi, data/*in*/,
                                                       ui->togFFTscaleRphi->isChecked(),
                                                       ui->togFFTclipRphi->isChecked(),
                                                       ui->togFFTclip40Rphi->isChecked() );
@@ -1748,18 +1777,18 @@ void SC_MainGUI::performIFFTcalculations(int curimg, QString tit, bool foreward)
         x1 = srphi;
         y0 = 0;
         y1 = srphi;
-        qDebug() << "FFT: rphi";
+        //qDebug() << "FFT: rphi";
     }
-    else if ( data != nullptr )
+    else //if ( data != nullptr )
     {
-        fftinp = data; // Log
+        fftinp = data; // Image lin/log
         x0 = images[curimg]->xmin();
         x1 = images[curimg]->xmax();
         y0 = images[curimg]->ymin();
         y1 = images[curimg]->ymax();
-        qDebug() << "FFT: data log";
+        //qDebug() << "FFT: data log";
     }
-    else
+    /*else
     {
         fftinp = images[curimg]->dataPtr(); // Lin
         x0 = images[curimg]->xmin();
@@ -1767,7 +1796,8 @@ void SC_MainGUI::performIFFTcalculations(int curimg, QString tit, bool foreward)
         y0 = images[curimg]->ymin();
         y1 = images[curimg]->ymax();
         qDebug() << "FFT: data lin";
-    }
+    }*/
+
     double *outi = nullptr;
     SasCalc_PostProc::_outType ot;
     if ( ui->radFFToutReal->isChecked() )
@@ -2192,28 +2222,6 @@ bool SC_MainGUI::performSaveAIOperation( QString fn, bool doOverwrite, bool inte
         rv = getTPVLoopDefinition();
         f.write( qPrintable("PATH|"+ui->inpTPVoutPath->text()+EOL) );
         f.write( "COLTBL|*DAT*" EOL ); // Spezielle Kennung für das Datenformat
-        // Weitere Spezial-Parameter zur Bild-Nachbearbeitung
-        QString tpv = "TPV|xx"; // Damit immer 2 Einträge da sind ...
-        if ( ui->togTPVaddBS->isChecked() )
-            tpv += QString("|BS%1;%2;%3;%4").arg(ui->inpTPVbeamx0->value()).arg(ui->inpTPVbeamy0->value())
-                       .arg(ui->inpTPVnbeam->value()).arg(ui->inpTPVmbeam->value());
-        if ( ui->togTPVaddLines->isChecked() )
-            tpv += QString("|LI%1;%2;%3;%4").arg(ui->inpTPVaddLinesH->value()).arg(ui->inpTPVaddLinesV->value())
-                       .arg(ui->inpTPVaddLinesHwidth->value()).arg(ui->inpTPVaddLinesVwidth->value());
-        if ( ui->togTPVaddNoise->isChecked() )
-            tpv += "|NO";
-        if ( ui->togTPVconvolute->isChecked() )
-            tpv += "|CO";
-        if ( ui->togTPVcalcRphi->isChecked() )
-            tpv += "|RP";
-        if ( ui->togTPVsaveBaseExtra->isChecked() )
-            tpv += "|IX";
-        if ( ui->togTPVgeneratePNG->isChecked() )
-            tpv += "|GP";
-        if ( ui->togTPVscaleScat->isChecked() )
-            tpv += "|SC";
-        f.write( qPrintable(tpv+EOL) );
-        // FFT wird weiter unten gesetzt
     }
     else
     {
@@ -2233,6 +2241,17 @@ bool SC_MainGUI::performSaveAIOperation( QString fn, bool doOverwrite, bool inte
         }
     }
 
+    if ( useTPV && !ui->togTPVcalcFFT->isChecked() && ui->togTPVcalcRphi->isChecked() )
+    {   // FFT weglassen, aber r,phi soll bestimmt werden
+        QString rphiScale = "";
+        if ( ui->togFFTscaleRphi->isChecked()  ) rphiScale += "Scale ";
+        if ( ui->togFFTclipRphi->isChecked()   ) rphiScale += "Clip1 ";
+        if ( ui->togFFTclip40Rphi->isChecked() ) rphiScale += "Clip4 ";
+        f.write( qPrintable(QString("RPHI|%1;%2")
+                               .arg(ui->cbsFFTsizeRphi->currentText().left(3).trimmed())
+                               .arg(rphiScale.trimmed())
+                           +EOL) );
+    }
     if ( useTPV ? ui->togTPVcalcFFT->isChecked() : ui->togAIUseFFTOutput->isChecked() )
     {   // FFT-Postprocessing Options
         QString fftOutFormat = "";
@@ -2259,6 +2278,30 @@ bool SC_MainGUI::performSaveAIOperation( QString fn, bool doOverwrite, bool inte
                            //ui->inpFFTcutX->setValue( sets.value("FFTcutOutX",64).toInt() );
                            //ui->inpFFTcutY->setValue( sets.value("FFTcutOutY",64).toInt() );
                            +EOL) );
+    }
+    if ( useTPV )
+    {   // Weitere Spezial-Parameter zur Bild-Nachbearbeitung
+        // Diese erst nach der FFT / RPHI Definition schrieben, damit der Logoutput später die richtigen Daten anzeigt
+        QString tpv = "TPV|xx"; // Damit immer 2 Einträge da sind ...
+        if ( ui->togTPVaddBS->isChecked() )
+            tpv += QString("|BS%1;%2;%3;%4").arg(ui->inpTPVbeamx0->value()).arg(ui->inpTPVbeamy0->value())
+                       .arg(ui->inpTPVnbeam->value()).arg(ui->inpTPVmbeam->value());
+        if ( ui->togTPVaddLines->isChecked() )
+            tpv += QString("|LI%1;%2;%3;%4").arg(ui->inpTPVaddLinesH->value()).arg(ui->inpTPVaddLinesV->value())
+                       .arg(ui->inpTPVaddLinesHwidth->value()).arg(ui->inpTPVaddLinesVwidth->value());
+        if ( ui->togTPVaddNoise->isChecked() )
+            tpv += "|NO";
+        if ( ui->togTPVconvolute->isChecked() )
+            tpv += "|CO";
+        if ( ui->togTPVcalcRphi->isChecked() )
+            tpv += "|RP";
+        if ( ui->togTPVsaveBaseExtra->isChecked() )
+            tpv += "|IX";
+        if ( ui->togTPVgeneratePNG->isChecked() )
+            tpv += "|GP";
+        if ( ui->togTPVscaleScat->isChecked() )
+            tpv += "|SC";
+        f.write( qPrintable(tpv+EOL) );
     }
     ui->progressBar->setEnabled(true);
     int progCount = 0;
@@ -2720,7 +2763,7 @@ SC_MainGUI::_loopDefinition SC_MainGUI::getLoopDefinition()
                 // Berechnung der CLASS
                 QString cls;
                 cls = ui->inpFileClass->text();
-                cls.replace( "{M}", calcGui->curMethod->subCalc->methodName() /*slCalcArt[iCurMethod]*/ ); // Historisch...
+                cls.replace( "{M}", "DEFAULT" /*calcGui->memory->methodName()*/ ); // Historisch...
                 int pos;
                 while ( (pos = cls.indexOf("{")) >= 0 )
                 {
@@ -3416,22 +3459,17 @@ bool SC_MainGUI::copyParamsToFitTable()
     ui->tblFitValues->setHorizontalHeaderLabels( slHdr );
     ui->tblFitValues->setVerticalHeaderLabels( slParams );
 
-    curMethod = calcGui->index2methodname();
-    _param2fitval *p2f = method2fitparams.value(curMethod,nullptr);
-    if ( p2f == nullptr )
-    {
-        p2f = new _param2fitval;
-        method2fitparams.insert( curMethod, p2f );
-    }
+    if ( fitparams == nullptr ) fitparams = new _param2fitval;
+
     ui->tblFitValues->blockSignals(true);
     oneFitParamUsed = false;
 
     QSettings sets(SETT_APP,SETT_GUI);
-    sets.beginGroup("Fit-"+curMethod);
+    sets.beginGroup("Fit-Limits");
 
     foreach (QString p, slParams)
     {
-        _fitLimits *fl = p2f->value(p,nullptr);
+        _fitLimits *fl = fitparams->value(p,nullptr);
         if ( fl == nullptr )
         {
             QStringList slVal = sets.value(p,"0:0:0:0").toString().split(":",SPLIT_KEEP_EMPTY_PARTS);
@@ -3442,7 +3480,7 @@ bool SC_MainGUI::copyParamsToFitTable()
             fl->min      = slVal[1].toDouble();
             fl->max      = slVal[2].toDouble();
             fl->fitType  = static_cast<_fitTypes>(slVal[3].toInt());
-            p2f->insert( p, fl );
+            fitparams->insert( p, fl );
         }
         fl->orgval = fl->fitstart = calcGui->currentParamValueDbl( p );
 
@@ -3521,8 +3559,8 @@ void SC_MainGUI::tblFitUsed_toggled(bool checked)
     {
         if ( static_cast<tblCheckBox*>(ui->tblFitValues->cellWidget(r,0))->tog() == cbs )
         {
-            _param2fitval *p2f = method2fitparams.value(curMethod,nullptr);
-            if ( p2f == nullptr ) return;
+            _param2fitval *p2f = fitparams;
+            //if ( p2f == nullptr ) return; TODO
             QString p = ui->tblFitValues->verticalHeaderItem(r)->text();
             p2f->value(p)->used = checked;
         }
@@ -3535,8 +3573,8 @@ void SC_MainGUI::tblFitUsed_toggled(bool checked)
 void SC_MainGUI::on_tblFitValues_itemChanged(QTableWidgetItem *item)
 {
     if ( item == nullptr ) return;
-    _param2fitval *p2f = method2fitparams.value(curMethod,nullptr);
-    if ( p2f == nullptr ) return;
+    _param2fitval *p2f = fitparams;
+    //if ( p2f == nullptr ) return; TODO
     QString p = ui->tblFitValues->verticalHeaderItem(item->row())->text();
     switch ( item->column() )
     {
@@ -3700,7 +3738,7 @@ void SC_MainGUI::performOneFitLoop()
     _bAbbruch = false;
     prepareCalculation( true );
 
-    _param2fitval *parameter = method2fitparams.value(curMethod);
+    _param2fitval *parameter = fitparams;
     QHash<QString,_fitLimits*>::const_iterator it;
 
     if ( lastAutoFitLine.isEmpty() )
@@ -3747,15 +3785,11 @@ void SC_MainGUI::performOneFitLoop()
 #endif
 
     // Update table
-    _param2fitval *p2f = method2fitparams.value(curMethod,nullptr);
-    if ( p2f != nullptr )
+    for ( int r=0; r<ui->tblFitValues->rowCount(); r++ )
     {
-        for ( int r=0; r<ui->tblFitValues->rowCount(); r++ )
-        {
-            QString p = ui->tblFitValues->verticalHeaderItem(r)->text();
-            ui->tblFitValues->item( r, 4 )->setText("?");
-            p2f->value(p)->fitvalid = false;
-        }
+        QString p = ui->tblFitValues->verticalHeaderItem(r)->text();
+        ui->tblFitValues->item( r, 4 )->setText("?");
+        fitparams->value(p)->fitvalid = false;
     }
 
     timeForAll = 0;
@@ -3799,7 +3833,7 @@ void SC_MainGUI::performOneFitLoop()
                                   ui->inpFitBorder->value(),
                                   ui->togFitUseMask->isChecked() ? -1 : ui->inpFitBStop->value(),
                                   static_cast<progressLogging>(&this->myProgressLogging),
-                                  method2fitparams.value(curMethod), retinfo );
+                                  fitparams, retinfo );
         timeForAll += fitClass->higResTimerElapsed;
         loopsForAll += fitClass->repetitions;
         imgGenForAll += fitClass->numImgCalc;
@@ -3866,17 +3900,13 @@ void SC_MainGUI::performOneFitLoop()
     }
 
     // Update table
-    //_param2fitval *p2f = method2fitparams.value(curMethod,nullptr);
-    if ( p2f != nullptr )
+    for ( int r=0; r<ui->tblFitValues->rowCount(); r++ )
     {
-        for ( int r=0; r<ui->tblFitValues->rowCount(); r++ )
-        {
-            QString p = ui->tblFitValues->verticalHeaderItem(r)->text();
-            ui->tblFitValues->item( r, 4 )->setText(QString::number(p2f->value(p)->fitres));
-            p2f->value(p)->fitvalid = true;
-            // Restore the old values in the Calculation Tab
-            calcGui->updateParamValue( p, p2f->value(p)->orgval, Qt::black, false/*ohne debug*/ );
-        }
+        QString p = ui->tblFitValues->verticalHeaderItem(r)->text();
+        ui->tblFitValues->item( r, 4 )->setText(QString::number(fitparams->value(p)->fitres));
+        fitparams->value(p)->fitvalid = true;
+        // Restore the old values in the Calculation Tab
+        calcGui->updateParamValue( p, fitparams->value(p)->orgval, Qt::black, false/*ohne debug*/ );
     }
     ui->tblFitValues->resizeColumnsToContents();
     ui->lisFitLog->scrollToBottom();    // if updates are disabled during calculations
@@ -3884,8 +3914,8 @@ void SC_MainGUI::performOneFitLoop()
 
 void SC_MainGUI::on_butFitUseResult_clicked()
 {
-    _param2fitval *p2f = method2fitparams.value(curMethod,nullptr);
-    if ( p2f == nullptr ) return;
+    _param2fitval *p2f = fitparams;
+    //if ( p2f == nullptr ) return; TODO
     for ( int r=0; r<ui->tblFitValues->rowCount(); r++ )
     {
         QString p = ui->tblFitValues->verticalHeaderItem(r)->text();
@@ -4559,8 +4589,8 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
                     QStringList sl = line.mid(7).trimmed().split(";");
                     for ( int i=0; i<sl.size(); i++ )
                         sl[i] = sl[i].trimmed();
-                    _param2fitval *p2f = method2fitparams.value(curMethod,nullptr);
-                    if ( p2f != nullptr )
+                    _param2fitval *p2f = fitparams;
+                    if ( p2f != nullptr ) // TODO?
                     {
                         for ( int r=0; r<ui->tblFitValues->rowCount(); r++ )
                         {
@@ -4620,8 +4650,8 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
                 if ( fglobLog ) fglobLog->write(qPrintable("Used Parameter: "+slNames.join(",")+EOL) );
                 //qDebug() << slNames;
                 //if ( firstScanOfFile && ftex != nullptr ) ftex->write(qPrintable("Use: "+slNames.join(", ")+EOL));
-                _param2fitval *p2f = method2fitparams.value(curMethod,nullptr);
-                if ( p2f != nullptr )
+                _param2fitval *p2f = fitparams;
+                if ( p2f != nullptr ) // TODO?
                 {
                     for ( int r=0; r<ui->tblFitValues->rowCount(); r++ )
                     {
@@ -4870,9 +4900,8 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
                         //if ( ftex != nullptr && fitMeanChangePercent<maxDif )
                         //    ftex->write( qPrintable( QString("%  Loops %1 used, MeanDif=%2, MaxDif=%3:")
                         //                             .arg(maxloop+1).arg(fitMeanChangePercent).arg(maxDif)+EOL ) );
-                        _param2fitval *parameter = method2fitparams.value(curMethod);
-                        QHash<QString,_fitLimits*>::const_iterator it = parameter->constBegin();
-                        while ( it != parameter->constEnd() )
+                        QHash<QString,_fitLimits*>::const_iterator it = fitparams->constBegin();
+                        while ( it != fitparams->constEnd() )
                         {
                             if ( it.value()->used /*&& it.value()->fitvalid*/ )
                             {
@@ -5157,8 +5186,8 @@ void SC_MainGUI::on_butFitCurSave_clicked()
 
 void SC_MainGUI::on_butFitCurLoad_clicked()
 {
-    _param2fitval *p2f = method2fitparams.value(curMethod,nullptr);
-    if ( p2f == nullptr ) return;
+    //_param2fitval *p2f = fitparams;
+    if ( fitparams == nullptr ) fitparams = new _param2fitval;
     foreach (QString s, savedFitParams)
     {
         QStringList tmp = s.split(":");
@@ -5174,7 +5203,12 @@ void SC_MainGUI::on_butFitCurLoad_clicked()
         }
         else
         {   // Tabelleneintrag
-            _fitLimits *fl = p2f->value(tmp[0]);
+            _fitLimits *fl = fitparams->value(tmp[0],nullptr);
+            if ( fl == nullptr )
+            {
+                fl = new _fitLimits;
+                fitparams->insert( tmp[0], fl );
+            }
             for ( int r=0; r<ui->tblFitValues->rowCount(); r++ )
                 if ( tmp[0] == ui->tblFitValues->verticalHeaderItem(r)->text() )
                 {   // Zur Sicherheit die Zeile suchen...
@@ -5535,7 +5569,7 @@ void SC_MainGUI::on_actionCompare_current_parameters_with_file_triggered()
 
     calcGui->compareParameter( sets, compWerte );
     showColorMarker( SETCOLMARK_PARDIFF );
-
+/*
     if ( compWerte.size() > 0 )
     {
         QFile fout( fn+".diff.csv" );
@@ -5559,6 +5593,7 @@ void SC_MainGUI::on_actionCompare_current_parameters_with_file_triggered()
     }
     else
         QMessageBox::information( this, "Compare parameters", "The given file contains no other values.", QMessageBox::Ok );
+*/
 }
 
 
@@ -5825,6 +5860,7 @@ void SC_MainGUI::on_butParamSearchDoit_clicked()
     if ( !ui->inpParamSearchPath->text().endsWith("/") && !ui->inpParamSearchPath->text().endsWith("\\") ) bl++;
     qApp->setOverrideCursor(Qt::WaitCursor);
     searchParameterFilesHelper(ui->inpParamSearchPath->text(),bl,"*.ini");
+    searchParameterFilesHelper(ui->inpParamSearchPath->text(),bl,"*.sas_tpv");
     qApp->restoreOverrideCursor();
     ui->butParamSearchGenerate->setEnabled(false);
     ui->lblParamSearchCount->setText( QString::number(ui->lisParamSearchResult->count()) );
@@ -5877,7 +5913,7 @@ void SC_MainGUI::on_butParamSearchGenerate_clicked()
         ui->lisParamSearchResult->setCurrentItem(item,QItemSelectionModel::Deselect);
         qApp->processEvents();
         //qDebug() << fn;
-        if ( fn.endsWith(".ini") )
+        if ( fn.endsWith(".ini") || fn.endsWith(".sas_tpv") )
         {   // Parameterfiles
             if ( fn.endsWith("ConfigParams.ini") ) continue;
             flog.write( qPrintable("Read "+fn+EOL) );
@@ -5892,6 +5928,7 @@ void SC_MainGUI::on_butParamSearchGenerate_clicked()
                 // Debug: "C:/SimLab/sas-crystal/20220608 - 2D Fits und Fiber-Pattern/TestParamsCylinder.ini"
             }
             fn.replace(".ini",".png");
+            fn.replace(".sas_tpv",".png");
             flog.write( qPrintable(QString("  PrepTime %1 ms").arg(calcGui->higResTimerElapsed(SC_CalcGUI::htimPrep),12,'f',3)+EOL) );
             flog.write( qPrintable(QString("  CalcTime %1 ms").arg(calcGui->higResTimerElapsed(SC_CalcGUI::htimCalc),12,'f',3)+EOL) );
         }
@@ -6010,6 +6047,9 @@ void SC_MainGUI::on_butTPVsaveOptions_clicked()
     // FFT Tab
     sets.beginGroup("FFT");
     sets.setValue( "FFTLinInput", ui->radFFTLinInput->isChecked() );
+    sets.setValue( "FFTScaleImg", ui->togFFTscaleImg->isChecked() );
+    sets.setValue( "FFTclipImg", ui->togFFTclipImg->isChecked() );
+    sets.setValue( "FFTclip40Img", ui->togFFTclip40Img->isChecked() );
     sets.setValue( "FFTScaleRphi", ui->togFFTscaleRphi->isChecked() );
     sets.setValue( "FFTclipRphi", ui->togFFTclipRphi->isChecked() );
     sets.setValue( "FFTclip40Rphi", ui->togFFTclip40Rphi->isChecked() );
@@ -6128,6 +6168,9 @@ void SC_MainGUI::on_butTPVloadOptions_clicked()
     sets.beginGroup("FFT");
     ui->radFFTLinInput->setChecked(  sets.value("FFTLinInput",true).toBool() );
     ui->radFFTLogInput->setChecked( !sets.value("FFTLinInput",true).toBool() );
+    ui->togFFTscaleImg->setChecked( sets.value("FFTScaleImg",true).toBool() );
+    ui->togFFTclipImg->setChecked( sets.value("FFTclipImg",false).toBool() );
+    ui->togFFTclip40Img->setChecked( sets.value("FFTclip40Img",false).toBool() );
     ui->grpFFTuseRphi->setChecked( sets.value("FFTuseRphi",true).toBool() );
     ui->cbsFFTsizeRphi->setCurrentIndex( sets.value("FFTsizeRphi",2).toInt() );
     ui->togFFTscaleRphi->setChecked( sets.value("FFTScaleRphi",true).toBool() );
@@ -6468,8 +6511,8 @@ void SC_MainGUI::on_butTPVreadTrainingTable_clicked()
     else
     {
         img->setLogScaling(false);
-        QHash<QString,paramHelper*>::iterator ip = calcGui->curMethod->params.begin();
-        while ( ip != calcGui->curMethod->params.end() )
+        QHash<QString,paramHelper*>::iterator ip = calcGui->params.begin();
+        while ( ip != calcGui->params.end() )
         {
             if ( usedKeys.contains(ip.key()) )
                 img->addMetaInfo( ip.key(), calcGui->currentParamValueStr( ip.key(), true ) );
@@ -7555,7 +7598,7 @@ void SC_MainGUI::on_cbsComboBoxParticle_currentIndexChanged(int index)
         myGuiParam::setEnabled( "SigmaL",      false, "sigma(L):"      );   /*  sigma L  */
         //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
         myGuiParam::setEnabled( "EditRadiusi", false, "EditRadiusi:"   );   /*  DEFAULT  */
-        myGuiParam::setEnabled( "Alfa",        false, "Alfa:"          );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "Alpha",       false, "Alpha:"         );   /*  DEFAULT  */
         myGuiParam::setEnabled( "ComboBoxInterior", true );
         //myGuiParam::setEnabled( ui->grpOrientation, true );
         break;
@@ -7566,7 +7609,7 @@ void SC_MainGUI::on_cbsComboBoxParticle_currentIndexChanged(int index)
         myGuiParam::setEnabled( "SigmaL",      true,  "sigma(L):"      );   /*  sigma L  */
         //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
         myGuiParam::setEnabled( "EditRadiusi", false, "EditRadiusi:"   );   /*  DEFAULT  */
-        myGuiParam::setEnabled( "Alfa",        false, "Alfa:"          );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "Alpha",       false, "Alpha:"         );   /*  DEFAULT  */
         myGuiParam::setEnabled( "ComboBoxInterior", true );
         //myGuiParam::setEnabled( ui->grpOrientation, true );
         break;
@@ -7577,7 +7620,7 @@ void SC_MainGUI::on_cbsComboBoxParticle_currentIndexChanged(int index)
         myGuiParam::setEnabled( "SigmaL",      true,  "sigma(R):"      );   /*  sigma L  */
         //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
         myGuiParam::setEnabled( "EditRadiusi", false, "EditRadiusi:"   );   /*  DEFAULT  */
-        myGuiParam::setEnabled( "Alfa",        false, "Alfa:"          );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "Alpha",       false, "Alpha:"         );   /*  DEFAULT  */
         myGuiParam::setEnabled( "ComboBoxInterior", true );
         //myGuiParam::setEnabled( ui->grpOrientation, true );
         break;
@@ -7588,7 +7631,7 @@ void SC_MainGUI::on_cbsComboBoxParticle_currentIndexChanged(int index)
         myGuiParam::setEnabled( "SigmaL",      true,  "sigma(d):"      );   /*  sigma L  */
         //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
         myGuiParam::setEnabled( "EditRadiusi", false, "EditRadiusi:"   );   /*  DEFAULT  */
-        myGuiParam::setEnabled( "Alfa",        false, "Alfa:"          );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "Alpha",       false, "Alpha:"         );   /*  DEFAULT  */
         myGuiParam::setEnabled( "ComboBoxInterior", false, "@0" );
         //myGuiParam::setEnabled( ui->grpOrientation, true );
         break;
@@ -7599,7 +7642,7 @@ void SC_MainGUI::on_cbsComboBoxParticle_currentIndexChanged(int index)
         myGuiParam::setEnabled( "SigmaL",      false, "sigma(L):"      );   /*  sigma L  */
         //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
         myGuiParam::setEnabled( "EditRadiusi", false, "EditRadiusi:"   );   /*  DEFAULT  */
-        myGuiParam::setEnabled( "Alfa",        false, "Alfa:"          );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "Alpha",       false, "Alpha:"         );   /*  DEFAULT  */
         myGuiParam::setEnabled( "ComboBoxInterior", false, "@0" );
         //myGuiParam::setEnabled( ui->grpOrientation, true );
         break;
@@ -7610,7 +7653,7 @@ void SC_MainGUI::on_cbsComboBoxParticle_currentIndexChanged(int index)
         myGuiParam::setEnabled( "SigmaL",      true,  "sigma(c):"      );   /*  sigma L  */
         //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
         myGuiParam::setEnabled( "EditRadiusi", false, "EditRadiusi:"   );   /*  DEFAULT  */
-        myGuiParam::setEnabled( "Alfa",        false, "Alfa:"          );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "Alpha",       false, "Alpha:"         );   /*  DEFAULT  */
         myGuiParam::setEnabled( "ComboBoxInterior", true );
         //myGuiParam::setEnabled( ui->grpOrientation, true );
         break;
@@ -7621,7 +7664,7 @@ void SC_MainGUI::on_cbsComboBoxParticle_currentIndexChanged(int index)
         myGuiParam::setEnabled( "SigmaL",      true,  "sigma(c):"      );   /*  sigma L  */
         myGuiParam::setEnabled( "EditRadiusi", true,  "c [nm]:"        );   /*  semiaxis c  */  //Z=37675 <<< NEU <<<<<<<<<<<<<<<<<<<<
         //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
-        myGuiParam::setEnabled( "Alfa",        false, "Alfa:"          );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "Alpha",       false, "Alpha:"         );   /*  DEFAULT  */
         myGuiParam::setEnabled( "ComboBoxInterior", true );
         //myGuiParam::setEnabled( ui->grpOrientation, true );
         break;
@@ -7632,7 +7675,7 @@ void SC_MainGUI::on_cbsComboBoxParticle_currentIndexChanged(int index)
         myGuiParam::setEnabled( "SigmaL",      true,  "sigma(L):"      );   /*  sigma L  */
         myGuiParam::setEnabled( "EditRadiusi", true,  "c [nm]:"        );   /*  semiaxis c  */  // <<< NEU <<<<<<<<<<<<<<<<<<<<
         //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
-        myGuiParam::setEnabled( "Alfa",        true,  "k:"             );   /*  k-parameter  */  //Z=37704 <<< NEU <<<<<<<<<<<<<<<<<<<<
+        myGuiParam::setEnabled( "Alpha",       true,  "k:"             );   /*  k-parameter  */  //Z=37704 <<< NEU <<<<<<<<<<<<<<<<<<<<
         myGuiParam::setEnabled( "ComboBoxInterior", true );
         //myGuiParam::setEnabled( ui->grpOrientation, true );
         break;
@@ -7643,7 +7686,7 @@ void SC_MainGUI::on_cbsComboBoxParticle_currentIndexChanged(int index)
         myGuiParam::setEnabled( "SigmaL",      true,  "sigma(L):"      );   /*  sigma L  */
         myGuiParam::setEnabled( "EditRadiusi", true,  "c [nm]:"        );   /*  semiaxis c  */  // <<< NEU <<<<<<<<<<<<<<<<<<<<
         //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
-        myGuiParam::setEnabled( "Alfa",        true,  "k:"             );   /*  k-parameter  */  //Z=37704 <<< NEU <<<<<<<<<<<<<<<<<<<<
+        myGuiParam::setEnabled( "Alpha",       true,  "k:"             );   /*  k-parameter  */  //Z=37704 <<< NEU <<<<<<<<<<<<<<<<<<<<
         myGuiParam::setEnabled( "ComboBoxInterior", true );
         //myGuiParam::setEnabled( ui->grpOrientation, true );
         break;
@@ -7654,7 +7697,7 @@ void SC_MainGUI::on_cbsComboBoxParticle_currentIndexChanged(int index)
         myGuiParam::setEnabled( "SigmaL",      true,  "sigma(L):"      );   /*  sigma L  */
         //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
         myGuiParam::setEnabled( "EditRadiusi", false, "EditRadiusi:"   );   /*  DEFAULT  */
-        myGuiParam::setEnabled( "Alfa",        false, "Alfa:"          );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "Alpha",       false, "Alpha:"         );   /*  DEFAULT  */
         myGuiParam::setEnabled( "ComboBoxInterior", true );
         //myGuiParam::setEnabled( ui->grpOrientation, true );
         break;
@@ -7665,7 +7708,7 @@ void SC_MainGUI::on_cbsComboBoxParticle_currentIndexChanged(int index)
         myGuiParam::setEnabled( "SigmaL",      true,  "Lp:"            );   /*  sigma L  */
         //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
         myGuiParam::setEnabled( "EditRadiusi", false, "EditRadiusi:"   );   /*  DEFAULT  */
-        myGuiParam::setEnabled( "Alfa",        false, "Alfa:"          );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "Alpha",       false, "Alpha:"         );   /*  DEFAULT  */
         myGuiParam::setEnabled( "ComboBoxInterior", true );
         //myGuiParam::setEnabled( ui->grpOrientation, true );
         break;
@@ -7707,21 +7750,21 @@ void SC_MainGUI::on_cbsComboBoxInterior_currentIndexChanged(int index)
     case 0:   /*  homogeneous core */  //Z=41005
         myGuiParam::setEnabled( "EditRadius",  true  );   /*  Rm     */  //Z=41006
         myGuiParam::setEnabled( "EditRadiusi", false );   /*  DEFAULT  */
-        myGuiParam::setEnabled( "Alfa",        false );   /*  alpha  */  //Z=41008 - unklar, ob es der richtige Parameter ist (EditAlpha)
+        myGuiParam::setEnabled( "Alpha",       false );   /*  alpha  */  //Z=41008 - unklar, ob es der richtige Parameter ist (EditAlpha)
         myGuiParam::setEnabled( "EditRho",     false );   /*  rho    */  //Z=41010
         break;
 
     case 1:   /*  homogeneous core/shell */  //Z=41014
         myGuiParam::setEnabled( "EditRadius",  true  );   /*  Rm     */  //Z=41015
         myGuiParam::setEnabled( "EditRadiusi", true  );   //Z=41017  <<<NEU<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-        myGuiParam::setEnabled( "Alfa",        false );   /*  alpha  */  //Z=41018 - unklar, ob es der richtige Parameter ist (EditAlpha)
+        myGuiParam::setEnabled( "Alpha",       false );   /*  alpha  */  //Z=41018 - unklar, ob es der richtige Parameter ist (EditAlpha)
         myGuiParam::setEnabled( "EditRho",     true  );   /*  rho    */  //Z=41020
         break;
 
     case 2:   /*  inhomogeneous core/shell */  //Z=41024
         myGuiParam::setEnabled( "EditRadius",  true  );   /*  Rm     */  //Z=41025
         myGuiParam::setEnabled( "EditRadiusi", true  );   //Z=41027  <<<NEU<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-        myGuiParam::setEnabled( "Alfa",        true  );   /*  alpha  */  //Z=41028 - unklar, ob es der richtige Parameter ist (EditAlpha)
+        myGuiParam::setEnabled( "Alpha",       true  );   /*  alpha  */  //Z=41028 - unklar, ob es der richtige Parameter ist (EditAlpha)
         myGuiParam::setEnabled( "EditRho",     true  );   /*  rho    */  //Z=41030
         break;
 
@@ -7917,3 +7960,27 @@ void SC_MainGUI::on_actionAbout_Qt_triggered()
 {
     QMessageBox::aboutQt(this);
 }
+
+
+/*
+    Informationen zum Testen der Software (ein automatischer Test kommt später):
+
+    1. Normale Berechnungen:
+        Parameter aus "C:\SimLab\sas-crystal\Manuskript HyperSeries (Prof.Förster)" laden
+
+    2. FFT / r,phi:
+        Es können die gleichen Parameter wie oben verwendet werden
+
+    3. Simplex 2D-Fit:
+    3a die GUI-Version:
+        einen schnell zu berechnenden Parametersatz laden und dann einfach den Fit starten
+
+    3b die Consolenversion:
+        "C:\SimLab\sas-crystal\20211206 - Fit Rezept\AutoFit-2023\autoFitCommands.txt" laden und starten
+
+    4. Training Param Variation (testet die Consolenversion):
+        Konfigurationsfiles aus "C:\SimLab\sas-crystal\20220909" nutzen, oder das Bat/Shell-Script dort
+
+    5. AI Definitions (werden z.Zt. nicht verwendet, kommt aber sicher später wieder)
+
+ */

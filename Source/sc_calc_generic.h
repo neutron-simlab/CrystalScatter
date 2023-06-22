@@ -17,6 +17,7 @@ typedef struct
 } _valueTypes;
 
 typedef bool (*_dataGetter)( QString, _valueTypes& );
+typedef bool (*_dataSetter)( QString, _valueTypes& );
 
 
 
@@ -25,14 +26,16 @@ class SC_Calc_GENERIC
 public:
     SC_Calc_GENERIC();
 
-    QString methodName() { return "FCC Spheres"; }  // (TODO) Wenn hier geändert wird, dann müüssen auch die INI-Files angepasst werden.
+    QString methodName() { return "FCC Spheres"; }
+    // This name has historical reasons and might be changed in the future (then change all parameter files too)
 
-    QStringList guiLayout();
+    QStringList guiLayoutNeu();
 
     void prepareData( _dataGetter );
+    void updateOutputData( _dataSetter );
 
     void doCalculation( int numThreads )
-    { calc->doCalculation( numThreads ); }
+    { calc->doCalculation( numThreads ); } //230512//
 
     double doFitCalculation( int numThreads, int bstop, int border, long &cnt, long &nancnt )
     { return calc->doFitCalculation( numThreads, bstop, border, cnt, nancnt ); }

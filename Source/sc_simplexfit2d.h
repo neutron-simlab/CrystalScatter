@@ -39,7 +39,7 @@ public:
 #endif
     {
         calc=c;
-#ifdef FITDATA_IN_GPU
+#ifdef FITDATA_IN_GPU   // SimplexFit2D Konstruktor
         useGpuFit = false;
 #endif
     } /* Konstruktor */

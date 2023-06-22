@@ -22,6 +22,7 @@ myGuiParam::myGuiParam(QObject *parent) : QObject(parent)
     _inp3     = nullptr;
     _tog      = nullptr;
     _fit      = nullptr;
+    _out      = nullptr;
     _keyName  = "??";
     _keyName2 = "??";
     _keyName3 = "??";
@@ -128,6 +129,29 @@ void myGuiParam::setLocInputInt(QWidget *w, QString on, int min, int max, int de
     //    w->setToolTip(tt);
     //else
     //    w->setToolTip( w->toolTip()+"\n"+tt );
+}
+
+
+/*static*/ myGuiParam *myGuiParam::setOutputDbl(QWidget *w)
+{
+    QString on;
+    myGuiParam *p = searchParam(w,on);
+    if ( p == nullptr ) p = new myGuiParam;
+    p->setLocOutputDbl(w,on);
+    return p;
+}
+void myGuiParam::setLocOutputDbl(QWidget *w, QString on)
+{
+    if ( _out == nullptr )
+    {
+        _out = static_cast<QLineEdit*>(w);
+#ifdef CALC_INPUT_MAXWIDTH
+        //_inp->setMaximumWidth(CALC_INPUT_MAXWIDTH);
+#endif
+        _keyName = on;
+        //w->setEnabled(false);
+        DT( qDebug() << "myGuiParam::OutDbl  connect" << on );
+    }
 }
 
 
@@ -427,27 +451,18 @@ QString myGuiParam::debug()
         qDebug() << "ERR1";
         return;
     }
-    if ( SC_MainGUI::getInst()->getCalcGui()->curMethod == nullptr )
+    if ( SC_MainGUI::getInst()->getCalcGui()->getCalcPtr() == nullptr )
     {
         qDebug() << "ERR2";
         return;
     }
-    if ( SC_MainGUI::getInst()->getCalcGui()->curMethod->subCalc == nullptr )
-    {
-        qDebug() << "ERR3";
-        return;
-    }
     // Im ersten Schritt die Namensliste der Parameter aufbauen
     QStringList names;
-    QStringList meta = SC_MainGUI::getInst()->getCalcGui()->curMethod->subCalc->guiLayout();
+    QStringList meta = SC_MainGUI::getInst()->getCalcGui()->getCalcPtr()->guiLayoutNeu();
     foreach ( QString mm, meta )
     {
         QStringList sl = mm.split(";");
-        if ( sl.size() < 4 )
-        {   // x;y;prompt;type müssen immer da sein
-            continue;
-        }
-        names << sl[2].trimmed();
+        names << sl[1].trimmed();
     }
 
     //  /*name=QString()*/, Qt::FindChildOptions options = Qt::FindChildrenRecursively) const
@@ -464,7 +479,11 @@ QString myGuiParam::debug()
 
             QString on;
             searchParam(w, on); // Returnwert interessiert hier nicht
-            if ( ! names.contains(on) ) continue;
+            if ( ! names.contains(on) )
+            {
+                //qDebug() << "no name" << on;
+                continue;
+            }
 
             QStringList sl;
             foreach ( QString mm, meta )
@@ -475,27 +494,25 @@ QString myGuiParam::debug()
                     break;
                 }
             }
-            while ( sl.size() < 6 ) sl << " ";  // tooltip;default sind optional
+            while ( sl.size() < 5 ) sl << " ";  // tooltip;default sind optional
 
-            // "x;y;prompt;type;tooltip;default" with:  ==> sc_calc_generic.h for details
-            //  [-] x;y     = index in the grid (0,1,2,....)
-            //  [2] prompt  = prompting text label left of the inputfield
-            //  [3] type    = Selection : "cbs|...|...|..."
-            //                 Fittable : "cbsfit|...|...|..."
-            //                Numericals: "inp|frac|min|max|unit"
-            //                  Fittable: "inpfit|frac|min|max|unit"
-            //                CheckBox  : "tog"
-            //                Infolabel : "lbl"
-            //  [4] tooltip = this is the tooltip set to both prompt label and inputfield (optional)
-            //  [5] default = the default value (optional)
+            // Each element must be in the form "type;kenn;typespec;tooltip;default" with:
+            //  [0]type     = C:Selection, N:Double, I:Integer, T:Toggle, O:DoubleOut
+            //  [1]kenn     = internal parameter name to connect to correct gui element
+            //  [2]typespec = C:Selection : "...|...|..."  (required)
+            //                N:Double    : "frac|min|max|unit"  (optional, default: "2|-10000|+10000|")
+            //                I:Integer   : "min|max|unit"  (optional, default: "-10000|+10000|")
+            //                T:Toggle    : (empty)
+            //                O:DoubleOut : (empty)
+            //  [3]tooltip  = this is the tooltip set to both prompt label and inputfield (optional)
+            //  [4]default  = the default value (optional)
 
-            if ( ! sl[4].trimmed().isEmpty() )
-                w->setToolTip(sl[4]);
-            sl[3].replace("fit","");  // Das mit dem Fit wird jetzt anders gemacht
+            if ( ! sl[3].trimmed().isEmpty() )
+                w->setToolTip(sl[3]);
 
-            QStringList typval = sl[3].mid(4).split("|",SPLIT_SKIP_EMPTY_PARTS);
+            QStringList typval = sl[2].split("|",SPLIT_SKIP_EMPTY_PARTS);
 
-            paramHelper *par = SC_MainGUI::getInst()->getCalcGui()->curMethod->params.value(on,nullptr);
+            paramHelper *par = SC_MainGUI::getInst()->getCalcGui()->params.value(on,nullptr);
             if ( par == nullptr )
             {
                 qDebug() << "getpar" << on << "FAIL";
@@ -510,33 +527,33 @@ QString myGuiParam::debug()
                 myGuiParam::setLabel(w);
             }
             else if ( w->objectName().startsWith("cbs") )
-            {   // Selection : "cbs|...|...|..."
+            {   //  [2]typespec = C:Selection : "...|...|..."  (required)
                 // Weil die ComboBoxen in der neuen Version mit Signalen versehen werden um andere Elemente freizugeben,
                 // sollten die Signale beim Füllen geblockt werden.
                 w->blockSignals(true);
                 for ( int i=0; i<typval.size(); i++ ) typval[i] = typval[i]+QString(" {%1}").arg(i);
-                myGuiParam::setSelect(w, typval, sl[5]);
+                myGuiParam::setSelect(w, typval, sl[4]);
                 //if ( par->gui.w != nullptr ) { par->gui.w->deleteLater(); }
                 par->gui.w = w;
                 w->blockSignals(false);
             }
             else if ( w->objectName().startsWith("int") )
-            {   // Numericals: "int|frac|min|max|unit"
-                int min = ( typval.size() > 1 ) ? typval[1].toInt() : 0;
-                int max = ( typval.size() > 2 ) ? typval[2].toInt() : 1000;
-                QString suff = ( typval.size() > 3 ) ? typval[3] : "";
-                int def = ( sl[5].isEmpty() ) ? 0 : sl[5].toInt();
+            {   // [2]typespec = I:Integer   : "min|max|unit"  (optional, default: "-10000|+10000|")
+                int min = ( typval.size() > 0 ) ? typval[0].toInt() : 0;
+                int max = ( typval.size() > 1 ) ? typval[1].toInt() : 1000;
+                QString suff = ( typval.size() > 2 ) ? typval[2] : "";
+                int def = ( sl[4].isEmpty() ) ? 0 : sl[4].toInt();
                 myGuiParam::setInputInt(w, min, max, def, "", suff);
                 //if ( par->gui.w != nullptr ) { par->gui.w->deleteLater(); }
                 par->gui.w = w;
             }
             else if ( w->objectName().startsWith("inp") || w->objectName() == "outCalcQmax" )
-            {   // Numericals: "inp|frac|min|max|unit"
+            {   // [2]typespec = N:Double    : "frac|min|max|unit"  (optional, default: "2|-10000|+10000|")
                 int frac = ( typval.size() > 0 ) ? typval[0].toInt() : 2;
                 double min = ( typval.size() > 1 ) ? typval[1].toDouble() : -10000.0;
                 double max = ( typval.size() > 2 ) ? typval[2].toDouble() : +10000.0;
                 QString suff = ( typval.size() > 3 ) ? typval[3] : "";
-                double def = ( sl[5].isEmpty() ) ? 0 : sl[5].toDouble();
+                double def = ( sl[4].isEmpty() ) ? 0 : sl[4].toDouble();
                 myGuiParam::setInputDbl(w, min, max, frac, def, "", suff);
                 //if ( par->gui.w != nullptr ) { par->gui.w->deleteLater(); }
                 par->gui.w = w;
@@ -546,7 +563,7 @@ QString myGuiParam::debug()
                 myGuiParam::setFitToggle(w);
             }
             else if ( w->objectName().startsWith("tog") ||  w->objectName().startsWith("rad") )
-            {
+            {   // [2]typespec = T:Toggle    : (empty)
                 myGuiParam::setInputTog(w);
                 //if ( par->gui.w != nullptr ) { par->gui.w->deleteLater(); }
                 par->gui.w = w;
@@ -555,8 +572,13 @@ QString myGuiParam::debug()
             //    qDebug() << "Group " << w->objectName();
             //else if ( w->objectName().startsWith("rad") )
             //    qDebug() << "Radio " << w->objectName();
+            else if ( w->objectName().startsWith("out") )
+            {   // [2]typespec = O:DoubleOut : (empty)
+                myGuiParam::setOutputDbl(w);
+                par->gui.w = w;
+            }
             else
-                qDebug() << "???" << w->objectName();
+                qDebug() << "???" << w->objectName() << on;
         }
     }
     // Da es sein kann, dass der Fit-Toggle erst nach dem passenden Input gefunden und eingetragen wird,
@@ -566,7 +588,7 @@ QString myGuiParam::debug()
         QString on;
         myGuiParam *hlpPar = searchParam(w, on);
         if ( ! names.contains(on) ) continue;
-        paramHelper *par = SC_MainGUI::getInst()->getCalcGui()->curMethod->params[on];
+        paramHelper *par = SC_MainGUI::getInst()->getCalcGui()->params[on];
         if ( par == nullptr ) continue;
         par->togFit = hlpPar->fit();
         if ( hlpPar->fit() != nullptr )

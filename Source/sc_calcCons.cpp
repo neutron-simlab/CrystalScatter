@@ -7,17 +7,11 @@
 QHash<QString,Double3> SC_CalcCons::inpVectors;
 QHash<QString,double>  SC_CalcCons::inpValues;
 QHash<QString,double>  SC_CalcCons::inpSingleValueVectors;
-calcConsHelper *SC_CalcCons::curMethod;
+QHash<QString,paramConsHelper*> SC_CalcCons::params;
 
 
-// ADD NEW METHOD: First, add the include here, ...
 #include "sc_calc_generic.h"
-//#include "sc_calc_fcc.h"
-//#include "sc_calc_bcc.h"  ist schon angefangen...
-//#include "sc_calc_bct.h"
-//#include "sc_calc_sc.h"
-//#include "sc_calc_hcp.h"
-//#include "sc_calc_fd3m.h"
+
 
 #define D(x) // x // Debuging... ACHTUNG: das qDebug() sollte durch std::cerr ersetzt werden!
 
@@ -25,33 +19,70 @@ calcConsHelper *SC_CalcCons::curMethod;
 
 /**
  * @brief SC_CalcCons::SC_CalcCons
- * Constructor, it instantiate all calculation subclasses.
+ * Constructor, it instantiate calculation subclass.
  */
 SC_CalcCons::SC_CalcCons()
 {
-    memory = nullptr;
+    calcGeneric = new SC_Calc_GENERIC;
+    QStringList meta = calcGeneric->guiLayoutNeu();
+    for ( int m=0; m<meta.size(); m++ )
+    {
+        QStringList sl = meta[m].split(";");
+        while ( sl.size() < 5 ) sl << " ";  // tooltip;default sind optional
 
-    // ADD NEW METHOD: ... and add the constructor call here - Thats all!
-    calcConsHelper *c;
-    c = new calcConsHelper( new SC_Calc_GENERIC );   methods.insert( c->subCalc->methodName(), c );
-    //c = new calcConsHelper( new SC_Calc_FCC  );   methods.insert( c->subCalc->methodName(), c );
-    //c = new calcConsHelper( new SC_Calc_BCC  );   methods.insert( c->subCalc->methodName(), c );
-    //c = new calcConsHelper( new SC_Calc_BCT  );   methods.insert( c->subCalc->methodName(), c );
-    //c = new calcConsHelper( new SC_Calc_SC   );   methods.insert( c->subCalc->methodName(), c );
-    //c = new calcConsHelper( new SC_Calc_HCP  );   methods.insert( c->subCalc->methodName(), c );
-    //c = new calcConsHelper( new SC_Calc_FD3M );   methods.insert( c->subCalc->methodName(), c );
-}
+        // TODO: Neue Struktur des guiLayout()
 
-
-/**
- * @brief SC_CalcCons::getCalcTypes
- * @return the names of the methods (aka calculation types)
- */
-QStringList SC_CalcCons::getCalcTypes()
-{
-    QStringList rv = methods.keys();
-    rv.sort();
-    return rv;
+        paramConsHelper *e = new paramConsHelper;
+        e->fitparam = true; // TODO ??? sl[3].mid(3,3) == "fit";
+        e->key = sl[1].trimmed();
+        e->value.number = 0;
+        e->value.flag   = false;
+        e->minNum       = 0;
+        e->maxNum       = 0;
+        QStringList typval = sl[2].split("|",Qt::SkipEmptyParts);
+        switch ( sl[0][0].toLatin1() )
+        {
+        case 'C':   // ComboBox  : "...|...|..." mit den jeweiligen Werten
+            e->type = paramConsHelper::select;
+            if ( !sl[4].isEmpty() )
+            {   // set default in local variable
+                e->value.number = typval.indexOf(sl[4]);
+            }
+            e->maxNum = typval.size();
+            break;
+        case 'N':   // Zahlenwert: "frac|min|max|unit" mit Nachkommastellen und Grenzwerten (optional)
+            e->type = paramConsHelper::number;
+            e->minNum = ( typval.size() > 1 ) ? typval[1].toDouble() : -10000.0;
+            e->maxNum = ( typval.size() > 2 ) ? typval[2].toDouble() :  10000.0;
+            if ( !sl[4].isEmpty() )
+            {   // set default in local variable
+                e->value.number = sl[4].toDouble();
+            }
+            break;
+        case 'I':   // Integer-Zahlenwert: "min|max|unit"
+            e->type = paramConsHelper::number;
+            e->minNum = ( typval.size() > 0 ) ? typval[0].toDouble() : -10000.0;
+            e->maxNum = ( typval.size() > 1 ) ? typval[1].toDouble() :  10000.0;
+            if ( !sl[4].isEmpty() )
+            {   // set default in local variable
+                e->value.number = sl[4].toDouble();
+            }
+            break;
+        case 'T':   // CheckBox  : "tog"
+            e->type = paramConsHelper::toggle;
+            if ( !sl[4].isEmpty() )
+            {   // set default in local variable
+                e->value.flag = sl[4].toInt() != 0;
+            }
+            e->maxNum = 1;
+            break;
+        default:
+            // Outputs werden hier ignoriert
+            e->key = "";
+            break;
+        }
+        if ( !e->key.isEmpty() ) params.insert( e->key, e );
+    }
 }
 
 
@@ -66,72 +97,71 @@ void SC_CalcCons::loadParameter( QString fn )
 {
     QSettings sets( fn, QSettings::IniFormat );
     // Erst alle Methodenspezifischen Parameter
-    QHash<QString,calcConsHelper*>::iterator im = methods.begin();
-    while ( im != methods.end() )
+    sets.beginGroup( calcGeneric->methodName() );
+    QHash<QString,paramConsHelper*>::iterator ip = params.begin();
+    while ( ip != params.end() )
     {
-        sets.beginGroup( im.key() );
-        QHash<QString,paramConsHelper*>::iterator ip = im.value()->params.begin();
-        while ( ip != im.value()->params.end() )
-        {
-            paramConsHelper *par = ip.value();
-            switch ( par->type )
-            {
-            //case paramConsHelper::text:
-            //    par->value.text = sets.value( par->key ).toString();
-            //    break;
-            case paramConsHelper::number:
-                par->value.number = sets.value( par->key ).toDouble();
-                break;
-            case paramConsHelper::select:
-                par->value.number = sets.value( par->key ).toDouble();
-                break;
-            case paramConsHelper::toggle:
-                par->value.flag = sets.value( par->key ).toBool();
-                break;
-            default:
-                break;
-            }
+        paramConsHelper *par = ip.value();
+        if ( par->key == "EditQmaxPreset" || par->key == "EditQmaxData" )
+        {   // Die RadioButtons für die Qmax Auswahl sind auch in dieser Liste....
             ++ip;
+            continue;
         }
-        sets.endGroup();
-        ++im;
+        if ( par->key.startsWith("FITFLAG_") )
+        {   // Das Flag zum Fitten wird hier auch gespeichert...
+            ++ip;
+            continue;
+        }
+
+        switch ( par->type )
+        {
+        case paramConsHelper::number:
+            par->value.number = sets.value( par->key ).toDouble();
+            break;
+        case paramConsHelper::select:
+            par->value.number = sets.value( par->key ).toDouble();
+            break;
+        case paramConsHelper::toggle:
+            par->value.flag = sets.value( par->key ).toBool();
+            break;
+        default:
+            break;
+        }
+        ++ip;
     }
+    sets.endGroup();
     // Globale Inputs für die Berechnungen
     //QHash<QString,Double3> inpVectors;
     //QHash<QString,double>  inpValues;
     //QHash<QString,double>  inpSingleValueVectors;
     // dann noch alle gemeinsamen Parameter
     sets.beginGroup( "Inputs" );
-    inpValues.insert( "EditGridPoints", sets.value( "EditGridPoints", 100 ).toInt() );
-    inpValues.insert( "Edithklmax",     sets.value( "Edithklmax", 3 ).toInt() );
+    int gp = sets.value( "EditGridPoints", -1 ).toInt();
+    if ( gp < 0 )
+        inpValues.insert( "GridPoints", sets.value( "GridPoints", 100 ).toInt() );
+    else
+        inpValues.insert( "GridPoints", gp );
+    int hkl = sets.value( "Edithklmax", -1 ).toInt();
+    if ( hkl < 0 )
+        inpValues.insert( "HKLmax", sets.value( "HKLmax", 3 ).toInt() );
+    else
+        inpValues.insert( "HKLmax", sets.value( "Edithklmax", 3 ).toInt() );
     inpValues.insert( "RadioButtonQ1",  sets.value( "RadioButtonQ1", false ).toBool() );
     inpValues.insert( "RadioButtonQ2",  sets.value( "RadioButtonQ2", false ).toBool() );
-    inpValues.insert( "RadioButtonQ4",  sets.value( "RadioButtonQ4", false ).toBool() );
+    if ( sets.value( "RadioButtonQ4", false ).toBool() )
+    {
+        inpValues.insert( "RadioButtonQ4",  true );
+        inpValues.insert( "ExpandImage", false );
+    }
+    else
+    {
+        inpValues.insert( "RadioButtonQ4",  false );
+        inpValues.insert( "ExpandImage", sets.value( "ExpandImage", false ).toBool() );
+    }
     // sets.value( "Threads", 0 ) -> per CmdLine Parameter
-    // sets.value( "CurMethod", "" ) -> per CmdLine Parameter
-    inpValues.insert( "ExpandImage", sets.value( "ExpandImage", false ).toBool() );
     inpValues.insert( "BeamPosX", sets.value( "EditCenterX", 0 ).toInt() );
     inpValues.insert( "BeamPosY", sets.value( "EditCenterY", 0 ).toInt() );
 
-    // Lattice Werte
-    inpValues.insert( "LATTcols", sets.value( "LATTcols", 0 ).toInt() );
-    inpValues.insert( "LATTrows", sets.value( "LATTrows", 0 ).toInt() );
-    inpValues.insert( "LATTcenx", sets.value( "LATTcenx", 0 ).toDouble() );
-    inpValues.insert( "LATTceny", sets.value( "LATTceny", 0 ).toDouble() );
-    inpValues.insert( "LATTwlen", sets.value( "LATTwlen", 0 ).toDouble() );
-    inpValues.insert( "LATTdist", sets.value( "LATTdist", 0 ).toDouble() );
-    inpValues.insert( "LATTpixx", sets.value( "LATTpixx", 0 ).toDouble() );
-    inpValues.insert( "LATTpixy", sets.value( "LATTpixy", 0 ).toDouble() );
-
-    inpVectors.insert( "Uvec", Double3(sets.value( "Editx1rel", 0.0 ).toDouble(),
-                                       sets.value( "Edity1rel", 0.0 ).toDouble(),
-                                       sets.value( "Editz1rel", 0.0 ).toDouble()) );
-    inpVectors.insert( "Vvec", Double3(sets.value( "Editx2rel", 0.0 ).toDouble(),
-                                       sets.value( "Edity2rel", 0.0 ).toDouble(),
-                                       sets.value( "Editz2rel", 0.0 ).toDouble()) );
-    inpVectors.insert( "Nvec", Double3(sets.value( "Editxrel", 0.0 ).toDouble(),
-                                       sets.value( "Edityrel", 0.0 ).toDouble(),
-                                       sets.value( "Editzrel", 0.0 ).toDouble()) );
     inpVectors.insert( "Ax1", Double3(sets.value( "EditAxis1x", 0.0 ).toDouble(),
                                       sets.value( "EditAxis1y", 0.0 ).toDouble(),
                                       sets.value( "EditAxis1z", 0.0 ).toDouble()) );
@@ -157,15 +187,6 @@ void SC_CalcCons::loadParameter( QString fn )
     inpSingleValueVectors.insert( "EditAxis3x",  inpVectors["Ax3"].x() );
     inpSingleValueVectors.insert( "EditAxis3y",  inpVectors["Ax3"].y() );
     inpSingleValueVectors.insert( "EditAxis3z",  inpVectors["Ax3"].z() );
-    inpSingleValueVectors.insert( "Editxrel",    inpVectors["Nvec"].x() );
-    inpSingleValueVectors.insert( "Edityrel",    inpVectors["Nvec"].y() );
-    inpSingleValueVectors.insert( "Editzrel",    inpVectors["Nvec"].z() );
-    inpSingleValueVectors.insert( "Editx1rel",   inpVectors["Uvec"].x() );
-    inpSingleValueVectors.insert( "Edity1rel",   inpVectors["Uvec"].y() );
-    inpSingleValueVectors.insert( "Editz1rel",   inpVectors["Uvec"].z() );
-    inpSingleValueVectors.insert( "Editx2rel",   inpVectors["Vvec"].x() );
-    inpSingleValueVectors.insert( "Edity2rel",   inpVectors["Vvec"].y() );
-    inpSingleValueVectors.insert( "Editz2rel",   inpVectors["Vvec"].z() );
     inpSingleValueVectors.insert( "Editdom1",    inpVectors["SigXYZ"].x() );
     inpSingleValueVectors.insert( "Editdom2",    inpVectors["SigXYZ"].y() );
     inpSingleValueVectors.insert( "Editdom3",    inpVectors["SigXYZ"].z() );
@@ -175,60 +196,43 @@ void SC_CalcCons::loadParameter( QString fn )
 void SC_CalcCons::saveParameter( QString fn )
 {
     QSettings sets( fn, QSettings::IniFormat );
-    QHash<QString,calcConsHelper*>::iterator im = methods.begin();
-    while ( im != methods.end() )
+    sets.beginGroup( calcGeneric->methodName() );
+    sets.remove(""); // Remove all previous keys in this group to save only the current settings
+    QHash<QString,paramConsHelper*>::iterator ip = params.begin();
+    while ( ip != params.end() )
     {
-        sets.beginGroup( im.key() );
-        sets.remove(""); // Remove all previous keys in this group to save only the current settings
-        QHash<QString,paramConsHelper*>::iterator ip = im.value()->params.begin();
-        while ( ip != im.value()->params.end() )
+        paramConsHelper *par = ip.value();
+        switch ( par->type )
         {
-            paramConsHelper *par = ip.value();
-            switch ( par->type )
-            {
-            //case paramConsHelper::text:
-            //    sets.setValue( par->key, par->value.text /*string*/ );
-            //    break;
-            case paramConsHelper::number:
-                sets.setValue( par->key, par->value.number /*double*/ );
-                break;
-            case paramConsHelper::select:
-                sets.setValue( par->key, par->value.number /*double*/ );
-                break;
-            case paramConsHelper::toggle:
-                sets.setValue( par->key, par->value.flag /*bool*/ );
-                break;
-            }
-            ++ip;
+        case paramConsHelper::number:
+            sets.setValue( par->key, par->value.number /*double*/ );
+            break;
+        case paramConsHelper::select:
+            sets.setValue( par->key, par->value.number /*double*/ );
+            break;
+        case paramConsHelper::toggle:
+            sets.setValue( par->key, par->value.flag /*bool*/ );
+            break;
         }
-        sets.endGroup();
-        ++im;
+        ++ip;
     }
+    sets.endGroup();
     // Globale Inputs für die Berechnungen
     //QHash<QString,Double3> inpVectors;
     //QHash<QString,double>  inpValues;
     //QHash<QString,double>  inpSingleValueVectors;
     // dann noch alle gemeinsamen Parameter
     sets.beginGroup( "Inputs" );
-    sets.setValue( "EditGridPoints", inpValues["EditGridPoints"] );
-    sets.setValue( "Edithklmax",     inpValues["Edithklmax"] );
+    sets.setValue( "GridPoints", inpValues["GridPoints"] );
+    sets.setValue( "HKLmax",     inpValues["HKLmax"] );
     sets.setValue( "RadioButtonQ1",  inpValues["RadioButtonQ1"] );
     sets.setValue( "RadioButtonQ2",  inpValues["RadioButtonQ2"] );
     sets.setValue( "RadioButtonQ4",  inpValues["RadioButtonQ4"] );
-    sets.setValue( "CurMethod",      curMethod->subCalc->methodName() );
     sets.setValue( "ExpandImage",    inpValues["ExpandImage"] );
     sets.setValue( "EditCenterX",    inpValues["BeamPosX"] );
     sets.setValue( "EditCenterY",    inpValues["BeamPosY"] );
+    //sets.setValue( "Threads",        ui->inpNumCores->value() );  TODO?
 
-    sets.setValue( "Editx1rel",  inpVectors["Uvec"].x() );
-    sets.setValue( "Edity1rel",  inpVectors["Uvec"].y() );
-    sets.setValue( "Editz1rel",  inpVectors["Uvec"].z() );
-    sets.setValue( "Editx2rel",  inpVectors["Vvec"].x() );
-    sets.setValue( "Edity2rel",  inpVectors["Vvec"].y() );
-    sets.setValue( "Editz2rel",  inpVectors["Vvec"].z() );
-    sets.setValue( "Editxrel",   inpVectors["Nvec"].x() );
-    sets.setValue( "Edityrel",   inpVectors["Nvec"].y() );
-    sets.setValue( "Editzrel",   inpVectors["Nvec"].z() );
     sets.setValue( "EditAxis1x", inpVectors["Ax1"].x() );
     sets.setValue( "EditAxis1y", inpVectors["Ax1"].y() );
     sets.setValue( "EditAxis1z", inpVectors["Ax1"].z() );
@@ -246,12 +250,11 @@ void SC_CalcCons::saveParameter( QString fn )
 
 
 
-QStringList SC_CalcCons::paramsForMethod( QString m, bool num, bool glob, bool fit )
+QStringList SC_CalcCons::paramsForMethod( bool num, bool glob, bool fit )
 {
     QStringList rv;
-    if ( ! methods.contains(m) ) return rv;
-    QHash<QString,paramConsHelper*>::iterator ip = methods[m]->params.begin();
-    while ( ip != methods[m]->params.end() )
+    QHash<QString,paramConsHelper*>::iterator ip = params.begin();
+    while ( ip != params.end() )
     {
         if ( fit )
         {   // Fit Parameter gehen hier vor
@@ -281,17 +284,13 @@ QStringList SC_CalcCons::paramsForMethod( QString m, bool num, bool glob, bool f
 }
 
 
-double SC_CalcCons::currentParamValue( QString m, QString p )
+double SC_CalcCons::currentParamValue( QString p )
 {
-    if ( m.isEmpty() && curMethod != nullptr ) m = curMethod->subCalc->methodName();
-    if ( ! methods.contains(m) ) return 0;
-    if ( methods[m]->params.contains(p) )
+    if ( params.contains(p) )
     {
-        paramConsHelper *par = methods[m]->params.value(p);
+        paramConsHelper *par = params.value(p);
         switch ( par->type )
         {
-        //case paramConsHelper::text:
-        //    return par->value.text;
         case paramConsHelper::number:
             return par->value.number;
         case paramConsHelper::select:
@@ -311,19 +310,16 @@ double SC_CalcCons::currentParamValue( QString m, QString p )
 }
 
 
-bool SC_CalcCons::limitsOfParamValue( QString m, QString p, double &min, double &max, bool &countable )
+bool SC_CalcCons::limitsOfParamValue( QString p, double &min, double &max, bool &countable )
 {
     min = 0;
     max = 0;
     countable = false;
-    if ( ! methods.contains(m) ) return false;
-    if ( methods[m]->params.contains(p) )
+    if ( params.contains(p) )
     {
-        paramConsHelper *par = methods[m]->params.value(p);
+        paramConsHelper *par = params.value(p);
         switch ( par->type )
         {
-        //case paramConsHelper::text:
-        //    return false;
         case paramConsHelper::number:
             min = par->minNum;
             max = par->maxNum;
@@ -345,18 +341,13 @@ bool SC_CalcCons::limitsOfParamValue( QString m, QString p, double &min, double 
 }
 
 
-bool SC_CalcCons::updateParamValue( QString m, QString p, double v )
+bool SC_CalcCons::updateParamValue( QString p, double v )
 {
-    if ( m.isEmpty() && curMethod != nullptr ) m = curMethod->subCalc->methodName();
-    if ( ! methods.contains(m) ) return false;
-    if ( methods[m]->params.contains(p) )
+    if ( params.contains(p) )
     {
-        paramConsHelper *par = methods[m]->params.value(p);
+        paramConsHelper *par = params.value(p);
         switch ( par->type )
         {
-        //case paramConsHelper::text:
-        //    par->value.text = v;
-        //    return true;
         case paramConsHelper::number:
             par->value.number = v;
             return true;
@@ -385,12 +376,10 @@ bool SC_CalcCons::updateParamValue( QString m, QString p, double v )
 }
 
 
-bool SC_CalcCons::isCurrentParameterValid( QString m, QString p )
+bool SC_CalcCons::isCurrentParameterValid( QString p )
 {
-    // Methode gültig?
-    if ( ! methods.contains(m) ) return false;
     // Methodenspezifischer Parameter?
-    if ( methods[m]->params.contains(p) ) return true;
+    if ( params.contains(p) ) return true;
     // Globaler Wert?
     if ( inpValues.contains(p) ) return true;
     // Globaler Vektor-Wert?
@@ -404,21 +393,16 @@ bool SC_CalcCons::isCurrentParameterValid( QString m, QString p )
 
 /**
  * @brief SC_CalcCons::prepareCalculation
- * @param m       - current method to use ("*" during init)
  * @param getData - if true call the method specific prepare function (not in fit)
  */
 void SC_CalcCons::prepareCalculation( bool fromFit )
 {
     if ( fromFit )
     {   // Special call during 2D-Fit to update the parameters
-        curMethod->subCalc->prepareData( &dataGetter );
+        calcGeneric->prepareData( &dataGetter );
         return;
     }
-    memory = curMethod->subCalc;
-    if ( curMethod == nullptr )
-        std::cerr << "ERROR in prepareCalculation"
-                  << "*********************" << std::endl;
-    curMethod->subCalc->prepareData( &dataGetter );
+    calcGeneric->prepareData( &dataGetter );
 }
 
 
@@ -431,16 +415,11 @@ void SC_CalcCons::prepareCalculation( bool fromFit )
  */
 bool SC_CalcCons::dataGetter( QString p, _valueTypes &v )
 {
-    if ( curMethod == nullptr ) return false;
-    if ( curMethod->params.contains(p) )
+    if ( params.contains(p) )
     {
-        paramConsHelper *par = curMethod->params[p];
+        paramConsHelper *par = params[p];
         switch ( par->type )
         {
-        //case paramConsHelper::text:
-        //    v.str = par->value.text;
-        //    D(qDebug() << "paramHelper::text" << p << v.str;)
-        //    break;
         case paramConsHelper::number:
             v.value = par->value.number;
             D(qDebug() << "paramHelper::number" << p << v.value;)
@@ -483,14 +462,12 @@ bool SC_CalcCons::dataGetter( QString p, _valueTypes &v )
  */
 void SC_CalcCons::doCalculation( int numThreads )
 {
-    if ( curMethod == nullptr ) return;
-    curMethod->subCalc->doCalculation( numThreads );
+    calcGeneric->doCalculation( numThreads );
 }
 
 double SC_CalcCons::doFitCalculation( int numThreads, int bstop, int border, long &cnt, long &nancnt )
 {
-    if ( curMethod == nullptr ) return 0.0;
-    return curMethod->subCalc->doFitCalculation( numThreads, bstop, border, cnt, nancnt );
+    return calcGeneric->doFitCalculation( numThreads, bstop, border, cnt, nancnt );
 }
 
 
@@ -501,16 +478,15 @@ double SC_CalcCons::doFitCalculation( int numThreads, int bstop, int border, lon
  */
 double SC_CalcCons::higResTimerElapsed( whichHigResTimer f )
 {
-    if ( curMethod == nullptr ) return 0;
     switch ( f )
     {
     case htimPrep:
-        return curMethod->subCalc->higResTimerElapsedPrep();
+        return calcGeneric->higResTimerElapsedPrep();
     case htimCalc:
-        return curMethod->subCalc->higResTimerElapsedCalc();
+        return calcGeneric->higResTimerElapsedCalc();
     case htimBoth:
-        return curMethod->subCalc->higResTimerElapsedPrep() +
-               curMethod->subCalc->higResTimerElapsedCalc();
+        return calcGeneric->higResTimerElapsedPrep() +
+               calcGeneric->higResTimerElapsedCalc();
     }
     return 0;
 }
@@ -519,7 +495,7 @@ double SC_CalcCons::higResTimerElapsed( whichHigResTimer f )
 
 
 
-
+#ifdef undef
 /**
  * @brief calcHelper::calcHelper
  * @param c   - Calculation class pointer
@@ -581,14 +557,6 @@ calcConsHelper::calcConsHelper(SC_Calc_GENERIC *c )
             }
             e->maxNum = typval.size();
         }
-        /*else if ( sl[3].startsWith("txt") )
-        {   // Textinput : "txt|len" mit maximaler Textlänge (optional)
-            e->type = paramConsHelper::text;
-            if ( !sl[5].isEmpty() )
-            {   // set default in local variable
-                e->value.text = sl[5];
-            }
-        }*/
         else if ( sl[3].startsWith("inp") )
         {   // Zahlenwert: "inp|frac|min|max" mit Nachkommastellen und Grenzwerten (optional)
             e->type = paramConsHelper::number;
@@ -624,3 +592,4 @@ calcConsHelper::calcConsHelper(SC_Calc_GENERIC *c )
         params.insert( e->key, e );
     }
 }
+#endif

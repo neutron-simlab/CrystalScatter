@@ -31,9 +31,11 @@
 \usepackage{subfig} % make it possible to include more than one captioned figure/table in a single float
 \usepackage{scrextend} % für addmargin
 \usepackage{listings} % Absatz als Code formatieren
+
 \usepackage{color}
 \definecolor{mark}{rgb}{0.8,0.2,0.2} % 1=weiß, 0=schwarz
 \definecolor{rowcolor}{rgb}{0.94, 0.97, 1.0}
+\definecolor{rowkeycol}{rgb}{0.99, 0.97, 0.80}
 
 %\usepackage{hyperref}   % wenn im Inhaltsverzeichnis Links zu den Kapiteln stehen sollen
 
@@ -73,6 +75,9 @@
 \newcommand{\rtab}{\raggedleft\arraybackslash} % Tabellenabschnitt rechtsbündig
 % https://de.wikibooks.org/wiki/LaTeX-W%C3%B6rterbuch:_tabular
 
+\usepackage[colorlinks, linkcolor = black, citecolor = black, filecolor = black, urlcolor = blue]{hyperref}
+% https://de.wikibooks.org/wiki/LaTeX-W%C3%B6rterbuch:_hyperref
+
 
 \setlength{\tabcolsep}{1mm} % Setzt den Längenwert von {Abstand zwischen den Spalten einer Tabelle} auf den Wert 1mm
 \setcounter{tocdepth}{2} % Tiefe des Inhaltsverzeichnisses
@@ -89,6 +94,7 @@
 \endfirsthead
 \hline
 April 2023 & M.Wagener & First edit phase. \\ \hline
+June 2023 & M.Wagener & Updates. \\ \hline
 \end{longtable}
 
 \centerline{All sources saved at https://github.com/neutron-simlab/CrystalScatter}
@@ -101,27 +107,24 @@ April 2023 & M.Wagener & First edit phase. \\ \hline
 
 Here are some short informations of what is in each source file. From the history the executable name is {\it sas\_scatter2} but the github name is set to CrystalScatter. This program has a graphical user interface and can calculate one image at a button click. If more images must be calculated, the background process {\it sas\_scatter2Cons} will be used.
 
-{\bf After the big redesign of the gui in April 2023, the background process is not updated at this time. It will be done in the near future.} Then, this remark is removed.
-
-\begin{longtable}{|L{3.6cm}|C{2cm}L{11.5cm}|}
+\begin{longtable}{|L{4.5cm}|C{1.8cm}|L{10.9cm}|}
 \hline
-{\bf sas\_scatter2} & GUI & Main executable. \\ \hline
-{\bf sas\_scatter2Cons} & Cons & Background executable, all inputs are provided via parameter and configuration files. \\ \hline
-sc\_main.cpp & GUI & The main() function of the main executable. \\ \hline
-sc\_mainCons.cpp & Cons & The main() function of the background process. \\ \hline
-sc\_maingui.cpp / .h / .ui & GUI & All functions of the gui. \\ \hline
-sc\_calcgui.cpp / .h & GUI & Interface from the gui to the calculation class. \\ \hline
-%sc\_calcCons.cpp / .h & Cons & Konsolen-Interface zu den Berechnungen \\ \hline
-sc\_calc\_generic.cpp / .h & GUI+Cons & Interface class into the calculations. This is historical and might be changed in the future. \\ \hline
-sc\_calc\_generic\_gpu.cu / .h & GUI+Cons & Class for the calculations, running on both CPU and GPU. \\ \hline
-sc\_libs\_gpu.cu / .h & GUI+Cons & Some routines for the calculations (see note below). \\ \hline
-sc\_memory\_gpu.cu / .h & GUI+Cons & Some routines for the memory management on the CPU and GPU (see note below). \\ \hline
-sc\_postproc.cpp / .h & GUI+Cons & Image Postprocessing: calculate the (r,phi)-Image and the iFFT. \\ \hline
-sc\_simplexfit2d.cpp / .h & GUI+Cons & All functions for the simplex 2d fit algorithm. \\ \hline
-sc\_readdata.cpp / .h & GUI+Cons & Functions to read different types of data files. \\ \hline
-widimage.cpp / .h & GUI & Class for each image. The images are displayed as separated windows. \\ \hline
-dlg*.cpp / .h / .ui & GUI & Dialog functions for some gui features. \\ \hline
-myguiparam.cpp / .h & GUI & Helperclass for the parameters. If this will be changed in the future is not known. \\ \hline
+{\bf sas\_scatter2} & {\small GUI} & Main executable for the graphical usr interface. \\ \hline
+{\bf sas\_scatter2Cons} & {\small Cons} & Background executable, all inputs are provided via parameter flags and values and configuration files. \\ \hline
+sc\_main.cpp & {\small GUI} & The main() function of the main executable. \\ \hline
+sc\_mainCons.cpp & {\small Cons} & The main() function of the background process. \\ \hline
+sc\_maingui.cpp / .h / .ui & {\small GUI} & All functions of the gui. \\ \hline
+sc\_calcgui.cpp / .h & {\small GUI} & Interface from the gui to the calculation class. \\ \hline
+sc\_calc\_generic.cpp / .h & {\small GUI+Cons} & Interface class into the calculations. \\ \hline
+sc\_calc\_generic\_gpu.cu / .h & {\small GUI+Cons} & Class for the calculations, running on both CPU and GPU. \\ \hline
+sc\_libs\_gpu.cu / .h & {\small GUI+Cons} & Some routines for the calculations (see note below). \\ \hline
+sc\_memory\_gpu.cu / .h & {\small GUI+Cons} & Some routines for the memory management on the CPU and GPU (see note below). \\ \hline
+sc\_postproc.cpp / .h & {\small GUI+Cons} & Image Postprocessing: calculate the (r,phi)-Image, the FFT and iFFT. \\ \hline
+sc\_simplexfit2d.cpp / .h & {\small GUI+Cons} & All functions for the simplex 2d fit algorithm. \\ \hline
+sc\_readdata.cpp / .h & {\small GUI+Cons} & Functions to read different types of data files. \\ \hline
+widimage.cpp / .h & {\small GUI} & Class for each image. The images are displayed as separated windows. \\ \hline
+dlg*.cpp / .h / .ui & {\small GUI} & Dialog functions for some gui features. \\ \hline
+myguiparam.cpp / .h & {\small GUI} & Helperclass for the parameters. \\ \hline
 \end{longtable}
 {\it Note: as a first attempt, I wrote different calculation models in different classes. To have no source duplicates I put all same routines in a library (sc\_libs\_gpu.cu). But it was a problem to compile multiple modules for the gpu with the Qt qmake. So I decide to include the files into the main gpu program. In the future this will be made better...}
 
@@ -145,8 +148,8 @@ The user has to fill out all parameters in the gui. If you change the comboboxes
 \item SC\_MainGUI::local\_butCalc\_clicked() \\
 	This procedure is called every time an image must be calculated from the gui (in simplex 2d fit, fft and some test cases). It first calls the preparation (prepareCalculation), then initialize some internal variables for the resulting image size and then starts the calculation (done in a thread!). After the thread is finished some cleanup is done (finishCalculation) and the image will be displayed (addImage).
 
-\item SC\_MainGUI::prepareCalculation( bool progbar ) \\   % bool getMD, 
-	This disables some start calculation buttons and enables the progress bar and the abort button. If the parameter getMD is true, all input fields are copied into the calculation class (fillDataFromInputs). After this the preparation inside the calculation class is called (calcGui::prepareCalculation).
+\item SC\_MainGUI::prepareCalculation( bool progbar ) \\
+	This disables some start calculation buttons and enables the progress bar and the abort button. Then all input fields are copied into the calculation class (fillDataFromInputs). After this the preparation inside the calculation class is called (calcGui::prepareCalculation).
 
 \item SC\_MainGUI::fillDataFromInputs() \\
 	In the program I use (historically) some hashes/vectors for the variables:
@@ -154,13 +157,13 @@ The user has to fill out all parameters in the gui. If you change the comboboxes
 	\item SC\_CalcGUI::inpValues$<$QString,double$>$ used for single value data
 	\item SC\_CalcGUI::inpVectors$<$QString,Double3$>$ used for (x,y,z) tupel data
 	\item SC\_CalcGUI::inpSingleValueVectors$<$QString,double$>$ are the single values from the tupels above
-	\item calcHelper::params$<$QString,paramHelper*$>$ this helper structure contains the values to have no gui access during the calculations and a pointer to the gui element. This might be changed in the future. This hash is filled once in the constructor of the SC\_CalcGUI class.
+	\item calcHelper::params$<$QString,paramHelper*$>$ this helper structure contains the values to have no gui access during the calculations and a pointer to the gui element. This hash is filled once in the constructor of the SC\_CalcGUI class.
 	\item myGuiParam::allParams$<$myGuiParam*$>$ {\it (vector)} this helper structure contains all parameter informations for each input widget provided in the main calculation tab in the gui.
 	\end{itemize}
-In this function the common values are copied from the gui input fields into the hashes. All variables are accessed by thier name. The names comes from the first pascal program I've got and represents the variable names there.
+In this function the values are copied from the gui input fields into the hashes. All variables are accessed by thier name. The names comes from the first pascal program I've got and represents the variable names there.
 
-\item SC\_CalcGUI::prepareCalculation( bool fromFit ) \\   % , bool getData
-	In the normal calculation this calls SC\_Calc\_GENERIC::prepareData( \_dataGetter dg ). From the fit it call the same routine but use another parameter.
+\item SC\_CalcGUI::prepareCalculation( bool fromFit ) \\
+	In the normal calculation this calls SC\_Calc\_GENERIC::prepareData( \_dataGetter dg ). From the fit it call the same routine but use another parameter function.
 
 \item SC\_Calc\_GENERIC::prepareData( \_dataGetter dg ) \\
 	In this procedure all values are copied from the gui elements into the calcHelper::params hash and then put them into the calculation class (into internal variables there). The function provided by the parameter gets two arguments: one string as the name of the parameter and a special value structure to get back all types of values (double, int, bool).
@@ -169,10 +172,10 @@ In this function the common values are copied from the gui input fields into the
 	This thread function calls the calculation procedure (SC\_CalcGUI::doCalculation). This is done inside a thread to prevent the gui to freeze.
 
 \item SC\_CalcGUI::doCalculation( int numThreads ) \\
-	This calls the real calculation procedure. This step in between was done from the first implementation, there was one pointer to the current class. This will be changed.
+	This calls the real calculation procedure. This call is from the Thread to the Generic-Class.
 
 \item SC\_Calc\_GENERIC::doCalculation( int numThreads ) \\
-	The second intermediate function call.
+	This second intermediate function call separates the GPU part from the rest.
 
 \item SasCalc\_GENERIC\_calculation::doCalculation( int numThreads ) \\
 	In this procedure first a preparation function is called and then the subthreads for the pixel calculations are startet on the CPU (parameter numThreads$>$0) or the GPU (numThreads==0).
@@ -275,10 +278,10 @@ In this chapter the three interfaces between the gui and the calculation procedu
 \item group settings - the groups shown in the gui can be set each with one call
 \item model settings - here we develop routine call sequences for specialized models
 \end{itemize}
-In this screenshot all possible parameters are shown. The parameters with grey lables are normally hidden and not used in this selection of the comboboxes.
+In this screenshot all possible parameters are shown. The parameters with grey lables are normally hidden and are not used for calculations in this selection of the comboboxes.
 \begin{figure}[H]
  \centering
- \includegraphics[width=0.99\textwidth]{gui-grouping.png}
+ \includegraphics[width=0.99\textwidth]{gui-calculations-nohidden.png}
  \caption{Calculation parameter grouping with no hidden values.}
 \end{figure}
 
@@ -350,7 +353,7 @@ There is one call to each variable. Some variables are converted directly to the
 \item setRadQ1(bool radq1) \\
 	setRadQ2(bool radq2) \\
 	setRadQ4(bool radq4) call one of these with true if this quadrant should be calculated. {\it There are three calls because they are callbacks of the radiobuttons in the gui.}
-\item setExpandImage(bool expand) set this to true to expand the calculated image to all quadrants.
+\item setExpandImage(bool expand) set this to true to expand the calculated image (Q1 / Q2) to all quadrants.
 % 
 \item[] {\it Experiment params}
 \item setpixnox(double pixelnox) detector pixel count horizontally.
@@ -557,5 +560,160 @@ pixelval = base + izero*pq;
 {\it Output:} Pixelvalue at the given (radius,sigma,q) position.
 
 \end{itemize}
+
+
+
+%------------------------
+
+\clearpage
+\appendix
+
+%\section{Configuration files}
+
+
+\section{Content of the git}
+
+If you get access to my git ({\it https://iffgit.fz-juelich.de/wagener/sas-crystal}), you get a lot of directories with all tests, helper programs and development steps. Here I write some informations to each directory\footnote{Some names are in german and some text files too, this is historical.} and some files found in the git:
+
+\begin{longtable}{|L{7.3cm}|L{10.1cm}|}
+\hline\rowcolor{rowcolor}{\bf Directory} & {\bf Description} \\
+\endfirsthead
+\hline\rowcolor{rowcolor}{\bf Directory} & {\bf Description} \\
+\endhead
+\hline
+\path{20200526 - unit cell rotations/} & Informations about unit cell rotations. \\ \hline
+\path{20200724 - fit 2d/} & First steps towards the fit algorithm. \\ \hline
+\path{20200818 - Read KWS Images/} & First reading of KWS data files. \\ \hline
+\path{20200826 - FCC und BCT/} & Differences between FCC and BCT calculations. \\ \hline
+\path{20210322 - Radiant und FFT/} & Discussions about the radial average images and the FFT. \\ \hline
+\path{20210601 - HDF5/} & First steps to read HDF5 data files. \\ \hline
+\path{20210601 - neuer Algorithmus R-PHI/} & Updates of the radial average algorithm. \\ \hline
+\path{20210616 - Neue Routinen/} & New routines of the basic pascal program. \\ \hline
+\path{20211105 - BCT neu/} & Tests with the new routines. \\ \hline
+\path{20211206 - Fit Rezept/} & Tests for the multi-input-file function of the fit algorithm. \\ \hline
+\path{20211206 - Fit Rezept/AutoFit/} & Some tests for the automatic fit routines. \\ \hline
+\path{20220303-AI/} & Current steps for the new AI approach. \\ \hline
+\path{dl_report/} & Helper program to analyze the output files from the Tensorflow run. \\ \hline
+\path{docker-tests/} & Docker scripts for the experiments with Tensorflow. \\ \hline
+\path{docker-tests/cedric/} & Helper script to generate 3 random vectors standing perpendicular to each other. This is used for the AI generation. \\ \hline
+\path{doku/} & First documentations and default save path for the images. \\ \hline
+\path{hdf_explorer_qt-master/} & Helper program found in a git repo to explore HDF5 files. \\ \hline
+\path{pas2cpp/} & Helper program to convert Pascal code to C++ code. \\ \hline
+\path{sas/} & First GUI program without GPU usage. \\ \hline
+\path{sas_imageing/} & Helper program (experimental) to erode or dilate an image for the AI algorithm. \\ \hline
+\path{sas_report/} & Helper program to generate a report from some logfiles written during 2D fit. \\ \hline
+\path{sas_scatter/} & Former version of the GUI / console program before restructuring the algorithms. \\ \hline
+\path{sas_scatter2-doc/} & Source of this documentation. \\ \hline
+\path{sas_scatter2/} & Software currently used and developed. \\ \hline
+%
+\path{.gitignore} & List of files / directories ignored by the git. \\ \hline
+\path{HDF5 Notizen - H5Einit.h} & After first cmake run of the HDF5 library, the file {\it H5Einit.h} has unexpected line breaks. This is a copy of the edited file. \\ \hline
+\path{HDF5 Notizen.txt} & Notes and descriptions to install the HDF5 library. \\ \hline
+\path{History.txt} & Description of the first few weeks of development. \\ \hline
+\path{*.sas_ai} & Saved files for the AI definitions. \\ \hline
+\path{*.ini} & Saved files for all parameters. \\ \hline
+\path{README.md} & Readme for the git web interface. \\ \hline
+\path{Scatter_pascal.docx} & Some informations from the scatter program with explanations from Prof. Förster. \\ \hline
+\path{Upq.pas} & Older source of the pascal program (external functions). The actual versions are in \path{20210616 - Neue Routinen/}. \\ \hline
+\path{Vergleich.docx} & Comparison of \path{Scatter_pascal.docx} and \path{crystal3d1.pas}. \\ \hline
+\path{crystal3d1-n.pas} & Older source of the pascal program (see above). \\ \hline
+\path{crystal3d1-old.pas} & Older source of the pascal program (see above). \\ \hline
+\path{crystal3d1.pas} & Older source of the pascal program (see above). \\ \hline
+\end{longtable}
+
+
+\section{Used keys in system settings}
+
+The following keys and groups are used to store informations beyond program run. They are stored in
+\begin{itemize}\itemsep0pt
+\item {\bf Windows registry:} \path{\HKEY_CURRENT_USER\SOFTWARE\JCNS-1-SasCrystal\}{\it MasterKey}\path{\...}
+\item {\bf Linux files:} \path{$HOME/.config/JCNS-1-SasCrystal/}{\it MasterKey}\path{.conf}
+\end{itemize}
+
+%\begin{longtable}{|L{7.3cm}|L{10.1cm}|}
+\begin{longtable}{|l|l|c|l|}
+\hline\rowcolor{rowcolor}{\bf Goup} & {\bf Key} & {\bf Default} & {\bf Description} \\
+\endfirsthead
+\hline\rowcolor{rowcolor}{\bf Goup} & {\bf Key} & {\bf Default} & {\bf Description} \\
+\endhead
+\hline
+%---MainGui---
+%    QSettings sets(SETT_APP,SETT_GUI);
+\rowcolor{rowkeycol}\multicolumn{4}{|c|}{Masterkey: {\it GUISettings} }  \\ \hline
+ & LastMethod & -1 & \\ \hline
+ & ConfigParamFile & & \\ \hline
+ & GUIgeometry & & bytearray with geometry informations for the main window \\ \hline
+%    // TAB 0 --- Configuration ---
+ & ImgAutoPosit & false & ui-togAutoPosit \\ \hline
+ & OnlyNewWindow & false & ui-togOnlyNewWindow \\ \hline
+ & LimitRuntimeFlag & false & ui-togLimitRuntime \\ \hline
+ & LimitRuntimeValue & 60 & ui-inpLimitRuntime \\ \hline
+ & DefColTbl & 1 & ui-cbsDefaultColTbl \\ \hline
+%    // TAB 2 --- Calculations ----
+ & GridPoints & 64 & ui-inpGridPoints \\ \hline
+ & Quadrant & 2 & ui-radQ1,2,4 \\ \hline
+ & ExpandImg & true & ui-togExpandImage \\ \hline
+%    // TAB 3 --- FFT -------------
+ & FFTLinInput & true & ui-radFFTLinInput  \\ \hline
+ & FFTScaleInput & true & ui-togFFTScaleInput \\ \hline
+ & FFTScaleOutput & true & ui-togIFFTscaled \\ \hline
+ & FFTSwapOutput & true & ui-togIFFTSwap \\ \hline
+ & FFTsize & 2 & ui-cbsFFTsizeMan \\ \hline
+ & DispRphi & true & ui-togDispRphi \\ \hline
+ & FFToutput & 0 & 0=Real, 1=Imag, 2=Abs, 3=Spec \\ \hline
+%    // TAB 4 --- Fit -------------
+Fit-Globals & BeamStop & 0 & ui-inpFitBStop \\ \hline
+Fit-Globals & Border & 0 & ui-inpFitBorder \\ \hline
+Fit-Globals & MaxIter & 10 & ui-inpFitMaxIter \\ \hline
+Fit-Globals & StepSize & 1.0 & ui-inpFitStepSize \\ \hline
+Fit-Globals & Tolerance & 0.5 & ui-inpFitTolerance \\ \hline
+Fit-Globals & Repetitions & 1 & ui-inpFitRepetitions (not used) \\ \hline
+Fit-Globals & UseMask & false & ui-togFitUseMask \\ \hline
+%            QStringList slVal = sets.value(k,"0:0:0:0").toString().split(":");
+%            _fitLimits *fl = new _fitLimits;
+%            fl->used = slVal[0].toInt() != 0;
+%            fl->min  = slVal[1].toDouble();
+%            fl->max  = slVal[2].toDouble();
+%            fl->fitType = static_cast<_fitTypes>(slVal[3].toInt());
+%            fl->fitvalid = false;  // fitresult not stored!
+Fit-* & \multicolumn{3}{l|}{\it For all known calculation methods} \\ \hline
+Fit-* & * & 0:0:0:0 & {\it For all fittable parameters} \\ \hline
+%    // TAB 5 --- AI --------------
+AI & LastSubDir & . & ui-inpSubDir \\ \hline
+AI & Grayscale & false & ui-togGrayscale \\ \hline
+AI & FileInputEna & false & ui-grpFileInput \\ \hline
+AI & FileInputLast & & ui-inpFileName \\ \hline
+AI & FileClass & \{M\} & ui-inpFileClass \\ \hline
+AI & GenerateIFFT & false & ui-togAIUseFFTOutput \\ \hline
+AI & LinOut & true & ui-radAILinOutput \\ \hline
+AI & ScaleOut & false & ui-togAIScaleOutput \\ \hline
+AI & Cascading & true & ui-radLoopsCascade (not used, allways true) \\ \hline
+AI & LastSaveFile & . &  \\ \hline
+AI & LastSaveBkgFile & . &  \\ \hline
+%---Measurement file---
+ & LastImage & dataPath &  \\ \hline
+\rowcolor{rowkeycol}\multicolumn{4}{|c|}{Masterkey: {\it Parameter} }  \\ \hline
+%---Parameter file---
+ & LastParam & . & \\ \hline
+%---Compare data files---
+ & CompareF1 & . &  \\
+ & CompareF2 & . &  \\ \hline
+%---Autofit---
+ & LastAutoFit & . & ui-inpInputfile \\ \hline
+ & AutoFitRunLogs & true & ui-togRunLogs \\ \hline
+ & AutoFitLatexEna & true & ui-grpLatexEnabled \\ \hline
+ & AutoFitLatexImages & true & ui-grpImages \\ \hline
+ & AutoFitLatexOrgImgStep & true & ui-togOrgImgStep \\ \hline
+ & AutoFitLatexCalcImgStep & true & ui-togCalcStep \\ \hline
+ & AutoFitLatexResiduenStep & false & ui-togResiStep \\ \hline
+ & AutoFitLatexTrend & true & ui-togLatexTrend \\ \hline
+ & AutoFitLatexInput & true & ui-togLatexInput \\ \hline
+ & AutoFitLatexComment & false & ui-togLatexComments \\ \hline
+ & AutoFitDelFiles & false & ui-togDelFiles \\ \hline
+ & AutoFitEditor & &  \\ \hline
+%    ui->togMinimalOut->setChecked( data.value("AutoFitMinimalOutput",false).toBool() );
+
+\end{longtable}
+
 
 \end{document}

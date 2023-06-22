@@ -28,48 +28,46 @@
 #endif
 
 
-#ifndef USE_CLASSLIB
-#warning "CLASSLIB not defined"
-#include "sc_math.h"
-class SasCalc_GENERIC_calculation
-{
-#endif
-
 public:
     void endThread();
-
-#ifndef USE_CLASSLIB
-#warning "CLASSLIB not defined"
-private:
-#endif
-
-    /*typedef struct
-    {
-        int cols;        -> ignorieren
-        int rows;        -> ignorieren
-        double centerx;  -> beamX0
-        double centery;  -> beamY0
-        double wavelen;  -> params.wavelength
-        double distance; -> det
-        double pixx;     -> pixx
-        double pixy;     -> pixy
-    } _latticeForFit;*/
 
 #define  coeffarray_len  (150+1)
 #define  imax2d_len  (130+1)
     typedef double CoeffArrayType[coeffarray_len]; // =array[0..150] of extended;
     typedef double ArrayImax2D[imax2d_len][imax2d_len];
-    typedef double ArrayImax1D[20000+1];     // TODO ist das so groß nötig?
+    //typedef double ArrayImax1D[20000+1];     // TODO ist das so groß nötig?
 
     // 20220311: Die vielen kleinen Arrays fasse ich zu einem Record zusammen
     typedef struct
     {
-        double carr1p[coeffarray_len], carr2p[coeffarray_len], carr3p[coeffarray_len], carr4p[coeffarray_len],
-            carr5p[coeffarray_len], carr6p[coeffarray_len], carr7p[coeffarray_len], carr8p[coeffarray_len],
-            carr9p[coeffarray_len], carr1f[coeffarray_len], carr2f[coeffarray_len], carr3f[coeffarray_len],
-            carr4f[coeffarray_len], carr5f[coeffarray_len], carr6f[coeffarray_len], carr7f[coeffarray_len],
-            carr8f[coeffarray_len], carr9f[coeffarray_len];
-        double myarray[20]; // TODO: ist 20 ausreichend?
+        double carr1p[coeffarray_len], carr2p[coeffarray_len], carr3p[coeffarray_len],
+               carr4p[coeffarray_len], carr5p[coeffarray_len], carr6p[coeffarray_len],
+               carr7p[coeffarray_len], carr8p[coeffarray_len], carr9p[coeffarray_len],
+               carr1f[coeffarray_len], carr2f[coeffarray_len], carr3f[coeffarray_len],
+               carr4f[coeffarray_len], carr5f[coeffarray_len], carr6f[coeffarray_len],
+               carr7f[coeffarray_len], carr8f[coeffarray_len], carr9f[coeffarray_len];
+
+        double myarray[20]; // TODO: Werte besser in globale Variablen, der größte Index ist 17
+        // aus prepareCalculation:
+        //params.CR->myarray[ 0] = params.length;     /*  axon length  */  //Z=20162
+        //params.CR->myarray[ 1] = params.radius;     /*  axon radius  */  //Z=20163
+        //params.CR->myarray[ 2] = params.sigma;      //Z=20164
+        //params.CR->myarray[ 3] = params.sigmal;     //Z=20165
+        //params.CR->myarray[ 4] = params.radiusi;    /*  no. of layers  */  //Z=20166
+        //params.CR->myarray[ 5] = params.alphash;           /*  l_ex  */  //Z=20167
+        //params.CR->myarray[ 6] = params.rho;        /*  l_in  */  //Z=20168
+        //params.CR->myarray[ 7] = acpl;              /*  l_lip_head  */  //Z=20169
+        //params.CR->myarray[ 8] = bcpl;              /*  l_lip_tail  */  //Z=20170
+        //params.CR->myarray[ 9] = params.uca;        /*  phi_axon  */  //Z=20171
+        //params.CR->myarray[10] = params.ucb;        /*  phi_intra  */  //Z=20172
+        //params.CR->myarray[11] = params.ucc;        /*  phi_extra  */  //Z=20173
+        //params.CR->myarray[12] = params.domainsize; /*  phi_head  */  //Z=20174
+        //params.CR->myarray[13] = aziwidth;          /*  phi_tail  */  //Z=20175
+        //params.CR->myarray[14] = 1;                 /*  inmax  */  //Z=20176
+        //params.CR->myarray[15] = 1;                 /*  vv  */  //Z=20177
+        //params.CR->myarray[16] = 1;                 /*  rmax  */  //Z=20178
+        //params.CR->myarray[17] = iso;               /*  test parameter  */  //Z=20179
+
         // Array-Parameter für coefficients(), formpq(), formfq()
         ArrayImax2D carr11pm, carr22pm;
     } _carrXX;
@@ -86,8 +84,8 @@ private:
         double sigmal;
         double length; // cylinder length!
         double wavelength;
-        //double shellno;
-        double alphash;
+        double alphash1;    // 'Alpha'
+        double alpha;       // 'RotAlpha'
         double ceff;        // often equal with "TwRatio" -> TODO
         double reff;        // allways const 10.0 (no input in GUI) -> TODO?
         double uca; // latt_a;      // a
@@ -96,18 +94,23 @@ private:
         double domainsize;
         double width_zuf; // Zufalls-Faktor für domainsize/width
         double aziwidth;
-        double dbeta; //{NV} NEU !!! TODO
+        double dbeta;
         double psphere_r, psphere_z;  // helper var for psphere
+
+        double norm, por; // por ist ein Output von Coefficients()
+        int    part, cs, orcase;
+        double polTheta, polPhi;
+        double limq1, limq2, limq3, limq4, limq5, limq6, limq7, limq8, limq9;
+        double limq1f, limq2f, limq3f, limq4f, limq5f, limq6f, limq7f, limq8f, limq9f;
+
         // Globale Parameter für ButtonHKLClick()
         int    hklmax;
-        double alpha_deg, beta_deg, gamma_deg;
+        double ucalpha_deg, ucbeta_deg, ucgamma_deg;
         //double amax, bmax, cmax;
 
         double p11,p12,p13,p21,p22,p23,p31,p32,p33;
 
         _carrXX  *CR;
-
-        //_latticeForFit latFit;
 
         Double3 ax1, ax2, ax3, sig;
 
@@ -154,7 +157,7 @@ private:
     static const int jmaxp=21;
     typedef double RealArrayNP[np+2]; // =array[1..np] of extended;
     typedef double RealArrayJMAXP[jmaxp+2]; // =array[1..jmaxp] of extended;
-    // Die Arrays zur Sicherheit eins länger, da in den Routinen of vor dem
+    // Die Arrays zur Sicherheit eins länger, da in den Routinen oft vor dem
     // Ende der Schleife auf das nächste Element geschrieben wird.
 
 #ifdef __CUDACC__
@@ -218,10 +221,9 @@ __host__ __device__
                        double q, int i0, int i1, int i3,  double &pa, double &fa ) const;
 
 
-    rvButtonHKLClick ButtonHKLClick(int ltype , int *latpar1, int *latpar2);
+    void ButtonHKLClick(int ltype , int *latpar1, int *latpar2) const;
 
     void fhkl_c( int lat, int h, int k, int l,
-                 double uca, double ucb, double ucc, double ucalpha_deg, double ucbeta_deg, double ucgamma_deg,
                  double &sphno, double &fhkl, double &qhkl, double &qhkl0 ) const;
 
     void extinction( int lat, int h, int k, int l, int aniso,
@@ -232,20 +234,13 @@ __host__ __device__
 #ifdef __CUDACC__
 __host__ __device__
 #endif
-//void qrombdeltac( double l, double r, /*p1*/ /*sigma*/ /*dbeta*/ double theta, double phi, double qx, double qy, double qz,
-//                  double qxn, double qyn, double qzn, double qhkl, double ax1n, double ax2n, double ax3n,
-//                  double ax1x, double ax1y, double ax1z, double ax2x, double ax2y, double ax2z,
-//                  double ax3x, double ax3y, double ax3z, double sigx, double sigy, double sigz,
-//                  int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
-//                  double *carr1,
-//                  double &pq ) const;
-void qrombdeltac( double l, double r, double p1, double sigma, double alfa, double dbeta,
+void qrombdeltac( double p1, double sigma, double alfa,
                   double theta, double phi, double qx, double qy, double qz,
                   double qxn, double qyn, double qzn, double qhkl, double ax1n, double ax2n,
                   double ax3n, double ax1x, double ax1y, double ax1z, double ax2x, double ax2y,
                   double ax2z, double ax3x, double ax3y, double ax3z, double sigx, double sigy,
                   double sigz, int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
-                    double *carr1, double &pq ) const;
+                  double *carr1, double &pq ) const;
 
 #ifdef __CUDACC__
     __host__ __device__
@@ -285,7 +280,7 @@ __host__ __device__
 //                 double ax3x, double ax3y, double ax3z, double sigx, double sigy, double sigz,
 //                 int ordis, int dim, int i0, int i1, int i2, int i3, int i4, double *carr1, double &pq, int n,
 //                 int &trapzdit ) const;
-void trapzdchid( double a, double b, double l, double r, double p1, double sigma, double alfa, double dbeta,
+void trapzdchid( double a, double b, double l, double r, double p1, double sigma, double alfa,
                    double delta, double theta, double phi, double qx, double qy, double qz, double p11,
                    double p12, double p13, double p21, double p22, double p23, double p31, double p32,
                    double p33, double qxn, double qyn, double qzn, double qhkl, double ax1n, double ax2n,
@@ -308,7 +303,7 @@ __host__ __device__
     //                int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
     //                double *carr1,
     //                double &pq ) const;
-    void qrombchid( double l, double r, double p1, double sigma, double alfa, double dbeta, double delta,
+    void qrombchid( double l, double r, double p1, double sigma, double alfa, double delta,
               double theta, double phi, double qx, double qy, double qz, double p11, double p12, double p13,
               double p21, double p22, double p23, double p31, double p32, double p33, double qxn, double qyn,
               double qzn, double qhkl, double ax1n, double ax2n, double ax3n, double ax1x, double ax1y,
@@ -324,15 +319,7 @@ __host__ __device__
 //    double formfq(double radius, double zz, double limq1, double qx, double qy,
 //                  int part, int cs,
 //                  double *carr3p /*: CoeffArrayType*/ ) const;
-double formfq( double length, double radius, double sigmal, double sigmar, double p1, double rho,
-               double alfa, double theta, double phi, double limql, double limq1, double limq2,
-               double limq3, double limq4, double limq5, double limq6, double qx, double qy,
-               double qxs, double qys, double q, double norm,
-               int part, int cs, int ordis, int orcase,
-               const double *myarray, // CoeffArrayType
-               double *carr1p, double *carr2p, double *carr3p, double *carr4p, double *carr5p,
-               double *carr6p, double *carr7p //: CoeffArrayType;   /*Z0311=17704*/,
-               /*ArrayImax2D &carr11pm, ArrayImax2D &carr22pm*/ ) const; //: ArrayImax2D);   /*Z0311=17705*/
+double formfq( double limql, double qx, double qy, double qxs, double qys, double q, int ordis ) const;
 
 
 #ifdef __CUDACC__
@@ -342,16 +329,7 @@ __host__ __device__
 //                  int part, int cs, int ordis, int orcase,
 //                  double *carr1p, double *carr2p, double *carr3p, double *carr4p, /*: CoeffArrayType;*/
 //                  double *carr5p /*: ArrayImax1D*/ ) const;
-    double formpq(double length, double radius, double sigmal, double sigmar, double p1,
-                        double rho, double alfa, double theta, double phi, double limql, double limq1,
-                        double limq2, double limq3, double limq4, double limq5, double limq6,
-                        double limq7, double limq8, double limq9, double qx, double qy, double qxs,
-                        double qys, double q, double norm, double por,
-                        int part, int cs, int ordis, int orcase,
-                        const double *myarray, // CoeffArrayType
-                        double *carr1p, double *carr2p, double *carr3p, // CoeffArrayType
-                        double *carr4p, double *carr5p, double *carr6p, // CoeffArrayType
-                        double *carr7p, double *carr8p, double *carr9p) const;   /*Z0311=14583*/
+    double formpq( double sigmal, double limql, double qx, double qy, double qxs, double qys, double q, int ordis ) const;
 
 #ifdef __CUDACC__
     __host__ __device__
@@ -364,8 +342,3 @@ __host__ __device__
     double polycscube(double rho1, double rho2, double p1, double p2, double alf1, double alf2, double rn, double pf,
                       double sigma, double q) const;
 
-
-#ifndef USE_CLASSLIB
-#warning "CLASSLIB not defined"
-};
-#endif

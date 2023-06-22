@@ -1,8 +1,6 @@
 #ifndef SASMAIN_H
 #define SASMAIN_H
 
-#ifndef CONSOLENPROG // blendet alles aus
-
 #include <QApplication>
 #include <QMainWindow>
 #include <QHash>
@@ -33,6 +31,10 @@
 
 
 
+/**
+ * @brief The tblCheckBox class
+ * Normal QCheckBox used in QTable-cells (2d fit)
+ */
 class tblCheckBox : public QWidget
 {
 public:
@@ -52,17 +54,22 @@ private:
 };
 
 
+/**
+ * @brief The myCalcThread class
+ * Main calculation thread. All parameters must be set before into the calculation class variables.
+ * This thread is implemented to prevent the gui from freezing.
+ */
 class myCalcThread : public QThread
 {
 public:
     myCalcThread( SC_CalcGUI *cg, QObject *parent=nullptr );
     void run();
-    void beenden() { _exit=true; }
+    void beenden() { calcGuiThread->endThread(); /*_exit=true;*/ }
     void setThreads( int n ) { numThreads=n; }
 private:
     int numThreads;
-    SC_CalcGUI *calcGui;
-    bool _exit;
+    SC_CalcGUI *calcGuiThread;  // myCalcThread
+    //bool _exit;
 };
 
 
@@ -70,6 +77,10 @@ QT_BEGIN_NAMESPACE
 namespace Ui { class SC_MainGUI; }
 QT_END_NAMESPACE
 
+/**
+ * @brief The SC_MainGUI class
+ * Main gui application window.
+ */
 class SC_MainGUI : public QMainWindow
 {
     Q_OBJECT
@@ -250,13 +261,12 @@ private:
     widImage *lastSelectedImage;    // das letzte selektierte Bild in der Liste der Bilder
     int noFitCurRect;
 
-    QHash< QString/*method*/, _param2fitval* > method2fitparams;
+    _param2fitval *fitparams;
     SasCalc_SimplexFit2D *fitClass;
     bool oneFitParamUsed, fitIsRunning, fitMinimalOutput;
     double timeForAll;
     int loopsForAll;
     int imgGenForAll;
-    QString curMethod;
     // public: void updateLogList( QString msg );
     static bool myProgressLogging( char *msg );
     QFile *fileFitLog;
@@ -278,7 +288,6 @@ private:
     static SC_MainGUI *current;
     static bool _bAbbruch;
     void updateProgBar( int val );
-    static bool myProgressAndAbort(int);
 
     static widImage *myAddImage( int x0, int x1, int y0, int y1, double *d, QString title )
     {   return current->addImage( true, x0, x1, y0, y1, d, title, false );
@@ -351,6 +360,5 @@ private:
 
     void showColorMarker( QColor c );
 };
-#endif // CONSOLENPROG
 
 #endif // SASMAIN_H

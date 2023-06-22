@@ -41,10 +41,12 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
     }
     for ( int j=0; j<mmax && j<indVec.size(); j++ ) // all params
     {
-        calc->updateParamValueForFit(indVec[j]/*Parametername*/,
-                                     params[j]/*Wert dazu*/,
-                                     false/*ohne Ausgaben, wenn Werte geändert werden*/ );
-        // curMethod->params[<indVec[j]>]->value.number = <params[j]>;
+        calc->updateParamValue( indVec[j]/*Parametername*/, params[j]/*Wert dazu*/
+#ifndef CONSOLENPROG
+                               , Qt::black, false );
+#else
+                                );
+#endif
     }
     calc->prepareCalculation( true );     // to transfer parameter values into the calculation class
 
@@ -56,7 +58,7 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
         long   nancnt = 0;  // Counter for nan values
         double summe = calc->doFitCalculation(numThreads,_bstoppixel,_borderPixel,cnt,nancnt);
         numImgCalc++;
-        info = QString("(%1px/%2px)").arg(cnt).arg((_xmax-_xmin)*(_ymax-_ymin));
+        info = QString("(%1px/%2px) GPU").arg(cnt).arg((_xmax-_xmin)*(_ymax-_ymin));
         if ( nancnt > 0 ) info += QString(" NaN:%1").arg(nancnt);
         return summe;
     }
@@ -99,7 +101,7 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
                 if ( ihexd >= _xbs-_bstoppixel && ihexd < _xbs+_bstoppixel &&
                      id    >= _ybs-_bstoppixel && id    < _ybs+_bstoppixel ) continue;
                 // Test: Werte <= 0.0 werden ignoriert, da der log10(0.0) keinen Sinn ergibt
-                if ( calc->getMemPtr()->xyIntensity(ihex,i) <= 0.0 ||
+                if ( calc->getCalcPtr()->xyIntensity(ihex,i) <= 0.0 ||
                      fitData(ihexd,id) <= 0.0 )
                 {
                     nullcnt++;
@@ -107,9 +109,9 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
                 }
                 // Pixelcounter for Debug
                 cnt++;
-                summe += FQSVERGL( calc->getMemPtr()->xyIntensity(ihex,i),   // oben berechnetes Pixel
+                summe += FQSVERGL( calc->getCalcPtr()->xyIntensity(ihex,i),   // oben berechnetes Pixel
                                    fitData(ihexd,id) );                      // anzufittendes Pixel
-                if ( std::isnan(calc->getMemPtr()->xyIntensity(ihex,i)) )
+                if ( std::isnan(calc->getCalcPtr()->xyIntensity(ihex,i)) )
                     nancnt++;
             } // for i
         } // for ihex
@@ -124,7 +126,7 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
                 // Special check: ignore pixel if source is less equal corner pixel
                 if ( fitData(ihexd,id) <= ecke ) continue;
                 // Test: Werte <= 0.0 werden ignoriert, da der log10(0.0) keinen Sinn ergibt
-                if ( calc->getMemPtr()->xyIntensity(ihex,i) <= 0.0 ||
+                if ( calc->getCalcPtr()->xyIntensity(ihex,i) <= 0.0 ||
                      fitData(ihexd,id) <= 0.0 )
                 {
                     nullcnt++;
@@ -132,7 +134,7 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
                 }
                 // Pixelcounter for Debug
                 cnt++;
-                summe += FQSVERGL( calc->getMemPtr()->xyIntensity(ihex,i),   // oben berechnetes Pixel
+                summe += FQSVERGL( calc->getCalcPtr()->xyIntensity(ihex,i),   // oben berechnetes Pixel
                                    fitData(ihexd,id) );                      // anzufittendes Pixel
 /*
                 if ( numImgCalc == 2 ) // && ihex==-30 && i==-30 )
@@ -143,7 +145,7 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
                              //<< "x:" << _xmin << _xmax << "y:" << _ymin << _ymax
                              //<< "#" << numImgCalc;
 */
-                if ( std::isnan(calc->getMemPtr()->xyIntensity(ihex,i)) )
+                if ( std::isnan(calc->getCalcPtr()->xyIntensity(ihex,i)) )
                     nancnt++;
             } // for i
         } // for ihex
@@ -155,7 +157,7 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
             for ( int i=calc->minY(), id=_ymin; i<calc->maxY() && id<_ymax; i++, id++ )
             {
                 // Test: Werte <= 0.0 werden ignoriert, da der log10(0.0) keinen Sinn ergibt
-                if ( calc->getMemPtr()->xyIntensity(ihex,i) <= 0.0 ||
+                if ( calc->getCalcPtr()->xyIntensity(ihex,i) <= 0.0 ||
                      fitData(ihexd,id) <= 0.0 )
                 {
                     nullcnt++;
@@ -163,9 +165,9 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
                 }
                 // Pixelcounter for Debug
                 cnt++;
-                summe += FQSVERGL( calc->getMemPtr()->xyIntensity(ihex,i),   // oben berechnetes Pixel
+                summe += FQSVERGL( calc->getCalcPtr()->xyIntensity(ihex,i),   // oben berechnetes Pixel
                                    fitData(ihexd,id) );                      // anzufittendes Pixel
-                if ( std::isnan(calc->getMemPtr()->xyIntensity(ihex,i)) )
+                if ( std::isnan(calc->getCalcPtr()->xyIntensity(ihex,i)) )
                     nancnt++;
             } // for i
         } // for ihex
@@ -197,10 +199,10 @@ double SasCalc_SimplexFit2D::getResiduenPixel( int ihex, int i )
     if ( _bstoppixel == -1 &&
          fitData(ihexd,id) <= fitData(_xmin,_ymin) ) return 0;
     // Test: Werte <= 0.0 werden ignoriert, da der log(0.0) keinen Sinn ergibt
-    if ( calc->getMemPtr()->xyIntensity(ihex,i) <= 0.0 ||
+    if ( calc->getCalcPtr()->xyIntensity(ihex,i) <= 0.0 ||
          fitData(ihexd,id) <= 0.0 ) return 0;
     // Log(I(Rechnung) – Log(I(Experiment)
-    return  log(calc->getMemPtr()->xyIntensity(ihex,i)) - log(fitData(ihexd,id));
+    return  log(calc->getCalcPtr()->xyIntensity(ihex,i)) - log(fitData(ihexd,id));
 }
 
 
@@ -314,7 +316,7 @@ void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit,
     //qDebug() << "Fit: indVec=" << indVec << "mmax,numFit:" << mmax << numFit;
 
 #ifndef CONSOLENPROG
-#ifdef FITDATA_IN_GPU  // init fit
+#ifdef FITDATA_IN_GPU  // init fit (no Console)
     useGpuFit = calc->setFitData( _xmax - _xmin, _ymax - _ymin, intensityForFit );
     qDebug() << "Fit: useGpu =" << useGpuFit;
 #endif
