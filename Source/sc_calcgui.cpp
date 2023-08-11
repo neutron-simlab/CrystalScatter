@@ -7,6 +7,7 @@
 #include <QAbstractItemView>
 #include "sc_maingui.h"
 #include "sc_calc_generic.h"
+#include "myguiparam.h"
 
 
 QHash<QString,Double3> SC_CalcGUI::inpVectors;
@@ -15,7 +16,7 @@ QHash<QString,double>  SC_CalcGUI::inpSingleValueVectors;
 QHash<QString,paramHelper*> SC_CalcGUI::params;
 
 
-#define D(x)  //x // Debuging...
+#define D(x)  //x // Debuging: dataGetter / dataGetterForFit
 
 
 /**
@@ -82,6 +83,11 @@ void SC_CalcGUI::saveParameter( QString fn )
     while ( ip != params.end() )
     {
         paramHelper *par = ip.value();
+        if ( par->key == "CenterMidpoint" )
+        {   // Radiobuttons für BeamCenter, nur einen nutzen...
+            ++ip;
+            continue;
+        }
         switch ( par->type )
         {
         case paramHelper::undef:
@@ -103,6 +109,7 @@ void SC_CalcGUI::saveParameter( QString fn )
             sets.setValue( par->key, par->value.number /*double*/ );
             break;
         case paramHelper::toggle:
+            //qDebug() << "*** SAVE toggle" << par->key;
             if ( par->gui.w )
                 par->value.flag = par->gui.tog->isChecked();
             sets.setValue( par->key, par->value.flag /*bool*/ );
@@ -154,13 +161,18 @@ QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, boo
         slKeys.removeOne( par->key );
 
         //qDebug() << "LOAD" << par->key;
-        if ( par->key == "EditQmaxPreset" || par->key == "EditQmaxData" )
-        {   // Die RadioButtons für die Qmax Auswahl sind auch in dieser Liste....
+        if ( par->key == "EditQmaxPreset" )
+        {   // Die RadioButtons für die Qmax Auswahl, nur einen nutzen...
+            ++ip;
+            continue;
+        }
+        if ( par->key == "CenterMidpoint" )
+        {   // Radiobuttons für BeamCenter, nur einen nutzen...
             ++ip;
             continue;
         }
         if ( par->key.startsWith("FITFLAG_") )
-        {   // Das Flag zum Fitten wird hier auch gespeichert...
+        {   // Das Flag zum Fitten wird hier auch gespeichert, wird aber später separat eingelesen.
             ++ip;
             continue;
         }
@@ -171,6 +183,12 @@ QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, boo
         case paramHelper::numdbl:
             // Damit bei unbekannten Schlüsseln die Daten nicht auf 0 gesetzt werden
             par->value.number = sets.value( par->key, par->value.number ).toDouble();
+            if ( par->key == "EditPixelX" || par->key == "EditPixelY" )
+            {   // In den "alten" Datensätzen waren diese Werte in Metern angegeben (also 0.0001m für 1mm)
+                // daher sollten diese Werte jetzt angepasst werden, da hier Millimeter verwendet werden
+                if ( par->value.number < 0.01 )
+                    par->value.number *= 1000.0;
+            }
             if ( par->gui.w )
                 par->gui.numd->setValue( par->value.number );
             break;
@@ -191,8 +209,26 @@ QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, boo
             break;
         case paramHelper::toggle:
             par->value.flag = sets.value( par->key, par->value.flag ).toBool();
+            //qDebug() << "*** LOAD toggle" << par->key << par->gui.w << par->value.flag;
             if ( par->gui.w )
-                par->gui.tog->setChecked( par->value.flag );
+            {
+                if ( par->key == "CenterBeam" )
+                {   // Von dieser Gruppe wird nur ein Wert im Parameterfile gespeichert.
+                    //  "T;CenterBeam;;;",          // Radiobutton für die Beamposition
+                    //  "T;CenterMidpoint;;;",      // Radiobutton für den Mittelpunkt (andere qx,qy,qz Berechnungen)
+                    (static_cast<QRadioButton*>(par->gui.w))->setChecked( par->value.flag );
+                    (static_cast<QRadioButton*>(params["CenterMidpoint"]->gui.w))->setChecked( ! par->value.flag );
+                }
+                else if ( par->key == "EditQmaxData" )
+                {   // Von dieser Gruppe werden zwar beide Werte im Parameterfile gespeichert, aber nur bei einem di GUI gesetzt.
+                    //  "T;EditQmaxData;;;",   // auch wenn das Radiobuttons sind
+                    //  "T;EditQmaxPreset;;;", // -"-
+                    (static_cast<QRadioButton*>(par->gui.w))->setChecked( par->value.flag );
+                    (static_cast<QRadioButton*>(params["EditQmaxPreset"]->gui.w))->setChecked( ! par->value.flag );
+                }
+                else
+                    par->gui.tog->setChecked( par->value.flag );
+            }
             break;
         default:
             break;
@@ -279,13 +315,18 @@ void SC_CalcGUI::updateToolTipForCompare( QWidget *w, QString txt )
         w->setToolTip( tt + "\nFile: " + txt );
 }
 
-void SC_CalcGUI::compareParameter( QSettings &sets, QHash<QString,_CompValues*> &compWerte )
+void SC_CalcGUI::compareParameter(QSettings &sets, QHash<QString,_CompValues*> &compWerte, QStringList tbign)
 {
     sets.beginGroup( calcGeneric->methodName() );
     QHash<QString,paramHelper*>::iterator ip = params.begin();
     while ( ip != params.end() )
     {
         paramHelper *par = ip.value();
+        if ( par->gui.w == nullptr || tbign.contains(par->gui.w->objectName()) )
+        {
+            ++ip;
+            continue;
+        }
         switch ( par->type )
         {
         case paramHelper::numdbl:
@@ -833,7 +874,7 @@ void SC_CalcGUI::updateOutputData()
  * @return true if the parameter was found, false in case of error
  * If in GUI mode the internal values are updated before returning.
  */
-bool SC_CalcGUI::dataGetter( QString p, _valueTypes &v )
+void SC_CalcGUI::dataGetter( QString p, _valueTypes &v )
 {
     DT( qDebug() << "dataGetter()" << p );
 
@@ -853,9 +894,38 @@ bool SC_CalcGUI::dataGetter( QString p, _valueTypes &v )
         else
             p = "EditQmax";
     }
+
+    //myGuiParam *gp = myGuiParam::getGuiParam(p);
+
     if ( params.contains(p) )
     {
         paramHelper *par = params[p];
+        if ( p=="ucb" || p=="ucc" )
+        {   // Anscheinend wird in der Berechnung das ucb / ucc genutzt, auch wenn dieses nicht freigegeben ist.
+            // Somit zur Sicherheit hier die Werte von uca übernehmen, falls ucb / ucc nicht da sind.
+            D(qDebug() << "dataGetter()" << p << par->togFit->isVisible() << par->togFit->isEnabled();)
+            if ( ! par->togFit->isEnabled() || ! par->togFit->isVisible() )  // Dieser Toggle ist immer da
+            {
+                //D(p+="*";) // für Debugausgabe ein * anhängen ...
+                par = params["uca"];
+                if ( par->gui.w )
+                    par->value.number = par->gui.numd->value();
+                v.value = par->value.number;
+                return;
+            }
+        }
+        /*
+        if ( (par->togFit != nullptr && ! par->togFit->isEnabled()) ||
+             (gp != nullptr && gp->lbl() != nullptr && ! gp->lbl()->isEnabled())
+            )
+        {   // Parameter ohne gp->lbl(): "EditQmax", "BeamPosX", "BeamPosY", "CenterBeam"
+            v.value = 0.0001;   // Falls durch diesen Wert geteilt werden muss.
+            //D(
+            //qDebug() << "dataGetter() current unused variable (ena)" << p;
+            //)
+            return;
+        }
+        */
         switch ( par->type )
         {
         case paramHelper::numdbl:
@@ -883,43 +953,67 @@ bool SC_CalcGUI::dataGetter( QString p, _valueTypes &v )
             D(qDebug() << "dataGetter() paramHelper::toggle" << p << v.checked;)
             break;
         default:
-            return false;
+            qDebug() << "dataGetter:" << p << "unknown type";
+            return;
         }
-        return true;
+        /*
+        if ( (par->togFit != nullptr && ! par->togFit->isVisible()) ||
+            (gp != nullptr && gp->lbl() != nullptr && ! gp->lbl()->isVisible())
+            )
+        {   // Parameter ohne gp->lbl(): "EditQmax", "BeamPosX", "BeamPosY", "CenterBeam"
+            //D(
+            qDebug() << "dataGetter() current unused variable (vis)" << p << v.value;
+            //)
+            v.value = 0.0001;   // Falls durch diesen Wert geteilt werden muss.
+            //Debug: dataGetter() current unused variable (vis) "CheckBoxTwinned" 0.01
+            //Debug: dataGetter() current unused variable (vis) "EditCeffcyl" 0
+            //Debug: dataGetter() current unused variable (vis) "acpl" 0
+            //Debug: dataGetter() current unused variable (vis) "bcpl" 0
+            //Debug: dataGetter() current unused variable (vis) "ifluc" 0
+            //Debug: dataGetter() current unused variable (vis) "rfluc" 0
+            //Debug: dataGetter() current unused variable (vis) "EditRadiusi" 0
+            //Debug: dataGetter() current unused variable (vis) "Length" 1
+            //Debug: dataGetter() current unused variable (vis) "SigmaL" 0.06
+            //Debug: dataGetter() current unused variable (vis) "Alpha" 0
+            //Debug: dataGetter() current unused variable (vis) "EditRho" 0
+            //Debug: dataGetter() current unused variable (vis) "EditPeakPar" 0
+            //return;
+        }*/
+        return;
     }
     if ( inpValues.contains(p) )
     {
         v.value = inpValues[p];
         D(qDebug() << "dataGetter() inpValues" << p << v.value;)
-        return true;
+        return;
     }
     if ( inpVectors.contains(p) )
     {
         v.vec = inpVectors[p];
         D(qDebug() << "dataGetter() inpVectors" << p << v.vec.toString();)
-        return true;
+        return;
     }
     qDebug() << "dataGetter:" << p << "not found";
-    return false;
+    return;
 }
 
-bool SC_CalcGUI::dataSetter( QString p, _valueTypes &v )
+void SC_CalcGUI::dataSetter( QString p, _valueTypes &v )
 {
     DT( qDebug() << "dataSetter()" << p );
-    if ( ! params.contains(p) ) return false;
+    if ( ! params.contains(p) ) return;
 
     // Ein Update von Werte zur Anzeige ist nur für bestimmte Daten verfügbar.
 
     paramHelper *par = params[p];
-    if ( par->gui.w == nullptr ) return false;
+    if ( par->gui.w == nullptr ) return;
     if ( par->type == paramHelper::outdbl )
     {
         //par->gui.out->setText( QString("%1").arg(v.value,0,'f',4) );
         par->gui.out->setText( QString("%1").arg(v.value) );
-        return true;
+        return;
     }
     qDebug() << "dataSetter:" << p << "not found";
-    return false;
+    return;
 }
 
 
@@ -930,7 +1024,7 @@ bool SC_CalcGUI::dataSetter( QString p, _valueTypes &v )
  * @return true if the parameter was found, false in case of error
  * Same function as dataGetter except no GUI access (for 2D-Fit)
  */
-bool SC_CalcGUI::dataGetterForFit( QString p, _valueTypes &v )
+void SC_CalcGUI::dataGetterForFit( QString p, _valueTypes &v )
 {
     if ( p.contains("qmax",Qt::CaseInsensitive) )
     {
@@ -960,32 +1054,32 @@ bool SC_CalcGUI::dataGetterForFit( QString p, _valueTypes &v )
         case paramHelper::numint:
             v.value = par->value.number;
             D(qDebug() << "dataGetterForFit() paramHelper::number" << p << v.value;)
-            return true;
+            return;
         case paramHelper::select:
             v.select = par->value.number;
             D(qDebug() << "dataGetterForFit() paramHelper::select" << p << v.select;)
-            return true;
+            return;
         case paramHelper::toggle:
             v.checked = par->value.flag;
             D(qDebug() << "dataGetterForFit() paramHelper::toggle" << p << v.checked;)
-            return true;
+            return;
         default:
-            return false;
+            return;
         }
     }
     if ( inpValues.contains(p) )
     {
         v.value = inpValues[p];
         D(qDebug() << "dataGetterForFit() inpValues" << p << v.value;)
-        return true;
+        return;
     }
     if ( inpVectors.contains(p) )
     {
         v.vec = inpVectors[p];
         D(qDebug() << "dataGetterForFit() inpVectors" << p << v.vec.toString();)
-        return true;
+        return;
     }
-    return false;
+    return;
 }
 
 

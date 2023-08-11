@@ -40,6 +40,9 @@ DBGFILE( static QFile *fdbg; )
 /*static*/ long SasCalc_GENERIC_calculation::dbgCount;  // Zum Test...
 
 
+#define myacos(x) ((x)<-1)?0.0:(((x)>+1)?M_PI:acos((x)))
+
+
 #include "sc_libs_gpu.cu"
 #include "sc_memory_gpu.cu"
 
@@ -47,6 +50,20 @@ DBGFILE( static QFile *fdbg; )
 #define GPU_2D
 // If defined, use block.x and block.y etc. (new version)
 // Otherwise use only block.x and iterate in each thread over y (old version)
+
+
+
+//#############################################################################################################
+// Attention for CUDA version 12 on Linux:
+//
+//  The Lazy Loading feature (introduced in CUDA 11.7) is now enabled by default on Linux with the 535 driver.
+//  To disable this feature on Linux, set the environment variable CUDA_MODULE_LOADING=EAGER before launch.
+//  Default enablement for Windows will happen in a future CUDA driver release. To enable this feature on
+//  Windows, set the environment variable CUDA_MODULE_LOADING=LAZY before launch.
+//
+// With this Lazy Loading activated, this program will not run (August 2023).
+//#############################################################################################################
+
 
 
 SasCalc_GENERIC_calculation *SasCalc_GENERIC_calculation::inst;              //!< class instance pointer for the threads
@@ -91,7 +108,7 @@ __global__ void doIntFitCalc_GENERIC_kernel( SasCalc_GENERIC_calculation CALC )
     if ( y >= CALC._fitHeight ) return;
     SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F( CALC, x, y );
 #else
-    for ( int y=threadIdx.x; y<CALC._fitHeight; i+=blockDim.x )
+    for ( int y=threadIdx.x; y<CALC._fitHeight; y+=blockDim.x )
         SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F( CALC, x, y );
 #endif
 }
@@ -105,8 +122,8 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
     /* ******* main program for calculation **** */  //Z=20012
 
     // Clear all internal flags
-    generic = true;  //Z=20055 ==> in der GUI ist kein Toggle dafür, also hier immer setzen
-    twin = CheckBoxTwinned;  //Z=20056
+    //generic = true;  //Z=20055 ==> in der GUI ist kein Toggle dafür, ist aber immer gesetzt
+    twin = false;  //Z=20056
     debyescherrer = false;  //Z=20057
     paracrystal = false;  //Z=20058
     quad1 = false;  //Z=20059
@@ -143,16 +160,24 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
     lipo = false;  //Z=20090
     myelin = false;  //Z=20091
 
-    if ( ltype == 0 )
-    {/*2*/  //Z=20099
+    if ( ltype == 0/*Lamellae*/ )
+    {
         lat1d = true;  //Z=20100
         lat3d = false;  //Z=20101
-    }/*2*/  //Z=20102
-    if ( (ltype==1) || (ltype==2) || (ltype==3) )
-    {/*2*/  //Z=20103
+    }
+    if ( (ltype==1/*hex cyl*/) || (ltype==2/*sq cyl*/) || (ltype==3/*rec cyl*/) )
+    {
         lat2d = true;  //Z=20104
         lat3d = false;  //Z=20105
-    }/*2*/  //Z=20106
+    }
+    if ( ltype==14/*2DHex (GISAXS)*/ )
+    {   /*  GiSAXS-pattern  */  //ZN=21813
+        calcQuadrants = radQ4;  //ZN=21818
+    }   //ZN=21819
+    if ( ltype==15/*2DSquare (GISAXS)*/ )
+    {   /*  GiSAXS-pattern  */  //ZN=21820
+        calcQuadrants = radQ4;  //ZN=21825
+    }   //ZN=21826
 
     zzmin = calcQuadrants == radQ4 ? -zmax : 0;     /* im Batch-Loop */
     zzmax = zmax;
@@ -192,7 +217,7 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
     {
         createMemory( (void **)(&latpar1ptr), sizeof(int) * latparlen * 6, latpar1Size, true, "latpar1" );
         createMemory( (void **)(&latpar2ptr), sizeof(int) * latparlen * 6, latpar2Size, true, "latpar2" );
-        createMemory( (void **)(&latpar3ptr), sizeof(float) * latparlen * 14, latpar3Size, true, "latpar3" );
+        createMemory( (void **)(&latpar3ptr), sizeof(float) * latparlen * 17, latpar3Size, true, "latpar3" );
     }
     if ( params.CR == nullptr )
     {
@@ -201,6 +226,7 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
         //        coeffarraytype=array[0..150] of extended;
         // besser einen Speicher als Record anlegen
         createMemory( (void **)(&params.CR), sizeof(_carrXX), arrCRSize, true, "CR" );
+        latparMaxCheckInit();
     }
 
     /*  Parameter array for liposome and myelin  */  //Z=20161
@@ -370,13 +396,16 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
     /* ******************* */  //Z=20554
     /* ** lattice tpyes ** */  //Z=20555
     /* ******************* */  //Z=20556
-    /*if ( CheckBoxTest.Checked==true )*/ generic = true; /*  generic  */  //Z=20580 ==> lassen wir jetzt mal fest
+    //if ( CheckBoxTest.Checked==true ) generic = true; /*  generic  */  //Z=20580 ==> lassen wir jetzt mal fest
 
-    if ( (ltype==4) || (ltype==5) ) twin = true;     /*  twinning  */  //Z=20582
-    if ( (ltype==12) || (ltype==20) || (ltype==21) ) lattice = false;  //Z=20583
+    //if ( (ltype==4/*BCC*/) || (ltype==5/*FCC*/) ) twin = true;     /*  twinning  */  //Z=20582
+    //230728 Lt. Hr. Förster könnte das Twinning hier noch Probleme bereiten, daher nicht automatisch an machen
+    twin = CheckBoxTwinned;  // von außen gesteuert
 
-    if ( ltype == 14 /* GiSAXS-pattern */ ) calcQuadrants = radQ4;  /*Z=21005*/
-    if ( ltype == 15 /* GiSAXS-pattern */ ) calcQuadrants = radQ4;
+    if ( (ltype==12/*None*/) || (ltype==20/*Percus-Yevick*/) || (ltype==21/*Teubner-Strey*/) ) lattice = false;  //Z=20583
+
+    if ( ltype == 14 /*2D-Hex, GiSAXS*/ ) calcQuadrants = radQ4;  /*Z=21005*/
+    if ( ltype == 15 /*2D-quare, GiSAXS*/ ) calcQuadrants = radQ4;
     // RadioButtonSlice wird hier ignoriert
 
     //? if ( RadioButtonDebyeScherrer.Checked==true ) debyescherrer = true;  //Z=20585
@@ -503,39 +532,42 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
     }
 
     // Setzen der Variablen 'dist' und 'reldis' abhängig vom LatticeType
-    switch ( ltype )
+    switch ( ltype )        // ZZ= Zeilennummern aus dem File C:\SimLab\sas-crystal\Scatter Jun 2023\crystal3d1.pas
     {
-    case  0:    // Lamellae
-    case  1:    // hex cyl
-    case  2:    // sq cyl
-    case  3:    // rec cyl
-    case  6:    // HCP
-    case  7:    // SC
-    case  8:    // BCT
-    case 10:    // Pn3m
-    case 12:    // None
-    case 14:    // 2D-Hex, GISAXS
-    case 15:    // 2D-square, GISAXS
-    case 16:    // 1D-lam, GISAXS
-    case 18:    // orthorombic spheres
-    case 20:    // Percus-Yevick
-    case 21:    // Teubner-Strey
-    case 22:    // Pm3n, A15
+    case  0:    // Lamellae             ZZ=21879
+    case  1:    // hex cyl              ZZ=22779
+    case  2:    // sq cyl               ZZ=23077
+    case  3:    // rec cyl              ZZ=23369
+    case  6:    // HCP                  ZZ=26788
+    case  7:    // SC                   ZZ=26466
+    case  8:    // BCT                  ZZ=27224
+    case 10:    // Pn3m                 ZZ=28997
+    case 12:    // None                 ZZ=?
+    case 14:    // 2D-Hex, GISAXS       ZZ=29808
+    case 15:    // 2D-square, GISAXS    ZZ=30038
+    case 16:    // 1D-lam, GISAXS       ZZ=30235
+    case 18:    // orthorombic spheres  ZZ=27550
+    case 20:    // Percus-Yevick        ZZ=?
+    case 21:    // Teubner-Strey        ZZ=?
+    case 22:    // Pm3n, A15            ZZ=?
+    case 23:    // P42/mnm (sigma)      ZZ=? (neu)
+    case 24:    // Fddd-network         ZZ=? (neu)
         dist = params.uca;
         break;
-    case  5:    // FCC
-    case 13:    // CP-Layers
-    case 17:    // Fd3m, diamond
-    case 19:    // QC
+    case  5:    // FCC                  ZZ=24730
+    case 13:    // CP-Layers            ZZ=23688
+    case 17:    // Fd3m, diamond        ZZ=27889
+    case 19:    // QC                   ZZ=23992, auskommentiert
         dist = sqrt(2.0) * params.uca / 2.0;
         break;
-    case  4:    // BCC
-    case  9:    // Ia3d
-    case 11:    // Im3m
+    case  4:    // BCC                  ZZ=24309
+    case  9:    // Ia3d                 ZZ=28370
+    case 11:    // Im3m                 ZZ=29400
         dist = sqrt(3.0) * params.uca / 2.0;
         break;
     }
     reldis = displacement / dist;
+    //qDebug() << ltype << "reldis=displacement/dist" << reldis << displacement << dist;
 
     //? rotnorm = sqrt(rotx*rotx+roty*roty+rotz*rotz);  //Z=20765
     //? xycur = sqrt(xcur*xcur+ycur*ycur);  //Z=20771
@@ -552,11 +584,11 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
 
     // }  //Z=21036, ende von if(generic) aus Zeile 20999
 
-    if ( generic && lattice )
+    if ( /*generic=true &&*/ lattice )
     {/*3*/  //Z=21042
 
         /* ** this generates reflection tables latpar1, latpar2, latpar1a,latpar2a ** */  //Z=21044
-        ButtonHKLClick( ltype, latpar1ptr, latpar2ptr );  //Z=21045,  ltype=0..11 und nicht mehr ....
+        ButtonHKLClick( ltype );  //Z=21045,  ltype=0..11 und nicht mehr ....
         peakmax1 = latpar1(1,0);  //Z=21046
         peakmax2 = latpar2(1,0);  //Z=21047
 
@@ -591,13 +623,13 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
     }/*3*/  //Z=21113
 
     /* ** reciprocal space vector list ** */  //Z=21115
-    if ( generic && lattice )
+    if ( /*generic=true &&*/ lattice )
     {/*3*/  //Z=21116
         /* ************************************************* */  //Z=21117
         /* ** isotropic peak list for allowed reflections ** */  //Z=21118
         /* ************************************************* */  //Z=21119
 
-        double sphno;
+        double sphno, qhkl0;
         for ( int peakct1=1; peakct1<=peakmax1; peakct1++ )
         {/*4*/  //Z=21121
             h = latpar1(peakct1,1);  //Z=21122
@@ -620,12 +652,8 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
         }
 
         /*  anisotropic peak list  */  //Z=21143
-        //? SetLength(latpar2p^, (peakmax2+1));  //Z=21144
-        //? for ( ii=0; ii<=peakmax2; ii++ ) SetLength(latpar2p^[ii], 10);  //Z=21145
-        //? SetLength(latpar3p^, (peakmax2+1));  //Z=21146
-        //? for ( ii=0; ii<=peakmax2; ii++ ) SetLength(latpar3p^[ii], 16);  //Z=21147
 
-        //int hkli = 0;  //Z=21149
+        double g3, g3t;
         for ( int peakct2=1; peakct2<=peakmax2; peakct2++ )
         {/*4*/  //Z=21150
             h = latpar2(peakct2,1);  //Z=21151
@@ -634,11 +662,7 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
             mhkl = 1;  //Z=21154
             fhkl_c(ltype,h,k,l,sphno,fhkl,qhkl,qhkl0);  //Z=21155
             setLatpar2(peakct2, 5, round(fhkl) );  //Z=21156
-            //latpar2p^[peakct2][1] = latpar2[peakct2][1];  //Z=21158
-            //latpar2p^[peakct2][2] = latpar2[peakct2][2];  //Z=21159
-            //latpar2p^[peakct2][3] = latpar2[peakct2][3];  //Z=21160
-            setLatpar2(peakct2,4,mhkl);  //Z=21161
-            //latpar2p^[peakct2][5] = latpar2[peakct2][5];  //Z=21162
+            setLatpar2(peakct2, 4, mhkl);  //Z=21161
 
             /* latpar3[peakct2,1]:=2*pi/uca;  //Z=21164 */
             setLatpar3(peakct2,1, 2*M_PI/params.uca);  //Z=21165
@@ -661,15 +685,16 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
             qxhklt = (2*M_PI)*(rt11*h+rt21*k+rt31*l);  //Z=21182
             qyhklt = (2*M_PI)*(rt12*h+rt22*k+rt32*l);  //Z=21183
             qzhklt = (2*M_PI)*(rt13*h+rt23*k+rt33*l);  //Z=21184
+            qhklt = sqrt(qxhklt*qxhklt+qyhklt*qyhklt+qzhklt*qzhklt);  //ZN=21380
 
-            /* latpar3[peakct2,7]:=qxhklt;  //Z=21186 */
             setLatpar3(peakct2,7, qxhklt);  //Z=21187
-            /* latpar3[peakct2,8]:=qyhklt;  //Z=21188 */
             setLatpar3(peakct2,8, qyhklt);  //Z=21189
-            /* latpar3[peakct2,9]:=qzhklt;  //Z=21190 */
             setLatpar3(peakct2,9, qzhklt);  //Z=21191
+
             g3 = 4*M_PI*M_PI/(2.0*M_PI*qhkl*qhkl);  //Z=21192
+            if ( twin ) g3t = 4*M_PI*M_PI/(2.0*M_PI*qhklt*qhklt);  //ZN=21390
             x2phihkl = 4*qhkl*qhkl/(M_PI*phiwidth*phiwidth);  //Z=21193
+            x2phihklt = 4*qhklt*qhklt/(M_PI*phiwidth*phiwidth);  //ZN=21392
             peaknorm2=0; // zur Sicherheit
 
             switch ( shp )      /*Z=20614*/
@@ -679,6 +704,7 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
                 break;
             case cbpeakGaussian: // 2
                 peaknorm1 = gaussnorm3(x2phihkl);  //Z=21195
+                peaknorm1t = gaussnorm3(x2phihklt);  //ZN=21396
                 break;
             case cbpeakMod1Lorentzian: // 3
                 peaknorm1 = pearsonnorm3(x2phihkl,2);  //Z=21196
@@ -688,7 +714,7 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
                 break;
             case cbpeakPseudoVoigt: // 5
                 peaknorm1 = lorentznorm3(x2phihkl);  //Z=21199
-                //? peaknorm2 = gaussnorm3(x2psihkl);  //Z=21200 ==> x2psihkl unbekannt
+                //peaknorm2 = gaussnorm3(x2psihkl);  //ZN=21402  x2psihkl wird erst in der Pixelberechnung bestimmt
                 break;
             case cbpeakPearsonVII: // 6
                 peaknorm1 = pearsonnorm3(x2phihkl,beta);  //Z=21202
@@ -702,48 +728,33 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
                 D8( if ( peakct2 == 1 ) qDebug() << "prepCalc cbpeakAnisotropicGaussian" );
                 break;
             }
-            /* latpar3[peakct2,10]:=g3;  //Z=21204 */
+#ifndef __CUDACC__
+            if ( peaknorm1 == 0 ) qDebug() << "prepareCalc:" << peakct2 << shp << x2phihkl;
+#endif
             setLatpar3(peakct2,10, g3);  //Z=21205
-            /* latpar3[peakct2,11]:=peaknorm1;  //Z=21206 */
             setLatpar3(peakct2,11, peaknorm1);  //Z=21207
-            /* latpar3[peakct2,12]:=peaknorm2;  //Z=21208 */
             setLatpar3(peakct2,12, peaknorm2);  //Z=21209
-            /* latpar3[peakct2,13]:=qxyhkl;  //Z=21210 */
             setLatpar3(peakct2,13, qxyhkl);  //Z=21211
-/*
-            double qxs = qxhkl;  //Z=21235
-            double qys = qyhkl;  //Z=21236
-            double mildist = qzhkl;  //Z=21237
+            setLatpar3(peakct2,14, qhklt);  //ZN=21415
+            setLatpar3(peakct2,15, g3t);  //ZN=21416
+            setLatpar3(peakct2,16, peaknorm1t);  //ZN=21417
 
-            double angles = 180*atan2(qxs,qys)/M_PI;  //Z=21239
-
-            if ( CheckBoxTwinned )
-            {  //Z=21255
-                qxs = qxhklt;  //Z=21275
-                qys = qyhklt;  //Z=21276
-                mildist = qzhklt;  //Z=21277
-
-                angles = 180*atan2(qxs,qys)/M_PI;  //Z=21279
-
-            }  //  of twinned    //Z=21291
-            // ** end of table entries **   //Z=21293
-*/
         }/*4*/  //Z=21294
     }/*3*/  /*  of test or ltype=30  */  //Z=21295
 
     /*Z=24607 Der folgende Code ist direkt vor den ihex/i Schleifen */
-    sinphic=sin(-params.polPhi*M_PI/180.);
+    sinphic=sin(-params.polPhi*M_PI/180.);  //ZN=25418
     cosphic=cos(-params.polPhi*M_PI/180.);
 
-    ucl1 = sintheta*cosphi;
+    ucl1 = sintheta*cosphi;  //ZN=25421
     ucl2 = sintheta*sinphi;
     ucl3 = -costheta;
 
-    //bfactor:=StrToFloat(EditRotAlpha.Text);
+    //bfactor:=StrToFloat(EditRotAlpha.Text);  //ZN=25425
 
-    if ( shp==8 )
+    if ( shp==8 && lattice )
     {
-        D8( qDebug() << "prepCalc start qrombdeltac, theta phi:" << polTheta << polPhi );
+        D8( qDebug() << "prepCalc start qrombdeltac, theta phi:" << params.polTheta << params.polPhi );
         qrombdeltac( params.p1, params.sigma, params.alpha, params.polTheta, params.polPhi, 1,1,1,
                      9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,3,
                      2, 0, 0, 0, 0, params.CR->carr1p, params.norm );  //Z=25221
@@ -751,7 +762,7 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
     }
 
     // global init to avoid same calculations every time
-    params.psphere_r = /*(1. + 6.*sqr(params.sigma)) * */ params.radius; // {NV}
+    params.psphere_r = /*(1. + 6.*sqr(params.sigma)) * */ params.radius;
     params.psphere_z = (1. - sqr(params.sigma)) / sqr(params.sigma);
 
     if ( bExpandImage )
@@ -772,6 +783,9 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
 
 void SasCalc_GENERIC_calculation::cleanup()
 {
+    std::cerr << "latpar Max Check: " << params.CR->latparMaxCheckCount[0] << ", "
+              << params.CR->latparMaxCheckCount[1] << ", " << params.CR->latparMaxCheckCount[2] << std::endl;
+
     std::cerr << "GENERIC::cleanup:";
 #ifdef COPY_FITDATA_TO_GPU  // FITDATA_IN_GPU ok, cleanup
     if ( arrDataForFitUsed || arrDataForFit != nullptr )
@@ -795,6 +809,7 @@ void SasCalc_GENERIC_calculation::cleanup()
     memcleanup( latpar2ptr );       latpar2ptr = nullptr;       std::cerr << " latpar2";
     memcleanup( latpar1ptr );       latpar1ptr = nullptr;       std::cerr << " latpar1";
     std::cerr << std::endl;
+
 }
 
 
@@ -964,8 +979,6 @@ void SasCalc_GENERIC_calculation::doCalculation( int numThreads )
     if ( gpuAvailable() && numThreads == 0 )    // GPU abschaltbar
     {
         _endThread = false;
-        if ( progAndAbort )
-            progAndAbort( -1 );     // Signal the usage of GPU and disables the progress bar
 
 #ifdef GPU_2D
         // GPU Programming with CUDA @ JSC (Kurs Apr.2022)
@@ -1012,7 +1025,8 @@ void SasCalc_GENERIC_calculation::doCalculation( int numThreads )
 
         else
         {   // Special work for Multi-Threads...
-            threads     = new pthread_t[numThreads];
+            if ( threads != nullptr ) { delete threads; delete thread_args; }
+            threads     = new pthread_t[numThreads];    // Weil die Anzahl der Threads geändert werden kann
             thread_args = new int[numThreads];
             memset( threads, 0, sizeof(pthread_t)*numThreads ); // for ( int t=0; t<numThreads; t++ ) threads[t] = 0;
             int ihex=zzmin;
@@ -1030,6 +1044,7 @@ void SasCalc_GENERIC_calculation::doCalculation( int numThreads )
                 }
                 for ( int t=0; t<numThreads; t++ )
                 {
+                    if ( _endThread ) break;
                     if ( threads[t] )
                     {
                         pthread_join(threads[t], nullptr);
@@ -1039,15 +1054,16 @@ void SasCalc_GENERIC_calculation::doCalculation( int numThreads )
             } // for ihex
             for ( int t=0; t<numThreads; t++ )
             {
+                if ( _endThread ) break;
                 if ( threads[t] )
                 {
                     pthread_join(threads[t], nullptr);
                     threads[t] = 0;
                 }
             }
-            delete threads;
-            delete thread_args;
-            threads = nullptr;
+            //delete threads;
+            //delete thread_args;
+            //threads = nullptr;
         } // numThreads > 1
 
 #ifdef __CUDACC__
@@ -1073,7 +1089,6 @@ void SasCalc_GENERIC_calculation::doCalculation( int numThreads )
  */
 double SasCalc_GENERIC_calculation::doFitCalculation(int numThreads, int bstop, int border, long &cnt, long &nancnt )
 {
-    //if ( pa != nullptr ) progAndAbort = pa;
     numberOfThreads = numThreads;
     fitBStopPixel  = bstop;
     fitBorderPixel = border;
@@ -1103,8 +1118,6 @@ double SasCalc_GENERIC_calculation::doFitCalculation(int numThreads, int bstop, 
     if ( gpuAvailable() && numThreads == 0 )    // GPU abschaltbar
     {
         _endThread = false;
-        if ( progAndAbort )
-            progAndAbort( -1 );     // Signal the usage of GPU and disables the progress bar
 
 #ifdef GPU_2D
         // GPU Programming with CUDA @ JSC (Kurs Apr.2022)
@@ -1145,7 +1158,8 @@ double SasCalc_GENERIC_calculation::doFitCalculation(int numThreads, int bstop, 
 
         else
         {   // Special work for Multi-Threads...
-            threads     = new pthread_t[numThreads];
+            if ( threads != nullptr ) { delete threads; delete thread_args; }
+            threads     = new pthread_t[numThreads];    // Weil die Anzahl der Threads geändert werden kann
             thread_args = new int[numThreads];
             memset( threads, 0, sizeof(pthread_t)*numThreads ); // for ( int t=0; t<numThreads; t++ ) threads[t] = 0;
             int x=0;
@@ -1163,6 +1177,7 @@ double SasCalc_GENERIC_calculation::doFitCalculation(int numThreads, int bstop, 
                 }
                 for ( int t=0; t<numThreads; t++ )
                 {
+                    if ( _endThread ) break;
                     if ( threads[t] )
                     {
                         pthread_join(threads[t], nullptr);
@@ -1172,14 +1187,15 @@ double SasCalc_GENERIC_calculation::doFitCalculation(int numThreads, int bstop, 
             } // for ihex
             for ( int t=0; t<numThreads; t++ )
             {
+                if ( _endThread ) break;
                 if ( threads[t] )
                 {
                     pthread_join(threads[t], nullptr);
                     threads[t] = 0;
                 }
             }
-            delete threads;
-            delete thread_args;
+            //delete threads;
+            //delete thread_args;
             threads = nullptr;
         } // numThreads > 1
 
@@ -1303,28 +1319,38 @@ inline void SasCalc_GENERIC_calculation::doIntCalc_GENERIC_F( const SasCalc_GENE
     }
 #endif
 
-    //lamu   = (CALC.qmax * i) / CALC.iimax;    // (*** running index for x-axis ***)
-    //{NV} alles mit "RadioButtonSlice.Checked=true" lasse ich weg, da ich hier noch keine
-    //     Schnitte behandele.
+    // Bestimmen von qx,qy,qz
+    double qx, qy, qz;
+    if ( CALC.useBeamStop )
+    {   // Einrechnen des Beamstops (d.h. Verschiebung des Zentrums)
+        // Hier wird die Pixelsize aber nicht der qmax Wert beachtet.
+        double mdet = (ihex/*+CALC.zmax+1*/)*CALC.pixnoy/(2.0*CALC.zmax);      /* mth pixel */
+        double ndet = (i   /*+CALC.zmax+1*/)*CALC.pixnox/(2.0*CALC.zmax);      /* nth pixel */
+        /*Z=24635*/
+        // Im Pascal-Programm ist der Beamstop für Null in der Ecke.
+        // Hier ist der Beamstop für Null in der Mitte gerechnet.
+        double xdet = CALC.pixx_m * (ndet - CALC.beamX0);
+        double ydet = CALC.pixy_m * (mdet - CALC.beamY0);
+        double rdet = sqrt(xdet*xdet+ydet*ydet);
+        double phidet = atan2(ydet,xdet);
+        double thetadet = atan2(rdet,CALC.det);
+        qx = 2*M_PI*cos(phidet)*sin(thetadet)/CALC.wave;
+        qy = 2*M_PI*sin(phidet)*sin(thetadet)/CALC.wave;
+        qz = 2*M_PI*(1-cos(thetadet))/CALC.wave;
+        //if ( ihex == 10 && i >= 10 && i <= 20 )
+        //    qDebug() << "ihex/i" << ihex << i << "BSx/y" << CALC.beamX0 << CALC.beamY0 << "zmax" << CALC.zmax << "m/ndet" << mdet << ndet << "qxy" << qx << qy;
+    }
+    else
+    {   // Den Mittelpunkt nutzen (ihex=0,i=0)
+        // hier wird nur der qmax Wert beachtet und die Pixelsize außer Acht gelassen.
+        qx = CALC.qmax * i    / (double)(CALC.zmax); // lamu
+        qy = CALC.qmax * ihex / (double)(CALC.zmax); // lamv
+        qz = 1e-20;
+        //if ( ihex == 10 && i >= 10 && i <= 20 )
+        //    qDebug() << "ihex/i" << ihex << i << "BSx/y" << CALC.beamX0 << CALC.beamY0 << "zmax" << CALC.zmax << "qxy" << qx << qy;
+    }
 
-    // Einrechnen des Beamstops (d.h. Verschiebung des Zentrums)
-    //int mdet = ihex + BCT.zmax + 1;     // (* mth pixel *)
-    //int ndet = i + BCT.zmax + 1;        // (* nth pixel *)
-    /*Z=24635*/
-    // Im Pascal-Programm ist der Beamstop für Null in der Ecke.
-    // Hier ist der Beamstop für Null in der Mitte gerechnet.
-    double xdet = CALC.pixx * (ihex/*+CALC.zmax+1*/ - CALC.beamX0);
-    double ydet = CALC.pixy * (i   /*+CALC.zmax+1*/ - CALC.beamY0);
-    double rdet = sqrt(xdet*xdet+ydet*ydet);
-    double phidet = atan2(ydet,xdet);
-    double thetadet = atan2(rdet,CALC.det);
-    double qx = 2*M_PI*cos(phidet)*sin(thetadet)/CALC.wave;
-    double qy = 2*M_PI*sin(phidet)*sin(thetadet)/CALC.wave;
-    double qz = 2*M_PI*(1-cos(thetadet))/CALC.wave;
-
-    //double q = sqrt(qx*qx+qy*qy+qz*qz)+eps9;
-    //if ( q < 0.02 )
-    //    qDebug() << "CALC Beam"<<CALC.beamX0<<CALC.beamY0 << "ind"<<ihex<<i;
+    // alles mit "RadioButtonSlice.Checked=true" lasse ich weg, da ich hier noch keine Schnitte behandele.
 
     // Call q(x,y,z) Routine (also from 2dFit)
     double pixval = doIntCalc_GENERIC_q_xyz( CALC, qx, qy, qz,
@@ -1338,6 +1364,7 @@ inline void SasCalc_GENERIC_calculation::doIntCalc_GENERIC_F( const SasCalc_GENE
     CALC.setXYIntensity( ihex, i, pixval );
 
 #ifndef __CUDACC__
+    //if ( pixval < 0.2 || isnan(pixval) ) qDebug() << pixval << "NULL" << ihex << i << qx << qy << qz;
     CALC.setDebugIntensity( false );   // Damit nur beim ersten Durchlauf eine Kontrollausgabe kommt.
 #endif
 
@@ -1351,12 +1378,19 @@ inline void SasCalc_GENERIC_calculation::doIntCalc_GENERIC_F( const SasCalc_GENE
 } /* doIntCalc_GENERIC_F() */
 
 
+/**
+ * @brief SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F
+ * @param CALC - Reference to the class to access the variables
+ * @param x    - Pixelindex hor.
+ * @param y    - Pixelindex vert.
+ */
 #ifdef __CUDACC__
 __host__ __device__
 #endif
 inline void SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F( const SasCalc_GENERIC_calculation& CALC,
                                                         int x, int y )
 {
+    // There are up to 4 rectangle regions to be ignored during the fit.
     for ( int i=0; i<4; i++ )
     {
         if ( CALC.noFitX0[i] < 0 ) continue;
@@ -1373,8 +1407,6 @@ inline void SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F( const SasCalc_G
         return;
     }
 
-    int xx = x - CALC.beamX0;
-    int yy = y - CALC.beamY0;
     if ( CALC.fitBorderPixel > 0 || CALC.fitBStopPixel > 0 )
     {   // Ausblendungen über Pixelangaben an Rand und Mitte
         if ( x < CALC._xmin + CALC.fitBorderPixel || x >= CALC._xmax - CALC.fitBorderPixel ||
@@ -1419,9 +1451,11 @@ inline void SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F( const SasCalc_G
     //{   // Keine Ausblenungen
     //}
 
+    int xx = x - CALC.beamX0;
+    int yy = y - CALC.beamY0;
     // Einrechnen des Beamstops (d.h. Verschiebung des Zentrums)
-    double xdet = CALC.pixx * xx;
-    double ydet = CALC.pixy * yy;
+    double xdet = CALC.pixx_m * xx;
+    double ydet = CALC.pixy_m * yy;
     double rdet = sqrt(xdet*xdet+ydet*ydet);
     double phidet = atan2(ydet,xdet);
     double thetadet = atan2(rdet,CALC.det);
@@ -1465,7 +1499,7 @@ inline void SasCalc_GENERIC_calculation::doIntFitCalc_GENERIC_F( const SasCalc_G
 
 /**
  * @brief SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz
- * @param CALC  - reference to class with parameters and subfunctions
+ * @param CALC - reference to class with parameters and subfunctions
  * @param qx   - Coordinates in the q dimension
  * @param qy   - "
  * @param qz   - "
@@ -1504,7 +1538,7 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
     // Aber nur dann, wenn lattice gesetzt ist. Und nur dann wird es auch per formfq berechnet.
 
 
-    /* ************* */  //Z=25269
+    /* ************* */  //Z=25269  //ZN=25476
     /* ** spheres ** */  //Z=25270
     /* ************* */  //Z=25271
     if ( CALC.partsphere )
@@ -1707,17 +1741,13 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
         /*  general orientation  */  //Z=25455
         if ( CALC.ordis==0 )
         {
-            // TODO: bei den folgenden 4 Aufrufen von formfq() stehen die Arrays carr1p anstatt carr1f im Aufruf. Durch meine Parameterlisten-
-            //       Optimierung ist das jetzt natürlich anders. Hoffentlich macht das keine Probleme...
+            // TODO: bei den folgenden 4 Aufrufen von formfq() stehen die Arrays carr1p anstatt carr1f im Aufruf.
+            //       Nach einem Gespräch mit Prof. Förster: das ist wohl ein Copy/Paste-Fehler
 #ifndef __CUDACC__
-            if ( idxCenter ) qDebug() << "TODO formfq, orcase:"<<CALC.params.orcase
-                         << "ordis:"<<CALC.ordis << "part:"<<CALC.params.part << "cs:"<<CALC.params.cs;
-                //Debug: TODO formfq, orcase: 1 ordis: 0 part: 2 cs: 0
-            //params.limq9 = pow(fabs(params.CR->carr9p[n9]),-1/(2.0*n9));  //Z=15078
-            //params.limq1f = pow(fabs(params.CR->carr1f[n1f]),-1/(2.0*n1f));  //Z=15079 Im Orginal-Pascalprogramm wurden hier
+            //if ( idxCenter ) qDebug() << "TODO formfq, orcase:"<<CALC.params.orcase
+            //             << "ordis:"<<CALC.ordis << "part:"<<CALC.params.part << "cs:"<<CALC.params.cs;
+            //Debug: TODO formfq, orcase: 1 ordis: 0 part: 2 cs: 0
 #endif
-            //CALC.params.CR->carr1f = CALC.params.CR->carr1p;
-
             switch ( CALC.params.orcase )
             {
             case 1:
@@ -1989,11 +2019,11 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
         width = 4.0/CALC.params.domainsize;  //Z=25722
     if ( CALC.RadioButtonPara )
         width = (4.0/CALC.params.domainsize)+sqr(CALC.reldis)*CALC.dist*sqr(q);  //Z=25723
-    if ( CALC.lattice && CALC.shp==cbpeakAnisotropicGaussian && CALC.ordis==7/*isotropic*/ )
-        width = CALC.params.sig.length() /*sqrt(sigx*sigx+sigy*sigy+sigz*sigz)*/ /3.0;  //Z=25892
+    if ( CALC.lattice && CALC.shp==cbpeakAnisotropicGaussian/*8*/ && CALC.ordis==7/*isotropic*/ )
+        width = CALC.params.sig.length() /*sqrt(sigx*sigx+sigy*sigy+sigz*sigz)*/ /3.0;  //Z=26118
 #ifndef __CUDACC__
-    if ( idxCenter && width != 1 )
-        qDebug() << "WIDTH" << width;
+    if ( idxCenter && width != 1 && CALC.params.width_zuf != 1 )
+        qDebug() << "WIDTH" << width << CALC.params.width_zuf;
 #endif
 
     //if ( ! CALC.tpvRandomOldValues.empty() )   // doIntCalc... - nicht auf der GPU zulässig
@@ -2003,13 +2033,13 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
         width = width * CALC.params.width_zuf;
     }
 
-#ifdef nochnichteingebaut
     /*  Percus-Yevick  */  //Z=25725
-    if ( ltype==20 )
+    if ( CALC.ltype==20 )
     {/*6*/  //Z=25726
-        pq = pq*spy(radius,dbeta,q);  //Z=25727
+        pq = pq * CALC.spy( q );  //Z=25727
     }/*6*/  //Z=25728
 
+#ifdef nochnichteingebaut
     /*  Teubner-Strey  */  //Z=25730
     if ( ltype==21 )
     {/*6*/  //Z=25731
@@ -2033,10 +2063,12 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
     }
 #endif*/
 
-    double /*qhkl0,*/ qxhkl, qyhkl, qzhkl, qhkl, qxhklt, qyhklt, qzhklt, g3, peaknorm1; //, peaknorm2;
+    if ( CALC._endThread ) return 0;  // Falls Anwender abgebrochen hat
+
+    double /*qhkl0,*/ qxhkl, qyhkl, qzhkl, qhkl, qxhklt, qyhklt, qzhklt, qhklt, g3, g3t, peaknorm1; //, peaknorm2;
     double dqx, dqy, dqz, yphi, psiord, phiord, x2phi;
 
-    double widthiso = 1.0 / CALC.params.uca;  /*Z0311=19448*/
+    double widthiso = 1.0 / CALC.params.uca;  //ZN=20321
     double sphno=0, cubevol=0; // fürs Debuggen besser
 
     radintensity = 0.0;     // Immer nur für ein Pixel berechnet, somit kein Array nötig
@@ -2053,7 +2085,8 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
 
         /* isotropic peaks */
         for ( int ii=1; ii<=CALC.peakmax1; ii++ )
-        {   //Z=25759
+        {   //Z=25759  //ZN=25967
+            if ( CALC._endThread ) return 0;  // Falls Anwender abgebrochen hat
             //int h    = CALC.latpar1(ii,1);  //Z=25760
             //int k    = CALC.latpar1(ii,2);
             //int l    = CALC.latpar1(ii,3);
@@ -2069,15 +2102,15 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
         int ignHklData = 0;
 #endif
         for ( int ii=1; ii<=CALC.peakmax2; ii++ )
-        {   //Z=25779
+        {   //Z=25779  //ZN=25987
             if ( CALC._endThread ) return 0;  // Falls Anwender abgebrochen hat
-            int h = CALC.latpar2(ii,1);  //Z=25780
+            int h = CALC.latpar2(ii,1);  //Z=25780  //ZN=25988
             int k = CALC.latpar2(ii,2);
             int l = CALC.latpar2(ii,3);
             int mhkl = CALC.latpar2(ii,4);
             int fhkl = CALC.latpar2(ii,5);
 
-            //qhkl0 = CALC.latpar3(ii,1);  //Z=25820
+            //qhkl0 = CALC.latpar3(ii,1);  //Z=25820  //ZN=26028
             qxhkl = CALC.latpar3(ii,2);
             qyhkl = CALC.latpar3(ii,3);
             qzhkl = CALC.latpar3(ii,4);
@@ -2086,6 +2119,8 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
             qyhklt = CALC.latpar3(ii,8);
             qzhklt = CALC.latpar3(ii,9);
             g3     = CALC.latpar3(ii,10);
+            qhklt  = CALC.latpar3(ii,14);  //ZN=26037
+            g3t    = CALC.latpar3(ii,15);  //ZN=26038
 
             switch ( CALC.shp )
             {
@@ -2185,22 +2220,23 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
 
                 psiord = 1;  //Z=25994
 #ifdef undef
-                if ( CALC.CheckBoxTwinned )
-                {  //Z=25995
-                }  //Z=26061
+                if ( CALC.twin /*CALC.CheckBoxTwinned*/ )
+                {   //ZN=26205
+                    TODO: im Prinzip nochmal die gleichen Verzweigungen wie oben
+                }   //ZN=26270
 #endif
                 break;  // shp == cbpeakAnisotropicGaussian  //Z=26062
 
             case cbpeakLorentzian /*1*/:
                 peaknorm1 = CALC.latpar3(ii,11);  //Z=26066
-                yphi = acos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));
+                yphi = myacos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));
                 x2 = (q-qhkl)*(q-qhkl)/(width*width);
                 sq = sqrt(CALC.c1)/(M_PI*width*(1+CALC.c1*x2));
                 x2phi = 4*q*q/sqr(CALC.phiwidth);             /*** b-factor ***/
                 psiord = g3/(peaknorm1*(1+x2phi*yphi*yphi));  //Z=26071
-                if ( CALC.CheckBoxTwinned )
+                if ( CALC.twin /*CALC.CheckBoxTwinned*/ )
                 {
-                    yphi = acos((qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl));
+                    yphi = myacos((qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl));
                     phiord = g3/(peaknorm1*(1+x2phi*yphi*yphi));
                     psiord = CALC.params.ceff*psiord+(1-CALC.params.ceff)*phiord;
                 }  //Z=26076
@@ -2208,32 +2244,45 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
 
             case cbpeakGaussian /*2*/:                                                          //20210812-E
                 peaknorm1 = CALC.latpar3(ii,11);  //Z=26081
-                yphi = acos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));
+                yphi = myacos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));
                 x2 = (q-qhkl)*(q-qhkl)/(width*width);
                 sq = exp(-4*x2/M_PI)/(M_PI*width/2.0);
                 x2phi = 4*q*q/(M_PI*sqr(CALC.phiwidth));             /*** a-factor ***/
                 psiord = g3*exp(-x2phi*yphi*yphi)/peaknorm1;
-                if ( CALC.CheckBoxTwinned )
+#ifndef __CUDACC__
+                if ( isinf(psiord) ) qDebug() << "psiord1" << g3 << x2phi << yphi << peaknorm1;
+#endif
+                if ( CALC.twin /*CALC.CheckBoxTwinned*/ )
                 {
-                    yphi = (qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl);  //Z=26088
-                    if ( yphi>1 ) yphi = 1;  //Z=26089
-                    if ( yphi<(-1) ) yphi = -1;  //Z=26090
-                    yphi = acos(yphi);  //Z=26091
-                    phiord = g3*exp(-x2phi*yphi*yphi)/peaknorm1;
-                    psiord = CALC.params.ceff*psiord+(1-CALC.params.ceff)*phiord;
+                    double peaknorm1t = CALC.latpar3(ii,16);   //ZN=26305
+                    yphi = myacos((qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhklt));
+                    phiord = g3t*exp(-x2phi*yphi*yphi)/peaknorm1t;
+                    psiord = CALC.params.ceff*psiord+(1-CALC.params.ceff)*phiord;   //ZN=26313
+#ifndef __CUDACC__
+                    if ( isinf(psiord) )
+                        qDebug() << "psiord2" << CALC.params.ceff << phiord << "=" << g3t << x2phi << yphi << peaknorm1t;
+
+                    if ( idxCenter && (ii < 10 || ii > CALC.peakmax2-10) )
+                        qDebug() << ii << "q?hkl" << qxhkl << qyhkl << qzhkl << "q?hklt" << qxhklt << qyhklt << qzhklt;
+#endif
                 }
+                // TODO Hier tauchen Probleme bim BCC / BCT auf:
+                // Wenn TwRatio(ceff)=0 und CheckBoxTwinned=True dann wird falsch gerechnet. Bei allen anderen
+                // Kombinationen stimmen die Ergebnisse.
+                // 230804: CheckBoxTwinned soll lt. Hr. Förster langfristig rausfliegen. Die Parts mit "if twin then" sind
+                //          schon angepasst, die anderen müssen noch überarbeitet werden.
                 break;
 
             case cbpeakMod1Lorentzian /*Lorentzian1*/:
                 peaknorm1 = CALC.latpar3(ii,11);  //Z=26100
-                yphi = acos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));
+                yphi = myacos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));
                 x2 = (q-qhkl)*(q-qhkl)/(width*width);
                 sq = 2*sqrt(CALC.c2)/(M_PI*width*(1+CALC.c1*x2)*(1+CALC.c1*x2));
                 x2phi = 4*q*q/sqr(CALC.phiwidth);             /*** c-factor ***/
                 psiord = g3/(peaknorm1*(1+x2phi*yphi*yphi)*(1+x2phi*yphi*yphi));
                 if ( CALC.CheckBoxTwinned )
                 {  //Z=26106
-                    yphi = acos((qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl));
+                    yphi = myacos((qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl));
                     phiord = g3/(peaknorm1*(1+x2phi*yphi*yphi)*(1+x2phi*yphi*yphi));
                     psiord = CALC.params.ceff*psiord+(1-CALC.params.ceff)*phiord;
                 }  //Z=26110
@@ -2241,14 +2290,14 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
 
             case cbpeakMod2Lorentzian /*Lorentzian2*/:
                 peaknorm1 = CALC.latpar3(ii,11);  //Z=26115
-                yphi = acos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));
+                yphi = myacos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));
                 x2 = (q-qhkl)*(q-qhkl)/(width*width);
                 sq = sqrt(CALC.c3)/(2*width*exp(3*log(1+CALC.c1*x2)/2.0));
                 x2phi = 4*q*q/sqr(CALC.phiwidth);             /*** c-factor ***/
                 psiord = g3/(peaknorm1*exp(3*log(1+x2phi*yphi*yphi)/2.0));
                 if ( CALC.CheckBoxTwinned )
                 {  //Z=26121
-                    yphi = acos((qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl));
+                    yphi = myacos((qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl));
                     phiord = g3/(peaknorm1*exp(3*log(1+x2phi*yphi*yphi)/2.0));
                     psiord = CALC.params.ceff*psiord+(1-CALC.params.ceff)*phiord;
                 }  //Z=26125
@@ -2258,7 +2307,7 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
             {
                 peaknorm1 = CALC.latpar3(ii,11);  //Z=26131
                 double peaknorm2 = CALC.latpar3(ii,12);
-                yphi = acos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));
+                yphi = myacos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));
                 x2 = (q-qhkl)*(q-qhkl)/(width*width);
                 sq = CALC.eta*sqrt(CALC.c1)/(M_PI*width*(1+CALC.c1*x2))+(1-CALC.eta)*sqrt(CALC.c0)*exp(-CALC.c0*x2)/(sqrt(M_PI)*width);  //Z=26135
                 double x2psi = 4*q*q/(M_PI*sqr(CALC.phiwidth));             /*** a-factor ***/
@@ -2267,7 +2316,7 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
                 psiord = g3*(CALC.eta*(1/(1+x2phi*yphi*yphi))+(1-CALC.eta)*exp(-x2psi*yphi*yphi))/(CALC.eta*peaknorm1+(1-CALC.eta)*peaknorm2);  //Z=26139
                 if ( CALC.CheckBoxTwinned )
                 {  //Z=26140
-                    yphi = acos((qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl));
+                    yphi = myacos((qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl));
                     phiord = g3*(CALC.eta*(1/(1+x2phi*yphi*yphi))+(1-CALC.eta)*exp(-x2psi*yphi*yphi))/(CALC.eta*peaknorm1+(1-CALC.eta)*peaknorm2);
                     psiord = CALC.params.ceff*psiord+(1-CALC.params.ceff)*phiord;
                 }  //Z=26144
@@ -2276,14 +2325,14 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
 
             case cbpeakPearsonVII /*Pearson*/:
                 peaknorm1 = CALC.latpar3(ii,11);  //Z=26149
-                yphi = acos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));
+                yphi = myacos((qx*qxhkl+qy*qyhkl+qz*qzhkl)/(q*qhkl));
                 x2 = (q-qhkl)*(q-qhkl)/(width*width);
                 sq = CALC.gamma(CALC.beta)*CALC.c4*2/(CALC.gamma(CALC.beta-0.5)*M_PI*width*exp(CALC.beta*log(1+4*CALC.c4*x2)));
                 x2phi = 4*q*q/sqr(CALC.phiwidth);             /*** c-factor ***/
                 psiord = g3/(peaknorm1*exp(CALC.beta*log(1+x2phi*yphi*yphi)));
                 if ( CALC.CheckBoxTwinned )
                 {  //Z=26155
-                    yphi = acos((qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl));
+                    yphi = myacos((qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl));
                     phiord = g3/(peaknorm1*exp(CALC.beta*log(1+x2phi*yphi*yphi)));
                     psiord = CALC.params.ceff*psiord+(1-CALC.params.ceff)*phiord;
                 }  //Z=26159
@@ -2313,7 +2362,17 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
                 return 0;
             } // switch shp
 
-            if ( qhkl > 0 ) intensity += sq*mhkl*fhkl*psiord;  //Z=26176
+            if ( qhkl > 0 )
+            {
+                intensity += sq*mhkl*fhkl*psiord;  //Z=26176
+                if ( isinf(intensity) )
+                {
+#ifndef __CUDACC__
+                    qDebug() << "INTENS=INF" << sq << mhkl << fhkl << psiord << "ii" << ii << CALC.peakmax2;
+#endif
+                    break;
+                }
+            }
 #ifndef __CUDACC__
             else ignHklData++;
 #endif
@@ -2321,7 +2380,7 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
         }/*2*/  /* of peak-loop */  //Z=26182
 
 #ifndef __CUDACC__
-        if ( ignHklData > 0 )
+        if ( ignHklData > 0 && idxCenter )
             qDebug() << "IgnHklData" << ignHklData << "max" << CALC.peakmax2;
 #endif
 
@@ -2341,10 +2400,12 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
     // retval ist der Pixelwert bei [ihex+zmax][i+zmax]
 
 #ifndef __CUDACC__
-    if ( retval < -1e8 )
+    if ( retval < -1e8 || isnan(retval) || isinf(retval) )
         qDebug() << "szq"<<szq << "pq"<<pq <<"fq"<<fq << "szqiso"<<szqiso << "pqiso"<<pqiso << "q"<<q
                  << "intens"<<intensity << "radint"<<radintensity << CALC.peakmax1
                  << "="<<retval;
+    // szq inf pq 2.16215e-05 fq 2.08036e-07 szqiso 1 pqiso 2.16215e-05 q 2.74004 intens inf radint 2.45523 107 = inf
+
 #else
     //if ( retval < -1e6 )
     //    printf( "szq=%lf pq=%lf fq=%lf szqiso=%lf pqiso=%lf q=%lf intens=%lf radint=%lf erg=%lf\n", szq, pq, fq, szqiso, pqiso, q, intensity, radintensity, retval );
@@ -2358,628 +2419,751 @@ inline double SasCalc_GENERIC_calculation::doIntCalc_GENERIC_q_xyz(const SasCalc
 
 
 
-/*Z0311=8711
-    procedure corotations(a,b,c,alpha,beta,gamma: extended;
-                          u,v,w,ephi: extended;
-                          lat1d,lat2d,lat3d: boolean;
-                       var m11,m12,m13,m21,m22,m23,m31,m32,m33: extended;
-                       var mtw11,mtw12,mtw13,mtw21,mtw22,mtw23,mtw31,mtw32,mtw33,vvol: extended;
-                       var nuvwx,nuvwy,nuvwz,uuvwx,uuvwy,uuvwz,vuvwx,vuvwy,vuvwz: extended;
-                       var nhklx,nhkly,nhklz,uhklx,uhkly,uhklz,vhklx,vhkly,vhklz: extended);
-    */
 void SasCalc_GENERIC_calculation::corotations(double a, double b, double c, double alpha, double beta, double gamma,
-                                              double u, double v, double w, double ephi,
-                                              bool lat1d, bool lat2d, bool /*lat3d*/,
+                                              double u, double v, double w, double ephi, /*int ltype,*/
+                                              bool lat1d, bool lat2d, bool /*lat3d*/, /*bool twin,*/
                                               double &m11, double &m12, double &m13, double &m21, double &m22, double &m23, double &m31, double &m32, double &m33,
                                               double &mtw11, double &mtw12, double &mtw13, double &mtw21, double &mtw22, double &mtw23, double &mtw31, double &mtw32, double &mtw33, double &vvol,
                                               double &nuvwx, double &nuvwy, double &nuvwz, double &uuvwx, double &uuvwy, double &uuvwz, double &vuvwx, double &vuvwy, double &vuvwz,
-                                              double &nhklx, double &nhkly, double &nhklz, double &uhklx, double &uhkly, double &uhklz, double &vhklx, double &vhkly, double &vhklz)
-{   /*Z0311=8717*/
-    //int    i;
-    double ca,cb,cg,/*sa,*/sb,sg,/*vol,*/n1,n2,n3,l1,l2,l3,m1,m2,m3;
-    double msi11,msi12,msi13,msi21,msi22,msi23,msi31,msi32,msi33,detmsi;
-    double ms11,ms12,ms13,ms21,ms22,ms23,ms31,ms32,ms33;
-    //double msi11n,msi12n,msi13n,msi21n,msi22n,msi23n,msi31n,msi32n,msi33n,detmsin;
-    //double m11n,m12n,m13n,m21n,m22n,m23n,m31n,m32n,m33n;
-    double mst11,mst12,mst13,mst21,mst22,mst23,mst31,mst32,mst33,detmst;
-    double mt11,mt12,mt13,mt21,mt22,mt23,mt31,mt32,mt33;
-    float g11,g12,g13,g21,g22,g23,g31,g32,g33,gi11,gi12,gi13,gi21,gi22,gi23,gi31,gi32,gi33,detg;
-    float mi11,mi12,mi13,mi21,mi22,mi23,mi31,mi32,mi33,detm;
-    double ri11,ri12,ri13,ri21,ri22,ri23,ri31,ri32,ri33,detr;
-    float aax,aay,aaz,bax,bay,baz,cax,cay,caz;
-    float aaxt,aayt,aazt,baxt,bayt,bazt,caxt,cayt,cazt;
-    float aex,aey,aez,bex,bey,bez,cex,cey,cez; // ,asx,asy,asz,bsx,bsy,bsz,csx,csy,csz;
-    float /*aexn,aeyn,aezn,bexn,beyn,bezn,cexn,ceyn,cezn,*/asxn,asyn,aszn,bsxn,bsyn,bszn,csxn,csyn,cszn;
-    float aext,aeyt,aezt,bext,beyt,bezt,cext,ceyt,cezt; // ,asxt,asyt,aszt,bsxt,bsyt,bszt,csxt,csyt,cszt;
-    //float asxd,asyd,aszd,bsxd,bsyd,bszd,csxd,csyd,cszd;
-    float epsi,etheta,len,r11,r12,r13,r21,r22,r23,r31,r32,r33;
-    float aedx,aedy,aedz,bedx,bedy,bedz,cedx,cedy,cedz,vols;
-    float nxyzx,nxyzy,nxyzz,uxyzx,uxyzy,uxyzz,vxyzx,vxyzy,vxyzz,nxyznx,/*nxyzny,*/nxyznz;
-    //double asax,asay,asaz,bsax,bsay,bsaz,csax,csay,csaz,asex,asey,asez,bsex,bsey,bsez,csex,csey,csez;
-    double asedx,asedy,asedz,bsedx,bsedy,bsedz,csedx,csedy,csedz;
-    double asedxn,asedyn,asedzn,bsedxn,bsedyn,bsedzn,csedxn,csedyn,csedzn;
-    double asedxt,asedyt,asedzt,bsedxt,bsedyt,bsedzt,csedxt,csedyt,csedzt;
-    double aedxt,aedyt,aedzt,bedxt,bedyt,bedzt,cedxt,cedyt,cedzt;
-    double m11DD,m12DD,m13DD,m21DD,m22DD,m23DD; //,m31DD,m32DD,m33DD;
-    //double mi11DD,mi12DD,mi13DD,mi21DD,mi22DD,mi23DD,mi31DD,mi32DD,mi33DD;
-    double aexDD,aeyDD,/*aezDD,*/bexDD,beyDD; //,bezDD,cexDD,ceyDD,cezDD;
-    double asxDD,asyDD,aszDD,bsxDD,bsyDD,bszDD,csxDD,csyDD,cszDD,area;
-    //double aedxDD,aedyDD,aedzDD,bedxDD,bedyDD,bedzDD,cedxDD,cedyDD,cedzDD;
-    double asedxDD,asedyDD,asedzDD,bsedxDD,bsedyDD,bsedzDD,csedxDD,csedyDD,csedzDD;
-    //double m11DL,m12DL,m13DL,m21DL,m22DL,m23DL,m31DL,m32DL,m33DL;
-    //double mi11DL,mi12DL,mi13DL,mi21DL,mi22DL,mi23DL,mi31DL,mi32DL,mi33DL;
-    //double aexDL,aeyDL,aezDL,bexDL,beyDL,bezDL,cexDL,ceyDL,cezDL;
-    double asxDL,asyDL,aszDL,bsxDL,bsyDL,bszDL,csxDL,csyDL,cszDL,area1;
-    //double aedxDL,aedyDL,aedzDL,bedxDL,bedyDL,bedzDL,cedxDL,cedyDL,cedzDL;
-    double asedxDL,asedyDL,asedzDL,bsedxDL,bsedyDL,bsedzDL,csedxDL,csedyDL,csedzDL;
+                                              double &nhklx, double &nhkly, double &nhklz, double &uhklx, double &uhkly, double &uhklz, double &vhklx, double &vhkly, double &vhklz )
+{
+    // int i;  //Z=9224
+    double ca, cb, cg, /*sa,*/ sb, sg, /*vol,*/ n1, n2, n3, l1, l2, l3, m1, m2, m3;  //Z=9225
+    double msi11, msi12, msi13, msi21, msi22, msi23, msi31, msi32, msi33; //, detmsi;  //Z=9226
+    double /*ms11, ms12, ms13, ms21, ms22, ms23, ms31, ms32, ms33,*/ lenn;  //Z=9227
+    //double msi11n, msi12n, msi13n, msi21n, msi22n, msi23n, msi31n, msi32n, msi33n, detmsin;  //Z=9228
+    double m11n, m12n, m13n, m21n, m22n, m23n, m31n, m32n, m33n;  //Z=9229
+    //double mst11, mst12, mst13, mst21, mst22, mst23, mst31, mst32, mst33, detmst;  //Z=9230
+    //double mt11, mt12, mt13, mt21, mt22, mt23, mt31, mt32, mt33;  //Z=9231
+    float g11, g12, g13, g21, g22, g23, g31, g32, g33, gi11, gi12, gi13, gi21, gi22, gi23, gi31, gi32, gi33, detg;  //Z=9232
+    float g11t, g12t, g13t, g21t, g22t, g23t, g31t, g32t, g33t, gi11t, gi12t, gi13t, gi21t, gi22t, gi23t, gi31t, gi32t, gi33t, detgt;  //Z=9233
+    //float mi11, mi12, mi13, mi21, mi22, mi23, mi31, mi32, mi33, detm;  //Z=9234
+    double ri11, ri12, ri13, ri21, ri22, ri23, ri31, ri32, ri33; //, detr;  //Z=9235
+    float aax, aay, aaz, bax, bay, baz, cax, cay, caz, nnhkl, unhkl, vnhkl;  //Z=9236
+    float aaxt, aayt, aazt, baxt, bayt, bazt, caxt, cayt, cazt;  //Z=9237
+    //float aex, aey, aez, bex, bey, bez, cex, cey, cez, asx, asy, asz, bsx, bsy, bsz, csx, csy, csz;  //Z=9238
+    float aexn, aeyn, aezn, bexn, beyn, bezn, cexn, ceyn, cezn, asxn, asyn, aszn, bsxn, bsyn, bszn, csxn, csyn, cszn;  //Z=9239
+    float aext, aeyt, aezt, bext, beyt, bezt, cext, ceyt, cezt, asxt, asyt, aszt, bsxt, bsyt, bszt, csxt, csyt, cszt;  //Z=9240
+    //float asxd, asyd, aszd, bsxd, bsyd, bszd, csxd, csyd, cszd;  //Z=9241
+    float epsi, etheta, len, r11, r12, r13, r21, r22, r23, r31, r32, r33;  //Z=9242
+    //float aedx, aedy, aedz, bedx, bedy, bedz, cedx, cedy, cedz, vols;  //Z=9243
+    float nxyzx, nxyzy, nxyzz, uxyzx, uxyzy, uxyzz, vxyzx, vxyzy, vxyzz, nxyznx, /*nxyzny,*/ nxyznz;  //Z=9244
+    //double asax, asay, asaz, bsax, bsay, bsaz, csax, csay, csaz, asex, asey, asez, bsex, bsey, bsez, csex, csey, csez;  //Z=9245
+    //double asedx, asedy, asedz, bsedx, bsedy, bsedz, csedx, csedy, csedz;  //Z=9246
+    double asedxn, asedyn, asedzn, bsedxn, bsedyn, bsedzn, csedxn, csedyn, csedzn;  //Z=9247
+    double asedxt, asedyt, asedzt, bsedxt, bsedyt, bsedzt, csedxt, csedyt, csedzt;  //Z=9248
+    //double aedxt, aedyt, aedzt, bedxt, bedyt, bedzt, cedxt, cedyt, cedzt;  //Z=9249
+    double m11DD, m12DD, m13DD, m21DD, m22DD, m23DD; //, m31DD, m32DD, m33DD;  //Z=9250
+    //double mi11DD, mi12DD, mi13DD, mi21DD, mi22DD, mi23DD, mi31DD, mi32DD, mi33DD;  //Z=9251
+    double aexDD, aeyDD, /*aezDD,*/ bexDD, beyDD; //, bezDD, cexDD, ceyDD, cezDD;  //Z=9252
+    double asxDD, asyDD, aszDD, bsxDD, bsyDD, bszDD, csxDD, csyDD, cszDD, area;  //Z=9253
+    //double aedxDD, aedyDD, aedzDD, bedxDD, bedyDD, bedzDD, cedxDD, cedyDD, cedzDD;  //Z=9254
+    double asedxDD, asedyDD, asedzDD, bsedxDD, bsedyDD, bsedzDD, csedxDD, csedyDD, csedzDD;  //Z=9255
+    //double m11DL, m12DL, m13DL, m21DL, m22DL, m23DL, m31DL, m32DL, m33DL;  //Z=9256
+    //double mi11DL, mi12DL, mi13DL, mi21DL, mi22DL, mi23DL, mi31DL, mi32DL, mi33DL;  //Z=9257
+    //double aexDL, aeyDL, aezDL, bexDL, beyDL, bezDL, cexDL, ceyDL, cezDL;  //Z=9258
+    double asxDL, asyDL, aszDL, bsxDL, bsyDL, bszDL, csxDL, csyDL, cszDL, area1;  //Z=9259
+    //double aedxDL, aedyDL, aedzDL, bedxDL, bedyDL, bedzDL, cedxDL, cedyDL, cedzDL;  //Z=9260
+    double asedxDL, asedyDL, asedzDL, bsedxDL, bsedyDL, bsedzDL, csedxDL, csedyDL, csedzDL;  //Z=9261
+    double thetarot, ct, st, ux, uy, uz, ul;  //Z=9262
+    double rott[3+1][3+1];  //Z=9263
 
-    //    if ( a == 0 ) a = 1;        // Kantenlängen der Einheitszelle nicht 0
-    //    if ( b == 0 ) b = 1;
-    //    if ( c == 0 ) c = 1;
+    //qDebug() << "corotations: twin =" << twin;
 
-    /* unit cell */   /*Z0311=8758*/
-    alpha = alpha*M_PI/180.0;   /*Z0311=8759*/
-    beta = beta*M_PI/180.0;   /*Z0311=8760*/
-    gamma = gamma*M_PI/180.0;   /*Z0311=8761*/
-    ephi = ephi*M_PI/180.0;   /*Z0311=8762*/
-    ca = cos(alpha);   /*Z0311=8763*/
-    cb = cos(beta);   /*Z0311=8764*/
-    cg = cos(gamma);   /*Z0311=8765*/
-    //sa = sin(alpha);   /*Z0311=8766*/
-    sb = sin(beta);   /*Z0311=8767*/
-    sg = sin(gamma);   /*Z0311=8768*/
-    //vol = a*b*c*sqrt(1.0-ca*ca-cb*cb-cg*cg+2*ca*cb*cg);   /*Z0311=8769*/
+    /*begin*/  //Z=9265
+    /* ***************** */  //Z=9266
+    /* ** unit cell **** */  //Z=9267
+    alpha = alpha*M_PI/180.0;  //Z=9268
+    beta = beta*M_PI/180.0;  //Z=9269
+    gamma = gamma*M_PI/180.0;  //Z=9270
+    ephi = ephi*M_PI/180.0;  //Z=9271
+    ca = cos(alpha);  //Z=9272
+    cb = cos(beta);  //Z=9273
+    cg = cos(gamma);  //Z=9274
+    //sa = sin(alpha);  //Z=9275
+    sb = sin(beta);  //Z=9276
+    sg = sin(gamma);  //Z=9277
+    //vol = a*b*c*sqrt(1.0-ca*ca-cb*cb-cg*cg+2*ca*cb*cg);  //Z=9278
 
-    n1 = 0;   /*Z0311=8771*/
-    n2 = 0;   /*Z0311=8772*/
-    n3 = 1;   /*Z0311=8773*/
-    l1 = sb;   /*Z0311=8774*/
-    l2 = 0;   /*Z0311=8775*/
-    l3 = cb;   /*Z0311=8776*/
-    m1 = (cg-cb*ca)/sb;   /*Z0311=8777*/
-    m2 = sqrt(1.0-m1*m1-ca*ca);   /*Z0311=8778*/
-    m3 = ca;   /*Z0311=8779*/
+    n1 = 0;  //Z=9280
+    n2 = 0;  //Z=9281
+    n3 = 1;  //Z=9282
+    l1 = sb;  //Z=9283
+    l2 = 0;  //Z=9284
+    l3 = cb;  //Z=9285
+    m1 = (cg-cb*ca)/sb;  //Z=9286
+    m2 = sqrt(1.0-m1*m1-ca*ca);  //Z=9287
+    m3 = ca;  //Z=9288
 
-    /* Msi matrix */   /*Z0311=8781*/
-    msi11 = a*l1;         msi12 = a*l2;       msi13 = a*l3;   /*Z0311=8782*/
-    msi21 = b*m1;         msi22 = b*m2;       msi23 = b*m3;   /*Z0311=8783*/
-    msi31 = c*n1;         msi32 = c*n2;       msi33 = c*n3;   /*Z0311=8784*/
+    /* ***************** */  //Z=9290
+    /* ** Msi matrix *** */  //Z=9291
+    msi11 = a*l1;         msi12 = a*l2;       msi13 = a*l3;  //Z=9292
+    msi21 = b*m1;         msi22 = b*m2;       msi23 = b*m3;  //Z=9293
+    msi31 = c*n1;         msi32 = c*n2;       msi33 = c*n3;  //Z=9294
 
-    /* new: transposed Msi matrix */   /*Z0311=8786*/
-    //msi11n = a*l1;         msi21n = a*l2;       msi31n = a*l3;   /*Z0311=8787*/
-    //msi12n = b*m1;         msi22n = b*m2;       msi32n = b*m3;   /*Z0311=8788*/
-    //msi13n = c*n1;         msi23n = c*n2;       msi33n = c*n3;   /*Z0311=8789*/
+    /*  new: transposed Msi matrix  */  //Z=9296
+    /* msi11n:=a*l1;         msi21n:=a*l2;       msi31n:=a*l3;  //Z=9297
+       msi12n:=b*m1;         msi22n:=b*m2;       msi32n:=b*m3;  //Z=9298
+       msi13n:=c*n1;         msi23n:=c*n2;       msi33n:=c*n3;  */  //Z=9299
 
-    /* new: = M matrix */   /*Z0311=8791*/
-    //m11n = msi11;          m12n = msi12;       m13n = msi13;   /*Z0311=8792*/
-    //m21n = msi21;          m22n = msi22;       m32n = msi23;   /*Z0311=8793*/
-    //m31n = msi31;          m23n = msi32;       m33n = msi33;   /*Z0311=8794*/
+    /* ********************* */  //Z=9301
+    /* ** new: = M matrix ** */  //Z=9302
+    m11n = msi11;          m12n = msi12;       m13n = msi13;  //Z=9303
+    m21n = msi21;          m22n = msi22;       m32n = msi23;  //Z=9304
+    m31n = msi31;          m23n = msi32;       m33n = msi33;  //Z=9305
 
-    /* old: Ms matrix */   /*Z0311=8796*/
-    detmsi = msi11*msi22*msi33+msi12*msi23*msi31+msi13*msi21*msi32-msi31*msi22*msi13-msi32*msi23*msi11-msi33*msi21*msi12;   /*Z0311=8797*/
-    ms11 = (msi22*msi33-msi23*msi32)/detmsi;   /*Z0311=8798*/
-    ms12 = (msi13*msi32-msi12*msi33)/detmsi;   /*Z0311=8799*/
-    ms13 = (msi12*msi23-msi13*msi22)/detmsi;   /*Z0311=8800*/
-    ms21 = (msi23*msi31-msi21*msi33)/detmsi;   /*Z0311=8801*/
-    ms22 = (msi11*msi33-msi13*msi31)/detmsi;   /*Z0311=8802*/
-    ms23 = (msi13*msi21-msi11*msi23)/detmsi;   /*Z0311=8803*/
-    ms31 = (msi21*msi32-msi22*msi31)/detmsi;   /*Z0311=8804*/
-    ms32 = (msi12*msi31-msi11*msi32)/detmsi;   /*Z0311=8805*/
-    ms33 = (msi11*msi22-msi12*msi21)/detmsi;   /*Z0311=8806*/
+    m11DD = a;     m12DD = b*cg;    m13DD = 0;  //Z=9307
+    m21DD = 0;     m22DD = b*sg;    m23DD = 0;  //Z=9308
+    //m31DD = 0;     m32DD = 0;       m33DD = 1;  //Z=9309
 
-    /* old: Ms matrix, transposed */   /*Z0311=8808*/
-    mst11 = ms11;    mst12 = ms21;    mst13 = ms31;   /*Z0311=8809*/
-    mst21 = ms12;    mst22 = ms22;    mst23 = ms32;   /*Z0311=8810*/
-    mst31 = ms13;    mst32 = ms23;    mst33 = ms33;   /*Z0311=8811*/
+    //m11DL = a;     m12DL = 0;    m13DL = 0;  //Z=9311
+    //m21DL = 0;     m22DL = 1;    m23DL = 0;  //Z=9312
+    //m31DL = 0;     m32DL = 0;    m33DL = 1;  //Z=9313
 
-    /* old: M matrix, transposed */   /*Z0311=8813*/
-    detmst = mst11*mst22*mst33+mst12*mst23*mst31+mst13*mst21*mst32-mst31*mst22*mst13-mst32*mst23*mst11-mst33*mst21*mst12;   /*Z0311=8814*/
-    mt11 = (mst22*mst33-mst23*mst32)/detmst;   /*Z0311=8815*/
-    mt12 = (mst13*mst32-mst12*mst33)/detmst;   /*Z0311=8816*/
-    mt13 = (mst12*mst23-mst13*mst22)/detmst;   /*Z0311=8817*/
-    mt21 = (mst23*mst31-mst21*mst33)/detmst;   /*Z0311=8818*/
-    mt22 = (mst11*mst33-mst13*mst31)/detmst;   /*Z0311=8819*/
-    mt23 = (mst13*mst21-mst11*mst23)/detmst;   /*Z0311=8820*/
-    mt31 = (mst21*mst32-mst22*mst31)/detmst;   /*Z0311=8821*/
-    mt32 = (mst12*mst31-mst11*mst32)/detmst;   /*Z0311=8822*/
-    mt33 = (mst11*mst22-mst12*mst21)/detmst;   /*Z0311=8823*/
+    /*  old: Ms matrix  */  //Z=9315
+    /* detmsi:=msi11*msi22*msi33+msi12*msi23*msi31+msi13*msi21*msi32-msi31*msi22*msi13-msi32*msi23*msi11-msi33*msi21*msi12;  //Z=9316
+       ms11:=(msi22*msi33-msi23*msi32)/detmsi;  //Z=9317
+       ms12:=(msi13*msi32-msi12*msi33)/detmsi;  //Z=9318
+       ms13:=(msi12*msi23-msi13*msi22)/detmsi;  //Z=9319
+       ms21:=(msi23*msi31-msi21*msi33)/detmsi;  //Z=9320
+       ms22:=(msi11*msi33-msi13*msi31)/detmsi;  //Z=9321
+       ms23:=(msi13*msi21-msi11*msi23)/detmsi;  //Z=9322
+       ms31:=(msi21*msi32-msi22*msi31)/detmsi;  //Z=9323
+       ms32:=(msi12*msi31-msi11*msi32)/detmsi;  //Z=9324
+       ms33:=(msi11*msi22-msi12*msi21)/detmsi;    */  //Z=9325
 
-    /* old: M matrix */   /*Z0311=8825*/
-    /* rxyz=M ruvw */   /*Z0311=8826*/
-    m11 = mt11;       m12 = mt21;        m13 = mt31;   /*Z0311=8827*/
-    m21 = mt12;       m22 = mt22;        m23 = mt32;   /*Z0311=8828*/
-    m31 = mt13;       m32 = mt23;        m33 = mt33;   /*Z0311=8829*/
+    /*  old: Ms matrix, transposed  */  //Z=9327
+    /* mst11:=ms11;    mst12:=ms21;    mst13:=ms31;  //Z=9328
+       mst21:=ms12;    mst22:=ms22;    mst23:=ms32;  //Z=9329
+       mst31:=ms13;    mst32:=ms23;    mst33:=ms33;   */  //Z=9330
 
-    m11DD = a;     m12DD = b*cg;    m13DD = 0;   /*Z0311=8831*/
-    m21DD = 0;     m22DD = b*sg;    m23DD = 0;   /*Z0311=8832*/
-    //m31DD = 0;     m32DD = 0;       m33DD = 1;   /*Z0311=8833*/
+    /*  old: M matrix, transposed  */  //Z=9332
+    /* detmst:=mst11*mst22*mst33+mst12*mst23*mst31+mst13*mst21*mst32-mst31*mst22*mst13-mst32*mst23*mst11-mst33*mst21*mst12;  //Z=9333
+       mt11:=(mst22*mst33-mst23*mst32)/detmst;  //Z=9334
+       mt12:=(mst13*mst32-mst12*mst33)/detmst;  //Z=9335
+       mt13:=(mst12*mst23-mst13*mst22)/detmst;  //Z=9336
+       mt21:=(mst23*mst31-mst21*mst33)/detmst;  //Z=9337
+       mt22:=(mst11*mst33-mst13*mst31)/detmst;  //Z=9338
+       mt23:=(mst13*mst21-mst11*mst23)/detmst;  //Z=9339
+       mt31:=(mst21*mst32-mst22*mst31)/detmst;  //Z=9340
+       mt32:=(mst12*mst31-mst11*mst32)/detmst;  //Z=9341
+       mt33:=(mst11*mst22-mst12*mst21)/detmst;   */  //Z=9342
 
-    //m11DL = a;     m12DL = 0;    m13DL = 0;   /*Z0311=8835*/
-    //m21DL = 0;     m22DL = 1;    m23DL = 0;   /*Z0311=8836*/
-    //m31DL = 0;     m32DL = 0;    m33DL = 1;   /*Z0311=8837*/
+    /*  old: M matrix  */  //Z=9344
+    /*  rxyz=M ruvw  */  //Z=9345
+    /* m11:=mt11;       m12:=mt21;        m13:=mt31;  //Z=9346
+       m21:=mt12;       m22:=mt22;        m23:=mt32;  //Z=9347
+       m31:=mt13;       m32:=mt23;        m33:=mt33;      */  //Z=9348
 
-    /* Mi inverse matrix */   /*Z0311=8840*/
-    /* ruvw=Mi rxyz */   /*Z0311=8841*/
-    detm = m11*m22*m33+m12*m23*m31+m13*m21*m32-m31*m22*m13-m32*m23*m11-m33*m21*m12;   /*Z0311=8842*/
-    mi11 = (m22*m33-m23*m32)/detm;   /*Z0311=8843*/
-    mi12 = (m13*m32-m12*m33)/detm;   /*Z0311=8844*/
-    mi13 = (m12*m23-m13*m22)/detm;   /*Z0311=8845*/
-    mi21 = (m23*m31-m21*m33)/detm;   /*Z0311=8846*/
-    mi22 = (m11*m33-m13*m31)/detm;   /*Z0311=8847*/
-    mi23 = (m13*m21-m11*m23)/detm;   /*Z0311=8848*/
-    mi31 = (m21*m32-m22*m31)/detm;   /*Z0311=8849*/
-    mi32 = (m12*m31-m11*m32)/detm;   /*Z0311=8850*/
-    mi33 = (m11*m22-m12*m21)/detm;   /*Z0311=8851*/
 
-    //mi11DL = 1/a;      mi12DL = 0;        mi13DL = 0;   /*Z0311=8853*/
-    //mi21DL = 0;        mi22DL = 1;        mi23DL = 0;   /*Z0311=8854*/
-    //mi31DL = 0;        mi32DL = 0;        mi33DL = 1;   /*Z0311=8855*/
+    /*  Mi inverse matrix  */  //Z=9351
+    /*  ruvw=Mi rxyz  */  //Z=9352
+    /* detm:=m11*m22*m33+m12*m23*m31+m13*m21*m32-m31*m22*m13-m32*m23*m11-m33*m21*m12;  //Z=9353
+       mi11:=(m22*m33-m23*m32)/detm;  //Z=9354
+       mi12:=(m13*m32-m12*m33)/detm;  //Z=9355
+       mi13:=(m12*m23-m13*m22)/detm;  //Z=9356
+       mi21:=(m23*m31-m21*m33)/detm;  //Z=9357
+       mi22:=(m11*m33-m13*m31)/detm;  //Z=9358
+       mi23:=(m13*m21-m11*m23)/detm;  //Z=9359
+       mi31:=(m21*m32-m22*m31)/detm;  //Z=9360
+       mi32:=(m12*m31-m11*m32)/detm;  //Z=9361
+       mi33:=(m11*m22-m12*m21)/detm;  //Z=9362
 
-    /* base vectors of unit cell */   /*Z0311=8858*/
-    /* aa, ba, ca in uvw-system */   /*Z0311=8859*/
-    aax = 1;         aay = 0;      aaz = 0;   /*Z0311=8860*/
-    bax = 0;         bay = 1;      baz = 0;   /*Z0311=8861*/
-    cax = 0;         cay = 0;      caz = 1;   /*Z0311=8862*/
+       mi11DL:=1/a;      mi12DL:=0;        mi13DL:=0;  //Z=9364
+       mi21DL:=0;        mi22DL:=1;        mi23DL:=0;  //Z=9365
+       mi31DL:=0;        mi32DL:=0;        mi33DL:=1;   */  //Z=9366
 
-    /* base vectors of twinned unit cell */   /*Z0311=8864*/
-    aaxt = 2/3.0;      aayt = 2/3.0;     aazt = -1/3.0;   /*Z0311=8865*/
-    baxt = -1/3.0;     bayt = 2/3.0;     bazt = 2/3.0;   /*Z0311=8866*/
-    caxt = 2/3.0;      cayt = -1/3.0;    cazt = 2/3.0;   /*Z0311=8867*/
+    /*  new Mi inverse matrix  */  //Z=9368
+    //detm = m11n*m22n*m33n+m12n*m23n*m31n+m13n*m21n*m32n-m31n*m22n*m13n-m32n*m23n*m11n-m33n*m21n*m12n;  //Z=9369
+    //mi11 = (m22n*m33n-m23n*m32n)/detm;  //Z=9370
+    //mi12 = (m13n*m32n-m12n*m33n)/detm;  //Z=9371
+    //mi13 = (m12n*m23n-m13n*m22n)/detm;  //Z=9372
+    //mi21 = (m23n*m31n-m21n*m33n)/detm;  //Z=9373
+    //mi22 = (m11n*m33n-m13n*m31n)/detm;  //Z=9374
+    //mi23 = (m13n*m21n-m11n*m23n)/detm;  //Z=9375
+    //mi31 = (m21n*m32n-m22n*m31n)/detm;  //Z=9376
+    //mi32 = (m12n*m31n-m11n*m32n)/detm;  //Z=9377
+    //mi33 = (m11n*m22n-m12n*m21n)/detm;  //Z=9378
 
-    /* unit vectors in carthesian coordinate system */   /*Z0311=8869*/
-    /* ae=M aa, be=M ba, ce=M ca in xyz-system */   /*Z0311=8870*/
-    /* Mok */   /*Z0311=8871*/
-    /* old */   /*Z0311=8872*/
-    aex = m11*aax+m12*aay+m13*aaz;   /*Z0311=8873*/
-    aey = m21*aax+m22*aay+m23*aaz;   /*Z0311=8874*/
-    aez = m31*aax+m32*aay+m33*aaz;   /*Z0311=8875*/
-    bex = m11*bax+m12*bay+m13*baz;   /*Z0311=8876*/
-    bey = m21*bax+m22*bay+m23*baz;   /*Z0311=8877*/
-    bez = m31*bax+m32*bay+m33*baz;   /*Z0311=8878*/
-    cex = m11*cax+m12*cay+m13*caz;   /*Z0311=8879*/
-    cey = m21*cax+m22*cay+m23*caz;   /*Z0311=8880*/
-    cez = m31*cax+m32*cay+m33*caz;   /*Z0311=8881*/
+    /* *************************** */  //Z=9380
+    /*  base vectors of unit cell  */  //Z=9381
+    /*  aa, ba, ca in uvw-system   */  //Z=9382
+    aax = 1;         aay = 0;      aaz = 0;  //Z=9383
+    bax = 0;         bay = 1;      baz = 0;  //Z=9384
+    cax = 0;         cay = 0;      caz = 1;  //Z=9385
 
-    /* new */   /*Z0311=8883*/
-    //aexn = m11n*aax+m12n*aay+m13n*aaz;   /*Z0311=8884*/
-    //aeyn = m21n*aax+m22n*aay+m23n*aaz;   /*Z0311=8885*/
-    //aezn = m31n*aax+m32n*aay+m33n*aaz;   /*Z0311=8886*/
-    //bexn = m11n*bax+m12n*bay+m13n*baz;   /*Z0311=8887*/
-    //beyn = m21n*bax+m22n*bay+m23n*baz;   /*Z0311=8888*/
-    //bezn = m31n*bax+m32n*bay+m33n*baz;   /*Z0311=8889*/
-    //cexn = m11n*cax+m12n*cay+m13n*caz;   /*Z0311=8890*/
-    //ceyn = m21n*cax+m22n*cay+m23n*caz;   /*Z0311=8891*/
-    //cezn = m31n*cax+m32n*cay+m33n*caz;   /*Z0311=8892*/
 
-    aexDD = m11DD*aax+m12DD*aay+m13DD*aaz;   /*Z0311=8894*/
-    aeyDD = m21DD*aax+m22DD*aay+m23DD*aaz;   /*Z0311=8895*/
-    //aezDD = m31DD*aax+m32DD*aay+m33DD*aaz;   /*Z0311=8896*/
-    bexDD = m11DD*bax+m12DD*bay+m13DD*baz;   /*Z0311=8897*/
-    beyDD = m21DD*bax+m22DD*bay+m23DD*baz;   /*Z0311=8898*/
-    //bezDD = m31DD*bax+m32DD*bay+m33DD*baz;   /*Z0311=8899*/
-    //cexDD = m11DD*cax+m12DD*cay+m13DD*caz;   /*Z0311=8900*/
-    //ceyDD = m21DD*cax+m22DD*cay+m23DD*caz;   /*Z0311=8901*/
-    //cezDD = m31DD*cax+m32DD*cay+m33DD*caz;   /*Z0311=8902*/
+    /*  generate fcc- and bcc-twin from rotation matrix  */  //Z=9388
+    if ( twin )
+    {/*2*/  //Z=9389
+        /*  bcc  */  //Z=9390
+        if ( ltype==4 )
+        {/*3*/  //Z=9391
+            ux = 1;  //Z=9392
+            uy = 1;  //Z=9393
+            uz = 1;  //Z=9394
+            thetarot = 60;  //Z=9395
+        }/*3*/  //Z=9396
+        /*  fcc  */  //Z=9397
+        if ( ltype==5 )
+        {/*3*/  //Z=9398
+            ux = -1;  //Z=9399
+            uy = 1;  //Z=9400
+            uz = 1;  //Z=9401
+            thetarot = 180;  //Z=9402
+        }/*3*/  //Z=9403
+        ul = sqrt(ux*ux+uy*uy+uz*uz);  //Z=9404
+        ux = ux/ul;  //Z=9405
+        uy = uy/ul;  //Z=9406
+        uz = uz/ul;  //Z=9407
+        ct = cos(thetarot*M_PI/180.0);  //Z=9408
+        st = sin(thetarot*M_PI/180.0);  //Z=9409
+        rott[1][1] = ct+ux*ux*(1-ct);  //Z=9410
+        rott[1][2] = ux*uy*(1-ct)-uz*st;  //Z=9411
+        rott[1][3] = ux*uz*(1-ct)+uy*st;  //Z=9412
+        rott[2][1] = uy*ux*(1-ct)+uz*st;  //Z=9413
+        rott[2][2] = ct+uy*uy*(1-ct);  //Z=9414
+        rott[2][3] = uy*uz*(1-ct)-ux*st;  //Z=9415
+        rott[3][1] = uz*ux*(1-ct)-uy*st;  //Z=9416
+        rott[3][2] = uz*uy*(1-ct)+ux*st;  //Z=9417
+        rott[3][3] = ct+uz*uz*(1-ct);  //Z=9418
+        aaxt = rott[1][1]*aax+rott[1][2]*aay+rott[1][3]*aaz;  //Z=9419
+        aayt = rott[2][1]*aax+rott[2][2]*aay+rott[2][3]*aaz;  //Z=9420
+        aazt = rott[3][1]*aax+rott[3][2]*aay+rott[3][3]*aaz;  //Z=9421
+        baxt = rott[1][1]*bax+rott[1][2]*bay+rott[1][3]*baz;  //Z=9422
+        bayt = rott[2][1]*bax+rott[2][2]*bay+rott[2][3]*baz;  //Z=9423
+        bazt = rott[3][1]*bax+rott[3][2]*bay+rott[3][3]*baz;  //Z=9424
+        caxt = rott[1][1]*cax+rott[1][2]*cay+rott[1][3]*caz;  //Z=9425
+        cayt = rott[2][1]*cax+rott[2][2]*cay+rott[2][3]*caz;  //Z=9426
+        cazt = rott[3][1]*cax+rott[3][2]*cay+rott[3][3]*caz;  //Z=9427
+    }/*2*/  //Z=9428
 
-    //aexDL = m11DL*aax+m12DL*aay+m13DL*aaz;   /*Z0311=8904*/
-    //aeyDL = m21DL*aax+m22DL*aay+m23DL*aaz;   /*Z0311=8905*/
-    //aezDL = m31DL*aax+m32DL*aay+m33DL*aaz;   /*Z0311=8906*/
-    //bexDL = m11DL*bax+m12DL*bay+m13DL*baz;   /*Z0311=8907*/
-    //beyDL = m21DL*bax+m22DL*bay+m23DL*baz;   /*Z0311=8908*/
-    //bezDL = m31DL*bax+m32DL*bay+m33DL*baz;   /*Z0311=8909*/
-    //cexDL = m11DL*cax+m12DL*cay+m13DL*caz;   /*Z0311=8910*/
-    //ceyDL = m21DL*cax+m22DL*cay+m23DL*caz;   /*Z0311=8911*/
-    //cezDL = m31DL*cax+m32DL*cay+m33DL*caz;   /*Z0311=8912*/
 
-    aext = m11*aaxt+m12*aayt+m13*aazt;   /*Z0311=8914*/
-    aeyt = m21*aaxt+m22*aayt+m23*aazt;   /*Z0311=8915*/
-    aezt = m31*aaxt+m32*aayt+m33*aazt;   /*Z0311=8916*/
-    bext = m11*baxt+m12*bayt+m13*bazt;   /*Z0311=8917*/
-    beyt = m21*baxt+m22*bayt+m23*bazt;   /*Z0311=8918*/
-    bezt = m31*baxt+m32*bayt+m33*bazt;   /*Z0311=8919*/
-    cext = m11*caxt+m12*cayt+m13*cazt;   /*Z0311=8920*/
-    ceyt = m21*caxt+m22*cayt+m23*cazt;   /*Z0311=8921*/
-    cezt = m31*caxt+m32*cayt+m33*cazt;   /*Z0311=8922*/
 
-    /* old: reciprocal space vector in carthesian coordinate system */   /*Z0311=8924*/
-    /* ase, bse, cse in xyz-system */   /*Z0311=8925*/
-    /* Mok */   /*Z0311=8926*/
-    vvol = aex*(bey*cez-bez*cey)+aey*(bez*cex-bex*cez)+aez*(bex*cey-bey*cex);   /*Z0311=8927*/
-    //asx = (bey*cez-bez*cey)/vvol;   /*Z0311=8928*/
-    //asy = (bez*cex-bex*cez)/vvol;   /*Z0311=8929*/
-    //asz = (bex*cey-bey*cex)/vvol;   /*Z0311=8930*/
-    //bsx = (aez*cey-aey*cez)/vvol;   /*Z0311=8931*/
-    //bsy = (aex*cez-aez*cex)/vvol;   /*Z0311=8932*/
-    //bsz = (aey*cex-aex*cey)/vvol;   /*Z0311=8933*/
-    //csx = (aey*bez-aez*bey)/vvol;   /*Z0311=8934*/
-    //csy = (aez*bex-aex*bez)/vvol;   /*Z0311=8935*/
-    //csz = (aex*bey-aey*bex)/vvol;   /*Z0311=8936*/
+    /*  unit vectors in carthesian coordinate system  */  //Z=9432
+    /*  ae=M aa, be=M ba, ce=M ca in xyz-system  */  //Z=9433
+    /* aex:=m11*aax+m12*aay+m13*aaz;  //Z=9434
+       aey:=m21*aax+m22*aay+m23*aaz;  //Z=9435
+       aez:=m31*aax+m32*aay+m33*aaz;  //Z=9436
+       bex:=m11*bax+m12*bay+m13*baz;  //Z=9437
+       bey:=m21*bax+m22*bay+m23*baz;  //Z=9438
+       bez:=m31*bax+m32*bay+m33*baz;  //Z=9439
+       cex:=m11*cax+m12*cay+m13*caz;  //Z=9440
+       cey:=m21*cax+m22*cay+m23*caz;  //Z=9441
+       cez:=m31*cax+m32*cay+m33*caz;   */  //Z=9442
 
-    area = a*b*sg;   /*Z0311=8938*/
-    asxDD = beyDD/area;   /*Z0311=8939*/
-    asyDD = -bexDD/area;   /*Z0311=8940*/
-    aszDD = 0;   /*Z0311=8941*/
-    bsxDD = -aeyDD/area;   /*Z0311=8942*/
-    bsyDD = aexDD/area;   /*Z0311=8943*/
-    bszDD = 0;   /*Z0311=8944*/
-    csxDD = 0;   /*Z0311=8945*/
-    csyDD = 0;   /*Z0311=8946*/
-    cszDD = 1;   /*Z0311=8947*/
+    /* ********************************************** */  //Z=9444
+    /*  new unit vectors in carthesian coordinate system  */  //Z=9445
+    aexn = m11n*aax+m12n*aay+m13n*aaz;  //Z=9446
+    aeyn = m21n*aax+m22n*aay+m23n*aaz;  //Z=9447
+    aezn = m31n*aax+m32n*aay+m33n*aaz;  //Z=9448
+    bexn = m11n*bax+m12n*bay+m13n*baz;  //Z=9449
+    beyn = m21n*bax+m22n*bay+m23n*baz;  //Z=9450
+    bezn = m31n*bax+m32n*bay+m33n*baz;  //Z=9451
+    cexn = m11n*cax+m12n*cay+m13n*caz;  //Z=9452
+    ceyn = m21n*cax+m22n*cay+m23n*caz;  //Z=9453
+    cezn = m31n*cax+m32n*cay+m33n*caz;  //Z=9454
 
-    area1 = a;   /*Z0311=8949*/
-    asxDL = 1/area1;   /*Z0311=8950*/
-    asyDL = 0;   /*Z0311=8951*/
-    aszDL = 0;   /*Z0311=8952*/
-    bsxDL = 0;   /*Z0311=8953*/
-    bsyDL = 1;   /*Z0311=8954*/
-    bszDL = 0;   /*Z0311=8955*/
-    csxDL = 0;   /*Z0311=8956*/
-    csyDL = 0;   /*Z0311=8957*/
-    cszDL = 1;   /*Z0311=8958*/
+    if ( twin )
+    {/*2*/  //Z=9456
+        aext = m11n*aaxt+m12n*aayt+m13n*aazt;  //Z=9457
+        aeyt = m21n*aaxt+m22n*aayt+m23n*aazt;  //Z=9458
+        aezt = m31n*aaxt+m32n*aayt+m33n*aazt;  //Z=9459
+        bext = m11n*baxt+m12n*bayt+m13n*bazt;  //Z=9460
+        beyt = m21n*baxt+m22n*bayt+m23n*bazt;  //Z=9461
+        bezt = m31n*baxt+m32n*bayt+m33n*bazt;  //Z=9462
+        cext = m11n*caxt+m12n*cayt+m13n*cazt;  //Z=9463
+        ceyt = m21n*caxt+m22n*cayt+m23n*cazt;  //Z=9464
+        cezt = m31n*caxt+m32n*cayt+m33n*cazt;  //Z=9465
+    }/*2*/  //Z=9466
 
-    //asxt = (beyt*cezt-bezt*ceyt)/vvol;   /*Z0311=8960*/
-    //asyt = (bezt*cext-bext*cezt)/vvol;   /*Z0311=8961*/
-    //aszt = (bext*ceyt-beyt*cext)/vvol;   /*Z0311=8962*/
-    //bsxt = (aezt*ceyt-aeyt*cezt)/vvol;   /*Z0311=8963*/
-    //bsyt = (aext*cezt-aezt*cext)/vvol;   /*Z0311=8964*/
-    //bszt = (aeyt*cext-aext*ceyt)/vvol;   /*Z0311=8965*/
-    //csxt = (aeyt*bezt-aezt*beyt)/vvol;   /*Z0311=8966*/
-    //csyt = (aezt*bext-aext*bezt)/vvol;   /*Z0311=8967*/
-    //cszt = (aext*beyt-aeyt*bext)/vvol;   /*Z0311=8968*/
+    aexDD = m11DD*aax+m12DD*aay+m13DD*aaz;  //Z=9468
+    aeyDD = m21DD*aax+m22DD*aay+m23DD*aaz;  //Z=9469
+    //aezDD = m31DD*aax+m32DD*aay+m33DD*aaz;  //Z=9470
+    bexDD = m11DD*bax+m12DD*bay+m13DD*baz;  //Z=9471
+    beyDD = m21DD*bax+m22DD*bay+m23DD*baz;  //Z=9472
+    //bezDD = m31DD*bax+m32DD*bay+m33DD*baz;  //Z=9473
+    //cexDD = m11DD*cax+m12DD*cay+m13DD*caz;  //Z=9474
+    //ceyDD = m21DD*cax+m22DD*cay+m23DD*caz;  //Z=9475
+    //cezDD = m31DD*cax+m32DD*cay+m33DD*caz;  //Z=9476
 
-    /* new: G metric matrix in xyz-coordinates */   /*Z0311=8970*/
-    g11 = aex;     g12 = bex;     g13 = cex;   /*Z0311=8971*/
-    g21 = aey;     g22 = bey;     g23 = cey;   /*Z0311=8972*/
-    g31 = aez;     g32 = bez;     g33 = cez;   /*Z0311=8973*/
-    /*Z0311=8974*/
-    /* old G matrix */   /*Z0311=8975*/
+    //aexDL = m11DL*aax+m12DL*aay+m13DL*aaz;  //Z=9478
+    //aeyDL = m21DL*aax+m22DL*aay+m23DL*aaz;  //Z=9479
+    //aezDL = m31DL*aax+m32DL*aay+m33DL*aaz;  //Z=9480
+    //bexDL = m11DL*bax+m12DL*bay+m13DL*baz;  //Z=9481
+    //beyDL = m21DL*bax+m22DL*bay+m23DL*baz;  //Z=9482
+    //bezDL = m31DL*bax+m32DL*bay+m33DL*baz;  //Z=9483
+    //cexDL = m11DL*cax+m12DL*cay+m13DL*caz;  //Z=9484
+    //ceyDL = m21DL*cax+m22DL*cay+m23DL*caz;  //Z=9485
+    //cezDL = m31DL*cax+m32DL*cay+m33DL*caz;  //Z=9486
 
-#ifdef PascalComment
-    g11 = aex*aex+aey*aey+aez*aez;   /*Z0311=8976*/
-    g12 = aex*bex+aey*bey+aez*bez;   /*Z0311=8977*/
-    g13 = aex*cex+aey*cey+aez*cez;   /*Z0311=8978*/
-    g21 = bex*aex+bey*aey+bez*aez;   /*Z0311=8979*/
-    g22 = bex*bex+bey*bey+bez*bez;   /*Z0311=8980*/
-    g23 = bex*cex+bey*cey+bez*cez;   /*Z0311=8981*/
-    g31 = cex*aex+cey*aey+cez*aez;   /*Z0311=8982*/
-    g32 = cex*bex+cey*bey+cez*bez;   /*Z0311=8983*/
-    g33 = cex*cex+cey*cey+cez*cez;
-#endif
+    /*  generate fcc-twin from rotation matrix  */  //Z=9488
+    /* ux:=1;  //Z=9489
+       uy:=1;  //Z=9490
+       uz:=1;  //Z=9491
+       ul:=sqrt(ux*ux+uy*uy+uz*uz);  //Z=9492
+       ux:=ux/ul;  //Z=9493
+       uy:=uy/ul;  //Z=9494
+       uz:=uz/ul;  //Z=9495
+       thetarot:=60;  //Z=9496
+       ct:=cos(thetarot*pi/180);  //Z=9497
+       st:=sin(thetarot*pi/180);  //Z=9498
+       rott[1,1]:=ct+ux*ux*(1-ct);  //Z=9499
+       rott[1,2]:=ux*uy*(1-ct)-uz*st;  //Z=9500
+       rott[1,3]:=ux*uz*(1-ct)+uy*st;  //Z=9501
+       rott[2,1]:=uy*ux*(1-ct)+uz*st;  //Z=9502
+       rott[2,2]:=ct+uy*uy*(1-ct);  //Z=9503
+       rott[2,3]:=uy*uz*(1-ct)-ux*st;  //Z=9504
+       rott[3,1]:=uz*ux*(1-ct)-uy*st;  //Z=9505
+       rott[3,2]:=uz*uy*(1-ct)+ux*st;  //Z=9506
+       rott[3,3]:=ct+uz*uz*(1-ct);  //Z=9507
+       aext:=rott[1,1]*aexn+rott[1,2]*aeyn+rott[1,3]*aezn;  //Z=9508
+       aeyt:=rott[2,1]*aexn+rott[2,2]*aeyn+rott[2,3]*aezn;  //Z=9509
+       aezt:=rott[3,1]*aexn+rott[3,2]*aeyn+rott[3,3]*aezn;  //Z=9510
+       bext:=rott[1,1]*bexn+rott[1,2]*beyn+rott[1,3]*bezn;  //Z=9511
+       beyt:=rott[2,1]*bexn+rott[2,2]*beyn+rott[2,3]*bezn;  //Z=9512
+       bezt:=rott[3,1]*bexn+rott[3,2]*beyn+rott[3,3]*bezn;  //Z=9513
+       cext:=rott[1,1]*cexn+rott[1,2]*ceyn+rott[1,3]*cezn;  //Z=9514
+       ceyt:=rott[2,1]*cexn+rott[2,2]*ceyn+rott[2,3]*cezn;  //Z=9515
+       cezt:=rott[3,1]*cexn+rott[3,2]*ceyn+rott[3,3]*cezn;  */  //Z=9516
 
-    /* Gs inverse metric matrix */   /*Z0311=8986*/
-    detg = g11*g22*g33+g12*g23*g31+g13*g21*g32-g31*g22*g13-g32*g23*g11-g33*g21*g12;   /*Z0311=8987*/
-    gi11 = (g22*g33-g23*g32)/detg;   /*Z0311=8988*/
-    gi12 = (g13*g32-g12*g33)/detg;   /*Z0311=8989*/
-    gi13 = (g12*g23-g13*g22)/detg;   /*Z0311=8990*/
-    gi21 = (g23*g31-g21*g33)/detg;   /*Z0311=8991*/
-    gi22 = (g11*g33-g13*g31)/detg;   /*Z0311=8992*/
-    gi23 = (g13*g21-g11*g23)/detg;   /*Z0311=8993*/
-    gi31 = (g21*g32-g22*g31)/detg;   /*Z0311=8994*/
-    gi32 = (g12*g31-g11*g32)/detg;   /*Z0311=8995*/
-    gi33 = (g11*g22-g12*g21)/detg;   /*Z0311=8996*/
 
-    /* new: reciprocal space vector in carthesian coordinate system */   /*Z0311=8998*/
-    /* ase, bse, cse in xyz-system */   /*Z0311=8999*/
-    asxn = gi11;   asyn = gi12;   aszn = gi13;   /*Z0311=9000*/
-    bsxn = gi21;   bsyn = gi22;   bszn = gi23;   /*Z0311=9001*/
-    csxn = gi31;   csyn = gi32;   cszn = gi33;   /*Z0311=9002*/
+    /*  old: reciprocal space vector in carthesian coordinate system  */  //Z=9519
+    /*  ase, bse, cse in xyz-system  */  //Z=9520
+    /*  Mok  */  //Z=9521
+    /* vvol:=aex*(bey*cez-bez*cey)+aey*(bez*cex-bex*cez)+aez*(bex*cey-bey*cex);  //Z=9522
+       asx:=(bey*cez-bez*cey)/vvol;  //Z=9523
+       asy:=(bez*cex-bex*cez)/vvol;  //Z=9524
+       asz:=(bex*cey-bey*cex)/vvol;  //Z=9525
+       bsx:=(aez*cey-aey*cez)/vvol;  //Z=9526
+       bsy:=(aex*cez-aez*cex)/vvol;  //Z=9527
+       bsz:=(aey*cex-aex*cey)/vvol;  //Z=9528
+       csx:=(aey*bez-aez*bey)/vvol;  //Z=9529
+       csy:=(aez*bex-aex*bez)/vvol;  //Z=9530
+       csz:=(aex*bey-aey*bex)/vvol;  //Z=9531
 
-    /* a*,b*,c* reciprocal space vectors */   /*Z0311=9004*/
-    /* in uvw-space */   /*Z0311=9005*/
+       asxt:=(beyt*cezt-bezt*ceyt)/vvol;  //Z=9533
+       asyt:=(bezt*cext-bext*cezt)/vvol;  //Z=9534
+       aszt:=(bext*ceyt-beyt*cext)/vvol;  //Z=9535
+       bsxt:=(aezt*ceyt-aeyt*cezt)/vvol;  //Z=9536
+       bsyt:=(aext*cezt-aezt*cext)/vvol;  //Z=9537
+       bszt:=(aeyt*cext-aext*ceyt)/vvol;  //Z=9538
+       csxt:=(aeyt*bezt-aezt*beyt)/vvol;  //Z=9539
+       csyt:=(aezt*bext-aext*bezt)/vvol;  //Z=9540
+       cszt:=(aext*beyt-aeyt*bext)/vvol;   */  //Z=9541
 
-#ifdef PascalComment
-    asax = g11*aax+g12*aay+g13*aaz;   /*Z0311=9006*/
-    asay = g21*aax+g22*aay+g23*aaz;   /*Z0311=9007*/
-    asaz = g31*aax+g32*aay+g33*aaz;   /*Z0311=9008*/
-    bsax = g11*bax+g12*bay+g13*baz;   /*Z0311=9009*/
-    bsay = g21*bax+g22*bay+g23*baz;   /*Z0311=9010*/
-    bsaz = g31*bax+g32*bay+g33*baz;   /*Z0311=9011*/
-    csax = g11*cax+g12*cay+g13*caz;   /*Z0311=9012*/
-    csay = g21*cax+g22*cay+g23*caz;   /*Z0311=9013*/
-    csaz = g31*cax+g32*cay+g33*caz;
-#endif
+    /* ***************************************** */  //Z=9543
+    /*  new: G metric matrix in xyz-coordinates  */  //Z=9544
+    g11 = aexn;     g12 = bexn;     g13 = cexn;  //Z=9545
+    g21 = aeyn;     g22 = beyn;     g23 = ceyn;  //Z=9546
+    g31 = aezn;     g32 = bezn;     g33 = cezn;  //Z=9547
 
-    /* a*, b*, c* reciprocal space vectors */   /*Z0311=9016*/
-    /* in xyz-space */   /*Z0311=9017*/
+    g11t = aext;     g12t = bext;     g13t = cext;  //Z=9549
+    g21t = aeyt;     g22t = beyt;     g23t = ceyt;  //Z=9550
+    g31t = aezt;     g32t = bezt;     g33t = cezt;  //Z=9551
 
-#ifdef PascalComment
-    asex = m11*asax+m12*asay+m13*asaz;   /*Z0311=9018*/
-    asey = m21*asax+m22*asay+m23*asaz;   /*Z0311=9019*/
-    asez = m31*asax+m32*asay+m33*asaz;   /*Z0311=9020*/
-    bsex = m11*bsax+m12*bsay+m13*bsaz;   /*Z0311=9021*/
-    bsey = m21*bsax+m22*bsay+m23*bsaz;   /*Z0311=9022*/
-    bsez = m31*bsax+m32*bsay+m33*bsaz;   /*Z0311=9023*/
-    csex = m11*csax+m12*csay+m13*csaz;   /*Z0311=9024*/
-    csey = m21*csax+m22*csay+m23*csaz;   /*Z0311=9025*/
-    csez = m31*csax+m32*csay+m33*csaz;
-#endif
+    /*  old G matrix  */  //Z=9553
+    /* g11:=aex*aex+aey*aey+aez*aez;  //Z=9554
+       g12:=aex*bex+aey*bey+aez*bez;  //Z=9555
+       g13:=aex*cex+aey*cey+aez*cez;  //Z=9556
+       g21:=bex*aex+bey*aey+bez*aez;  //Z=9557
+       g22:=bex*bex+bey*bey+bez*bez;  //Z=9558
+       g23:=bex*cex+bey*cey+bez*cez;  //Z=9559
+       g31:=cex*aex+cey*aey+cez*aez;  //Z=9560
+       g32:=cex*bex+cey*bey+cez*bez;  //Z=9561
+       g33:=cex*cex+cey*cey+cez*cez;  */  //Z=9562
 
-    /* nuvw-vector || beam */   /*Z0311=9029*/
-    /* nuvw in unit cell uvw-system */   /*Z0311=9030*/
-    nuvwx = u;   /*Z0311=9031*/
-    nuvwy = v;   /*Z0311=9032*/
-    nuvwz = w;   /*Z0311=9033*/
+    /*  Gs inverse metric matrix  */  //Z=9564
+    detg = g11*g22*g33+g12*g23*g31+g13*g21*g32-g31*g22*g13-g32*g23*g11-g33*g21*g12;  //Z=9565
+    gi11 = (g22*g33-g23*g32)/detg;  //Z=9566
+    gi12 = (g13*g32-g12*g33)/detg;  //Z=9567
+    gi13 = (g12*g23-g13*g22)/detg;  //Z=9568
+    gi21 = (g23*g31-g21*g33)/detg;  //Z=9569
+    gi22 = (g11*g33-g13*g31)/detg;  //Z=9570
+    gi23 = (g13*g21-g11*g23)/detg;  //Z=9571
+    gi31 = (g21*g32-g22*g31)/detg;  //Z=9572
+    gi32 = (g12*g31-g11*g32)/detg;  //Z=9573
+    gi33 = (g11*g22-g12*g21)/detg;  //Z=9574
 
-    /* nhkl-vector */   /*Z0311=9035*/
-    /* nhkl=G nuvw in unit cell uvw-system */   /*Z0311=9036*/
+    if ( twin )
+    {/*2*/  //Z=9576
+        detgt = g11t*g22t*g33t+g12t*g23t*g31t+g13t*g21t*g32t-g31t*g22t*g13t-g32t*g23t*g11t-g33t*g21t*g12t;  //Z=9577
+        gi11t = (g22t*g33t-g23t*g32t)/detgt;  //Z=9578
+        gi12t = (g13t*g32t-g12t*g33t)/detgt;  //Z=9579
+        gi13t = (g12t*g23t-g13t*g22t)/detgt;  //Z=9580
+        gi21t = (g23t*g31t-g21t*g33t)/detgt;  //Z=9581
+        gi22t = (g11t*g33t-g13t*g31t)/detgt;  //Z=9582
+        gi23t = (g13t*g21t-g11t*g23t)/detgt;  //Z=9583
+        gi31t = (g21t*g32t-g22t*g31t)/detgt;  //Z=9584
+        gi32t = (g12t*g31t-g11t*g32t)/detgt;  //Z=9585
+        gi33t = (g11t*g22t-g12t*g21t)/detgt;  //Z=9586
+    }/*2*/  //Z=9587
 
-#ifdef PascalComment
-    nhklx = g11*nuvwx+g12*nuvwy+g13*nuvwz;   /*Z0311=9037*/
-    nhkly = g21*nuvwx+g22*nuvwy+g23*nuvwz;   /*Z0311=9038*/
-    nhklz = g31*nuvwx+g32*nuvwy+g33*nuvwz;
-#endif
+    /*  new: reciprocal space vector in carthesian coordinate system  */  //Z=9589
+    /*  ase, bse, cse in xyz-system  */  //Z=9590
+    asxn = gi11;   asyn = gi12;   aszn = gi13;  //Z=9591
+    bsxn = gi21;   bsyn = gi22;   bszn = gi23;  //Z=9592
+    csxn = gi31;   csyn = gi32;   cszn = gi33;  //Z=9593
 
-    /* nhkl-vector */   /*Z0311=9041*/
-    /* nxyz=M nuvw in xyz-system */   /*Z0311=9042*/
-    /* with (a,b,c)=(2,1,1) and (u,v,w)=(2,1,1) this is a (ua,vb,wc)=(4,1,1)-vector */   /*Z0311=9043*/
-    nxyzx = m11*nuvwx+m12*nuvwy+m13*nuvwz;   /*Z0311=9044*/
-    nxyzy = m21*nuvwx+m22*nuvwy+m23*nuvwz;   /*Z0311=9045*/
-    nxyzz = m31*nuvwx+m32*nuvwy+m33*nuvwz;   /*Z0311=9046*/
+    if ( twin )
+    {/*2*/  //Z=9595
+        asxt = gi11t;   asyt = gi12t;   aszt = gi13t;  //Z=9596
+        bsxt = gi21t;   bsyt = gi22t;   bszt = gi23t;  //Z=9597
+        csxt = gi31t;   csyt = gi32t;   cszt = gi33t;  //Z=9598
+    }/*2*/  //Z=9599
 
-    /* unit nxyz = director */   /*Z0311=9048*/
-    /* in xyz-system */   /*Z0311=9049*/
-    len = sqrt(1.0*nxyzx*nxyzx+nxyzy*nxyzy+nxyzz*nxyzz);   /*Z0311=9050*/ //220908
-    nxyznx = nxyzx/len;   /*Z0311=9051*/
-    //nxyzny = nxyzy/len;   /*Z0311=9052*/
-    nxyznz = nxyzz/len;   /*Z0311=9053*/
+    area = a*b*sg;  //Z=9601
+    asxDD = beyDD/area;    asyDD = -bexDD/area;     aszDD = 0;  //Z=9602
+    bsxDD = -aeyDD/area;   bsyDD = aexDD/area;      bszDD = 0;  //Z=9603
+    csxDD = 0;             csyDD = 0;               cszDD = 1;  //Z=9604
 
-    /* R rotation matrix */   /*Z0311=9055*/
-    /* in xyz-system */   /*Z0311=9056*/
-    etheta = acos(-nxyznz);   /*Z0311=9057*/
-    epsi = asin(nxyznx/sin(etheta));   /*Z0311=9058*/
+    area1 = a;  //Z=9606
+    asxDL = 1/area1;       asyDL = 0;               aszDL = 0;  //Z=9607
+    bsxDL = 0;             bsyDL = 1;               bszDL = 0;  //Z=9608
+    csxDL = 0;             csyDL = 0;               cszDL = 1;  //Z=9609
 
-    r11 = cos(epsi)*cos(ephi)-sin(epsi)*cos(etheta)*sin(ephi);   /*Z0311=9060*/
-    r12 = -cos(epsi)*sin(ephi)-sin(epsi)*cos(etheta)*cos(ephi);   /*Z0311=9061*/
-    r13 = sin(epsi)*sin(etheta);   /*Z0311=9062*/
-    r21 = sin(epsi)*cos(ephi)+cos(epsi)*cos(etheta)*sin(ephi);   /*Z0311=9063*/
-    r22 = -sin(epsi)*sin(ephi)+cos(epsi)*cos(etheta)*cos(ephi);   /*Z0311=9064*/
-    r23 = -cos(epsi)*sin(etheta);   /*Z0311=9065*/
-    r31 = sin(etheta)*sin(ephi);   /*Z0311=9066*/
-    r32 = sin(etheta)*cos(ephi);   /*Z0311=9067*/
-    r33 = cos(etheta);   /*Z0311=9068*/
 
-    /* Ri inverse rotation matrix */   /*Z0311=9070*/
-    /* in xyz-system */   /*Z0311=9071*/
-    detr = r11*r22*r33+r12*r23*r31+r13*r21*r32-r31*r22*r13-r32*r23*r11-r33*r21*r12;   /*Z0311=9072*/
-    ri11 = (r22*r33-r23*r32)/detr;   /*Z0311=9073*/
-    ri12 = (r13*r32-r12*r33)/detr;   /*Z0311=9074*/
-    ri13 = (r12*r23-r13*r22)/detr;   /*Z0311=9075*/
-    ri21 = (r23*r31-r21*r33)/detr;   /*Z0311=9076*/
-    ri22 = (r11*r33-r13*r31)/detr;   /*Z0311=9077*/
-    ri23 = (r13*r21-r11*r23)/detr;   /*Z0311=9078*/
-    ri31 = (r21*r32-r22*r31)/detr;   /*Z0311=9079*/
-    ri32 = (r12*r31-r11*r32)/detr;   /*Z0311=9080*/
-    ri33 = (r11*r22-r12*r21)/detr;   /*Z0311=9081*/
+    /*  a*,b*,c* reciprocal space vectors  */  //Z=9612
+    /*  in uvw-space  */  //Z=9613
+    /* asax:=g11*aax+g12*aay+g13*aaz;  //Z=9614
+       asay:=g21*aax+g22*aay+g23*aaz;  //Z=9615
+       asaz:=g31*aax+g32*aay+g33*aaz;  //Z=9616
+       bsax:=g11*bax+g12*bay+g13*baz;  //Z=9617
+       bsay:=g21*bax+g22*bay+g23*baz;  //Z=9618
+       bsaz:=g31*bax+g32*bay+g33*baz;  //Z=9619
+       csax:=g11*cax+g12*cay+g13*caz;  //Z=9620
+       csay:=g21*cax+g22*cay+g23*caz;  //Z=9621
+       csaz:=g31*cax+g32*cay+g33*caz; */  //Z=9622
 
-    /* rotated base vectors a,b,c in carthesian coordinate system */   /*Z0311=9083*/
-    /* aed=Ri ae, bed=Ri be, ced=Ri ce in xyz-system */   /*Z0311=9084*/
-    /* needed for calculation of fiber pattern */   /*Z0311=9085*/
-    /* Mok */   /*Z0311=9086*/
-    aedx = ri11*aex+ri12*aey+ri13*aez;   /*Z0311=9087*/
-    aedy = ri21*aex+ri22*aey+ri23*aez;   /*Z0311=9088*/
-    aedz = ri31*aex+ri32*aey+ri33*aez;   /*Z0311=9089*/
-    bedx = ri11*bex+ri12*bey+ri13*bez;   /*Z0311=9090*/
-    bedy = ri21*bex+ri22*bey+ri23*bez;   /*Z0311=9091*/
-    bedz = ri31*bex+ri32*bey+ri33*bez;   /*Z0311=9092*/
-    cedx = ri11*cex+ri12*cey+ri13*cez;   /*Z0311=9093*/
-    cedy = ri21*cex+ri22*cey+ri23*cez;   /*Z0311=9094*/
-    cedz = ri31*cex+ri32*cey+ri33*cez;   /*Z0311=9095*/
+    /*  a*, b*, c* reciprocal space vectors  */  //Z=9624
+    /*  in xyz-space  */  //Z=9625
+    /* asex:=m11*asax+m12*asay+m13*asaz;  //Z=9626
+       asey:=m21*asax+m22*asay+m23*asaz;  //Z=9627
+       asez:=m31*asax+m32*asay+m33*asaz;  //Z=9628
+       bsex:=m11*bsax+m12*bsay+m13*bsaz;  //Z=9629
+       bsey:=m21*bsax+m22*bsay+m23*bsaz;  //Z=9630
+       bsez:=m31*bsax+m32*bsay+m33*bsaz;  //Z=9631
+       csex:=m11*csax+m12*csay+m13*csaz;  //Z=9632
+       csey:=m21*csax+m22*csay+m23*csaz;  //Z=9633
+       csez:=m31*csax+m32*csay+m33*csaz; */  //Z=9634
 
-    //aedxDD = ri11*aexDD+ri12*aeyDD+ri13*aezDD;   /*Z0311=9097*/
-    //aedyDD = ri21*aexDD+ri22*aeyDD+ri23*aezDD;   /*Z0311=9098*/
-    //aedzDD = ri31*aexDD+ri32*aeyDD+ri33*aezDD;   /*Z0311=9099*/
-    //bedxDD = ri11*bexDD+ri12*beyDD+ri13*bezDD;   /*Z0311=9100*/
-    //bedyDD = ri21*bexDD+ri22*beyDD+ri23*bezDD;   /*Z0311=9101*/
-    //bedzDD = ri31*bexDD+ri32*beyDD+ri33*bezDD;   /*Z0311=9102*/
-    //cedxDD = ri11*cexDD+ri12*ceyDD+ri13*cezDD;   /*Z0311=9103*/
-    //cedyDD = ri21*cexDD+ri22*ceyDD+ri23*cezDD;   /*Z0311=9104*/
-    //cedzDD = ri31*cexDD+ri32*ceyDD+ri33*cezDD;   /*Z0311=9105*/
 
-    //aedxDL = ri11*aexDL+ri12*aeyDL+ri13*aezDL;   /*Z0311=9107*/
-    //aedyDL = ri21*aexDL+ri22*aeyDL+ri23*aezDL;   /*Z0311=9108*/
-    //aedzDL = ri31*aexDL+ri32*aeyDL+ri33*aezDL;   /*Z0311=9109*/
-    //bedxDL = ri11*bexDL+ri12*beyDL+ri13*bezDL;   /*Z0311=9110*/
-    //bedyDL = ri21*bexDL+ri22*beyDL+ri23*bezDL;   /*Z0311=9111*/
-    //bedzDL = ri31*bexDL+ri32*beyDL+ri33*bezDL;   /*Z0311=9112*/
-    //cedxDL = ri11*cexDL+ri12*ceyDL+ri13*cezDL;   /*Z0311=9113*/
-    //cedyDL = ri21*cexDL+ri22*ceyDL+ri23*cezDL;   /*Z0311=9114*/
-    //cedzDL = ri31*cexDL+ri32*ceyDL+ri33*cezDL;   /*Z0311=9115*/
+    /*  nuvw-vector || beam  */  //Z=9637
+    /*  nuvw in unit cell uvw-system  */  //Z=9638
+    nuvwx = u;  //Z=9639
+    nuvwy = v;  //Z=9640
+    nuvwz = w;  //Z=9641
+    lenn = sqrt(u*u+v*v+w*w);  //Z=9642
 
-    aedxt = ri11*aext+ri12*aeyt+ri13*aezt;   /*Z0311=9117*/
-    aedyt = ri21*aext+ri22*aeyt+ri23*aezt;   /*Z0311=9118*/
-    aedzt = ri31*aext+ri32*aeyt+ri33*aezt;   /*Z0311=9119*/
-    bedxt = ri11*bext+ri12*beyt+ri13*bezt;   /*Z0311=9120*/
-    bedyt = ri21*bext+ri22*beyt+ri23*bezt;   /*Z0311=9121*/
-    bedzt = ri31*bext+ri32*beyt+ri33*bezt;   /*Z0311=9122*/
-    cedxt = ri11*cext+ri12*ceyt+ri13*cezt;   /*Z0311=9123*/
-    cedyt = ri21*cext+ri22*ceyt+ri23*cezt;   /*Z0311=9124*/
-    cedzt = ri31*cext+ri32*ceyt+ri33*cezt;   /*Z0311=9125*/
+    /*  nhkl-vector  */  //Z=9644
+    /*  nhkl=G nuvw in unit cell uvw-system  */  //Z=9645
+    /* nhklx:=g11*nuvwx+g12*nuvwy+g13*nuvwz;  //Z=9646
+       nhkly:=g21*nuvwx+g22*nuvwy+g23*nuvwz;  //Z=9647
+       nhklz:=g31*nuvwx+g32*nuvwy+g33*nuvwz; */  //Z=9648
 
-    /* rotated reciprocal space vectors a*,b*,c* in carthesian coordinate system */   /*Z0311=9127*/
-    /* calculated from cross-product of aed,bed,ced */   /*Z0311=9128*/
-    /* into output matrix */   /*Z0311=9129*/
-    /* Mok */   /*Z0311=9130*/
-    asedx = (bedy*cedz-bedz*cedy)/vvol;   /*Z0311=9131*/
-    asedy = (bedz*cedx-bedx*cedz)/vvol;   /*Z0311=9132*/
-    asedz = (bedx*cedy-bedy*cedx)/vvol;   /*Z0311=9133*/
-    bsedx = (aedz*cedy-aedy*cedz)/vvol;   /*Z0311=9134*/
-    bsedy = (aedx*cedz-aedz*cedx)/vvol;   /*Z0311=9135*/
-    bsedz = (aedy*cedx-aedx*cedy)/vvol;   /*Z0311=9136*/
-    csedx = (aedy*bedz-aedz*bedy)/vvol;   /*Z0311=9137*/
-    csedy = (aedz*bedx-aedx*bedz)/vvol;   /*Z0311=9138*/
-    csedz = (aedx*bedy-aedy*bedx)/vvol;   /*Z0311=9139*/
+    /*  nhkl-vector  */  //Z=9650
+    /*  nxyz=M nuvw in xyz-system  */  //Z=9651
+    /*  with (a,b,c)=(2,1,1) and (u,v,w)=(2,1,1) this is a (ua,vb,wc)=(4,1,1)-vector  */  //Z=9652
+    nxyzx = m11n*nuvwx+m12n*nuvwy+m13n*nuvwz;  //Z=9653
+    nxyzy = m21n*nuvwx+m22n*nuvwy+m23n*nuvwz;  //Z=9654
+    nxyzz = m31n*nuvwx+m32n*nuvwy+m33n*nuvwz;  //Z=9655
 
-    /* new: a*_r=R a* */   /*Z0311=9141*/
-    /* output */   /*Z0311=9142*/
-    asedxn = ri11*asxn+ri12*asyn+ri13*aszn;   /*Z0311=9143*/
-    asedyn = ri21*asxn+ri22*asyn+ri23*aszn;   /*Z0311=9144*/
-    asedzn = ri31*asxn+ri32*asyn+ri33*aszn;   /*Z0311=9145*/
-    bsedxn = ri11*bsxn+ri12*bsyn+ri13*bszn;   /*Z0311=9146*/
-    bsedyn = ri21*bsxn+ri22*bsyn+ri23*bszn;   /*Z0311=9147*/
-    bsedzn = ri31*bsxn+ri32*bsyn+ri33*bszn;   /*Z0311=9148*/
-    csedxn = ri11*csxn+ri12*csyn+ri13*cszn;   /*Z0311=9149*/
-    csedyn = ri21*csxn+ri22*csyn+ri23*cszn;   /*Z0311=9150*/
-    csedzn = ri31*csxn+ri32*csyn+ri33*cszn;   /*Z0311=9151*/
+    /*  unit nxyz = director  */  //Z=9657
+    /*  in xyz-system  */  //Z=9658
+    len = sqrt(nxyzx*nxyzx+nxyzy*nxyzy+nxyzz*nxyzz);  //Z=9659
+    nxyznx = nxyzx/len;  //Z=9660
+    //nxyzny = nxyzy/len;  //Z=9661
+    nxyznz = nxyzz/len;  //Z=9662
 
-    asedxDD = ri11*asxDD+ri12*asyDD+ri13*aszDD;   /*Z0311=9153*/
-    asedyDD = ri21*asxDD+ri22*asyDD+ri23*aszDD;   /*Z0311=9154*/
-    asedzDD = ri31*asxDD+ri32*asyDD+ri33*aszDD;   /*Z0311=9155*/
-    bsedxDD = ri11*bsxDD+ri12*bsyDD+ri13*bszDD;   /*Z0311=9156*/
-    bsedyDD = ri21*bsxDD+ri22*bsyDD+ri23*bszDD;   /*Z0311=9157*/
-    bsedzDD = ri31*bsxDD+ri32*bsyDD+ri33*bszDD;   /*Z0311=9158*/
-    csedxDD = ri11*csxDD+ri12*csyDD+ri13*cszDD;   /*Z0311=9159*/
-    csedyDD = ri21*csxDD+ri22*csyDD+ri23*cszDD;   /*Z0311=9160*/
-    csedzDD = ri31*csxDD+ri32*csyDD+ri33*cszDD;   /*Z0311=9161*/
+    /*  R rotation matrix  */  //Z=9664
+    /*  in xyz-system  */  //Z=9665
+    etheta = myacos(-nxyznz);  //Z=9666
+    epsi = asin(nxyznx/sin(etheta));  //Z=9667
 
-    asedxDL = ri11*asxDL+ri12*asyDL+ri13*aszDL;   /*Z0311=9163*/
-    asedyDL = ri21*asxDL+ri22*asyDL+ri23*aszDL;   /*Z0311=9164*/
-    asedzDL = ri31*asxDL+ri32*asyDL+ri33*aszDL;   /*Z0311=9165*/
-    bsedxDL = ri11*bsxDL+ri12*bsyDL+ri13*bszDL;   /*Z0311=9166*/
-    bsedyDL = ri21*bsxDL+ri22*bsyDL+ri23*bszDL;   /*Z0311=9167*/
-    bsedzDL = ri31*bsxDL+ri32*bsyDL+ri33*bszDL;   /*Z0311=9168*/
-    csedxDL = ri11*csxDL+ri12*csyDL+ri13*cszDL;   /*Z0311=9169*/
-    csedyDL = ri21*csxDL+ri22*csyDL+ri23*cszDL;   /*Z0311=9170*/
-    csedzDL = ri31*csxDL+ri32*csyDL+ri33*cszDL;   /*Z0311=9171*/
+    r11 = cos(epsi)*cos(ephi)-sin(epsi)*cos(etheta)*sin(ephi);  //Z=9669
+    r12 = -cos(epsi)*sin(ephi)-sin(epsi)*cos(etheta)*cos(ephi);  //Z=9670
+    r13 = sin(epsi)*sin(etheta);  //Z=9671
+    r21 = sin(epsi)*cos(ephi)+cos(epsi)*cos(etheta)*sin(ephi);  //Z=9672
+    r22 = -sin(epsi)*sin(ephi)+cos(epsi)*cos(etheta)*cos(ephi);  //Z=9673
+    r23 = -cos(epsi)*sin(etheta);  //Z=9674
+    r31 = sin(etheta)*sin(ephi);  //Z=9675
+    r32 = sin(etheta)*cos(ephi);  //Z=9676
+    r33 = cos(etheta);  //Z=9677
 
-    asedxt = (bedyt*cedzt-bedzt*cedyt)/vvol;   /*Z0311=9173*/
-    asedyt = (bedzt*cedxt-bedxt*cedzt)/vvol;   /*Z0311=9174*/
-    asedzt = (bedxt*cedyt-bedyt*cedxt)/vvol;   /*Z0311=9175*/
-    bsedxt = (aedzt*cedyt-aedyt*cedzt)/vvol;   /*Z0311=9176*/
-    bsedyt = (aedxt*cedzt-aedzt*cedxt)/vvol;   /*Z0311=9177*/
-    bsedzt = (aedyt*cedxt-aedxt*cedyt)/vvol;   /*Z0311=9178*/
-    csedxt = (aedyt*bedzt-aedzt*bedyt)/vvol;   /*Z0311=9179*/
-    csedyt = (aedzt*bedxt-aedxt*bedzt)/vvol;   /*Z0311=9180*/
-    csedzt = (aedxt*bedyt-aedyt*bedxt)/vvol;   /*Z0311=9181*/
+    /*  Ri inverse rotation matrix  */  //Z=9679
+    /*  in xyz-system  */  //Z=9680
+    /* detr:=r11*r22*r33+r12*r23*r31+r13*r21*r32-r31*r22*r13-r32*r23*r11-r33*r21*r12;  //Z=9681
+       ri11:=(r22*r33-r23*r32)/detr;  //Z=9682
+       ri12:=(r13*r32-r12*r33)/detr;  //Z=9683
+       ri13:=(r12*r23-r13*r22)/detr;  //Z=9684
+       ri21:=(r23*r31-r21*r33)/detr;  //Z=9685
+       ri22:=(r11*r33-r13*r31)/detr;  //Z=9686
+       ri23:=(r13*r21-r11*r23)/detr;  //Z=9687
+       ri31:=(r21*r32-r22*r31)/detr;  //Z=9688
+       ri32:=(r12*r31-r11*r32)/detr;  //Z=9689
+       ri33:=(r11*r22-r12*r21)/detr;     */  //Z=9690
 
-    /* a*, b*, c* rotated */   /*Z0311=9183*/
-    /* in xyz-space */   /*Z0311=9184*/
+    ri11 = r11;  //Z=9692
+    ri12 = r21;  //Z=9693
+    ri13 = r31;  //Z=9694
+    ri21 = r12;  //Z=9695
+    ri22 = r22;  //Z=9696
+    ri23 = r32;  //Z=9697
+    ri31 = r13;  //Z=9698
+    ri32 = r23;  //Z=9699
+    ri33 = r33;  //Z=9700
 
-#ifdef PascalComment
-    asedx = r11*asex+r12*asey+r13*asez;   /*Z0311=9185*/
-    asedy = r21*asex+r22*asey+r23*asez;   /*Z0311=9186*/
-    asedz = r31*asex+r32*asey+r33*asez;   /*Z0311=9187*/
-    bsedx = r11*bsex+r12*bsey+r13*bsez;   /*Z0311=9188*/
-    bsedy = r21*bsex+r22*bsey+r23*bsez;   /*Z0311=9189*/
-    bsedz = r31*bsex+r32*bsey+r33*bsez;   /*Z0311=9190*/
-    csedx = r11*csex+r12*csey+r13*csez;   /*Z0311=9191*/
-    csedy = r21*csex+r22*csey+r23*csez;   /*Z0311=9192*/
-    csedz = r31*csex+r32*csey+r33*csez;
-#endif
+    /*  rotated base vectors a,b,c in carthesian coordinate system  */  //Z=9702
+    /*  aed=Ri ae, bed=Ri be, ced=Ri ce in xyz-system  */  //Z=9703
+    /*  needed for calculation of fiber pattern  */  //Z=9704
+    /*  Mok  */  //Z=9705
+    /* aedx:=ri11*aex+ri12*aey+ri13*aez;  //Z=9706
+       aedy:=ri21*aex+ri22*aey+ri23*aez;  //Z=9707
+       aedz:=ri31*aex+ri32*aey+ri33*aez;  //Z=9708
+       bedx:=ri11*bex+ri12*bey+ri13*bez;  //Z=9709
+       bedy:=ri21*bex+ri22*bey+ri23*bez;  //Z=9710
+       bedz:=ri31*bex+ri32*bey+ri33*bez;  //Z=9711
+       cedx:=ri11*cex+ri12*cey+ri13*cez;  //Z=9712
+       cedy:=ri21*cex+ri22*cey+ri23*cez;  //Z=9713
+       cedz:=ri31*cex+ri32*cey+ri33*cez;  //Z=9714
 
-    /* n,u,v axis vectors in Carthesian coordinate system */   /*Z0311=9196*/
-    /* in xyz-system */   /*Z0311=9197*/
-    nxyzx = 0;     nxyzy = 0;     nxyzz = -1;   /*Z0311=9198*/
-    uxyzx = 1;     uxyzy = 0;     uxyzz = 0;   /*Z0311=9199*/
-    vxyzx = 0;     vxyzy = 1;     vxyzz = 0;   /*Z0311=9200*/
+       aedxDD:=ri11*aexDD+ri12*aeyDD+ri13*aezDD;  //Z=9716
+       aedyDD:=ri21*aexDD+ri22*aeyDD+ri23*aezDD;  //Z=9717
+       aedzDD:=ri31*aexDD+ri32*aeyDD+ri33*aezDD;  //Z=9718
+       bedxDD:=ri11*bexDD+ri12*beyDD+ri13*bezDD;  //Z=9719
+       bedyDD:=ri21*bexDD+ri22*beyDD+ri23*bezDD;  //Z=9720
+       bedzDD:=ri31*bexDD+ri32*beyDD+ri33*bezDD;  //Z=9721
+       cedxDD:=ri11*cexDD+ri12*ceyDD+ri13*cezDD;  //Z=9722
+       cedyDD:=ri21*cexDD+ri22*ceyDD+ri23*cezDD;  //Z=9723
+       cedzDD:=ri31*cexDD+ri32*ceyDD+ri33*cezDD;  //Z=9724
 
-    /* rotated n,u,v axis vectors */   /*Z0311=9202*/
-    /* nd=R n, ud=R u, vd=R v  in xyz-system */   /*Z0311=9203*/
-    double nxyzdx = r11*nxyzx+r12*nxyzy+r13*nxyzz;   /*Z0311=9204*/
-    double nxyzdy = r21*nxyzx+r22*nxyzy+r23*nxyzz;   /*Z0311=9205*/
-    double nxyzdz = r31*nxyzx+r32*nxyzy+r33*nxyzz;   /*Z0311=9206*/
-    double uxyzdx = r11*uxyzx+r12*uxyzy+r13*uxyzz;   /*Z0311=9207*/
-    double uxyzdy = r21*uxyzx+r22*uxyzy+r23*uxyzz;   /*Z0311=9208*/
-    double uxyzdz = r31*uxyzx+r32*uxyzy+r33*uxyzz;   /*Z0311=9209*/
-    double vxyzdx = r11*vxyzx+r12*vxyzy+r13*vxyzz;   /*Z0311=9210*/
-    double vxyzdy = r21*vxyzx+r22*vxyzy+r23*vxyzz;   /*Z0311=9211*/
-    double vxyzdz = r31*vxyzx+r32*vxyzy+r33*vxyzz;   /*Z0311=9212*/
+       aedxDL:=ri11*aexDL+ri12*aeyDL+ri13*aezDL;  //Z=9726
+       aedyDL:=ri21*aexDL+ri22*aeyDL+ri23*aezDL;  //Z=9727
+       aedzDL:=ri31*aexDL+ri32*aeyDL+ri33*aezDL;  //Z=9728
+       bedxDL:=ri11*bexDL+ri12*beyDL+ri13*bezDL;  //Z=9729
+       bedyDL:=ri21*bexDL+ri22*beyDL+ri23*bezDL;  //Z=9730
+       bedzDL:=ri31*bexDL+ri32*beyDL+ri33*bezDL;  //Z=9731
+       cedxDL:=ri11*cexDL+ri12*ceyDL+ri13*cezDL;  //Z=9732
+       cedyDL:=ri21*cexDL+ri22*ceyDL+ri23*cezDL;  //Z=9733
+       cedzDL:=ri31*cexDL+ri32*ceyDL+ri33*cezDL;  //Z=9734
 
-    /* rotated n,u,v axis vectors */   /*Z0311=9214*/
-    /* nuvw=Mi nd, uuvw=Mi ud, vuvw=Mi vd  in unit cell uvw-system */   /*Z0311=9215*/
-    /* needed to indicate unit cell directions <uvw> in 2D-pattern */   /*Z0311=9216*/
-    /* output */   /*Z0311=9217*/
-    nuvwx = mi11*nxyzdx+mi12*nxyzdy+mi13*nxyzdz;   /*Z0311=9218*/
-    nuvwy = mi21*nxyzdx+mi22*nxyzdy+mi23*nxyzdz;   /*Z0311=9219*/
-    nuvwz = mi31*nxyzdx+mi32*nxyzdy+mi33*nxyzdz;   /*Z0311=9220*/
-    uuvwx = mi11*uxyzdx+mi12*uxyzdy+mi13*uxyzdz;   /*Z0311=9221*/
-    uuvwy = mi21*uxyzdx+mi22*uxyzdy+mi23*uxyzdz;   /*Z0311=9222*/
-    uuvwz = mi31*uxyzdx+mi32*uxyzdy+mi33*uxyzdz;   /*Z0311=9223*/
-    vuvwx = mi11*vxyzdx+mi12*vxyzdy+mi13*vxyzdz;   /*Z0311=9224*/
-    vuvwy = mi21*vxyzdx+mi22*vxyzdy+mi23*vxyzdz;   /*Z0311=9225*/
-    vuvwz = mi31*vxyzdx+mi32*vxyzdy+mi33*vxyzdz;   /*Z0311=9226*/
+       aedxt:=ri11*aext+ri12*aeyt+ri13*aezt;  //Z=9736
+       aedyt:=ri21*aext+ri22*aeyt+ri23*aezt;  //Z=9737
+       aedzt:=ri31*aext+ri32*aeyt+ri33*aezt;  //Z=9738
+       bedxt:=ri11*bext+ri12*beyt+ri13*bezt;  //Z=9739
+       bedyt:=ri21*bext+ri22*beyt+ri23*bezt;  //Z=9740
+       bedzt:=ri31*bext+ri32*beyt+ri33*bezt;  //Z=9741
+       cedxt:=ri11*cext+ri12*ceyt+ri13*cezt;  //Z=9742
+       cedyt:=ri21*cext+ri22*ceyt+ri23*cezt;  //Z=9743
+       cedzt:=ri31*cext+ri32*ceyt+ri33*cezt;      */  //Z=9744
 
-    /* rotated n,u,v axis vectors */   /*Z0311=9228*/
-    /* nhkl=G nuvw, uhkl=G uuvw, vhkl=G vuvw  in unit cell uvw-system */   /*Z0311=9229*/
-    /* needed to indicate reciprocal space directions <hkl> in 2D-pattern */   /*Z0311=9230*/
-    vols = nuvwx*(uuvwy*vuvwz-uuvwz*vuvwy)+nuvwy*(uuvwz*vuvwx-uuvwx*vuvwz)+nuvwz*(uuvwx*vuvwy-uuvwy*vuvwx);   /*Z0311=9231*/
-    nhklx = (uuvwy*vuvwz-uuvwz*vuvwy)/vols;   /*Z0311=9232*/
-    nhkly = (uuvwz*vuvwx-uuvwx*vuvwz)/vols;   /*Z0311=9233*/
-    nhklz = (uuvwx*vuvwy-uuvwy*vuvwx)/vols;   /*Z0311=9234*/
-    uhklx = (nuvwz*vuvwy-nuvwy*vuvwz)/vols;   /*Z0311=9235*/
-    uhkly = (nuvwx*vuvwz-nuvwz*vuvwx)/vols;   /*Z0311=9236*/
-    uhklz = (nuvwy*vuvwx-nuvwx*vuvwy)/vols;   /*Z0311=9237*/
-    vhklx = (nuvwy*uuvwz-nuvwz*uuvwy)/vols;   /*Z0311=9238*/
-    vhkly = (nuvwz*uuvwx-nuvwx*uuvwz)/vols;   /*Z0311=9239*/
-    vhklz = (nuvwx*uuvwy-nuvwy*uuvwx)/vols;   /*Z0311=9240*/
+    /*  rotated reciprocal space vectors a*,b*,c* in carthesian coordinate system  */  //Z=9746
+    /*  calculated from cross-product of aed,bed,ced  */  //Z=9747
+    /*  into output matrix  */  //Z=9748
+    /*  Mok  */  //Z=9749
+    /* asedx:=(bedy*cedz-bedz*cedy)/vvol;  //Z=9750
+       asedy:=(bedz*cedx-bedx*cedz)/vvol;  //Z=9751
+       asedz:=(bedx*cedy-bedy*cedx)/vvol;  //Z=9752
+       bsedx:=(aedz*cedy-aedy*cedz)/vvol;  //Z=9753
+       bsedy:=(aedx*cedz-aedz*cedx)/vvol;  //Z=9754
+       bsedz:=(aedy*cedx-aedx*cedy)/vvol;  //Z=9755
+       csedx:=(aedy*bedz-aedz*bedy)/vvol;  //Z=9756
+       csedy:=(aedz*bedx-aedx*bedz)/vvol;  //Z=9757
+       csedz:=(aedx*bedy-aedy*bedx)/vvol;  */  //Z=9758
 
-#ifdef PascalComment
-    nhklx = g11*nuvwx+g12*nuvwy+g13*nuvwz;   /*Z0311=9242*/
-    nhkly = g21*nuvwx+g22*nuvwy+g23*nuvwz;   /*Z0311=9243*/
-    nhklz = g31*nuvwx+g32*nuvwy+g33*nuvwz;   /*Z0311=9244*/
-    uhklx = g11*uuvwx+g12*uuvwy+g13*uuvwz;   /*Z0311=9245*/
-    uhkly = g21*uuvwx+g22*uuvwy+g23*uuvwz;   /*Z0311=9246*/
-    uhklz = g31*uuvwx+g32*uuvwy+g33*uuvwz;   /*Z0311=9247*/
-    vhklx = g11*vuvwx+g12*vuvwy+g13*vuvwz;   /*Z0311=9248*/
-    vhkly = g21*vuvwx+g22*vuvwy+g23*vuvwz;   /*Z0311=9249*/
-    vhklz = g31*vuvwx+g32*vuvwy+g33*vuvwz;
-#endif
+    /*  new: a*_r=R a*  */  //Z=9760
+    /*  output  */  //Z=9761
+    asedxn = ri11*asxn+ri12*asyn+ri13*aszn;  //Z=9762
+    asedyn = ri21*asxn+ri22*asyn+ri23*aszn;  //Z=9763
+    asedzn = ri31*asxn+ri32*asyn+ri33*aszn;  //Z=9764
+    bsedxn = ri11*bsxn+ri12*bsyn+ri13*bszn;  //Z=9765
+    bsedyn = ri21*bsxn+ri22*bsyn+ri23*bszn;  //Z=9766
+    bsedzn = ri31*bsxn+ri32*bsyn+ri33*bszn;  //Z=9767
+    csedxn = ri11*csxn+ri12*csyn+ri13*cszn;  //Z=9768
+    csedyn = ri21*csxn+ri22*csyn+ri23*cszn;  //Z=9769
+    csedzn = ri31*csxn+ri32*csyn+ri33*cszn;  //Z=9770
 
-    /* rotated reciprocal space base vectors */   /*Z0311=9252*/
-    /* aed=R ae, bed=R be, ced=R ce in xyz-system */   /*Z0311=9253*/
-    //asxd = r11*asx+r12*asy+r13*asz;   /*Z0311=9254*/
-    //asyd = r21*asx+r22*asy+r23*asz;   /*Z0311=9255*/
-    //aszd = r31*asx+r32*asy+r33*asz;   /*Z0311=9256*/
-    //bsxd = r11*bsx+r12*bsy+r13*bsz;   /*Z0311=9257*/
-    //bsyd = r21*bsx+r22*bsy+r23*bsz;   /*Z0311=9258*/
-    //bszd = r31*bsx+r32*bsy+r33*bsz;   /*Z0311=9259*/
-    //csxd = r11*csx+r12*csy+r13*csz;   /*Z0311=9260*/
-    //csyd = r21*csx+r22*csy+r23*csz;   /*Z0311=9261*/
-    //cszd = r31*csx+r32*csy+r33*csz;   /*Z0311=9262*/
+    if ( twin )
+    {/*2*/  //Z=9772
+        asedxt = ri11*asxt+ri12*asyt+ri13*aszt;  //Z=9773
+        asedyt = ri21*asxt+ri22*asyt+ri23*aszt;  //Z=9774
+        asedzt = ri31*asxt+ri32*asyt+ri33*aszt;  //Z=9775
+        bsedxt = ri11*bsxt+ri12*bsyt+ri13*bszt;  //Z=9776
+        bsedyt = ri21*bsxt+ri22*bsyt+ri23*bszt;  //Z=9777
+        bsedzt = ri31*bsxt+ri32*bsyt+ri33*bszt;  //Z=9778
+        csedxt = ri11*csxt+ri12*csyt+ri13*cszt;  //Z=9779
+        csedyt = ri21*csxt+ri22*csyt+ri23*cszt;  //Z=9780
+        csedzt = ri31*csxt+ri32*csyt+ri33*cszt;  //Z=9781
+    }/*2*/  //Z=9782
 
-    /* output matrix */   /*Z0311=9264*/
-    /* m11:=ri11;   m12:=ri12;   m13:=ri13; */   /*Z0311=9265*/
-    /* m21:=ri21;   m22:=ri22;   m23:=ri23; */   /*Z0311=9266*/
-    /* m31:=ri31;   m32:=ri32;   m33:=ri33; */   /*Z0311=9267*/
+    asedxDD = ri11*asxDD+ri12*asyDD+ri13*aszDD;  //Z=9784
+    asedyDD = ri21*asxDD+ri22*asyDD+ri23*aszDD;  //Z=9785
+    asedzDD = ri31*asxDD+ri32*asyDD+ri33*aszDD;  //Z=9786
+    bsedxDD = ri11*bsxDD+ri12*bsyDD+ri13*bszDD;  //Z=9787
+    bsedyDD = ri21*bsxDD+ri22*bsyDD+ri23*bszDD;  //Z=9788
+    bsedzDD = ri31*bsxDD+ri32*bsyDD+ri33*bszDD;  //Z=9789
+    csedxDD = ri11*csxDD+ri12*csyDD+ri13*cszDD;  //Z=9790
+    csedyDD = ri21*csxDD+ri22*csyDD+ri23*cszDD;  //Z=9791
+    csedzDD = ri31*csxDD+ri32*csyDD+ri33*cszDD;  //Z=9792
 
-    /* m11:=asxd;   m12:=bsxd;   m13:=csxd; */   /*Z0311=9269*/
-    /* m21:=asyd;   m22:=bsyd;   m23:=csyd; */   /*Z0311=9270*/
-    /* m31:=aszd;   m32:=bszd;   m33:=cszd; */   /*Z0311=9271*/
+    asedxDL = ri11*asxDL+ri12*asyDL+ri13*aszDL;  //Z=9794
+    asedyDL = ri21*asxDL+ri22*asyDL+ri23*aszDL;  //Z=9795
+    asedzDL = ri31*asxDL+ri32*asyDL+ri33*aszDL;  //Z=9796
+    bsedxDL = ri11*bsxDL+ri12*bsyDL+ri13*bszDL;  //Z=9797
+    bsedyDL = ri21*bsxDL+ri22*bsyDL+ri23*bszDL;  //Z=9798
+    bsedzDL = ri31*bsxDL+ri32*bsyDL+ri33*bszDL;  //Z=9799
+    csedxDL = ri11*csxDL+ri12*csyDL+ri13*cszDL;  //Z=9800
+    csedyDL = ri21*csxDL+ri22*csyDL+ri23*cszDL;  //Z=9801
+    csedzDL = ri31*csxDL+ri32*csyDL+ri33*cszDL;  //Z=9802
 
-    m11 = asedx;   m21 = bsedx;   m31 = csedx;   /*Z0311=9273*/
-    m12 = asedy;   m22 = bsedy;   m32 = csedy;   /*Z0311=9274*/
-    m13 = asedz;   m23 = bsedz;   m33 = csedz;   /*Z0311=9275*/
+    /* asedxt:=(bedyt*cedzt-bedzt*cedyt)/vvol;  //Z=9804
+       asedyt:=(bedzt*cedxt-bedxt*cedzt)/vvol;  //Z=9805
+       asedzt:=(bedxt*cedyt-bedyt*cedxt)/vvol;  //Z=9806
+       bsedxt:=(aedzt*cedyt-aedyt*cedzt)/vvol;  //Z=9807
+       bsedyt:=(aedxt*cedzt-aedzt*cedxt)/vvol;  //Z=9808
+       bsedzt:=(aedyt*cedxt-aedxt*cedyt)/vvol;  //Z=9809
+       csedxt:=(aedyt*bedzt-aedzt*bedyt)/vvol;  //Z=9810
+       csedyt:=(aedzt*bedxt-aedxt*bedzt)/vvol;  //Z=9811
+       csedzt:=(aedxt*bedyt-aedyt*bedxt)/vvol;  */  //Z=9812
+
+    /*  a*, b*, c* rotated  */  //Z=9814
+    /*  in xyz-space  */  //Z=9815
+    /* asedx:=r11*asex+r12*asey+r13*asez;  //Z=9816
+       asedy:=r21*asex+r22*asey+r23*asez;  //Z=9817
+       asedz:=r31*asex+r32*asey+r33*asez;  //Z=9818
+       bsedx:=r11*bsex+r12*bsey+r13*bsez;  //Z=9819
+       bsedy:=r21*bsex+r22*bsey+r23*bsez;  //Z=9820
+       bsedz:=r31*bsex+r32*bsey+r33*bsez;  //Z=9821
+       csedx:=r11*csex+r12*csey+r13*csez;  //Z=9822
+       csedy:=r21*csex+r22*csey+r23*csez;  //Z=9823
+       csedz:=r31*csex+r32*csey+r33*csez; */  //Z=9824
+
+
+    /*  n,u,v axis vectors in Carthesian coordinate system  */  //Z=9827
+    /*  in xyz-system  */  //Z=9828
+    nxyzx = 0;     nxyzy = 0;     nxyzz = -1;  //Z=9829
+    uxyzx = 1;     uxyzy = 0;     uxyzz = 0;  //Z=9830
+    vxyzx = 0;     vxyzy = 1;     vxyzz = 0;  //Z=9831
+
+    /*  back-rotated n,u,v axis vectors  */  //Z=9833
+    /*  nu=R n, uu=R u, vu=R v  in xyz-system  */  //Z=9834
+    nuvwx = r11*nxyzx+r12*nxyzy+r13*nxyzz;  //Z=9835
+    nuvwy = r21*nxyzx+r22*nxyzy+r23*nxyzz;  //Z=9836
+    nuvwz = r31*nxyzx+r32*nxyzy+r33*nxyzz;  //Z=9837
+    uuvwx = r11*uxyzx+r12*uxyzy+r13*uxyzz;  //Z=9838
+    uuvwy = r21*uxyzx+r22*uxyzy+r23*uxyzz;  //Z=9839
+    uuvwz = r31*uxyzx+r32*uxyzy+r33*uxyzz;  //Z=9840
+    vuvwx = r11*vxyzx+r12*vxyzy+r13*vxyzz;  //Z=9841
+    vuvwy = r21*vxyzx+r22*vxyzy+r23*vxyzz;  //Z=9842
+    vuvwz = r31*vxyzx+r32*vxyzy+r33*vxyzz;  //Z=9843
+
+    /*  reciprocal space n,u,v axis vectors  */  //Z=9845
+    /*  nua=G nu, uua=G uu, vua=G vu  */  //Z=9846
+    nhklx = g11*nuvwx+g12*nuvwy+g13*nuvwz;  //Z=9847
+    nhkly = g21*nuvwx+g22*nuvwy+g23*nuvwz;  //Z=9848
+    nhklz = g31*nuvwx+g32*nuvwy+g33*nuvwz;  //Z=9849
+    uhklx = g11*uuvwx+g12*uuvwy+g13*uuvwz;  //Z=9850
+    uhkly = g21*uuvwx+g22*uuvwy+g23*uuvwz;  //Z=9851
+    uhklz = g31*uuvwx+g32*uuvwy+g33*uuvwz;  //Z=9852
+    vhklx = g11*vuvwx+g12*vuvwy+g13*vuvwz;  //Z=9853
+    vhkly = g21*vuvwx+g22*vuvwy+g23*vuvwz;  //Z=9854
+    vhklz = g31*vuvwx+g32*vuvwy+g33*vuvwz;  //Z=9855
+
+    nnhkl = sqrt(nhklx*nhklx+nhkly*nhkly+nhklz*nhklz+1e-10);  //Z=9857
+    unhkl = sqrt(uhklx*uhklx+uhkly*uhkly+uhklz*uhklz+1e-10);  //Z=9858
+    vnhkl = sqrt(vhklx*vhklx+vhkly*vhkly+vhklz*vhklz+1e-10);  //Z=9859
+
+    nhklx = nhklx/nnhkl;  //Z=9861
+    nhkly = nhkly/nnhkl;  //Z=9862
+    nhklz = nhklz/nnhkl;  //Z=9863
+    uhklx = uhklx/unhkl;  //Z=9864
+    uhkly = uhkly/unhkl;  //Z=9865
+    uhklz = uhklz/unhkl;  //Z=9866
+    vhklx = vhklx/vnhkl;  //Z=9867
+    vhkly = vhkly/vnhkl;  //Z=9868
+    vhklz = vhklz/vnhkl;  //Z=9869
+
+
+    /*  rotated n,u,v axis vectors  */  //Z=9872
+    /*  nhkl=G nuvw, uhkl=G uuvw, vhkl=G vuvw  in unit cell uvw-system  */  //Z=9873
+    /*  needed to indicate reciprocal space directions <hkl> in 2D-pattern  */  //Z=9874
+    /* vols:=nuvwx*(uuvwy*vuvwz-uuvwz*vuvwy)+nuvwy*(uuvwz*vuvwx-uuvwx*vuvwz)+nuvwz*(uuvwx*vuvwy-uuvwy*vuvwx);  //Z=9875
+       nhklx:=(uuvwy*vuvwz-uuvwz*vuvwy)/vols;  //Z=9876
+       nhkly:=(uuvwz*vuvwx-uuvwx*vuvwz)/vols;  //Z=9877
+       nhklz:=(uuvwx*vuvwy-uuvwy*vuvwx)/vols;  //Z=9878
+       uhklx:=(nuvwz*vuvwy-nuvwy*vuvwz)/vols;  //Z=9879
+       uhkly:=(nuvwx*vuvwz-nuvwz*vuvwx)/vols;  //Z=9880
+       uhklz:=(nuvwy*vuvwx-nuvwx*vuvwy)/vols;  //Z=9881
+       vhklx:=(nuvwy*uuvwz-nuvwz*uuvwy)/vols;  //Z=9882
+       vhkly:=(nuvwz*uuvwx-nuvwx*uuvwz)/vols;  //Z=9883
+       vhklz:=(nuvwx*uuvwy-nuvwy*uuvwx)/vols;   */  //Z=9884
+
+    /* nhklx:=g11*nuvwx+g12*nuvwy+g13*nuvwz;  //Z=9886
+       nhkly:=g21*nuvwx+g22*nuvwy+g23*nuvwz;  //Z=9887
+       nhklz:=g31*nuvwx+g32*nuvwy+g33*nuvwz;  //Z=9888
+       uhklx:=g11*uuvwx+g12*uuvwy+g13*uuvwz;  //Z=9889
+       uhkly:=g21*uuvwx+g22*uuvwy+g23*uuvwz;  //Z=9890
+       uhklz:=g31*uuvwx+g32*uuvwy+g33*uuvwz;  //Z=9891
+       vhklx:=g11*vuvwx+g12*vuvwy+g13*vuvwz;  //Z=9892
+       vhkly:=g21*vuvwx+g22*vuvwy+g23*vuvwz;  //Z=9893
+       vhklz:=g31*vuvwx+g32*vuvwy+g33*vuvwz; */  //Z=9894
+
+    /*  rotated reciprocal space base vectors  */  //Z=9896
+    /*  aed=R ae, bed=R be, ced=R ce in xyz-system  */  //Z=9897
+    /* asxd:=r11*asx+r12*asy+r13*asz;  //Z=9898
+       asyd:=r21*asx+r22*asy+r23*asz;  //Z=9899
+       aszd:=r31*asx+r32*asy+r33*asz;  //Z=9900
+       bsxd:=r11*bsx+r12*bsy+r13*bsz;  //Z=9901
+       bsyd:=r21*bsx+r22*bsy+r23*bsz;  //Z=9902
+       bszd:=r31*bsx+r32*bsy+r33*bsz;  //Z=9903
+       csxd:=r11*csx+r12*csy+r13*csz;  //Z=9904
+       csyd:=r21*csx+r22*csy+r23*csz;  //Z=9905
+       cszd:=r31*csx+r32*csy+r33*csz;   */  //Z=9906
+
+    /* *************** */  //Z=9908
+    /*  output matrix  */  //Z=9909
+    m11 = asedxn;   m21 = bsedxn;   m31 = csedxn;  //Z=9910
+    m12 = asedyn;   m22 = bsedyn;   m32 = csedyn;  //Z=9911
+    m13 = asedzn;   m23 = bsedzn;   m33 = csedzn;  //Z=9912
+
+    if ( twin )
+    {/*2*/  //Z=9914
+        mtw11 = asedxt;   mtw21 = bsedxt;   mtw31 = csedxt;  //Z=9915
+        mtw12 = asedyt;   mtw22 = bsedyt;   mtw32 = csedyt;  //Z=9916
+        mtw13 = asedzt;   mtw23 = bsedzt;   mtw33 = csedzt;  //Z=9917
+    }/*2*/  //Z=9918
+
+    /* (* test output *)  //Z=9920
+       m11:=asxn;   m21:=bsxn;   m31:=csxn;  //Z=9921
+       m12:=asyn;   m22:=bsyn;   m32:=csyn;  //Z=9922
+       m13:=aszn;   m23:=bszn;   m33:=cszn;  //Z=9923
+
+       mtw11:=asxt;   mtw21:=bsxt;   mtw31:=csxt;  //Z=9925
+       mtw12:=asyt;   mtw22:=bsyt;   mtw32:=csyt;  //Z=9926
+       mtw13:=aszt;   mtw23:=bszt;   mtw33:=cszt; */  //Z=9927
 
     if ( lat2d )
-    {   /*Z0311=9277*/
-        m11 = asedxDD;   m21 = bsedxDD;   m31 = csedxDD;   /*Z0311=9278*/
-        m12 = asedyDD;   m22 = bsedyDD;   m32 = csedyDD;   /*Z0311=9279*/
-        m13 = asedzDD;   m23 = bsedzDD;   m33 = csedzDD;   /*Z0311=9280*/
-        vvol = area;   /*Z0311=9281*/
-    }   /*Z0311=9282*/
+    {/*2*/  //Z=9929
+        m11 = asedxDD;   m21 = bsedxDD;   m31 = csedxDD;  //Z=9930
+        m12 = asedyDD;   m22 = bsedyDD;   m32 = csedyDD;  //Z=9931
+        m13 = asedzDD;   m23 = bsedzDD;   m33 = csedzDD;  //Z=9932
+        vvol = area;  //Z=9933
+    }/*2*/  //Z=9934
 
     if ( lat1d )
-    {   /*Z0311=9284*/
-        m11 = asedxDL;   m21 = bsedxDL;   m31 = csedxDL;   /*Z0311=9285*/
-        m12 = asedyDL;   m22 = bsedyDL;   m32 = csedyDL;   /*Z0311=9286*/
-        m13 = asedzDL;   m23 = bsedzDL;   m33 = csedzDL;   /*Z0311=9287*/
-        vvol = area1;   /*Z0311=9288*/
-    }   /*Z0311=9289*/
+    {/*2*/  //Z=9936
+        m11 = asedxDL;   m21 = bsedxDL;   m31 = csedxDL;  //Z=9937
+        m12 = asedyDL;   m22 = bsedyDL;   m32 = csedyDL;  //Z=9938
+        m13 = asedzDL;   m23 = bsedzDL;   m33 = csedzDL;  //Z=9939
 
-    mtw11 = asedxt;   mtw21 = bsedxt;   mtw31 = csedxt;   /*Z0311=9291*/
-    mtw12 = asedyt;   mtw22 = bsedyt;   mtw32 = csedyt;   /*Z0311=9292*/
-    mtw13 = asedzt;   mtw23 = bsedzt;   mtw33 = csedzt;   /*Z0311=9293*/
+        m11 = u/(lenn*area1);  m21 = 0;   m31 = 0;  //Z=9941
+        m12 = v/(lenn*area1);  m22 = 0;   m32 = 0;  //Z=9942
+        m13 = w/(lenn*area1);  m23 = 0;   m33 = 0;  //Z=9943
+        vvol = area1;  //Z=9944
+    }/*2*/  //Z=9945
 
-    /* test output */   /*Z0311=9295*/
-    nhklx = asedxn;   /*Z0311=9296*/
-    nhkly = asedyn;   /*Z0311=9297*/
-    nhklz = asedzn;   /*Z0311=9298*/
-    uhklx = bsedxn;   /*Z0311=9299*/
-    uhkly = bsedyn;   /*Z0311=9300*/
-    uhklz = bsedzn;   /*Z0311=9301*/
-    vhklx = csedxn;   /*Z0311=9302*/
-    vhkly = csedyn;   /*Z0311=9303*/
-    vhklz = csedzn;   /*Z0311=9304*/
-}   /*Z0311=9305*/
+    /*10:*/  //Z=9947
+}
 
 
 
@@ -3088,8 +3272,8 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
     /*    carr1pm[n]:=1;  //Z=9939 */
     /*    carr2pm[n]:=1;  //Z=9940 */
     /* end;  //Z=9941 */
-    for ( n=0; n<=150; n++ )
-    {/*2*/  //Z=9942
+    for ( n=0; n<=150; n++ )        // Diese Initialisierungen sind in der neuen Version raus.
+    {   //Z=9942
         params.CR->carr1p[n] = 1;      params.CR->carr1f[n] = 1;  //Z=9943
         params.CR->carr2p[n] = 1;      params.CR->carr2f[n] = 1;  //Z=9944
         params.CR->carr3p[n] = 1;      params.CR->carr3f[n] = 1;  //Z=9945
@@ -3100,15 +3284,15 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
         params.CR->carr8p[n] = 1;      params.CR->carr8f[n] = 1;  //Z=9950
         params.CR->carr9p[n] = 1;      params.CR->carr9f[n] = 1;  //Z=9951
         //CR->carr2i[n] = 1;  //Z=9952
-    }/*2*/  //Z=9953
-    for ( n=0; n<=130; n++ )
-    {/*2*/  //Z=9954
+    }
+    for ( n=0; n<=130; n++ )        // Diese Initialisierungen sind in der neuen Version raus.
+    {   //Z=9954
         for ( m=0; m<=130; m++ )
-        {/*3*/  //Z=9955
+        {   //Z=9955
             params.CR->carr11pm[n][m] = 1;  //Z=9956
             params.CR->carr22pm[n][m] = 1;  //Z=9957
-        }/*3*/  //Z=9958
-    }/*2*/  //Z=9959
+        }
+    }
 
     /*  multi-shell or liposome structure parameters  */  //Z=9961
     if ( params.cs==3 )
@@ -3369,7 +3553,8 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
     if ( (params.polPhi==90) && (params.polTheta== 0) ) params.orcase = 4;     /*  z-axis  */  //Z=10200
 
 #ifndef __CUDACC__
-    qDebug() << "coefficients()" << "ordis"<<ordis << "dim"<<dim << "part"<<params.part << "cs"<<params.cs << "cho1|orcase"<<params.orcase;
+    qDebug() << "coefficients()" << "ordis"<<ordis << "dim"<<dim << "part"<<params.part << "cs"<<params.cs
+             << "cho1|orcase"<<params.orcase << params.polPhi << params.polTheta;
 #endif
     //Debug: coefficients ordis 0="CBOrdis.Gaussian"
     //                    dim 1=im Vorfeld aus CBPart.Cylinder bestimmt
@@ -3386,6 +3571,18 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
         /*  homogeneous  */  //Z=10207
         if ( params.cs==0 )
         {/*3*/  //Z=10208
+
+            //[10310]         (* monodisperse sphere test *)
+            //[10311]         {xrn[0]:=1;
+            //[10312]         carr4p[0]:=1;
+            //[10313]         for n:=1 to nmax do begin
+            //[10314]            xrn[n]:=xrn[n-1]*(-r*r)/((n+3/2)*n);
+            //[10315]            carr4p[n]:=6*xrn[n]/((n+3)*(n+2));
+            //[10316]            if (abs(carr4p[n])<min) then begin
+            //[10317]               if n<n4 then n4:=n;
+            //[10318]            end;
+            //[10319]         end;  }
+
             for ( n=1; n<=nmax; n++ )
             {/*4*/  //Z=10209
                 z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10210
@@ -3394,10 +3591,10 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                 /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=10213 */
                 xrn[n] = -xrn[n-1]*xr2z;  //Z=10214
                 /*  P(q)-coefficient  */  //Z=10215
-                params.CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn[n]/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=10216
+                params.CR->carr4p[n] = 9.*sqrt(M_PI)*pow(4.0,n)*(z12v[n]*xrn[n])/(2.0*(n+3.)*(n+2.)*(n+3./2.0)*gam3[n]*fkv[n]);  //Z=10216
                 /*  F(q)-coefficient  */  //Z=10217
                 binsum = 0.0;  //Z=10218
-                for ( m=0; m<=n; m++ ) binsum = binsum+z12v[m]*z12v[n-m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=10219
+                for ( m=0; m<=n; m++ ) binsum = binsum+z12v[m]*z12v[n-m]/((m+3./2.0)*gam3[m]*(n-m+3./2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=10219
                 params.CR->carr4f[n] = 9*M_PI*xrn[n]*binsum/16.0;  //Z=10220
                 if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=10221
@@ -3408,9 +3605,9 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     if ( n<n4f ) n4f = n;  //Z=10225
                 }/*5*/  //Z=10226
             }/*4*/  //Z=10227
-#ifndef __CUDACC__
-            qDebug() << "              " << "n4"<<n4<<params.CR->carr4p[n4] << "n4f"<<n4f<<params.CR->carr4f[n4f] << "#" << params.CR->carr4f[n4];
-#endif
+//#ifndef __CUDACC__
+//            qDebug() << "              " << "n4"<<n4<<params.CR->carr4p[n4] << "n4f"<<n4f<<params.CR->carr4f[n4f] << "#" << params.CR->carr4f[n4];
+//#endif
             goto Label99;  //Z=10228
         }/*3*/   /*  of homogeneous  */  //Z=10229
 
@@ -3691,9 +3888,9 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     if ( n<n4f ) n4f = n;  //Z=10464
                 }/*5*/  //Z=10465
 
-#ifndef __CUDACC__
-                qDebug() << "coeff() carr4p[]:" << n << params.CR->carr4p[n] << n4;
-#endif
+//#ifndef __CUDACC__
+//                qDebug() << "coeff() carr4p[]:" << n << params.CR->carr4p[n] << n4;
+//#endif
 
             }/*4*/  //Z=10466
             goto Label99;  //Z=10467
@@ -3824,15 +4021,40 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
     {/*2*/    /*  ellipsoids  */  //Z=10572
         params.norm = 1;  //Z=10573
         order = 0;  //Z=10574
-        if ( eps==1 ) area = 4*M_PI*sqr(params.radius);  //Z=10575
-        if ( eps>1 ) area = 2*M_PI*params.radius*(params.radius+(sqr(params.length)/sqrt(sqr(params.length)-sqr(params.radius)))*asin(sqrt(sqr(params.length)-sqr(params.radius))/params.length));  //Z=10576
-        if ( eps<1 ) area = 2*M_PI*params.radius*(params.radius+(sqr(params.length)/sqrt(sqr(params.radius)-sqr(params.length)))*asinh(sqrt(sqr(params.radius)-sqr(params.length))/params.length));  //Z=10577
+        // Die Abfrage eps==1 sollte nicht so vorkommen
+        if ( eps>1 )
+            area = 2*M_PI*params.radius*(params.radius+(sqr(params.length)/sqrt(sqr(params.length)-sqr(params.radius)))*asin(sqrt(sqr(params.length)-sqr(params.radius))/params.length));  //Z=10576
+        else if ( eps<1 )
+            area = 2*M_PI*params.radius*(params.radius+(sqr(params.length)/sqrt(sqr(params.radius)-sqr(params.length)))*asinh(sqrt(sqr(params.radius)-sqr(params.length))/params.length));  //Z=10577
+        else //if ( eps==1 )
+            area = 4*M_PI*sqr(params.radius);  //Z=10575
         vol = (4*M_PI/3.0)*sqr(params.radius)*params.length;  //Z=10578
         params.por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=10579
 
         /*  homogeneous  */  //Z=10581
         if ( params.cs==0 )
         {/*3*/  //Z=10582
+
+            //[10695]         (* monodisperse ellipsoid test *)
+            //[10696]         {e1[0]:=0;
+            //[10697]         xrn[0]:=1;
+            //[10698]         carr4p[0]:=1;
+            //[10699]         carr11pm[0,0]:=1.0;
+            //[10700]         for n:=1 to nmax do begin
+            //[10701]            sump:=1.0;
+            //[10702]            carr11pm[n,0]:=1.0;
+            //[10703]            for m:=1 to n do begin
+            //[10704]               carr11pm[n,m]:=carr11pm[n,m-1]*((n+1-m)/m)*(eps*eps-1
+            //[10705]               sump:=sump+carr11pm[n,m]/(2*m+1);
+            //[10706]            end;
+            //[10707]            e1[n]:=sump;
+            //[10708]            xrn[n]:=xrn[n-1]*(-r*r)/((n+3/2)*n);
+            //[10709]            carr4p[n]:=6*e1[n]*xrn[n]/((n+3)*(n+2));
+            //[10710]            if (abs(carr4p[n])<min) then begin
+            //[10711]               if n<n4 then n4:=n;
+            //[10712]            end;
+            //[10713]         end; }
+
             double e1[nnmax+1];  // lokal angelegt, da nur hier verwendet
             e1[0] = 1;
             for ( n=1; n<=nmax; n++ )
@@ -4295,9 +4517,10 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
     }/*2*/  /*  of dim=5, ellipsoids  */  //Z=11136
 
 
-    /*  perfect orientation case for ellipsoids  */  //Z=11138  TODO: gleich wie oben | cs==0
+    /*  perfect orientation case for ellipsoids  */  //Z=11138  TODO: gleich wie oben | cs==0  -  in neuer Version auskommentiert
     if ( (ordis==6) && (dim==5) )
     {/*2*/    /*  ellipsoids  */  //Z=11139
+#ifdef undef
         params.norm = 1;  //Z=11140
         order = 1;  //Z=11141
         /*  homogeneous  */  //Z=11142
@@ -4349,6 +4572,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
         /* if cs=1 then begin  //Z=11182
              goto 99;  //Z=11211
            end;   (* of core/shell *)   */  //Z=11212
+#endif
     }/*2*/  /*  of dim=7, super ellipsoid  */  //Z=11213
 
 
@@ -4494,9 +4718,10 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
     }/*2*/  /*  of dim=5, ellipsoids  */  //Z=11366
 
 
-    /*  perfect orientation case for ellipsoids  */  //Z=11368  TODO: gleich wie oben | cs==0
+    /*  perfect orientation case for ellipsoids  */  //Z=11368  TODO: gleich wie oben | cs==0  -  in neuer Version auskommentiert
     if ( (ordis==6) && (dim==5) )
     {/*2*/    /*  ellipsoids  */  //Z=11369
+#ifdef undef
         params.norm = 1;  //Z=11370
         order = 1;  //Z=11371
         /*  homogeneous  */  //Z=11372
@@ -4548,6 +4773,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
         /* if cs=1 then begin  //Z=11412
              goto 99;  //Z=11441
            end;   (* of core/shell *)   */  //Z=11442
+#endif
     }/*2*/  /*  of dim=8, superball  */  //Z=11443
 
 

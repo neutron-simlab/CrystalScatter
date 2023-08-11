@@ -81,7 +81,16 @@ void myGuiParam::setLocSelect( QWidget *w, QString on, QStringList sl, QString d
 #ifdef CALC_INPUT_MAXWIDTH
     _cbs->setMaximumWidth(CALC_INPUT_MAXWIDTH);
 #endif
-    _cbs->view()->setMinimumWidth(200);
+    // Calculate width of ComboBox-List to make all item readable.
+    QFontMetrics fm = _cbs->fontMetrics();
+    int ws = 0;
+    foreach ( QString s, sl )
+    {
+        if ( fm.horizontalAdvance(s) > ws )
+            ws = fm.horizontalAdvance(s);
+    }
+    _cbs->view()->setMinimumWidth(ws*1.1);
+    _cbs->setMaxVisibleItems(sl.size()); // -> no scroll bar
     _keyName = on;
     if ( !def.isEmpty() )
     {   // Defaultwert setzen
@@ -270,16 +279,23 @@ void myGuiParam::setLocInputTog( QWidget *w, QString on )
     // Es werden für QMax spezielle Toggles (Radiobuttons) verwendet, um
     // das richtige Input-Feld zu wählen... Diese sollten aber kein
     // Recalc auslösen, das käme nämlich zweimal...
+    // Das gleiche gilt für die BeamCenter Auswahl.
     // Daher wird hier einer der beiden Radiobuttons ausgeblendet.
-    if ( ! w->objectName().startsWith("radEditQmaxPreset") )
+    if ( ! w->objectName().startsWith("radEditQmaxPreset") &&
+         ! w->objectName().startsWith("radCenterMidpoint") )
     {
         _tog->connect( _tog, SIGNAL(toggled(bool)),
                        SC_MainGUI::getInst(), SLOT(automaticRecalc()) );
+        // für die Markierungen mit class setColHelper muss der Hintergrund gezeichnet werden
+        _tog->setAutoFillBackground(true);
+        QPalette pal = _tog->palette();
+        pal.setBrush(QPalette::Button,Qt::white); // ... und der Default gesetzt werden.
+        _tog->setPalette(pal);
         DT( qDebug() << "myGuiParam::Tog  connect" << on );
     }
     /*else
     {
-        qDebug() << "setLocInputTog::radEditQmaxPreset";
+        qDebug() << "setLocInputTog::radEditQmaxPreset / radCenterMidpoint";
     }*/
 }
 
@@ -668,14 +684,14 @@ QString myGuiParam::debug()
         // Hier werden alle Werte aus setEnabled() zurückgesetzt, damit sie dann in setEnabled() richtig genutzt werden
         //if ( hideValues )
         {   // Jetzt sollen alle Werte versteckt werden (visible)
-            if ( p->cbs()    != nullptr ) p->cbs()->setVisible(true);
-            if ( p->intinp() != nullptr ) p->intinp()->setVisible(true);
-            if ( p->inp()    != nullptr ) p->inp()->setVisible(true);
-            if ( p->inp2()   != nullptr ) p->inp2()->setVisible(true);
-            if ( p->inp3()   != nullptr ) p->inp3()->setVisible(true);
-            if ( p->tog()    != nullptr ) p->tog()->setVisible(true);
-            if ( p->fit()    != nullptr ) p->fit()->setVisible(true);
-            if ( p->lbl()    != nullptr ) p->lbl()->setVisible(true);
+            if ( p->cbs()    != nullptr ) { p->cbs()->setVisible(true);    p->cbs()->setEnabled(true); }
+            if ( p->intinp() != nullptr ) { p->intinp()->setVisible(true); p->intinp()->setEnabled(true); }
+            if ( p->inp()    != nullptr ) { p->inp()->setVisible(true);    p->inp()->setEnabled(true); }
+            if ( p->inp2()   != nullptr ) { p->inp2()->setVisible(true);   p->inp2()->setEnabled(true); }
+            if ( p->inp3()   != nullptr ) { p->inp3()->setVisible(true);   p->inp3()->setEnabled(true); }
+            if ( p->tog()    != nullptr ) { p->tog()->setVisible(true);    p->tog()->setEnabled(true); }
+            if ( p->fit()    != nullptr ) { p->fit()->setVisible(true);    p->fit()->setEnabled(true); }
+            if ( p->lbl()    != nullptr ) { p->lbl()->setVisible(true);    p->lbl()->setEnabled(true); }
         }
         //else
         {   // Jetzt werden die Werte nur gesperrt, aber die Eingaben bleiben verwendbar
@@ -712,14 +728,14 @@ QString myGuiParam::debug()
     }
     if ( hideValues )
     {   // Jetzt sollen alle Werte versteckt werden (visible)
-        if ( gp->cbs()    != nullptr ) gp->cbs()->setVisible(ena);
-        if ( gp->intinp() != nullptr ) gp->intinp()->setVisible(ena);
-        if ( gp->inp()    != nullptr ) gp->inp()->setVisible(ena);
-        if ( gp->inp2()   != nullptr ) gp->inp2()->setVisible(ena);
-        if ( gp->inp3()   != nullptr ) gp->inp3()->setVisible(ena);
-        if ( gp->tog()    != nullptr ) gp->tog()->setVisible(ena);
-        if ( gp->fit()    != nullptr ) gp->fit()->setVisible(ena);
-        if ( gp->lbl()    != nullptr ) gp->lbl()->setVisible(ena);
+        if ( gp->cbs()    != nullptr ) { gp->cbs()->setVisible(ena);    gp->cbs()->setEnabled(ena); }
+        if ( gp->intinp() != nullptr ) { gp->intinp()->setVisible(ena); gp->intinp()->setEnabled(ena); }
+        if ( gp->inp()    != nullptr ) { gp->inp()->setVisible(ena);    gp->inp()->setEnabled(ena); }
+        if ( gp->inp2()   != nullptr ) { gp->inp2()->setVisible(ena);   gp->inp2()->setEnabled(ena); }
+        if ( gp->inp3()   != nullptr ) { gp->inp3()->setVisible(ena);   gp->inp3()->setEnabled(ena); }
+        if ( gp->tog()    != nullptr ) { gp->tog()->setVisible(ena);    gp->tog()->setEnabled(ena); }
+        if ( gp->fit()    != nullptr ) { gp->fit()->setVisible(ena);    gp->fit()->setEnabled(ena); }
+        if ( gp->lbl()    != nullptr ) { gp->lbl()->setVisible(ena);    gp->lbl()->setEnabled(ena); }
     }
     else
     {   // Jetzt werden die Werte nur gesperrt, aber die Eingaben bleiben verwendbar
@@ -735,7 +751,7 @@ QString myGuiParam::debug()
     if ( !lbl.isEmpty() )
     {
         if ( lbl[0] == '@' && gp->cbs() != nullptr )
-            gp->cbs()->setCurrentIndex( lbl.mid(1).toInt() );
+            gp->cbs()->setCurrentIndex( lbl.midRef(1).toInt() );
         else if ( gp->lbl() != nullptr )
             gp->lbl()->setText(lbl);
     }
@@ -748,6 +764,47 @@ QString myGuiParam::debug()
         w->setVisible(ena);
     else
         w->setEnabled(ena);
+}
+
+/*static*/ bool myGuiParam::isEnabled(QString key)
+{
+    myGuiParam *gp = getGuiParam(key);
+    if ( gp == nullptr )
+    {
+        qDebug() << "myGuiParam::isEnabled()  unknown key" << key << searchSubKey(key);
+        return false;
+    }
+    if ( hideValues )
+    {   // Jetzt sollen alle Werte versteckt werden (visible)
+        if ( gp->cbs()    != nullptr ) return gp->cbs()->isVisible();
+        if ( gp->intinp() != nullptr ) return gp->intinp()->isVisible();
+        if ( gp->inp()    != nullptr ) return gp->inp()->isVisible();
+        if ( gp->inp2()   != nullptr ) return gp->inp2()->isVisible();
+        if ( gp->inp3()   != nullptr ) return gp->inp3()->isVisible();
+        if ( gp->tog()    != nullptr ) return gp->tog()->isVisible();
+        if ( gp->fit()    != nullptr ) return gp->fit()->isVisible();
+        if ( gp->lbl()    != nullptr ) return gp->lbl()->isVisible();
+    }
+    else
+    {   // Jetzt werden die Werte nur gesperrt, aber die Eingaben bleiben verwendbar
+        //if ( gp->cbs()    != nullptr ) return gp->cbs()->isEnabled();
+        //if ( gp->intinp() != nullptr ) return gp->intinp()->isEnabled();
+        //if ( gp->inp()    != nullptr ) return gp->inp()->isEnabled();
+        //if ( gp->inp2()   != nullptr ) return gp->inp2()->isEnabled();
+        //if ( gp->inp3()   != nullptr ) return gp->inp3()->isEnabled();
+        //if ( gp->tog()    != nullptr ) return gp->tog()->isEnabled();
+        if ( gp->fit()    != nullptr ) return gp->fit()->isEnabled();
+        if ( gp->lbl()    != nullptr ) return gp->lbl()->isEnabled();
+    }
+    return true;
+}
+
+/*static*/ bool myGuiParam::isEnabled(QWidget *w)
+{
+    if ( hideValues )
+        return w->isVisible();
+    else
+        return w->isEnabled();
 }
 
 /*static*/ void myGuiParam::setLabel(QString key, QString txt)

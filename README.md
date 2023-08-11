@@ -42,3 +42,7 @@ Other library versions may work too.
 - fftw-devel.x86_64 (3.3.5-11.el8)
 - fftw-libs.x86_64 (3.3.5-11.el8)
 - hdf-devel.x86_64 (4.2.14-5.el8)
+
+If you want to use a cuda version newer than 11.7 then you have
+to set the environment variable CUDA_MODULE_LOADING=EAGER before
+compile and launch to disable the lazy loading feature.

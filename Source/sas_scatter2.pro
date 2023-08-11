@@ -69,17 +69,17 @@ else: unix:!android: target.path = /opt/sas_scatter2/bin
 
 # CUDA definitions
 unix:{
-    CUDA_DIR = /usr/local/cuda   # Path to cuda sdk/toolkit install
-    CUDA_EXE = /usr/local/cuda/bin/nvcc
+    CUDA_DIR = /usr/local/cuda-12.2   # Path to cuda sdk/toolkit install
+    CUDA_EXE = $$CUDA_DIR/bin/nvcc
 }
 win32:{
     #CUDA_DIR = "C:/Program\ Files/NVIDIA\ GPU\ Computing\ Toolkit/CUDA/v11.0"
     # -> nvcc fatal   : A single input file is required for a non-link phase when an outputfile is specified
     #                   -> nvcc has problems with spaces in filenames...
-    CUDA_DIR = "C:/SimLab/CUDA/v11.0"  # link to above dir
+    CUDA_DIR = "C:/SimLab/CUDA/v12.2"  # link to above dir
 
     # 'X' hinten zum Ausblenden dieser Funktion.
-    CUDA_EXE = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.0/bin/nvcc.exeX"
+    CUDA_EXE = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.2/bin/nvcc.exeX"
 }
 # nvcc can work with multiple input files but then they must be linked with a special cuda linker
 #  and this is not so easy to include in this Qt-Project. So only a single input is used and the
@@ -95,7 +95,13 @@ CUDA_SOURCES += sc_calc_generic_gpu.cu
     SYSTEM_NAME = Win64         # Depending on your system either 'Win32', 'x64', or 'Win64'
     SYSTEM_TYPE = 64            # '32' or '64', depending on your system
     CUDA_ARCH = compute_52      # Type of CUDA architecture, for example 'compute_10', 'compute_11', 'sm_10'
-    NVCC_OPTIONS = --use_fast_math -std=c++11
+    NVCC_OPTIONS = --use_fast_math -std=c++11  # todo: -warning 550 ...
+    #NVCC_OPTIONS += --ptxas-options=--verbose  # Specify options directly to ptxas, the PTX optimizing assembler.
+
+# The following library conflicts with something in Cuda
+    QMAKE_LFLAGS_RELEASE = /NODEFAULTLIB:msvcrt.lib         # TODO: Unter Linux: file not found...
+    QMAKE_LFLAGS_DEBUG   = /NODEFAULTLIB:msvcrtd.lib
+
     message("Use CUDA")
 
     # Add the necessary libraries and Add include path
@@ -103,7 +109,7 @@ CUDA_SOURCES += sc_calc_generic_gpu.cu
         # c++  cpp  g++  gcc  x86_64-w64-mingw32-c++  x86_64-w64-mingw32-g++  x86_64-w64-mingw32-gcc
         NVCC_OPTIONS += --dont-use-profile \
             --allow-unsupported-compiler \
-            -ccbin=C:/Qt/Tools/mingw730_64/bin/x86_64-w64-mingw32-g++.exe \
+            -ccbin=C:/Qt/Tools/mingw810_64/bin/x86_64-w64-mingw32-g++.exe \
             --forward-unknown-to-host-compiler \
             --forward-unknown-to-host-linker \
             --drive-prefix="/" --verbose
@@ -215,6 +221,7 @@ unix: {     # no static !
 
 DISTFILES += \
     "../Pascal-Sourcecodes/20221004 - crystal3d1.pas" \
+    "../Pascal-Sourcecodes/20230420 - crystal3d1.pas" \
     sc_memory_gpu.cu \
     sc_libs_gpu.cu
     #sc_libs_gpu.h \

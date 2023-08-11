@@ -70,6 +70,9 @@ public:
 
         // Array-Parameter für coefficients(), formpq(), formfq()
         ArrayImax2D carr11pm, carr22pm;
+
+        int latparMaxCheckCount[3];
+
     } _carrXX;
 
     // to reduce the number of parameters in each call,
@@ -150,8 +153,27 @@ public:
         }
     }
 
-    static const int latparlen = 5000;
+    static const int latparlen = 2500;  // war 5000, latpar Max Check: 342, 2196, 1098
     #define latparIDX(a,b,l) (a*l+b)
+    // Hilfsdaten zur Ermittlung der maximal genutzten Arraylänge, um latparlen zu minimieren
+    inline void latparMaxCheckInit() { params.CR->latparMaxCheckCount[0]=0; params.CR->latparMaxCheckCount[1]=0; params.CR->latparMaxCheckCount[2]=0; }
+    inline void latparMaxCheck( const int i, const int a ) const
+    {   if ( params.CR->latparMaxCheckCount[i]<a ) params.CR->latparMaxCheckCount[i]=a;
+#ifndef __CUDACC__
+        if ( a >= latparlen ) qDebug() << "##################################################" << a << latparlen;
+#endif
+    }
+
+#define latpar1(a,b) latpar1ptr[latparIDX(a,b, 6)]      // [5000][6], genutzt: 0,1,2,3,4,5
+#define latpar2(a,b) latpar2ptr[latparIDX(a,b, 6)]      // [5000][6], genutzt: 0,1,2,3,4,5
+#define latpar3(a,b) latpar3ptr[latparIDX(a,b,17)]      // [5000][15], genutzt: 1 bis 16
+    //#define latpar4(a,b) latpar4ptr[latparIDX(a,b, 2)]      // [5000][15], genutzt: nichts
+
+#define setLatpar1(a,b,v) { latparMaxCheck(0,a); latpar1ptr[latparIDX(a,b, 6)] = v; }     // [5000][6], genutzt: 0,1,2,3,4,5
+#define setLatpar2(a,b,v) { latparMaxCheck(1,a); latpar2ptr[latparIDX(a,b, 6)] = v; }     // [5000][6], genutzt: 0,1,2,3,4,5
+#define setLatpar3(a,b,v) { latparMaxCheck(2,a); latpar3ptr[latparIDX(a,b,17)] = v; }     // [5000][15], genutzt: 1 bis 16
+    //#define latpar4(a,b) latpar4ptr[latparIDX(a,b, 2)]        // [5000][15], genutzt: nichts
+
 
     static const int np=5;
     static const int jmaxp=21;
@@ -221,7 +243,7 @@ __host__ __device__
                        double q, int i0, int i1, int i3,  double &pa, double &fa ) const;
 
 
-    void ButtonHKLClick(int ltype , int *latpar1, int *latpar2) const;
+    void ButtonHKLClick(int ltype) const;
 
     void fhkl_c( int lat, int h, int k, int l,
                  double &sphno, double &fhkl, double &qhkl, double &qhkl0 ) const;
@@ -342,3 +364,7 @@ __host__ __device__
     double polycscube(double rho1, double rho2, double p1, double p2, double alf1, double alf2, double rn, double pf,
                       double sigma, double q) const;
 
+#ifdef __CUDACC__
+    __host__ __device__
+#endif
+    double spy( double q ) const;

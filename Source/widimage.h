@@ -115,7 +115,8 @@ public:
     double ymax() { return maxY; }
     int myWidth() { return maxX - minX; }
     int myHeight() { return maxY - minY; }
-    inline double getData(int x,int y) { return data[(tmpidx=XY2IDX(minX,maxX,minY,maxY,x,y))]; }
+    inline double getData(int x,int y) { return data[(tmpidx=XY2IDX(minX,maxX,minY,maxY,x,y))]; }   // TODO: alt= x,y
+    //#define XY2IDX(X0,X1,Y0,Y1,x,y) ((-X0 + (x)) + (X1-X0)*(-Y0 + (y)))
 
     QString debugInfo() { return QString("X:%1 .. %2 / Y:%3 .. %4").arg(minX).arg(maxX).arg(minY).arg(maxY); }
 
@@ -213,6 +214,8 @@ private:
     int minX, maxX, minY, maxY;
     QVector<double> data;
     int tmpidx;
+    double qmax, calcQmax, editQmax;
+    bool   qmaxset, qmaxcalc, qmaxedit;
 
     static QStringList _slColornames;
     int curColorSelected;
@@ -237,6 +240,7 @@ private:
     bool   extractDrawByMouse;
     QPoint extractMouseStart;
     bool   enaNoFit;
+    bool   useCenterBeamPos;
 signals:
     void extractUpdateRect(QRect);
 

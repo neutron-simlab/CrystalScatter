@@ -45,10 +45,11 @@ public:
         }
         else if ( w->objectName().startsWith("tog") )
         {
+            //qDebug() << w->objectName() << c;
             if ( c == SETCOLMARK_CLEARED )
                 pal.setBrush(QPalette::Button,Qt::white); // QColor(240,240,240)); // aus Designer als Default gelesen
             else
-                pal.setBrush(QPalette::Button,c.darker(150));
+                pal.setBrush(QPalette::Button,c);
         }
         else // inp
             pal.setBrush(QPalette::Base,c);
@@ -104,7 +105,7 @@ public:
 
     void saveParameter( QString fn );
     QString loadParameter(QString fn, QString onlyMethod, bool &hkl, bool &grid);
-    void compareParameter( QSettings &sets, QHash<QString,_CompValues*> &compWerte );
+    void compareParameter( QSettings &sets, QHash<QString,_CompValues*> &compWerte, QStringList tbign );
 
     void saveFitFlags( QSettings &sets );
     void loadFitFlags( QSettings &sets );
@@ -161,14 +162,14 @@ public:
 #endif
     void setNoFitRect( int id, int x0, int y0, int x1, int y1 );
 
+    void updateToolTipForCompare( QWidget *w, QString txt );
+
 private:
     SC_Calc_GENERIC *calcGeneric;
 
-    static bool dataGetter( QString p, _valueTypes &v );
-    static bool dataGetterForFit( QString p, _valueTypes &v );
-    static bool dataSetter( QString p, _valueTypes &v );
-
-    void updateToolTipForCompare( QWidget *w, QString txt );
+    static void dataGetter( QString p, _valueTypes &v );
+    static void dataGetterForFit( QString p, _valueTypes &v );
+    static void dataSetter( QString p, _valueTypes &v );
 };
 
 #endif // SC_CALCGUI_H

@@ -19,6 +19,13 @@
 // MinimumSize des Labels nicht mehr relevant für das Fenster.
 
 
+//#define UseAutoNoBorder
+// Wenn definiert, gibt es eine zusätzliche Skalierungsauswahl:
+// 'Automatische Skalierung ohne Berücksichtigung der Ränder'
+// Ich habe einmal gesehen, dass an den Rändern unklare Artefakte waren, durch die
+// die automatische Skalierung unbrauchbar wurde.
+
+
 #define SETT_APP   "JCNS-1-SasCrystal"  // auch in sc_maingui.h
 #define SETT_IMG   "ImageScaling"
 
@@ -29,7 +36,8 @@ QString widImage::lastSavedFilePath = "";
 int widImage::lastColorTbl = 1;
 
 #ifndef CONSOLENPROG
-static float zoom2pix[] = { 1, 2, 4, 0.5, 0.25 };
+static float zoom2pix[] = {  1,  2,  4, 0.5, 0.25, 0      };
+//                          No, *2, *4,  /2,   /4, 640*640
 #endif
 
 QStringList widImage::_slColornames = { /* 0*/"Greyscale",     /* 1*/"Glowing colors",     /* 2*/"Earth colors",         /* 3*/"Temperature",
@@ -87,6 +95,9 @@ widImage::widImage( QString tit, QString dp, QWidget *parent ) :
     ui->togMirrorV->setChecked( swapVert );
     ui->lblHistogram->setMaximumHeight( 10 + HISTO_SY );
     ui->lblHistogram->setMinimumHeight( 10 + HISTO_SY );
+#ifndef UseAutoNoBorder
+    ui->radScaleAutoNoBorder->hide();
+#endif
     setMouseTracking(true);
     if ( /*tit.startsWith("(r,phi)") ||*/ tit.startsWith("iFFT") )
         ui->radShowLin->setChecked( true );
@@ -167,6 +178,41 @@ void widImage::addMetaInfo( QString key, QString val )
         ui->grpImage->setTitle( "Image "+val );
     else if ( key == "From Image" )
         ui->grpImage->setTitle( val );
+    //--- Merker für den genutzten Mittelpunkt: das Bild oder die Beamstop-Werte
+    else if ( key == "CenterMidpoint" )
+        return;
+    else if ( key == "CenterBeam" )
+    {
+        useCenterBeamPos = val[0] == 'T';
+        //qDebug() << key << val;
+        //Debug: "CenterBeam" "False"
+        //Debug: "CenterBeam" "True"
+    }
+    //--- Merker für den genutzten QMax-Wert, wird nur beim xy2q() verwendet
+    /*else if ( key.contains("qmax",Qt::CaseInsensitive) )
+    {
+        //qmax = val.toDouble();
+        qDebug() << key << val;
+        //Debug: "EditQmaxData" "False"  --> wenn True, dann CalcQmax nutzen
+        //Debug: "CalcQmax" "1.665"
+        //Debug: "EditQmax" "2"
+        //Debug: "EditQmaxPreset" "True" --> wenn True, dann EditQmax nutzen
+    }*/
+    else if ( key == "EditQmax" )
+    {
+        qmaxset = false;
+        editQmax = val.toDouble();
+    }
+    else if ( key == "CalcQmax" )
+    {
+        qmaxset = false;
+        calcQmax = val.toDouble();
+    }
+    else if ( key == "EditQmaxPreset" )
+        qmaxedit = val[0] == 'T';
+    else if ( key == "EditQmaxData" )
+        qmaxcalc = val[0] == 'T';
+    //---
     else if ( key == "From File" )
     {
         fileInfos.filePath = val;
@@ -512,11 +558,10 @@ void widImage::on_cbsColorTbl_activated(const QString &arg1)
     static int gMat[256] = { 242, 241, 241, 240, 239, 238, 238, 237, 236, 235, 233, 233, 232, 231, 230, 230, 229, 228, 227, 227, 226, 225, 224, 224, 223, 222, 221, 221, 221, 220, 219, 218, 218, 217, 217, 216,216, 215, 214, 213, 213, 213, 212, 211, 210, 210, 209, 209, 208, 208, 207, 206, 205, 205, 205, 204, 203, 202, 202, 201, 201, 200, 200, 199, 198, 197, 197, 197, 196, 195, 195, 194, 193, 193, 192, 192, 191, 190, 189, 189, 189, 188, 187, 187, 186, 185, 185, 185, 184, 183, 182, 181, 181, 181, 180, 179, 179, 178, 177, 177, 177, 176, 175, 174, 173, 173, 173, 172, 171, 171, 170, 169, 169, 169, 168, 167, 166, 166, 165, 165, 164, 163, 163, 162, 161, 161, 161, 160, 159, 158, 158, 158, 157, 156, 156, 155, 154,153, 153, 153, 152, 151, 150, 150, 150, 149, 148, 148, 148, 147, 146, 146, 146, 145, 144, 143, 143, 143, 142, 141, 141, 141, 140, 139, 139, 139, 138, 137, 136, 136, 136, 135, 134, 134, 134, 133, 132, 132, 131, 131, 130, 130, 129, 129, 128, 127, 127, 127, 126, 125, 125, 124, 124, 123, 123, 122, 122, 121, 121, 120, 119, 119, 118, 118, 117, 116, 115, 115, 115, 114, 113, 113, 112, 112, 111, 111, 110, 110, 109, 108, 108, 108, 107, 106, 106, 105, 105, 104, 104, 103, 103, 102, 101, 101, 100,  99,  98,  98, 97,  97,  96,  96,  95,  94,  93,  93,  92,  91,  90,  89,  89,  88,  88,  87,  87,  86};
     static int bMat[256] = { 190, 188, 188, 186, 184, 182, 182, 180, 178, 176, 174, 174, 172, 170, 168, 168, 167, 165, 163, 163, 161, 159, 157, 157, 155, 153, 152, 151, 151, 150, 149, 148, 148, 147, 146, 145,145, 144, 143, 142, 141, 141, 140, 139, 138, 138, 137, 136, 135, 135, 134, 133, 132, 132, 131, 130, 129, 128, 128, 127, 126, 125, 125, 124, 123, 122, 122, 121, 120, 119, 119, 118, 117, 116, 115, 115, 114, 113, 112, 112, 111, 110, 109, 109, 108, 107, 106, 106, 105, 104, 103, 103, 103, 102, 101, 100, 100,  99,  98,  97,  97,  96,  95,  94,  93,  93,  92,  91,  90,  90,  89,  88,  87,  87,  86,  85,  84,  84,  83,  82,  81,  80,  80,  79,  78,  77,  77,  76,  75,  75,  75,  76,  77,  78,  78,  80,  82, 83,  84,  84,  85,  87,  88,  88,  89,  90,  91,  91,  92,  94,  95,  95,  96,  97,  98,  99,  99, 101, 102, 103, 103, 104, 105, 107, 107, 108, 109, 110, 111, 111, 112, 114, 115, 115, 116, 117, 118, 118, 119, 121, 122, 122, 123, 124, 125, 127, 127, 128, 129, 130, 130, 131, 132, 134, 134, 135, 136, 137, 137, 138, 140, 141, 142, 142, 144, 145, 146, 146, 148, 149, 150, 150, 151, 152, 154, 154, 155, 156, 157, 158, 158, 160, 161, 162, 162, 163, 164, 165, 165, 167, 168, 167, 166, 166, 164, 163, 161, 161,160, 158, 157, 157, 155, 154, 152, 152, 151, 149, 148, 146, 146, 145, 143, 142, 142, 140};
 
-    // aus den Screenshots von Prof. Förster
-    //static int rScatter[256] = {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  11,  11,  11,  29,  29,  45,  45,  62,  62,  62,  78,  78,  95,  95,  95, 111, 111, 127, 127, 127, 144, 144, 160, 160, 160, 177, 177, 193, 193, 210, 210, 210, 226, 226, 244, 244, 244, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255};
-    //static int gScatter[256] = {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  10,  10,  27,  27,  44,  44,  44,  60,  60,  76,  76,  76,  93,  93, 109, 109, 109, 126, 126, 142, 142, 142, 159, 159, 175, 175, 192, 192, 192, 208, 208, 225, 225, 225, 242, 242, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 251, 251, 234, 234, 234, 217, 217, 201, 201, 185, 185, 185, 168, 168, 151, 151, 151, 135, 135, 118, 118, 118, 102, 102,  85,  85,  85,  69,  69,  52,  52,  36,  36,  36,  19,  19,   3,   3,   3,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   6,   6,   6,  22,  22,  39,  39,  39,  56,  56,  72,  72,  72,  89,  89, 105, 105, 122, 122, 122, 138, 138, 155, 155, 155, 171, 171, 188, 188, 188, 204, 204};
-    //static int bScatter[256] = {   0,   0,  34,  34,  34,  51,  51,  67,  67,  67,  84,  84, 100, 100, 100, 117, 117, 133, 133, 133, 150, 150, 166, 166, 183, 183, 183, 199, 199, 216, 216, 216, 233, 233, 249, 249, 249, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 252, 252, 252, 236, 236, 219, 219, 203, 203, 203, 186, 186, 170, 170, 170, 153, 153, 137, 137, 137, 120, 120, 104, 104, 104,  87,  87,  70,  70,  54,  54,  54,  37,  37,  21,  21,  21,   4,   4,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  13,  13,  30,  30,  30,  47,  47,  63,  63,  80,  80,  80,  96,  96, 113, 113, 113, 129, 129, 146, 146, 146, 162, 162, 179, 179, 179, 195, 195, 212, 212, 228, 228, 228, 245, 245, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255};
-
+    // aus dem Programm von Prof. Förster (gespeicherte Farbtabelle)
+    //static int rScatter[256] = {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   1,   7,  14,  20,  33,  39,  45,  52,  58,  64,  71,  77,  83,  90, 102, 109, 115, 121, 127, 134, 140, 146, 153, 159, 172, 178, 184, 191, 197, 203, 210, 216, 222, 229, 241, 248, 254, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255};
+    //static int gScatter[256] = {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  0,   0,   0,   5,  11,  17,  24,  30,  36,  43,  49,  61,  68,  74,  80,  87,  93,  99, 106, 112, 118, 131, 137, 144, 150, 156, 163, 169, 175, 182, 188, 201, 207, 213, 220, 226, 232, 239, 245, 251, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 250, 243, 237, 231, 224, 218, 212, 199, 193, 186, 180, 174, 167, 161, 155, 148, 136, 129, 123, 117, 110, 104,  98,  91,  85,  79,  66,  60,  53,  47,  41,  34,  28,  22,  15,   9,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   2,  8,  14,  27,  33,  40,  46,  52,  59,  65,  71,  78,  90,  97, 103, 109, 116, 122, 128, 135, 141, 147, 160, 166, 173, 179, 185, 192, 198, 204, 211, 217, 230, 236, 242, 249, 255};
+    //static int bScatter[256] = {   6,  13,  19,  25,  32,  44,  51,  57,  63,  70,  76,  82,  89,  95, 101, 114, 120, 127, 133, 139, 146, 152, 158, 165, 171, 184, 190, 196, 203, 209, 215, 222, 228,234, 247, 253, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 252, 240, 233, 227, 221, 214, 208, 202, 195, 189, 183, 170, 164, 157, 151, 145, 138, 132, 126, 119, 113, 100,  94,  88,  81,  75,  69,  62,  56,  50,  37,  31,  24,  18,  12,   5,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   4,  10,  16,  23,  29,  35,  42,  48,  54,  61,  73,  80,  86,  92,  99, 105, 111, 118, 124, 130, 143, 149, 156, 162, 168, 175, 181, 187, 194, 200, 213, 219, 225, 231, 238, 244, 250, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255};
 
 #ifndef CONSOLENPROG
     if ( !noGUI ) lastColorTbl = ui->cbsColorTbl->currentIndex();
@@ -739,7 +784,9 @@ void widImage::extractUpdateImage(bool flg)
         QImage tmp = imgNormal;
         QPainter pnt(&tmp);
         pnt.setBrush( Qt::NoBrush );
-        if ( zoom2pix[ui->cbsZoom->currentIndex()] < 1 )
+        if ( zoom2pix[ui->cbsZoom->currentIndex()] == 0 /*640*640*/ )
+            pnt.setPen( extractFrameColor() );
+        else if ( zoom2pix[ui->cbsZoom->currentIndex()] < 1 )
             pnt.setPen( QPen( extractFrameColor(), 1.0/zoom2pix[ui->cbsZoom->currentIndex()]) );
         else
             pnt.setPen( extractFrameColor() );
@@ -754,7 +801,10 @@ void widImage::extractUpdateImage(bool flg)
 
         if ( ui->cbsZoom->currentIndex() > 0 )
         {
-            ui->lblImage->setPixmap( QPixmap::fromImage(tmp).scaled(tmp.size()*zoom2pix[ui->cbsZoom->currentIndex()]) );
+            if ( zoom2pix[ui->cbsZoom->currentIndex()] == 0 /*640*640*/ )
+                ui->lblImage->setPixmap( QPixmap::fromImage(tmp).scaled(640,640) );
+            else
+                ui->lblImage->setPixmap( QPixmap::fromImage(tmp).scaled(tmp.size()*zoom2pix[ui->cbsZoom->currentIndex()]) );
         }
         else
         {
@@ -765,7 +815,10 @@ void widImage::extractUpdateImage(bool flg)
     {
         if ( ui->cbsZoom->currentIndex() > 0 )
         {
-            ui->lblImage->setPixmap( QPixmap::fromImage(imgNormal).scaled(imgNormal.size()*zoom2pix[ui->cbsZoom->currentIndex()]) );
+            if ( zoom2pix[ui->cbsZoom->currentIndex()] == 0 /*640*640*/ )
+                ui->lblImage->setPixmap( QPixmap::fromImage(imgNormal).scaled(640,640) );
+            else
+                ui->lblImage->setPixmap( QPixmap::fromImage(imgNormal).scaled(imgNormal.size()*zoom2pix[ui->cbsZoom->currentIndex()]) );
         }
         else
         {
@@ -783,6 +836,9 @@ QImage widImage::generateImage()
     //img.fill( Qt::black );
     double vmin=1e26, vmin2=1e26, vmax=0, vlogmin=1e26, vlogmax=0;
 #ifndef CONSOLENPROG
+#ifdef UseAutoNoBorder
+    bool useBorders = !noGUI && !ui->radScaleAutoNoBorder->isChecked();
+#endif
     if ( !noGUI && ui->radShowLin->isChecked() )
 #else
     if ( useLinOut )
@@ -790,36 +846,50 @@ QImage widImage::generateImage()
     {   // Lin
         vlogmin = vlogmax = 0;
         QVector<double>::const_iterator i;
+#ifdef UseAutoNoBorder
+        for ( i = data.constBegin(); i != data.constEnd(); )
+            for ( int xx=minX; xx<maxX; xx++ )
+                for ( int yy=minY; yy<maxY; yy++, ++i )
+                    if ( useBorders || ( xx>minX && xx<maxX-1 && yy>minY && yy<maxY-1 ) )
+#else
         for ( i = data.constBegin(); i != data.constEnd(); ++i )
-        {
-            if ( *i > 0 && *i < vmin2 )
-                vmin2 = *i;
-            if ( *i < vmin )
-                vmin = *i;
-            else if ( *i > vmax )
-                vmax = *i;
-        }
+#endif
+                    {
+                        if ( *i > 0 && *i < vmin2 )
+                            vmin2 = *i;
+                        if ( *i < vmin )
+                            vmin = *i;
+                        else if ( *i > vmax )
+                            vmax = *i;
+                    }
     }
     else
     {   // Log
         QVector<double>::const_iterator i;
+#ifdef UseAutoNoBorder
+        for ( i = data.constBegin(); i != data.constEnd(); )
+            for ( int xx=minX; xx<maxX; xx++ )
+                for ( int yy=minY; yy<maxY; yy++, ++i )
+                    if ( useBorders || ( xx>minX && xx<maxX-1 && yy>minY && yy<maxY-1 ) )
+#else
         for ( i = data.constBegin(); i != data.constEnd(); ++i )
-            if ( *i > -1.0e10 )
-            {
-                if ( *i > 0 && *i < vmin2 )
-                    vmin2 = *i;
-                if ( *i < vmin )
-                    vmin = *i;
-                else if ( *i > vmax )
-                    vmax = *i;
-                if ( *i > 0 )
-                {
-                    if ( log10(*i) < vlogmin )
-                        vlogmin = log10(*i);
-                    else if ( log10(*i) > vlogmax )
-                        vlogmax = log10(*i);
-                }
-            }
+#endif
+                        if ( *i > -1.0e10 )
+                        {
+                            if ( *i > 0 && *i < vmin2 )
+                                vmin2 = *i;
+                            if ( *i < vmin )
+                                vmin = *i;
+                            else if ( *i > vmax )
+                                vmax = *i;
+                            if ( *i > 0 )
+                            {
+                                if ( log10(*i) < vlogmin )
+                                    vlogmin = log10(*i);
+                                else if ( log10(*i) > vlogmax )
+                                    vlogmax = log10(*i);
+                            }
+                        }
     }
     if ( fabs(vmin-vmax) < 1e-6 )
     {   // Bei lin und log ...
@@ -873,7 +943,7 @@ QImage widImage::generateImage()
         for ( int y=minY, yp=0; y<maxY; y++, yp++ )
             for ( int x=minX, xp=0; x<maxX; x++, xp++ )
             {
-                img.setPixelColor( xp, yp, data2pixelcol(getData(x,y),vmin,vmax,vmax,false) );
+                img.setPixelColor( yp, xp, data2pixelcol(getData(x,y),vmin,vmax,vmax,false) );
                 //QColor widImage::data2pixelcol( double val, double min, double max, bool islog )
             }
     }
@@ -898,9 +968,13 @@ QImage widImage::generateImage()
         img = img.mirrored( swapHor, swapVert );
 
     // Perform rotation
-    if ( rotIndex == 0 /*0°*/ ) return img;     // to speed up a little bit
+    // ACHTUNG: im Scatter ist +Y nach oben und +X nach rechts.
+    //          hier ist bei mat.rotate(0) +Y nach links und +X nach unten.
+    //          Daher wird das Bild immer um 270° gedreht, dann passen beide wieder.
+    int locrot = (rotIndex + 3) % 4;
+    if ( locrot == 0 /*0°*/ ) return img;     // to speed up a little bit
     QTransform mat = QTransform(); // Identity
-    return img.transformed( mat.rotate( rotIndex * 90 ) );
+    return img.transformed( mat.rotate( locrot * 90 ) );
 }
 
 
@@ -1186,7 +1260,12 @@ void widImage::on_cbsZoom_activated(int index)
 #ifndef NOADJUST
     QPoint pnt = pos();
 #endif
-    ui->lblImage->setMinimumSize( imgNormal.size()*zoom2pix[index] );
+    if ( zoom2pix[index] == 0 /*640*640*/ )
+    {
+        ui->lblImage->setMinimumSize( 640, 640 );
+    }
+    else
+        ui->lblImage->setMinimumSize( imgNormal.size()*zoom2pix[index] );
     if ( enaExtract || enaNoFit )
     {
         extractUpdateImage(false);
@@ -1195,7 +1274,10 @@ void widImage::on_cbsZoom_activated(int index)
     {
         //qDebug() << "cbsZoom";
         QPixmap pix = QPixmap::fromImage(imgNormal);
-        ui->lblImage->setPixmap( pix.scaled(pix.size()*zoom2pix[index]) );
+        if ( zoom2pix[index] == 0 /*640*640*/ )
+            ui->lblImage->setPixmap( pix.scaled(640,640) );
+        else
+            ui->lblImage->setPixmap( pix.scaled(pix.size()*zoom2pix[index]) );
     }
     qApp->processEvents();
 #ifndef NOADJUST
@@ -1258,8 +1340,23 @@ bool widImage::mouse2data( QPoint pos, int &x, int &y, QPoint &pnt )
 
     // In <pnt> werden die Koordinaten für die Extraktionsauswahl mit der Maus
     //  gespeichert und sollten nicht gedreht werden.
-    pnt.setX( (pos.x() - rpi.left()) / zoom2pix[zoomFactor] );
-    pnt.setY( (pos.y() - rpi.top() ) / zoom2pix[zoomFactor] );
+    if ( zoom2pix[zoomFactor] == 0 /*640*640*/ )
+    {
+        pnt.setX( (pos.x() - rpi.left()) );
+        pnt.setY( (pos.y() - rpi.top() ) );
+        if ( ! imgNormal.isNull() )
+        {
+            pnt.setX( pnt.x() * imgNormal.width()  / 640.0 );
+            pnt.setY( pnt.y() * imgNormal.height() / 640.0 );
+        }
+        //qDebug() << "WID640" << pos << rpi << pnt;
+    }
+    else
+    {
+        pnt.setX( (pos.x() - rpi.left()) / zoom2pix[zoomFactor] );
+        pnt.setY( (pos.y() - rpi.top() ) / zoom2pix[zoomFactor] );
+        //qDebug() << "WID" << zoom2pix[zoomFactor] << pos << rpi << pnt;
+    }
 
     // The image is first mirrored, then rotated. So we must first rotate back then mirror back...
     // The rotation is performed around the center of the image!
@@ -1273,8 +1370,25 @@ bool widImage::mouse2data( QPoint pos, int &x, int &y, QPoint &pnt )
     if ( swapVert )
         line.setAngle( - line.angle() );
 
-    x = minX + (line.p2().x() - rpi.left()) / zoom2pix[zoomFactor];
-    y = minY + (line.p2().y() - rpi.top())  / zoom2pix[zoomFactor];
+    if ( zoom2pix[zoomFactor] == 0 /*640*640*/ )
+    {
+        if ( imgNormal.isNull() )
+        {
+            x = minX + (line.p2().x() - rpi.left());
+            y = minY + (line.p2().y() - rpi.top() );
+        }
+        else
+        {
+            x = minX + (line.p2().x() - rpi.left()) * imgNormal.width()  / 640.0;
+            y = minY + (line.p2().y() - rpi.top() ) * imgNormal.height() / 640.0;
+        }
+        //qDebug() << "WID-xy" << pos << rpi << pnt << x << y;
+    }
+    else
+    {
+        x = minX + (line.p2().x() - rpi.left()) / zoom2pix[zoomFactor];
+        y = minY + (line.p2().y() - rpi.top())  / zoom2pix[zoomFactor];
+    }
 
     return true;
 }
@@ -1370,8 +1484,9 @@ void widImage::mouseMoveEvent(QMouseEvent *event)
     //if ( ui->radShowLin->isChecked() )
     //{   // Lin
     QToolTip::showText( event->globalPos(),
-                        QString("[%1,%2]=%3 (%8,%9)\nqx=%4,qy=%5,qz=%6)\nq=%7").arg(x).arg(y).arg(data.at(idx))
-                           .arg(qx).arg(qy).arg(qz).arg(q).arg(pos.x()).arg(pos.y()) );
+                        QString("[%1,%2]=%3 (%8,%9)\nqx=%4,qy=%5,qz=%6)\nq=%7  %10").arg(x).arg(y).arg(data.at(idx))
+                           .arg(qx).arg(qy).arg(qz).arg(q).arg(pos.x()).arg(pos.y())
+                           .arg(useCenterBeamPos?"BS":"Mid"));
     //}
     //else
     //{   // Log
@@ -1400,14 +1515,33 @@ implementation of mouseMoveEvent().
 
 double widImage::xy2q( int x, int y, double &qx, double &qy, double &qz )
 {
-    double xdet = fileInfos.pixWidthX * (x - fileInfos.centerX);
-    double ydet = fileInfos.pixWidthY * (y - fileInfos.centerY);
-    double rdet = sqrt(xdet*xdet+ydet*ydet);
-    double phidet = atan2(ydet,xdet);
-    double thetadet = atan2(rdet,fileInfos.distance);
-    qx = 2*M_PI*cos(phidet)*sin(thetadet)/fileInfos.wavelen;
-    qy = 2*M_PI*sin(phidet)*sin(thetadet)/fileInfos.wavelen;
-    qz = 2*M_PI*(1-cos(thetadet))/fileInfos.wavelen;
+    if ( useCenterBeamPos )
+    {   // Einrechnen des Beamstops (d.h. Verschiebung des Zentrums)
+        double mdet = (y/*+CALC.zmax+1*/)*fileInfos.pixelY/(double)(maxY-minY);      /* mth pixel */
+        double ndet = (x/*+CALC.zmax+1*/)*fileInfos.pixelX/(double)(maxX-minX);      /* nth pixel */
+        // Im Pascal-Programm ist der Beamstop für Null in der Ecke.
+        // Hier ist der Beamstop für Null in der Mitte gerechnet.
+        double xdet = fileInfos.pixWidthX * (ndet - fileInfos.centerX);
+        double ydet = fileInfos.pixWidthY * (mdet - fileInfos.centerY);
+        double rdet = sqrt(xdet*xdet+ydet*ydet);
+        double phidet = atan2(ydet,xdet);
+        double thetadet = atan2(rdet,fileInfos.distance);
+        qx = 2*M_PI*cos(phidet)*sin(thetadet)/fileInfos.wavelen;
+        qy = 2*M_PI*sin(phidet)*sin(thetadet)/fileInfos.wavelen;
+        qz = 2*M_PI*(1-cos(thetadet))/fileInfos.wavelen;
+    }
+    else
+    {   // Den Mittelpunkt nutzen (ihex=0,i=0)
+        if ( !qmaxset )
+        {
+            qmaxset = true;
+            if ( qmaxcalc ) qmax = calcQmax;
+            if ( qmaxedit ) qmax = editQmax;
+        }
+        qx = qmax * x / ((maxX-minX)/2.0); // lamu
+        qy = qmax * y / ((maxY-minY)/2.0);  // lamv
+        qz = 1e-20;
+    }
     return sqrt(qx*qx+qy*qy+qz*qz)+eps9;
 }
 
@@ -1506,10 +1640,6 @@ QColor widImage::IntToColor( double ywert, double decade, int tbl )
 {
     int farbwert,greyvalue;
     if ( decade < 0 || isnan(ywert) ) return QColor(0,0,0);
-
-    //std::cerr << "IntToColor( " << ywert << ", " << decade << ", " << tbl << " )" << std::endl;
-    //IntToColor( 2.57273e+181, 0, 1 )
-    //QImage::setPixelColor: color is invalid
 
     switch ( tbl )
     {

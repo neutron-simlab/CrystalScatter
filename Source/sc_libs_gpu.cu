@@ -19,6 +19,10 @@
 #endif
 
 
+#define CHECKENDTHREAD_VAL if(_endThread)return 0;
+#define CHECKENDTHREAD_RET if(_endThread)return;
+
+
 /**
  * @brief endThread
  * Helper function to cancel all calculation threads.
@@ -26,48 +30,47 @@
  */
 void SasCalc_GENERIC_calculation::endThread()
 {
-    if ( !_endThread )
-    {   // Jetzt wirklich die Threads killen
-        _endThread = true; // Damit die Threads nicht weitermachen
+    if ( _endThread ) return;   // endThread()
+    // Jetzt wirklich die Threads killen
+    _endThread = true; // Damit die Threads nicht weitermachen
 #ifdef __CUDACC__
-        if ( gpuAvailable() && numberOfThreads == 0 )
-        {
-            //cudaReset(); // TODO
-        }
-        else
+    if ( gpuAvailable() && numberOfThreads == 0 )
+    {
+        //cudaReset(); // TODO
+    }
+    else
 #endif
-            if ( threads != nullptr && numberOfThreads > 1 )
-            {   // Special work for Multi-Threads...
-                std::cerr << "endThread() Canceling ..." << std::endl;
-                int s;
-                bool doJoin=true;
-                for ( int i=0; i<numberOfThreads; i++ )
+        if ( threads != nullptr && numberOfThreads > 1 )
+        {   // Special work for Multi-Threads...
+            std::cerr << "endThread() Canceling ..." << std::endl;
+            int s;
+            bool doJoin=true;
+            for ( int i=0; i<numberOfThreads; i++ )
+            {
+                std::cerr << "    Thread #" << i << ": ";
+                if ( threads != nullptr && threads[i] != 0 )
                 {
-                    std::cerr << "    Thread #" << i << ": ";
-                    if ( threads != nullptr && threads[i] != 0 )
+                    s = pthread_cancel( threads[i] );
+                    //pthread_kill( threads[i], SIGTERM );
+                    if ( s == 0 )
                     {
-                        s = pthread_cancel( threads[i] );
-                        //pthread_kill( threads[i], SIGTERM );
-                        if ( s == 0 )
-                        {
-                            std::cerr << "Canceled." << std::endl;
-                            if ( doJoin )
-                            {   // Nur beim ersten wird auf das Ende gewartet, die anderen sind dann auch beendet
-                                pthread_join( threads[i], nullptr );
-                                //std::cerr << "               finished." << std::endl;
-                                doJoin = false;
-                            }
+                        std::cerr << "Canceled." << std::endl << std::flush;
+                        if ( doJoin )
+                        {   // Nur beim ersten wird auf das Ende gewartet, die anderen sind dann auch beendet
+                            pthread_join( threads[i], nullptr );
+                            std::cerr << "               finished." << std::endl << std::flush;
+                            doJoin = false;
                         }
-                        else
-                            std::cerr << "Cancelerror!" << s << std::endl;
-                        if ( threads != nullptr ) threads[i] = 0;
                     }
                     else
-                        std::cerr << "not running" << std::endl;
+                        std::cerr << "Cancelerror! " << s << std::endl << std::flush;
+                    if ( threads != nullptr ) threads[i] = 0;
                 }
-            }
-    }
-}
+                else
+                    std::cerr << "not running" << std::endl << std::flush;
+            } // for i
+        } // if threads != 0
+} /* endThread() */
 
 
 
@@ -353,13 +356,13 @@ void SasCalc_GENERIC_calculation::pearsonintegral3(double at, double bt, double 
 //#define UseStringGrid12
 #endif
 
-#define latpar1(a,b) latpar1ptr[latparIDX(a,b, 6)]      // [5000][6], genutzt: 0,1,2,3,4,5
-#define latpar2(a,b) latpar2ptr[latparIDX(a,b, 6)]      // [5000][6], genutzt: 0,1,2,3,4,5
-#define latpar3(a,b) latpar3ptr[latparIDX(a,b,14)]      // [5000][15], genutzt: 1 bis 12
+//#define latpar1(a,b) latpar1ptr[latparIDX(a,b, 6)]      // [5000][6], genutzt: 0,1,2,3,4,5
+//#define latpar2(a,b) latpar2ptr[latparIDX(a,b, 6)]      // [5000][6], genutzt: 0,1,2,3,4,5
+//#define latpar3(a,b) latpar3ptr[latparIDX(a,b,17)]      // [5000][15], genutzt: 1 bis 16
 //#define latpar4(a,b) latpar4ptr[latparIDX(a,b, 2)]      // [5000][15], genutzt: nichts
 
 // Nur in prepareCalculation
-void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype, int *latpar1ptr, int *latpar2ptr ) const
+void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype ) const
 {   //Z=43355
 
     //const int np=20000;
@@ -367,6 +370,7 @@ void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype, int *latpar1ptr, in
     int /*i,j,*/ii/*,jj*/,h,k,l,hmax,kmax,lmax;//,index,xpos,ypos,image1width,image1height;
     int /*c0,*/c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,mult,/*multmax,hlev,klev,llev,zlev,zvar,*/ct1;
     // Unbenutzte Variablen: c3, c5, c9, c11, c12, c14 - sie werden aber hier gelassen, da ich sie nicht aus den Zuweisungs-case rausnehmen will
+    Q_UNUSED(c3); Q_UNUSED(c5); Q_UNUSED(c9); Q_UNUSED(c11); Q_UNUSED(c12); Q_UNUSED(c14);
     int ccase,c1case,c2case/*,c3case*/,c4case/*,c5case*/,c6case,c7case,c8case/*,c9case*/,c10case;//,c11case,c12case;
     float a,b,c,alf,gam; //,xmin,xmax,wave,ttheta,sinarg;
 #ifdef UseStringGrid12
@@ -433,8 +437,8 @@ void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype, int *latpar1ptr, in
             ComboBoxMonoclinic=0,   // unused
             ComboBoxTriclinic=0;    // unused
 
-    latpar1(  1,0)=0;
-    latpar2(  1,0)=0;
+    setLatpar1(  1,0,0);
+    setLatpar2(  1,0,0);
 
     switch ( ltype )
     {
@@ -518,8 +522,8 @@ void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype, int *latpar1ptr, in
         break;
 
     default:
-        //return; // TODO Fehlermeldung
-        break;
+        return; // TODO Fehlermeldung?
+        //break;
     } // switch ltype
 
     // Image?? werden hier komplett ausgeblendet
@@ -2356,21 +2360,21 @@ void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype, int *latpar1ptr, in
 #endif
                         if ( ii==1 )
                         {
-                            latpar1(  1,0)=ct1;
-                            latpar1(ct1,1)=h;
-                            latpar1(ct1,2)=k;
-                            latpar1(ct1,3)=l;
-                            latpar1(ct1,4)=mult;
+                            setLatpar1(  1,0,ct1);
+                            setLatpar1(ct1,1,h);
+                            setLatpar1(ct1,2,k);
+                            setLatpar1(ct1,3,l);
+                            setLatpar1(ct1,4,mult);
                             //qDebug() << "latpar1:" << ct1 << h << k << l << mult;
                             ct1++;
                         }
                         else //if ( ii==2 )
                         {
-                            latpar2(  1,0)=ct1;
-                            latpar2(ct1,1)=h;
-                            latpar2(ct1,2)=k;
-                            latpar2(ct1,3)=l;
-                            latpar2(ct1,4)=mult;
+                            setLatpar2(  1,0,ct1);
+                            setLatpar2(ct1,1,h);
+                            setLatpar2(ct1,2,k);
+                            setLatpar2(ct1,3,l);
+                            setLatpar2(ct1,4,mult);
                             //qDebug() << "latpar2:" << ct1 << h << k << l << mult;
                             ct1++;
                         }
@@ -3311,6 +3315,8 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
     double x, tnm, sump, /*sumf, sumn, sums,*/ del;  //Zupq1=2046
     double /*fa, fb, fx,*/ pa, pb, px; //, na, nb, nx, sa, sb, sx;  //Zupq1=2047
 
+    CHECKENDTHREAD_RET
+
     if ( n==1 )
     {/*2*/  //Zupq1=2050
         switch ( i0 )
@@ -3474,6 +3480,7 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
         sump = 0.0;  //Zupq1=2180
         for ( j=1; j<=trapzddeltac_cnt; j++ )
         {/*3*/  //Zupq1=2181
+            CHECKENDTHREAD_RET
             switch ( i0 )
             {
             case 1:  /*  delta integration  */  //Zupq1=2182
@@ -3780,6 +3787,7 @@ void SasCalc_GENERIC_calculation::qrombdeltac( double p1, double sigma, double a
     hp[1] = 1.0;  //Zupq1=2293
     for ( j=1; j<=jmax; j++ )
     {/*2*/  //Zupq1=2294
+        CHECKENDTHREAD_RET
         trapzddeltac(alim,blim,params.length,params.radius,p1,sigma,alfa,dbeta,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,
                      qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,
                      ordis,dim,i0,i1,i2,i3,i4,carr1,sp[j],j, trapzddeltac_cnt );  //Zupq1=2295
@@ -3898,6 +3906,7 @@ void SasCalc_GENERIC_calculation::qrombchid( double l, double r, double p1, doub
     hp[1] = 1.0;  //Zupq1=1449
     for ( j=1; j<=jmax; j++ )
     {/*2*/  //Zupq1=1450
+        CHECKENDTHREAD_RET
         /* trapzdchid(alim,blim,l,r,p1,rho,alfa,sigmal,sigma,cc0,cc1,cc2,cc3,cc4,cc5,cc6,cc7,cc8,dbeta,phi,theta,qxn,qyn,qzn,q,maxit,i0,i1,i2,i3,i4,sp^[j],j);  //Zupq1=1451 */
         trapzdchid(alim,blim,l,r,p1,sigma,alfa,delta,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,
                    p31,p32,p33,qxn,qyn,qzn,qhkl,ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,
@@ -3974,6 +3983,8 @@ void SasCalc_GENERIC_calculation::trapzdchid( double a, double b, double l, doub
 
     arga = 1; // to avoid compiler warnings
     argb = 1;
+
+    CHECKENDTHREAD_RET
 
     if ( n==1 )
     {/*2*/  //Zupq1=163
@@ -5201,7 +5212,7 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
     double ac1, ac2, ac3, ac4, ac5, ac6, ac7, ac8, ac9, ac10;  //Z=15198
     double argbm, nenbm, argbp, nenbp, argep, nenep, argem, nenem, arggp, nengp;  //Z=15199
     double arggm, nengm, /*argim, nenim, argip, nenip,*/ F121, F122, F123; //, F124, F125, F126;  //Z=15200
-    double qqn[200], /*qqnx[200], qqny[200],*/ fkv[200]; //, gam3[200];  //Z=15201
+    double /*qqn[200], qqnx[200], qqny[200],*/ fkv[121]; //, gam3[200];  //Z=15201
     double F12, F12ser, F12asz, F12sum, F12sez, oldF12sez, F12asy, F12as1z, F12as2z, F12as3z, F12as4z;  //Z=15202
     double v, e0, e1, pz2v, pz2v1, pz2v2, lim, lim1, xrz, arg, nen, arg1, nen1, arg2, nen2;  //Z=15203
     double a1m, a2m, xijm, arglmz, nenlmz, xijp, arglpz, nenlpz, vvm, rmax, del, delc;  //Z=15204
@@ -5228,10 +5239,10 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
     double arg61, nen61, arg62, nen62, /*arg63, nen63,*/ arg64, nen64, arg65, nen65;  //Z=15225
     double F62as10z, /*F62as1sumz, F62as1z,*/ F62as1z0, F62as20z, F62as21, F62as22, /*F62as23, F62as2z,*/ F62as2z0;  //Z=15226
     double F62as30z, F62as24, /*F62as25,*/ F62as26, /*F62as3z,*/ F62as3z0, F62as40z, F62as27, F62as28, F62as29, F62as4z, /*F62asz,*/ F62asz0;  //Z=15227
-    double z12v[200], a1v[200], b1v[200], b2v[200], b1sv[200], /*sum12[200],*/ sum22[200], sum32[200]; //, sum42[200], sum52[200], sum62[200];  //Z=15228
+    double /*z12v[200],*/ a1v[121], b1v[121], b2v[121], b1sv[121]; //, sum12[200], sum22[200], sum32[200], sum42[200], sum52[200], sum62[200];  //Z=15228
 
     /*begin*/  //Z=15230
-    zl = (1-sigmal*sigmal)/(sigmal*sigmal);  //Z=15231
+    zl = (1-sqr(sigmal))/sqr(sigmal);  //Z=15231
     zr = (1-sqr(params.sigma))/(sqr(params.sigma));  //Z=15232
     radiusm = params.radius/params.p1;   /*  outer radius of core/shell particle  */  //Z=15233
 
@@ -5250,6 +5261,8 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
     //ellb = params.length;  //Z=15236
     //ellc = radiusm;  //Z=15237
 
+    CHECKENDTHREAD_VAL
+
     /* ************ */  //Z=15240
     /* ** sphere ** */  //Z=15241
     /* ************ */  //Z=15242
@@ -5259,6 +5272,7 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
         if ( params.cs==0 )
         {/*3*/  //Z=15245
             //if ( q > 2.2 ) qDebug() << "  formpq" << 0.4*params.limq4 << q << "r"<<params.radius;
+            //[15386]        //if (q<1.5*limq4) then begin    (* for monodisperse sphere test *)
             if ( q<0.4*params.limq4 )
             {/*4*/  //Z=15246
                 pqsum = 1.0;  //Z=15247
@@ -5316,13 +5330,13 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
             /*  F121 sphere  */  //Z=15296
             if ( q<(0.3*params.limq4) )
             {/*4*/  //Z=15297
-                qqn[0] = 1.0;  //Z=15298
+                double qqnn = 1.0;  //Z=15298
                 pqsum = 1.0;  //Z=15299
                 oldpqsum = 0.0;  //Z=15300
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=15301
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=15302
-                    pqsum = pqsum+qqn[nser]*params.CR->carr4p[nser];  //Z=15303
+                    qqnn = qqnn*q*q;  //Z=15302
+                    pqsum = pqsum+qqnn*params.CR->carr4p[nser];  //Z=15303
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=15304
                     if ( delser<0.0001 ) break; /* goto 51; */  //Z=15305
                     oldpqsum = pqsum;  //Z=15306
@@ -5341,13 +5355,13 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
             /*  F122 sphere  */  //Z=15318
             if ( q<(0.3*params.limq5) )
             {/*4*/  //Z=15319
-                qqn[0] = 1.0;  //Z=15320
+                double qqnn = 1.0;  //Z=15320
                 pqsum = 1.0;  //Z=15321
                 oldpqsum = 0.0;  //Z=15322
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=15323
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=15324
-                    pqsum = pqsum+qqn[nser]*params.CR->carr5p[nser];  //Z=15325
+                    qqnn = qqnn*q*q;  //Z=15324
+                    pqsum = pqsum+qqnn*params.CR->carr5p[nser];  //Z=15325
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=15326
                     if ( delser<0.0001 ) break; /* goto 52; */  //Z=15327
                     oldpqsum = pqsum;  //Z=15328
@@ -5384,13 +5398,13 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
             /*  F123 sphere  */  //Z=15358
             if ( q<(0.3*params.limq6) )
             {/*4*/  //Z=15359
-                qqn[0] = 1.0;  //Z=15360
+                double qqnn = 1.0;  //Z=15360
                 pqsum = 1.0;  //Z=15361
                 oldpqsum = 0.0;  //Z=15362
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=15363
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=15364
-                    pqsum = pqsum+qqn[nser]*params.CR->carr6p[nser];  //Z=15365
+                    qqnn = qqnn*q*q;  //Z=15364
+                    pqsum = pqsum+qqnn*params.CR->carr6p[nser];  //Z=15365
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=15366
                     if ( delser<0.0001 ) break; /* goto 53; */  //Z=15367
                     oldpqsum = pqsum;  //Z=15368
@@ -5955,8 +5969,6 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
             /* formpq:=pqcoreshellin(1.0,rho,p1,1.0,0.001,alfa,radiusm,3,sigmar,q);  //Z=15901 */
         }/*3*/ /*  of inhomogeneous core/shell sphere  */  //Z=15902
 
-
-
         /*  myelin sphere  */  //Z=15906
         if ( (params.cs==3) || (params.cs==4) )
         {/*3*/  //Z=15907
@@ -5980,12 +5992,13 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
             if ( xmax<(lim1) )
             {/*4*/  //Z=15925
                 /* fkv[0]:=1;  //Z=15926 */
-                qqn[0] = 1.0;  //Z=15927
-                for ( nser=1; nser<=120; nser++ )
-                {/*5*/  //Z=15928
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=15929
-                    /* fkv[nser]:=fkv[nser-1]*nser;  //Z=15930 */
-                }/*5*/  //Z=15931
+                // Auf der GPU ist es effizienter, eine kleine Berechnung zu machen als ein grosses Array zu haben.
+                double qqnn;  //Z=15927
+                //for ( nser=1; nser<=120; nser++ )
+                //{   //Z=15928
+                //    qqn[nser] = qqn[nser-1]*q*q;  //Z=15929, muss bleiben!
+                //    /* fkv[nser]:=fkv[nser-1]*nser;  //Z=15930 */
+                //}   //Z=15931
 
                 F12sum = 0.0;  //Z=15933
                 for ( ii=1; ii<=inmax; ii++ )
@@ -5994,8 +6007,10 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                     {/*6*/  //Z=15935
                         F12sez = 1.0;  //Z=15936
                         oldF12sez = 1.0;  //Z=15937
+                        qqnn = 1.0;
                         for ( nser=1; nser<=120; nser++ )
                         {/*7*/  //Z=15938
+                            qqnn = qqnn * q*q;
                             pqsum = 0;  //Z=15939
                             for ( mser=0; mser<=nser; mser++ )
                             {/*8*/  //Z=15940
@@ -6005,7 +6020,7 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                                 /* indx:=mser+1+round(nser*(nser+1)/2);  //Z=15944 */
                                 /* pqsum:=pqsum+power(carr7p[ii],2*mser)*power(carr7p[jj],2*(nser-mser))*carr1pm[indx];  //Z=15945 */
                             }/*8*/  //Z=15946
-                            F12sez = F12sez+params.CR->carr4p[nser]*qqn[nser]*pqsum;  //Z=15947
+                            F12sez = F12sez+params.CR->carr4p[nser]*qqnn*pqsum;  //Z=15947
                             delser = fabs((F12sez-oldF12sez)/F12sez);  //Z=15948
                             if ( delser<0.0001 ) break; /* goto 250; */  //Z=15949
                             oldF12sez = F12sez;  //Z=15950
@@ -6061,7 +6076,6 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
     }/*2*/ /*  of sphere  */  //Z=15997
 
 
-
     /* ************ */  //Z=16001
     /* ** triaxial ellipsoid ** */  //Z=16002
     /* ************ */  //Z=16003
@@ -6077,11 +6091,11 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                 {/*5*/  //Z=16009
                     pqsum = 1.0;  //Z=16010
                     oldpqsum = 0.0;  //Z=16011
-                    qqn[0] = 1.0;  //Z=16012
+                    double qqnn = 1.0;  //Z=16012
                     for ( nser=1; nser<=100; nser++ )
                     {/*6*/  //Z=16013
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=16014
-                        pqsum = pqsum+params.CR->carr4p[nser]*qqn[nser];  //Z=16015
+                        qqnn = qqnn*q*q;  //Z=16014
+                        pqsum = pqsum+params.CR->carr4p[nser]*qqnn;  //Z=16015
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=16016
                         if ( delser<0.0001 ) break; /* goto 90; */  //Z=16017
                         oldpqsum = pqsum;  //Z=16018
@@ -6107,8 +6121,8 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                               ordis,3,7,13,7,0,0,params.CR->carr1p,pql);  //Z=16029
                     /*formpq:=*/ return pql;  //Z=16030
                 }/*5*/  //Z=16031
-            }/*4*/ /*  of homogeneous sphere */  //Z=16032
-        }/*3*/  /*  of isotropic  */  //Z=16033
+            }/*4*/  //Z=16032
+        }/*3*/   //Z=16033
 
 
         /*  perfect  */  //Z=16036
@@ -6152,7 +6166,6 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
     }/*2*/   /*  of ellipsoid  */  //Z=16068
 
 
-
     /* ********** */  //Z=16072
     /*  cylinder  */  //Z=16073
     /* ********** */  //Z=16074
@@ -6181,7 +6194,8 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                        end;  */  //Z=16093
 
                     /*  double sum  */  //Z=16095
-                    qqn[0] = 1.0;  //Z=16096
+                    double qqn[101];
+                    qqn[0] = 1.0;  //Z=16096  Hier ist das Array sinnvoll, aber kleiner und lokal
                     for ( nser=1; nser<=100; nser++ ) qqn[nser] = qqn[nser-1]*q*q;  //Z=16097
                     pqsum = 0.0;  //Z=16098
                     oldpqsum = -10.0;  //Z=16099
@@ -6211,11 +6225,11 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                 {/*5*/  //Z=16119
                     pqsum = 1.0;  //Z=16120
                     oldpqsum = 0.0;  //Z=16121
-                    qqn[0] = 1.0;  //Z=16122
+                    double qqnn = 1.0;  //Z=16122
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=16123
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=16124
-                        pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser];  //Z=16125
+                        qqnn = qqnn*q*q;  //Z=16124
+                        pqsum = pqsum+params.CR->carr1p[nser]*qqnn;  //Z=16125
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=16126
                         if ( delser<0.0001 ) break; /* goto 60; */  //Z=16127
                         oldpqsum = pqsum;  //Z=16128
@@ -6245,11 +6259,11 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                     /* if (sqrt(qx*qx*length*length+qy*qy*radius*radius+eps)<10) then begin  //Z=16147 */
                     pqsum = 1.0;  //Z=16148
                     oldpqsum = 0.0;  //Z=16149
-                    qqn[0] = 1.0;  //Z=16150
+                    double qqnn = 1.0;  //Z=16150
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=16151
-                        qqn[nser] = qqn[nser-1]*(qxs+qys)*(qxs+qys);     /*  (qxs,qys)=(qx,0) for x, (0,qy) for y, (qx,qy) for z  */  //Z=16152
-                        pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser];  //Z=16153
+                        qqnn = qqnn*(qxs+qys)*(qxs+qys);     /*  (qxs,qys)=(qx,0) for x, (0,qy) for y, (qx,qy) for z  */  //Z=16152
+                        pqsum = pqsum+params.CR->carr1p[nser]*qqnn;  //Z=16153
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=16154
                         if ( delser<0.0001 ) break; /* goto 65; */  //Z=16155
                         oldpqsum = pqsum;  //Z=16156
@@ -6371,13 +6385,13 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                     /* if (sqrt(qx*qx*length*length+qy*qy*radius*radius+eps)<10) then begin  //Z=16252 */
                     pqsum = 1.0;  //Z=16253
                     oldpqsum = 0.0;  //Z=16254
-                    qqn[0] = 1.0;  //Z=16255
+                    double qqnn = 1.0;  //Z=16255
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=16256
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=16257
+                        qqnn = qqnn*q*q;  //Z=16257
                         /* qqn[nser]:=qqn[nser-1]*(qxs+qys)*(qxs+qys);     (* (qxs,qys)=(qx,0) for x, (0,qy) for y, (qx,qy) for z *)  //Z=16258 */
                         /* qqn[nser]:=qqn[nser-1]*qx*qx;       (* GISAXS *)  //Z=16259 */
-                        pqsum = pqsum+params.CR->carr4p[nser]*qqn[nser];  //Z=16260
+                        pqsum = pqsum+params.CR->carr4p[nser]*qqnn;  //Z=16260
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=16261
                         if ( delser<0.0001 ) break; /* goto 61; */  //Z=16262
                         oldpqsum = pqsum;  //Z=16263
@@ -6430,11 +6444,11 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                 /* ** series expansion ** */  //Z=16307
                 pqsum = 1.0;  //Z=16308
                 oldpqsum = 0.0;  //Z=16309
-                qqn[0] = 1.0;  //Z=16310
+                double qqnn = 1.0;  //Z=16310
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=16311
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=16312
-                    pqsum = pqsum+params.CR->carr4p[nser]*qqn[nser];  //Z=16313
+                    qqnn = qqnn*q*q;  //Z=16312
+                    pqsum = pqsum+params.CR->carr4p[nser]*qqnn;  //Z=16313
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=16314
                     if ( delser<0.0001 ) break; /* goto 62; */  //Z=16315
                     oldpqsum = pqsum;  //Z=16316
@@ -6458,11 +6472,11 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                 /* ** series expansion ** */  //Z=16332
                 pqsum = 1.0;  //Z=16333
                 oldpqsum = 0.0;  //Z=16334
-                qqn[0] = 1.0;  //Z=16335
+                double qqnn = 1.0;  //Z=16335
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=16336
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=16337
-                    pqsum = pqsum+params.CR->carr5p[nser]*qqn[nser];  //Z=16338
+                    qqnn = qqnn*q*q;  //Z=16337
+                    pqsum = pqsum+params.CR->carr5p[nser]*qqnn;  //Z=16338
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=16339
                     if ( delser<0.0001 ) break; /* goto 63; */  //Z=16340
                     oldpqsum = pqsum;  //Z=16341
@@ -6498,11 +6512,11 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                 /* ** series expansion ** */  //Z=16369
                 pqsum = 1.0;  //Z=16370
                 oldpqsum = 0.0;  //Z=16371
-                qqn[0] = 1.0;  //Z=16372
+                double qqnn = 1.0;  //Z=16372
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=16373
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=16374
-                    pqsum = pqsum+params.CR->carr6p[nser]*qqn[nser];  //Z=16375
+                    qqnn = qqnn*q*q;  //Z=16374
+                    pqsum = pqsum+params.CR->carr6p[nser]*qqnn;  //Z=16375
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=16376
                     if ( delser<0.0001 ) break; /* goto 64; */  //Z=16377
                     oldpqsum = pqsum;  //Z=16378
@@ -6623,7 +6637,7 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
             /*  term #2 series  */  //Z=16488
             if ( (xradp)<lim2 )
             {/*4*/  //Z=16489
-                z12v[0] = 1;  //Z=16490
+                double z12vn = 1;  //Z=16490
                 a1v[0] = 1;  //Z=16491
                 b1v[0] = 1;  //Z=16492
                 b2v[0] = 1;  //Z=16493
@@ -6636,15 +6650,15 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                 {/*5*/  //Z=16499
                     //qqn[n] = qqn[n-1]*q*q;  //Z=16500
                     qqnn = qqnn * sqr(q);
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=16501
+                    z12vn = z12vn*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=16501
                     a1v[n] = a1v[n-1]*(a1-1+n);  //Z=16502
                     b1v[n] = b1v[n-1]*(b1-1+n);  //Z=16503
                     b2v[n] = b2v[n-1]*(b2-1+n);  //Z=16504
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=16505
+                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=16505 TODO
                     fkv[n] = fkv[n-1]*n;  //Z=16506
-                    sum22[n] = 0;  //Z=16507
-                    for ( m=0; m<=n; m++ ) sum22[n] = sum22[n]+a1v[n-m]*pow(sqr(params.p1),m)/(b1sv[m]*b1v[n-m]*b2v[n-m]*fkv[m]*fkv[n-m]);  //Z=16508
-                    F22sez = F22sez+pow(-x22z,n)*z12v[n]*sum22[n];  //Z=16509
+                    double sum22 = 0;  //Z=16507
+                    for ( m=0; m<=n; m++ ) sum22 += a1v[n-m]*pow(sqr(params.p1),m)/(b1sv[m]*b1v[n-m]*b2v[n-m]*fkv[m]*fkv[n-m]);  //Z=16508
+                    F22sez = F22sez+pow(-x22z,n)*z12vn*sum22;  //Z=16509
 
                     /* F22sez:=F22sez+carr5p[n]*qqn[n];  //Z=16511 */
 
@@ -6659,27 +6673,27 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
             /*  term #3 series  */  //Z=16521
             if ( (xradp)<lim3 )
             {/*4*/  //Z=16522
-                z12v[0] = 1;  //Z=16523
+                double z12vn = 1;  //Z=16523
                 a1v[0] = 1;  //Z=16524
                 b1v[0] = 1;  //Z=16525
                 b2v[0] = 1;  //Z=16526
                 b1sv[0] = 1;  //Z=16527
                 fkv[0] = 1;  //Z=16528
-                qqn[0] = 1.0;  //Z=16529
+                //qqn[0] = 1.0;  //Z=16529
                 F32sez = 1.0;  //Z=16530
                 oldF32sez = 0.0;  //Z=16531
                 for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=16532
-                    qqn[n] = qqn[n-1]*q*q;  //Z=16533
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=16534
+                    //qqn[n] = qqn[n-1]*q*q;  //Z=16533
+                    z12vn = z12vn*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=16534
                     a1v[n] = a1v[n-1]*(a1-1+n);  //Z=16535
                     b1v[n] = b1v[n-1]*(b1-1+n);  //Z=16536
                     b2v[n] = b2v[n-1]*(b2-1+n);  //Z=16537
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=16538
+                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=16538 TODO
                     fkv[n] = fkv[n-1]*n;  //Z=16539
-                    sum32[n] = 0;  //Z=16540
-                    for ( m=0; m<=n; m++ ) sum32[n] = sum32[n]+a1v[n-m]/(b1sv[m]*b1v[n-m]*b2v[n-m]*fkv[m]*fkv[n-m]);  //Z=16541
-                    F32sez = F32sez+pow(-x12z,n)*z12v[n]*sum32[n];  //Z=16542
+                    double sum32 = 0;  //Z=16540
+                    for ( m=0; m<=n; m++ ) sum32 += a1v[n-m]/(b1sv[m]*b1v[n-m]*b2v[n-m]*fkv[m]*fkv[n-m]);  //Z=16541
+                    F32sez = F32sez+pow(-x12z,n)*z12vn*sum32;  //Z=16542
 
                     /* F32sez:=F32sez+carr6p[n]*qqn[n];  //Z=16544 */
 
@@ -7047,7 +7061,6 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
 
         }/*3*/ /*  of inhomogeneous core/shell  */  //Z=16893
 
-
         /*  myelin cylinder  */  //Z=16896
         if ( (params.cs==3) || (params.cs==4) )
         {/*3*/  //Z=16897
@@ -7071,12 +7084,13 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
             if ( xmax<(lim1) )
             {/*4*/  //Z=16915
                 /* fkv[0]:=1;  //Z=16916 */
-                qqn[0] = 1.0;  //Z=16917
-                for ( nser=1; nser<=120; nser++ )
-                {/*5*/  //Z=16918
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=16919
-                    /* fkv[nser]:=fkv[nser-1]*nser;  //Z=16920 */
-                }/*5*/  //Z=16921
+                // Auf der GPU ist es effizienter, eine kleine Berechnung zu machen als ein grosses Array zu haben.
+                double qqnn;  //Z=16917
+                //for ( nser=1; nser<=120; nser++ )
+                //{/*5*/  //Z=16918
+                //    qqn[nser] = qqn[nser-1]*q*q;  //Z=16919
+                //    /* fkv[nser]:=fkv[nser-1]*nser;  //Z=16920 */
+                //}/*5*/  //Z=16921
 
                 F12sum = 0.0;  //Z=16923
                 for ( ii=1; ii<=inmax; ii++ )
@@ -7085,8 +7099,10 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                     {/*6*/  //Z=16925
                         F12sez = 1.0;  //Z=16926
                         oldF12sez = 1.0;  //Z=16927
+                        qqnn = 1.0;
                         for ( nser=1; nser<=120; nser++ )
                         {/*7*/  //Z=16928
+                            qqnn = qqnn * q*q;
                             pqsum = 0;  //Z=16929
                             for ( mser=0; mser<=nser; mser++ )
                             {/*8*/  //Z=16930
@@ -7096,7 +7112,7 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                                 /* indx:=mser+1+round(nser*(nser+1)/2);  //Z=16934 */
                                 /* pqsum:=pqsum+power(carr7p[ii],2*mser)*power(carr7p[jj],2*(nser-mser))*carr1pm[indx];  //Z=16935 */
                             }/*8*/  //Z=16936
-                            F12sez = F12sez+params.CR->carr4p[nser]*qqn[nser]*pqsum;  //Z=16937
+                            F12sez = F12sez+params.CR->carr4p[nser]*qqnn*pqsum;  //Z=16937
                             delser = fabs((F12sez-oldF12sez)/F12sez);  //Z=16938
                             if ( delser<0.0001 ) break; /* goto 101; */  //Z=16939
                             oldF12sez = F12sez;  //Z=16940
@@ -7157,7 +7173,6 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
     }/*2*/ /*  of cylinder  */  //Z=16992
 
 
-
     /* ****** */  //Z=16996
     /*  disk  */  //Z=16997
     /* ****** */  //Z=16998
@@ -7172,11 +7187,11 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
             {/*4*/  //Z=17004
                 pqsum = 1.0;  //Z=17005
                 oldpqsum = 0.0;  //Z=17006
-                qqn[0] = 1.0;  //Z=17007
+                double qqnn = 1.0;  //Z=17007
                 for ( nser=1; nser<=80; nser++ )
                 {/*5*/  //Z=17008
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=17009
-                    pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser];  //Z=17010
+                    qqnn = qqnn*q*q;  //Z=17009
+                    pqsum = pqsum+params.CR->carr1p[nser]*qqnn;  //Z=17010
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17011
                     if ( delser<0.0001 ) break; /* goto 70; */  //Z=17012
                     oldpqsum = pqsum;  //Z=17013
@@ -7199,14 +7214,14 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
 
                 pqsum = 1.0;  //Z=17028
                 oldpqsum = 0.0;  //Z=17029
-                qqn[0] = 1.0;  //Z=17030
+                double qqnn = 1.0;  //Z=17030
                 if ( params.orcase==1 )
                 {/*5*/  //Z=17031
                     argq = qxs+qys;  //Z=17032
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=17033
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=17034
-                        pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser]*pow(1.0-argq*argq,nser);  //Z=17035
+                        qqnn = qqnn*q*q;  //Z=17034
+                        pqsum = pqsum+params.CR->carr1p[nser]*qqnn*pow(1.0-argq*argq,nser);  //Z=17035
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17036
                         if ( delser<0.0001 ) break; /* goto 76; */  //Z=17037
                         oldpqsum = pqsum;  //Z=17038
@@ -7216,8 +7231,8 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                 {/*5*/  //Z=17041
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=17042
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=17043
-                        pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser]*pow(1.0-qxs*qxs,nser);  //Z=17044
+                        qqnn = qqnn*q*q;  //Z=17043
+                        pqsum = pqsum+params.CR->carr1p[nser]*qqnn*pow(1.0-qxs*qxs,nser);  //Z=17044
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17045
                         if ( delser<0.0001 ) break; /* goto 76; */  //Z=17046
                         oldpqsum = pqsum;  //Z=17047
@@ -7227,8 +7242,8 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                 {/*5*/  //Z=17050
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=17051
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=17052
-                        pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser]*pow(1.0-qys*qys,nser);  //Z=17053
+                        qqnn = qqnn*q*q;  //Z=17052
+                        pqsum = pqsum+params.CR->carr1p[nser]*qqnn*pow(1.0-qys*qys,nser);  //Z=17053
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17054
                         if ( delser<0.0001 ) break; /* goto 76; */  //Z=17055
                         oldpqsum = pqsum;  //Z=17056
@@ -7238,8 +7253,8 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                 {/*5*/  //Z=17059
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=17060
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=17061
-                        pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser];  //Z=17062
+                        qqnn = qqnn*q*q;  //Z=17061
+                        pqsum = pqsum+params.CR->carr1p[nser]*qqnn;  //Z=17062
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17063
                         if ( delser<0.0001 ) break; /* goto 76; */  //Z=17064
                         oldpqsum = pqsum;  //Z=17065
@@ -7275,13 +7290,13 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                 {/*5*/  //Z=17090
                     pqsum = 1.0;  //Z=17091
                     oldpqsum = 0.0;  //Z=17092
-                    qqn[0] = 1.0;  //Z=17093
+                    double qqnn = 1.0;  //Z=17093
                     qxn[0] = 1.0;  //Z=17094
                     qyn[0] = 1.0;  //Z=17095
 
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=17097
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=17098
+                        qqnn = qqnn*q*q;  //Z=17098
                         qxn[nser] = qxn[nser-1]*qxs*qxs;  //Z=17099
                         qyn[nser] = qyn[nser-1]*qys*qys;  //Z=17100
 
@@ -7299,7 +7314,7 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                             /* binsum:=binsum+carr1pm[indx]*binsum1;  //Z=17111 */
                             binsum = binsum+params.CR->carr11pm[nser][mser]*binsum1;  //Z=17112
                         }/*7*/  //Z=17113
-                        pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser]*binsum;  //Z=17114
+                        pqsum = pqsum+params.CR->carr1p[nser]*qqnn*binsum;  //Z=17114
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17115
                         if ( delser<0.0001 ) break; /* goto 77; */  //Z=17116
                         oldpqsum = pqsum;  //Z=17117
@@ -7322,13 +7337,13 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                 {/*5*/  //Z=17131
                     pqsum = 1.0;  //Z=17132
                     oldpqsum = 0.0;  //Z=17133
-                    qqn[0] = 1.0;  //Z=17134
+                    double qqnn = 1.0;  //Z=17134
                     qxn[0] = 1.0;  //Z=17135
                     qyn[0] = 1.0;  //Z=17136
 
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=17138
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=17139
+                        qqnn = qqnn*q*q;  //Z=17139
                         qxn[nser] = qxn[nser-1]*qxs*qxs;  //Z=17140
                         qyn[nser] = qyn[nser-1]*qys*qys;  //Z=17141
 
@@ -7346,7 +7361,7 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                             /* binsum:=binsum+carr1pm[indx]*binsum1;  //Z=17152 */
                             binsum = binsum+params.CR->carr11pm[nser][mser]*binsum1;  //Z=17153
                         }/*7*/  //Z=17154
-                        pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser]*binsum;  //Z=17155
+                        pqsum = pqsum+params.CR->carr1p[nser]*qqnn*binsum;  //Z=17155
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17156
                         if ( delser<0.0001 ) break; /* goto 78; */  //Z=17157
                         oldpqsum = pqsum;  //Z=17158
@@ -7371,13 +7386,13 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                 {/*5*/  //Z=17174
                     pqsum = 1.0;  //Z=17175
                     oldpqsum = 0.0;  //Z=17176
-                    qqn[0] = 1.0;  //Z=17177
+                    double qqnn = 1.0;  //Z=17177
                     qxn[0] = 1.0;  //Z=17178
                     qyn[0] = 1.0;  //Z=17179
 
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=17181
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=17182
+                        qqnn = qqnn*q*q;  //Z=17182
                         qxn[nser] = qxn[nser-1]*qxs*qxs;  //Z=17183
                         qyn[nser] = qyn[nser-1]*qys*qys;  //Z=17184
 
@@ -7395,7 +7410,7 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                             /* binsum:=binsum+carr1pm[indx]*binsum1;  //Z=17195 */
                             binsum = binsum+params.CR->carr11pm[nser][mser]*binsum1;  //Z=17196
                         }/*7*/  //Z=17197
-                        pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser]*binsum;  //Z=17198
+                        pqsum = pqsum+params.CR->carr1p[nser]*qqnn*binsum;  //Z=17198
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17199
                         if ( delser<0.0001 ) break; /* goto 79; */  //Z=17200
                         oldpqsum = pqsum;  //Z=17201
@@ -7418,11 +7433,11 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                 {/*5*/  //Z=17215
                     pqsum = 1.0;  //Z=17216
                     oldpqsum = 0.0;  //Z=17217
-                    qqn[0] = 1.0;  //Z=17218
+                    double qqnn = 1.0;  //Z=17218
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=17219
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=17220
-                        pqsum = pqsum+params.CR->carr1p[nser]*qqn[nser];  //Z=17221
+                        qqnn = qqnn*q*q;  //Z=17220
+                        pqsum = pqsum+params.CR->carr1p[nser]*qqnn;  //Z=17221
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17222
                         if ( delser<0.0001 ) break; /* goto 80; */  //Z=17223
                         oldpqsum = pqsum;  //Z=17224
@@ -7450,11 +7465,11 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
             {/*4*/  //Z=17243
                 pqsum = 1.0;  //Z=17244
                 oldpqsum = 0.0;  //Z=17245
-                qqn[0] = 1.0;  //Z=17246
+                double qqnn = 1.0;  //Z=17246
                 for ( nser=1; nser<=100; nser++ )
                 {/*5*/  //Z=17247
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=17248
-                    pqsum = pqsum+params.CR->carr4p[nser]*qqn[nser];  //Z=17249
+                    qqnn = qqnn*q*q;  //Z=17248
+                    pqsum = pqsum+params.CR->carr4p[nser]*qqnn;  //Z=17249
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17250
                     if ( delser<0.0001 ) break; /* goto 71; */  //Z=17251
                     oldpqsum = pqsum;  //Z=17252
@@ -7488,11 +7503,11 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                 /* ** series expansion ** */  //Z=17277
                 pqsum = 1.0;  //Z=17278
                 oldpqsum = 0.0;  //Z=17279
-                qqn[0] = 1.0;  //Z=17280
+                double qqnn = 1.0;  //Z=17280
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=17281
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=17282
-                    pqsum = pqsum+params.CR->carr4p[nser]*qqn[nser];  //Z=17283
+                    qqnn = qqnn*q*q;  //Z=17282
+                    pqsum = pqsum+params.CR->carr4p[nser]*qqnn;  //Z=17283
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17284
                     if ( delser<0.0001 ) break; /* goto 72; */  //Z=17285
                     oldpqsum = pqsum;  //Z=17286
@@ -7512,11 +7527,11 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                 /* ** series expansion ** */  //Z=17298
                 pqsum = 1.0;  //Z=17299
                 oldpqsum = 0.0;  //Z=17300
-                qqn[0] = 1.0;  //Z=17301
+                double qqnn = 1.0;  //Z=17301
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=17302
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=17303
-                    pqsum = pqsum+params.CR->carr5p[nser]*qqn[nser];  //Z=17304
+                    qqnn = qqnn*q*q;  //Z=17303
+                    pqsum = pqsum+params.CR->carr5p[nser]*qqnn;  //Z=17304
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17305
                     if ( delser<0.0001 ) break; /* goto 73; */  //Z=17306
                     oldpqsum = pqsum;  //Z=17307
@@ -7541,11 +7556,11 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                 /* ** series expansion ** */  //Z=17324
                 pqsum = 1.0;  //Z=17325
                 oldpqsum = 0.0;  //Z=17326
-                qqn[0] = 1.0;  //Z=17327
+                double qqnn = 1.0;  //Z=17327
                 for ( nser=1; nser<=120; nser++ )
                 {/*5*/  //Z=17328
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=17329
-                    pqsum = pqsum+params.CR->carr6p[nser]*qqn[nser];  //Z=17330
+                    qqnn = qqnn*q*q;  //Z=17329
+                    pqsum = pqsum+params.CR->carr6p[nser]*qqnn;  //Z=17330
                     delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=17331
                     if ( delser<0.0001 ) break; /* goto 74; */  //Z=17332
                     oldpqsum = pqsum;  //Z=17333
@@ -8110,13 +8125,14 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
 
             if ( xmax<(lim1) )
             {/*4*/  //Z=17866
+                // Auf der GPU ist es effizienter, eine kleine Berechnung zu machen als ein grosses Array zu haben.
                 /* fkv[0]:=1;  //Z=17867 */
-                qqn[0] = 1.0;  //Z=17868
-                for ( nser=1; nser<=120; nser++ )
-                {/*5*/  //Z=17869
-                    qqn[nser] = qqn[nser-1]*q*q;  //Z=17870
-                    /* fkv[nser]:=fkv[nser-1]*nser;  //Z=17871 */
-                }/*5*/  //Z=17872
+                double qqnn;  //Z=17868
+                //for ( nser=1; nser<=120; nser++ )
+                //{/*5*/  //Z=17869
+                //    qqn[nser] = qqn[nser-1]*q*q;  //Z=17870
+                //    /* fkv[nser]:=fkv[nser-1]*nser;  //Z=17871 */
+                //}/*5*/  //Z=17872
 
                 F12sum = 0.0;  //Z=17874
                 for ( ii=1; ii<=inmax; ii++ )
@@ -8125,8 +8141,10 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                     {/*6*/  //Z=17876
                         F12sez = 1.0;  //Z=17877
                         oldF12sez = 1.0;  //Z=17878
+                        qqnn = 1.0;
                         for ( nser=1; nser<=120; nser++ )
                         {/*7*/  //Z=17879
+                            qqnn = qqnn * q*q;
                             pqsum = 0;  //Z=17880
                             for ( mser=0; mser<=nser; mser++ )
                             {/*8*/  //Z=17881
@@ -8136,7 +8154,7 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                                 /* indx:=mser+1+round(nser*(nser+1)/2);  //Z=17885 */
                                 /* pqsum:=pqsum+power(carr7p[ii],2*mser)*power(carr7p[jj],2*(nser-mser))*carr1pm[indx];  //Z=17886 */
                             }/*8*/  //Z=17887
-                            F12sez = F12sez+params.CR->carr4p[nser]*qqn[nser]*pqsum;  //Z=17888
+                            F12sez = F12sez+params.CR->carr4p[nser]*qqnn*pqsum;  //Z=17888
                             delser = fabs((F12sez-oldF12sez)/F12sez);  //Z=17889
                             if ( delser<0.0001 ) break; /* goto 251; */  //Z=17890
                             oldF12sez = F12sez;  //Z=17891
@@ -8287,20 +8305,21 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
     /* ** biaxial ellipsoid ** */  //Z=18011
     if ( params.part==5 )
     {/*2*/  //Z=18012
+        //qDebug() << ordis << params.cs;
         /*  homogeneous isotropic ellipsoid  */  //Z=18013
         if ( ordis==7 )
         {/*3*/  //Z=18014
             if ( params.cs==0 )
             {/*4*/  //Z=18015
-                if ( q<0.8*params.limq4 )
+                if ( q<0.6*params.limq4 )   // 20221004 - crystal3d1.pas: 0.8
                 {/*5*/  //Z=18016
                     pqsum = 1.0;  //Z=18017
                     oldpqsum = 0.0;  //Z=18018
-                    qqn[0] = 1.0;  //Z=18019
+                    double qqnn = 1.0;  //Z=18019
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=18020
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=18021
-                        pqsum = pqsum+params.CR->carr4p[nser]*qqn[nser];  //Z=18022
+                        qqnn = qqnn*q*q;  //Z=18021
+                        pqsum = pqsum+params.CR->carr4p[nser]*qqnn;  //Z=18022
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18023
                         if ( delser<0.0001 ) break; /* goto 260; */  //Z=18024
                         oldpqsum = pqsum;  //Z=18025
@@ -8377,7 +8396,6 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
             }/*4*/  /*  of orcase=1  */  //Z=18076
         }/*3*/  /*  of perfect ellipsoid  */  //Z=18077
 
-
         /*  general  */  //Z=18080
         if ( ordis==0 )
         {/*3*/  //Z=18081
@@ -8391,6 +8409,10 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                     oldpqsum = -10.0;  //Z=18086
                     qxn[0] = 1.0;  //Z=18087
                     qyn[0] = 1.0;  //Z=18088
+                    // Auf der GPU ist es effizienter, eine kleine Berechnung zu machen als ein grosses Array zu haben.
+                    // ==> Da hier aber zwei unterschiedliche Schleifen mit diesen Werten versorgt werden, lasse ich
+                    //     im Moment mal ein lokales, in der Größe angepasstes Array stehen
+                    double qqn[121];
                     qqn[0] = 1.0;  //Z=18089
 
                     if ( params.orcase==1 )
@@ -8485,11 +8507,11 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                 {/*5*/  //Z=18166
                     pqsum = 1.0;  //Z=18167
                     oldpqsum = 0.0;  //Z=18168
-                    qqn[0] = 1.0;  //Z=18169
+                    double qqnn = 1.0;  //Z=18169
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=18170
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=18171
-                        pqsum = pqsum+params.CR->carr4p[nser]*qqn[nser];  //Z=18172
+                        qqnn = qqnn*q*q;  //Z=18171
+                        pqsum = pqsum+params.CR->carr4p[nser]*qqnn;  //Z=18172
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18173
                         if ( delser<0.0001 ) break; /* goto 263; */  //Z=18174
                         oldpqsum = pqsum;  //Z=18175
@@ -8576,11 +8598,11 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                 {/*5*/  //Z=18242
                     pqsum = 1.0;  //Z=18243
                     oldpqsum = 0.0;  //Z=18244
-                    qqn[0] = 1.0;  //Z=18245
+                    double qqnn = 1.0;  //Z=18245
                     for ( nser=1; nser<=120; nser++ )
                     {/*6*/  //Z=18246
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=18247
-                        pqsum = pqsum+params.CR->carr4p[nser]*qqn[nser];  //Z=18248
+                        qqnn = qqnn*q*q;  //Z=18247
+                        pqsum = pqsum+params.CR->carr4p[nser]*qqnn;  //Z=18248
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18249
                         if ( delser<0.0001 ) break; /* goto 270; */  //Z=18250
                         oldpqsum = pqsum;  //Z=18251
@@ -8653,6 +8675,7 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
         }/*3*/  /*  of perfect triaxial ellipsoid  */  //Z=18309
     }/*2*/  /*  of super ellipsoid  */  //Z=18310
 
+
     /* ** superball ** */  //Z=18312
     if ( params.part==8 )
     {/*2*/  //Z=18313
@@ -8665,11 +8688,11 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                 {/*5*/  //Z=18317
                     pqsum = 1.0;  //Z=18318
                     oldpqsum = 0.0;  //Z=18319
-                    qqn[0] = 1.0;  //Z=18320
+                    double qqnn = 1.0;  //Z=18320
                     for ( nser=1; nser<=40; nser++ )
                     {/*6*/  //Z=18321
-                        qqn[nser] = qqn[nser-1]*q*q;  //Z=18322
-                        pqsum = pqsum+params.CR->carr4p[nser]*qqn[nser];  //Z=18323
+                        qqnn = qqnn*q*q;  //Z=18322
+                        pqsum = pqsum+params.CR->carr4p[nser]*qqnn;  //Z=18323
                         delser = fabs((pqsum-oldpqsum)/pqsum);  //Z=18324
                         if ( delser<0.0001 ) break; /* goto 274; */  //Z=18325
                         oldpqsum = pqsum;  //Z=18326
@@ -8689,7 +8712,7 @@ double SasCalc_GENERIC_calculation::formpq(double sigmal, double limql, double q
                 }/*5*/  //Z=18338
             }/*4*/ /*  of homogeneous isotropic ellipsoid */  //Z=18339
 
-            /*  core/shell isotropic ellipsoid  */  //Z=18341
+            /*  core/shell isotropic superball  */  //Z=18341
             if ( params.cs==1 )
             {/*4*/  //Z=18342
                 /*formpq:=*/ return polycscube(1.0,params.rho,params.p1,1.0,0.001,0.0001,2*params.radiusi,0,params.sigma,q);  //Z=18343
@@ -8780,7 +8803,7 @@ double SasCalc_GENERIC_calculation::formfq( double limql, double qx, double qy, 
     //double ac1, ac2, ac3, ac4, ac5, ac6, ac7, ac8, ac9, ac10;  //Z=18404
     //double argbm, nenbm, argbp, nenbp, argep, nenep, argem, nenem, arggp, nengp;  //Z=18405
     double /*arggm, nengm, argim, nenim, argip, nenip,*/ F121, F122, F123;  //Z=18406
-    double /*qqn[200], qqnx[200], qqny[200],*/ z12v[200], a1v[200], b1v[200], b2v[200], b1sv[200], fkv[200]; //, gam3[200];  //Z=18407
+    //double qqn[200], qqnx[200], qqny[200], z12v[200], a1v[200], b1v[200], b2v[200], b1sv[200], fkv[200], gam3[200];  //Z=18407
     double dim, xrad, xradp, x1z, x12z, x2z, x22z, lim, lim1, /*lim2, lim3,*/ lim4, /*lim5,*/ lim6;  //Z=18408
     double a1, b1, b2, b1s, v, c, /*d0, d1,*/ e0, e1, ee0, ee1;  //Z=18409
     double gb1s, pz2v, pz2v1, /*pz2v2,*/ gz1, preg1, preg3, preg4; //, pzvc, pzvc1, pzvc2, pzac, pzac1, pzac2;  //Z=18410
@@ -8800,6 +8823,7 @@ double SasCalc_GENERIC_calculation::formfq( double limql, double qx, double qy, 
     double qz=1.0; // TODO: in qrombdeltac Aufruf verwendet, siehe auch bei formpq()
     double qxhklt=0,qyhklt=0,qzhklt=0,qhkl=0;
 
+    CHECKENDTHREAD_VAL
 
     /* ************ */  //Z=18422
     /* ** sphere ** */  //Z=18423
@@ -9002,18 +9026,18 @@ double SasCalc_GENERIC_calculation::formfq( double limql, double qx, double qy, 
             /*  term #1 series  */  //Z=18604
             if ( (xradp)<lim1 )
             {/*4*/  //Z=18605
-                z12v[0] = 1;  //Z=18606
-                b1sv[0] = 1;  //Z=18607
-                fkv[0] = 1;  //Z=18608
+                //z12v[0] = 1;  //Z=18606
+                //b1sv[0] = 1;  //Z=18607
+                //fkv[0] = 1;  //Z=18608
                 double qqnn = 1.0;  //Z=18609
                 F12sez = 1.0;  //Z=18610
                 oldF12sez = 1.0;  //Z=18611
                 for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=18612
                     qqnn = qqnn*q*q;  //Z=18613 war: qnn[..], ist zwar definiert, aber oben wurde qqn[0]=1 gesetzt... (TODO)
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=18614
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=18615
-                    fkv[n] = fkv[n-1]*n;  //Z=18616
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=18614
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=18615
+                    //fkv[n] = fkv[n-1]*n;  //Z=18616
                     /* F12sez:=F12sez+power(-x12z,n)*z12v[n]/(b1sv[n]*fkv[n]);  //Z=18617 */
 
                     F12sez = F12sez+params.CR->carr4f[n]*qqnn;  //Z=18619
@@ -9029,24 +9053,24 @@ double SasCalc_GENERIC_calculation::formfq( double limql, double qx, double qy, 
             /*  term #4 series  */  //Z=18629
             if ( xradp<lim4 )
             {/*4*/  //Z=18630
-                z12v[0] = 1;  //Z=18631
-                a1v[0] = 1;  //Z=18632
-                b1v[0] = 1;  //Z=18633
-                b2v[0] = 1;  //Z=18634
-                b1sv[0] = 1;  //Z=18635
-                fkv[0] = 1;  //Z=18636
+                //z12v[0] = 1;  //Z=18631
+                //a1v[0] = 1;  //Z=18632
+                //b1v[0] = 1;  //Z=18633
+                //b2v[0] = 1;  //Z=18634
+                //b1sv[0] = 1;  //Z=18635
+                //fkv[0] = 1;  //Z=18636
                 double qqnn = 1.0;  //Z=18637
                 F42sez = 1.0;  //Z=18638
                 oldF42sez = 1.0;  //Z=18639
                 for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=18640
                     qqnn = qqnn*q*q;  //Z=18641
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=18642
-                    a1v[n] = a1v[n-1]*(a1-1+n);  //Z=18643
-                    b1v[n] = b1v[n-1]*(b1-1+n);  //Z=18644
-                    b2v[n] = b2v[n-1]*(b2-1+n);  //Z=18645
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=18646
-                    fkv[n] = fkv[n-1]*n;  //Z=18647
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=18642
+                    //a1v[n] = a1v[n-1]*(a1-1+n);  //Z=18643
+                    //b1v[n] = b1v[n-1]*(b1-1+n);  //Z=18644
+                    //b2v[n] = b2v[n-1]*(b2-1+n);  //Z=18645
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=18646
+                    //fkv[n] = fkv[n-1]*n;  //Z=18647
                     /* F42sez:=F42sez+power(-x22z,n)*z12v[n]*a1v[n]/(b1v[n]*b2v[n]*fkv[n]);  //Z=18648 */
 
                     F42sez = F42sez+params.CR->carr5f[n]*qqnn;  //Z=18650
@@ -9062,24 +9086,24 @@ double SasCalc_GENERIC_calculation::formfq( double limql, double qx, double qy, 
             /*  term #6 series  */  //Z=18660
             if ( xradp<lim6 )
             {/*4*/  //Z=18661
-                z12v[0] = 1;  //Z=18662
-                a1v[0] = 1;  //Z=18663
-                b1v[0] = 1;  //Z=18664
-                b2v[0] = 1;  //Z=18665
-                b1sv[0] = 1;  //Z=18666
-                fkv[0] = 1;  //Z=18667
+                //z12v[0] = 1;  //Z=18662
+                //a1v[0] = 1;  //Z=18663
+                //b1v[0] = 1;  //Z=18664
+                //b2v[0] = 1;  //Z=18665
+                //b1sv[0] = 1;  //Z=18666
+                //fkv[0] = 1;  //Z=18667
                 double qqnn = 1.0;  //Z=18668
                 F62sez = 1.0;  //Z=18669
                 oldF62sez = 1.0;  //Z=18670
                 for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=18671
                     qqnn = qqnn*q*q;  //Z=18672
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=18673
-                    a1v[n] = a1v[n-1]*(a1-1+n);  //Z=18674
-                    b1v[n] = b1v[n-1]*(b1-1+n);  //Z=18675
-                    b2v[n] = b2v[n-1]*(b2-1+n);  //Z=18676
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=18677
-                    fkv[n] = fkv[n-1]*n;  //Z=18678
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=18673
+                    //a1v[n] = a1v[n-1]*(a1-1+n);  //Z=18674
+                    //b1v[n] = b1v[n-1]*(b1-1+n);  //Z=18675
+                    //b2v[n] = b2v[n-1]*(b2-1+n);  //Z=18676
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=18677
+                    //fkv[n] = fkv[n-1]*n;  //Z=18678
                     /* F62sez:=F62sez+power(-x12z,n)*z12v[n]*a1v[n]/(b1v[n]*b2v[n]*fkv[n]);  //Z=18679 */
 
                     F62sez = F62sez+params.CR->carr6f[n]*qqnn;  //Z=18681
@@ -9517,18 +9541,18 @@ double SasCalc_GENERIC_calculation::formfq( double limql, double qx, double qy, 
             /*  term #1 series  */  //Z=19068
             if ( (xradp)<lim1 )
             {/*4*/  //Z=19069
-                z12v[0] = 1;  //Z=19070
-                b1sv[0] = 1;  //Z=19071
-                fkv[0] = 1;  //Z=19072
+                //z12v[0] = 1;  //Z=19070
+                //b1sv[0] = 1;  //Z=19071
+                //fkv[0] = 1;  //Z=19072
                 double qqnn = 1.0;  //Z=19073
                 F12sez = 1.0;  //Z=19074
                 oldF12sez = 1.0;  //Z=19075
                 for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=19076
                     qqnn = qqnn*q*q;  //Z=19077
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=19078
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=19079
-                    fkv[n] = fkv[n-1]*n;  //Z=19080
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=19078
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=19079
+                    //fkv[n] = fkv[n-1]*n;  //Z=19080
                     /* F12sez:=F12sez+power(-x12z,n)*z12v[n]/(b1sv[n]*fkv[n]);  //Z=19081 */
 
                     F12sez = F12sez+params.CR->carr4f[n]*qqnn;  //Z=19083
@@ -9544,24 +9568,24 @@ double SasCalc_GENERIC_calculation::formfq( double limql, double qx, double qy, 
             /*  term #4 series  */  //Z=19093
             if ( xradp<lim4 )
             {/*4*/  //Z=19094
-                z12v[0] = 1;  //Z=19095
-                a1v[0] = 1;  //Z=19096
-                b1v[0] = 1;  //Z=19097
-                b2v[0] = 1;  //Z=19098
-                b1sv[0] = 1;  //Z=19099
-                fkv[0] = 1;  //Z=19100
+                //z12v[0] = 1;  //Z=19095
+                //a1v[0] = 1;  //Z=19096
+                //b1v[0] = 1;  //Z=19097
+                //b2v[0] = 1;  //Z=19098
+                //b1sv[0] = 1;  //Z=19099
+                //fkv[0] = 1;  //Z=19100
                 double qqnn = 1.0;  //Z=19101
                 F42sez = 1.0;  //Z=19102
                 oldF42sez = 1.0;  //Z=19103
                 for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=19104
                     qqnn = qqnn*q*q;  //Z=19105
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=19106
-                    a1v[n] = a1v[n-1]*(a1-1+n);  //Z=19107
-                    b1v[n] = b1v[n-1]*(b1-1+n);  //Z=19108
-                    b2v[n] = b2v[n-1]*(b2-1+n);  //Z=19109
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=19110
-                    fkv[n] = fkv[n-1]*n;  //Z=19111
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=19106
+                    //a1v[n] = a1v[n-1]*(a1-1+n);  //Z=19107
+                    //b1v[n] = b1v[n-1]*(b1-1+n);  //Z=19108
+                    //b2v[n] = b2v[n-1]*(b2-1+n);  //Z=19109
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=19110
+                    //fkv[n] = fkv[n-1]*n;  //Z=19111
                     /* F42sez:=F42sez+power(-x22z,n)*z12v[n]*a1v[n]/(b1v[n]*b2v[n]*fkv[n]);  //Z=19112 */
 
                     F42sez = F42sez+params.CR->carr5f[n]*qqnn;  //Z=19114
@@ -9577,24 +9601,24 @@ double SasCalc_GENERIC_calculation::formfq( double limql, double qx, double qy, 
             /*  term #6 series  */  //Z=19124
             if ( xradp<lim6 )
             {/*4*/  //Z=19125
-                z12v[0] = 1;  //Z=19126
-                a1v[0] = 1;  //Z=19127
-                b1v[0] = 1;  //Z=19128
-                b2v[0] = 1;  //Z=19129
-                b1sv[0] = 1;  //Z=19130
-                fkv[0] = 1;  //Z=19131
+                //z12v[0] = 1;  //Z=19126
+                //a1v[0] = 1;  //Z=19127
+                //b1v[0] = 1;  //Z=19128
+                //b2v[0] = 1;  //Z=19129
+                //b1sv[0] = 1;  //Z=19130
+                //fkv[0] = 1;  //Z=19131
                 double qqnn = 1.0;  //Z=19132
                 F62sez = 1.0;  //Z=19133
                 oldF62sez = 1.0;  //Z=19134
                 for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=19135
                     qqnn = qqnn*q*q;  //Z=19136
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=19137
-                    a1v[n] = a1v[n-1]*(a1-1+n);  //Z=19138
-                    b1v[n] = b1v[n-1]*(b1-1+n);  //Z=19139
-                    b2v[n] = b2v[n-1]*(b2-1+n);  //Z=19140
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=19141
-                    fkv[n] = fkv[n-1]*n;  //Z=19142
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=19137
+                    //a1v[n] = a1v[n-1]*(a1-1+n);  //Z=19138
+                    //b1v[n] = b1v[n-1]*(b1-1+n);  //Z=19139
+                    //b2v[n] = b2v[n-1]*(b2-1+n);  //Z=19140
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=19141
+                    //fkv[n] = fkv[n-1]*n;  //Z=19142
                     /* F62sez:=F62sez+power(-x12z,n)*z12v[n]*a1v[n]/(b1v[n]*b2v[n]*fkv[n]);  //Z=19143 */
 
                     F62sez = F62sez+params.CR->carr6f[n]*qqnn;  //Z=19145
@@ -10166,18 +10190,18 @@ double SasCalc_GENERIC_calculation::formfq( double limql, double qx, double qy, 
             /*  term #1 series  */  //Z=19648
             if ( (xradp)<lim1 )
             {/*4*/  //Z=19649
-                z12v[0] = 1;  //Z=19650
-                b1sv[0] = 1;  //Z=19651
-                fkv[0] = 1;  //Z=19652
+                //z12v[0] = 1;  //Z=19650
+                //b1sv[0] = 1;  //Z=19651
+                //fkv[0] = 1;  //Z=19652
                 double qqnn = 1.0;  //Z=19653
                 F12sez = 1.0;  //Z=19654
                 oldF12sez = 1.0;  //Z=19655
                 for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=19656
                     qqnn = qqnn*q*q;  //Z=19657
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=19658
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=19659
-                    fkv[n] = fkv[n-1]*n;  //Z=19660
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=19658
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=19659
+                    //fkv[n] = fkv[n-1]*n;  //Z=19660
                     /* F12sez:=F12sez+power(-x12z,n)*z12v[n]/(b1sv[n]*fkv[n]);  //Z=19661 */
 
                     F12sez = F12sez+params.CR->carr4f[n]*qqnn;  //Z=19663
@@ -10193,24 +10217,24 @@ double SasCalc_GENERIC_calculation::formfq( double limql, double qx, double qy, 
             /*  term #4 series  */  //Z=19673
             if ( xradp<lim4 )
             {/*4*/  //Z=19674
-                z12v[0] = 1;  //Z=19675
-                a1v[0] = 1;  //Z=19676
-                b1v[0] = 1;  //Z=19677
-                b2v[0] = 1;  //Z=19678
-                b1sv[0] = 1;  //Z=19679
-                fkv[0] = 1;  //Z=19680
+                //z12v[0] = 1;  //Z=19675
+                //a1v[0] = 1;  //Z=19676
+                //b1v[0] = 1;  //Z=19677
+                //b2v[0] = 1;  //Z=19678
+                //b1sv[0] = 1;  //Z=19679
+                //fkv[0] = 1;  //Z=19680
                 double qqnn = 1.0;  //Z=19681
                 F42sez = 1.0;  //Z=19682
                 oldF42sez = 1.0;  //Z=19683
                 for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=19684
                     qqnn = qqnn*q*q;  //Z=19685
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=19686
-                    a1v[n] = a1v[n-1]*(a1-1+n);  //Z=19687
-                    b1v[n] = b1v[n-1]*(b1-1+n);  //Z=19688
-                    b2v[n] = b2v[n-1]*(b2-1+n);  //Z=19689
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=19690
-                    fkv[n] = fkv[n-1]*n;  //Z=19691
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=19686
+                    //a1v[n] = a1v[n-1]*(a1-1+n);  //Z=19687
+                    //b1v[n] = b1v[n-1]*(b1-1+n);  //Z=19688
+                    //b2v[n] = b2v[n-1]*(b2-1+n);  //Z=19689
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=19690
+                    //fkv[n] = fkv[n-1]*n;  //Z=19691
                     /* F42sez:=F42sez+power(-x22z,n)*z12v[n]*a1v[n]/(b1v[n]*b2v[n]*fkv[n]);  //Z=19692 */
 
                     F42sez = F42sez+params.CR->carr5f[n]*qqnn;  //Z=19694
@@ -10226,24 +10250,24 @@ double SasCalc_GENERIC_calculation::formfq( double limql, double qx, double qy, 
             /*  term #6 series  */  //Z=19704
             if ( xradp<lim6 )
             {/*4*/  //Z=19705
-                z12v[0] = 1;  //Z=19706
-                a1v[0] = 1;  //Z=19707
-                b1v[0] = 1;  //Z=19708
-                b2v[0] = 1;  //Z=19709
-                b1sv[0] = 1;  //Z=19710
-                fkv[0] = 1;  //Z=19711
+                //z12v[0] = 1;  //Z=19706
+                //a1v[0] = 1;  //Z=19707
+                //b1v[0] = 1;  //Z=19708
+                //b2v[0] = 1;  //Z=19709
+                //b1sv[0] = 1;  //Z=19710
+                //fkv[0] = 1;  //Z=19711
                 double qqnn = 1.0;  //Z=19712
                 F62sez = 1.0;  //Z=19713
                 oldF62sez = 1.0;  //Z=19714
                 for ( n=1; n<=120; n++ )
                 {/*5*/  //Z=19715
                     qqnn = qqnn*q*q;  //Z=19716
-                    z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=19717
-                    a1v[n] = a1v[n-1]*(a1-1+n);  //Z=19718
-                    b1v[n] = b1v[n-1]*(b1-1+n);  //Z=19719
-                    b2v[n] = b2v[n-1]*(b2-1+n);  //Z=19720
-                    b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=19721
-                    fkv[n] = fkv[n-1]*n;  //Z=19722
+                    //z12v[n] = z12v[n-1]*((zr+1)-2+2*n)*((zr+1)-1+2*n);  //Z=19717
+                    //a1v[n] = a1v[n-1]*(a1-1+n);  //Z=19718
+                    //b1v[n] = b1v[n-1]*(b1-1+n);  //Z=19719
+                    //b2v[n] = b2v[n-1]*(b2-1+n);  //Z=19720
+                    //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=19721
+                    //fkv[n] = fkv[n-1]*n;  //Z=19722
                     /* F62sez:=F62sez+power(-x12z,n)*z12v[n]*a1v[n]/(b1v[n]*b2v[n]*fkv[n]);  //Z=19723 */
 
                     F62sez = F62sez+params.CR->carr6f[n]*qqnn;  //Z=19725
@@ -10398,4 +10422,32 @@ double SasCalc_GENERIC_calculation::polycscube(double /*rho1*/, double /*rho2*/,
 {
     // Gespräch mit Prof. Förster (05.Jun.2023): Diese Routinen werden noch nicht verwendet, sie werden bei Erweiterungen kommen.
     return 0;
+}
+
+
+
+/* ****************** Percus-Yevick S(q) ************************ */
+// aus 20210628 - Upq.pas
+#ifdef __CUDACC__
+__host__ __device__
+#endif
+double SasCalc_GENERIC_calculation::spy( double q ) const
+{
+    double d,v,c,a0,a1,a2,cdr,i1,i2,i3,s1,s2,s3;
+
+    d = 2*params.radius;
+    v = 4.*M_PI*params.radius*params.radius*params.radius/3.;
+    c = params.dbeta/v;
+    a0 = -1*sqr(1+2*params.dbeta)/sqr(sqr(1-params.dbeta));
+    a1 = 6.*params.dbeta*sqr(1+params.dbeta/2.)/sqr(sqr(1-params.dbeta));
+    a2 = params.dbeta*a0/2.;
+    i1 = sin(d*q)-d*q*cos(d*q);
+    i2 = 2*cos(d*q)-sqr(d*q)*cos(d*q)+2*d*q*sin(d*q)-2;
+    i3 = 6*sqr(params.radius*q)*cos(d*q)-3*cos(d*q)-2*sqr(sqr(params.radius*q))*cos(d*q)
+         -3*d*q*sin(d*q)+4*params.radius*q*sqr(params.radius*q)*sin(d*q)+3;
+    s1 = 4*M_PI*a0*i1/(q*q*q);
+    s2 = 4*M_PI*a1*i2/(d*sqr(sqr(q)));
+    s3 = 4*M_PI*a2*8*i3/(d*d*d*sqr(q)*sqr(q)*sqr(q));
+    cdr = s1+s2+s3;
+    return 1./(1.-c*cdr);
 }

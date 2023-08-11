@@ -16,8 +16,8 @@ typedef struct
     Double3 vec;
 } _valueTypes;
 
-typedef bool (*_dataGetter)( QString, _valueTypes& );
-typedef bool (*_dataSetter)( QString, _valueTypes& );
+typedef void (*_dataGetter)( QString, _valueTypes& );
+typedef void (*_dataSetter)( QString, _valueTypes& );
 
 
 

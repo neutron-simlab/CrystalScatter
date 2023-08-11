@@ -132,6 +132,8 @@ private:
             qDebug() << "MEMFAIL" << "x"<<x << "y"<<y << "idx"<<idx << "cnt"<<_arrCount
                      << "xmin"<<_xmin << "xmax"<<_xmax << "ymin"<<_ymin << "ymax"<<_ymax;
 #endif
+            arrXYIntensity[0] = -1;
+            arrXYIntensity[1] = idx;
             return;
         }
         arrXYIntensity[idx+3] = val;

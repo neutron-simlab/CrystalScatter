@@ -52,7 +52,7 @@
        <enum>QTabWidget::Triangular</enum>
       </property>
       <property name="currentIndex">
-       <number>2</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="tabCalc">
        <attribute name="title">
@@ -109,75 +109,15 @@
              <string>Lattice</string>
             </property>
             <layout class="QGridLayout" name="gridLayout_31">
-             <item row="12" column="2">
-              <widget class="QCheckBox" name="fitreff">
+             <item row="12" column="1">
+              <widget class="QDoubleSpinBox" name="inpreff"/>
+             </item>
+             <item row="7" column="2">
+              <widget class="QCheckBox" name="fitucbeta">
                <property name="text">
                 <string/>
                </property>
               </widget>
-             </item>
-             <item row="9" column="2">
-              <widget class="QCheckBox" name="fitEditCeff">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="11" column="1">
-              <widget class="QDoubleSpinBox" name="inpEditCeffcyl"/>
-             </item>
-             <item row="3" column="1">
-              <widget class="QDoubleSpinBox" name="inpuca"/>
-             </item>
-             <item row="13" column="1">
-              <widget class="QDoubleSpinBox" name="inpacpl"/>
-             </item>
-             <item row="4" column="0">
-              <widget class="QLabel" name="lblucb">
-               <property name="text">
-                <string>ucb:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="2">
-              <widget class="QCheckBox" name="fituca">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="6" column="1">
-              <widget class="QDoubleSpinBox" name="inpucalpha"/>
-             </item>
-             <item row="8" column="0">
-              <widget class="QLabel" name="lblucgamma">
-               <property name="text">
-                <string>ucgamma:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="4" column="2">
-              <widget class="QCheckBox" name="fitucb">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="11" column="2">
-              <widget class="QCheckBox" name="fitEditCeffcyl">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="4" column="1">
-              <widget class="QDoubleSpinBox" name="inpucb"/>
              </item>
              <item row="8" column="2">
               <widget class="QCheckBox" name="fitucgamma">
@@ -186,51 +126,8 @@
                </property>
               </widget>
              </item>
-             <item row="9" column="1">
-              <widget class="QDoubleSpinBox" name="inpEditCeff"/>
-             </item>
-             <item row="2" column="0" colspan="3">
-              <widget class="QLabel" name="lblucabc">
-               <property name="text">
-                <string>unit cell definition</string>
-               </property>
-              </widget>
-             </item>
-             <item row="5" column="1">
-              <widget class="QDoubleSpinBox" name="inpucc"/>
-             </item>
-             <item row="8" column="1">
-              <widget class="QDoubleSpinBox" name="inpucgamma"/>
-             </item>
-             <item row="13" column="0">
-              <widget class="QLabel" name="lblacpl">
-               <property name="text">
-                <string>acpl:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="0">
-              <widget class="QLabel" name="lbluca">
-               <property name="text">
-                <string>uca:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="10" column="1">
-              <widget class="QCheckBox" name="togCheckBoxTwinned">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="13" column="2">
-              <widget class="QCheckBox" name="fitacpl">
+             <item row="6" column="2">
+              <widget class="QCheckBox" name="fitucalpha">
                <property name="text">
                 <string/>
                </property>
@@ -246,28 +143,98 @@
                </property>
               </widget>
              </item>
-             <item row="14" column="1">
-              <widget class="QDoubleSpinBox" name="inpbcpl"/>
-             </item>
-             <item row="6" column="2">
-              <widget class="QCheckBox" name="fitucalpha">
+             <item row="5" column="2">
+              <widget class="QCheckBox" name="fitucc">
                <property name="text">
                 <string/>
                </property>
               </widget>
-             </item>
-             <item row="7" column="2">
-              <widget class="QCheckBox" name="fitucbeta">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="12" column="1">
-              <widget class="QDoubleSpinBox" name="inpreff"/>
              </item>
              <item row="14" column="2">
               <widget class="QCheckBox" name="fitbcpl">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="1">
+              <widget class="QDoubleSpinBox" name="inpucc"/>
+             </item>
+             <item row="6" column="1">
+              <widget class="QDoubleSpinBox" name="inpucalpha"/>
+             </item>
+             <item row="14" column="0">
+              <widget class="QLabel" name="lblbcpl">
+               <property name="text">
+                <string>bcpl:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="2">
+              <widget class="QCheckBox" name="fitucb">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0" colspan="3">
+              <widget class="QLabel" name="lblucabc">
+               <property name="text">
+                <string>unit cell definition</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="lblLType">
+               <property name="text">
+                <string>LType:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="1">
+              <widget class="QDoubleSpinBox" name="inpucbeta"/>
+             </item>
+             <item row="9" column="2">
+              <widget class="QCheckBox" name="fitEditCeff">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="0">
+              <widget class="QLabel" name="lblucb">
+               <property name="text">
+                <string>ucb:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="9" column="1">
+              <widget class="QDoubleSpinBox" name="inpEditCeff"/>
+             </item>
+             <item row="15" column="1">
+              <widget class="QDoubleSpinBox" name="inpifluc"/>
+             </item>
+             <item row="1" column="1" colspan="2">
+              <widget class="QComboBox" name="cbsLType"/>
+             </item>
+             <item row="3" column="2">
+              <widget class="QCheckBox" name="fituca">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="16" column="2">
+              <widget class="QCheckBox" name="fitrfluc">
                <property name="text">
                 <string/>
                </property>
@@ -283,20 +250,99 @@
                </property>
               </widget>
              </item>
-             <item row="1" column="0">
-              <widget class="QLabel" name="lblLType">
+             <item row="13" column="2">
+              <widget class="QCheckBox" name="fitacpl">
                <property name="text">
-                <string>LType:</string>
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="13" column="0">
+              <widget class="QLabel" name="lblacpl">
+               <property name="text">
+                <string>acpl:</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
                </property>
               </widget>
              </item>
-             <item row="14" column="0">
-              <widget class="QLabel" name="lblbcpl">
+             <item row="10" column="1">
+              <widget class="QCheckBox" name="togCheckBoxTwinned"/>
+             </item>
+             <item row="8" column="1">
+              <widget class="QDoubleSpinBox" name="inpucgamma"/>
+             </item>
+             <item row="3" column="0">
+              <widget class="QLabel" name="lbluca">
                <property name="text">
-                <string>bcpl:</string>
+                <string>uca:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="13" column="1">
+              <widget class="QDoubleSpinBox" name="inpacpl"/>
+             </item>
+             <item row="12" column="0">
+              <widget class="QLabel" name="lblreff">
+               <property name="text">
+                <string>reff:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="14" column="1">
+              <widget class="QDoubleSpinBox" name="inpbcpl"/>
+             </item>
+             <item row="4" column="1">
+              <widget class="QDoubleSpinBox" name="inpucb"/>
+             </item>
+             <item row="7" column="0">
+              <widget class="QLabel" name="lblucbeta">
+               <property name="text">
+                <string>ucbeta:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="15" column="2">
+              <widget class="QCheckBox" name="fitifluc">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="1">
+              <widget class="QDoubleSpinBox" name="inpuca"/>
+             </item>
+             <item row="12" column="2">
+              <widget class="QCheckBox" name="fitreff">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="0">
+              <widget class="QLabel" name="lblucc">
+               <property name="text">
+                <string>ucc:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="0">
+              <widget class="QLabel" name="lblucgamma">
+               <property name="text">
+                <string>ucgamma:</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -316,11 +362,18 @@
                </property>
               </spacer>
              </item>
-             <item row="1" column="1" colspan="2">
-              <widget class="QComboBox" name="cbsLType"/>
+             <item row="16" column="0">
+              <widget class="QLabel" name="lblrfluc">
+               <property name="text">
+                <string>rfluc:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
              </item>
-             <item row="5" column="2">
-              <widget class="QCheckBox" name="fitucc">
+             <item row="11" column="2">
+              <widget class="QCheckBox" name="fitEditCeffcyl">
                <property name="text">
                 <string/>
                </property>
@@ -336,28 +389,21 @@
                </property>
               </widget>
              </item>
+             <item row="11" column="1">
+              <widget class="QDoubleSpinBox" name="inpEditCeffcyl"/>
+             </item>
              <item row="9" column="0">
               <widget class="QLabel" name="lblEditCeff">
                <property name="text">
-                <string>EditCeff:</string>
+                <string>TwRatio:</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
                </property>
               </widget>
              </item>
-             <item row="7" column="1">
-              <widget class="QDoubleSpinBox" name="inpucbeta"/>
-             </item>
-             <item row="5" column="0">
-              <widget class="QLabel" name="lblucc">
-               <property name="text">
-                <string>ucc:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
-              </widget>
+             <item row="16" column="1">
+              <widget class="QDoubleSpinBox" name="inprfluc"/>
              </item>
              <item row="11" column="0">
               <widget class="QLabel" name="lblEditCeffcyl">
@@ -366,56 +412,6 @@
                </property>
                <property name="alignment">
                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="12" column="0">
-              <widget class="QLabel" name="lblreff">
-               <property name="text">
-                <string>reff:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="7" column="0">
-              <widget class="QLabel" name="lblucbeta">
-               <property name="text">
-                <string>ucbeta:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="16" column="0">
-              <widget class="QLabel" name="lblrfluc">
-               <property name="text">
-                <string>rfluc:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="15" column="1">
-              <widget class="QDoubleSpinBox" name="inpifluc"/>
-             </item>
-             <item row="16" column="1">
-              <widget class="QDoubleSpinBox" name="inprfluc"/>
-             </item>
-             <item row="15" column="2">
-              <widget class="QCheckBox" name="fitifluc">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="16" column="2">
-              <widget class="QCheckBox" name="fitrfluc">
-               <property name="text">
-                <string/>
                </property>
               </widget>
              </item>
@@ -530,6 +526,12 @@
              </item>
              <item row="14" column="1">
               <widget class="QLineEdit" name="outEditDist">
+               <property name="maximumSize">
+                <size>
+                 <width>80</width>
+                 <height>16777215</height>
+                </size>
+               </property>
                <property name="readOnly">
                 <bool>true</bool>
                </property>
@@ -546,6 +548,12 @@
              </item>
              <item row="13" column="1">
               <widget class="QLineEdit" name="outEditRelDis">
+               <property name="maximumSize">
+                <size>
+                 <width>80</width>
+                 <height>16777215</height>
+                </size>
+               </property>
                <property name="readOnly">
                 <bool>true</bool>
                </property>
@@ -756,13 +764,6 @@
              <item row="2" column="1">
               <widget class="QDoubleSpinBox" name="inpEditDebyeWaller"/>
              </item>
-             <item row="6" column="1" colspan="2">
-              <widget class="QCheckBox" name="togRadioButtonPara">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
              <item row="2" column="0">
               <widget class="QLabel" name="lblEditDebyeWaller">
                <property name="text">
@@ -814,7 +815,7 @@
               </widget>
              </item>
              <item row="7" column="0" colspan="3">
-              <widget class="QGroupBox" name="grpMatrix">
+              <widget class="QGroupBox" name="grpAniso">
                <property name="title">
                 <string/>
                </property>
@@ -825,103 +826,59 @@
                 <property name="rightMargin">
                  <number>1</number>
                 </property>
-                <item row="2" column="1">
-                 <widget class="QDoubleSpinBox" name="inpAy1"/>
-                </item>
-                <item row="0" column="2">
-                 <widget class="QLabel" name="label_17">
-                  <property name="text">
-                   <string>2:</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="6" column="2">
-                 <widget class="QDoubleSpinBox" name="inpSigY_SigX"/>
-                </item>
-                <item row="3" column="1">
-                 <widget class="QDoubleSpinBox" name="inpAz1"/>
-                </item>
-                <item row="1" column="3">
-                 <widget class="QDoubleSpinBox" name="inpVAx3_VAx1"/>
-                </item>
-                <item row="6" column="4">
+                <item row="5" column="4">
                  <widget class="QCheckBox" name="fitSigX">
                   <property name="text">
                    <string/>
                   </property>
                  </widget>
                 </item>
-                <item row="2" column="3">
-                 <widget class="QDoubleSpinBox" name="inpAy3_Ay1"/>
-                </item>
-                <item row="0" column="3">
-                 <widget class="QLabel" name="label_18">
+                <item row="0" column="1">
+                 <widget class="QLabel" name="label_16">
                   <property name="text">
-                   <string>3:</string>
+                   <string>u1:</string>
                   </property>
                  </widget>
                 </item>
-                <item row="6" column="1">
+                <item row="5" column="3">
+                 <widget class="QDoubleSpinBox" name="inpSigZ_SigX"/>
+                </item>
+                <item row="5" column="1">
                  <widget class="QDoubleSpinBox" name="inpSigX"/>
                 </item>
                 <item row="2" column="0">
                  <widget class="QLabel" name="lblAy1">
                   <property name="text">
-                   <string>Ay:</string>
+                   <string>y:</string>
                   </property>
                   <property name="alignment">
                    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
                   </property>
                  </widget>
+                </item>
+                <item row="1" column="1">
+                 <widget class="QDoubleSpinBox" name="inpVAx1"/>
                 </item>
                 <item row="3" column="3">
                  <widget class="QDoubleSpinBox" name="inpAz3_Az1"/>
                 </item>
-                <item row="0" column="1">
-                 <widget class="QLabel" name="label_16">
-                  <property name="text">
-                   <string>1:</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="6" column="0">
-                 <widget class="QLabel" name="lblSigX">
-                  <property name="text">
-                   <string>Sig:</string>
-                  </property>
-                  <property name="alignment">
-                   <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-                  </property>
-                 </widget>
-                </item>
                 <item row="5" column="2">
-                 <widget class="QLabel" name="label_23">
-                  <property name="text">
-                   <string>Y:</string>
-                  </property>
-                 </widget>
+                 <widget class="QDoubleSpinBox" name="inpSigY_SigX"/>
                 </item>
-                <item row="2" column="2">
-                 <widget class="QDoubleSpinBox" name="inpAy2_Ay1"/>
+                <item row="3" column="2">
+                 <widget class="QDoubleSpinBox" name="inpAz2_Az1"/>
                 </item>
-                <item row="5" column="3">
-                 <widget class="QLabel" name="label_24">
-                  <property name="text">
-                   <string>Z:</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="5" column="1">
-                 <widget class="QLabel" name="label_22">
-                  <property name="text">
-                   <string>X:</string>
+                <item row="4" column="0" colspan="5">
+                 <widget class="Line" name="line_5">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
                   </property>
                  </widget>
                 </item>
                 <item row="3" column="0">
                  <widget class="QLabel" name="lblAz1">
                   <property name="text">
-                   <string>Az:</string>
+                   <string>z:</string>
                   </property>
                   <property name="alignment">
                    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -931,40 +888,56 @@
                 <item row="1" column="2">
                  <widget class="QDoubleSpinBox" name="inpVAx2_VAx1"/>
                 </item>
-                <item row="1" column="1">
-                 <widget class="QDoubleSpinBox" name="inpVAx1"/>
+                <item row="2" column="3">
+                 <widget class="QDoubleSpinBox" name="inpAy3_Ay1"/>
                 </item>
-                <item row="3" column="2">
-                 <widget class="QDoubleSpinBox" name="inpAz2_Az1"/>
+                <item row="0" column="3">
+                 <widget class="QLabel" name="label_18">
+                  <property name="text">
+                   <string>u3:</string>
+                  </property>
+                 </widget>
                 </item>
-                <item row="6" column="3">
-                 <widget class="QDoubleSpinBox" name="inpSigZ_SigX"/>
+                <item row="2" column="2">
+                 <widget class="QDoubleSpinBox" name="inpAy2_Ay1"/>
+                </item>
+                <item row="1" column="3">
+                 <widget class="QDoubleSpinBox" name="inpVAx3_VAx1"/>
                 </item>
                 <item row="1" column="0">
                  <widget class="QLabel" name="lblAx1">
                   <property name="text">
-                   <string>Ax:</string>
+                   <string>x:</string>
                   </property>
                   <property name="alignment">
                    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
                   </property>
                  </widget>
                 </item>
-                <item row="4" column="0" colspan="5">
-                 <widget class="Line" name="line_5">
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
+                <item row="2" column="1">
+                 <widget class="QDoubleSpinBox" name="inpAy1"/>
+                </item>
+                <item row="0" column="2">
+                 <widget class="QLabel" name="label_17">
+                  <property name="text">
+                   <string>u2:</string>
                   </property>
                  </widget>
                 </item>
+                <item row="5" column="0">
+                 <widget class="QLabel" name="lblSigX">
+                  <property name="text">
+                   <string>Sig:</string>
+                  </property>
+                  <property name="alignment">
+                   <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                  </property>
+                 </widget>
+                </item>
+                <item row="3" column="1">
+                 <widget class="QDoubleSpinBox" name="inpAz1"/>
+                </item>
                </layout>
-              </widget>
-             </item>
-             <item row="5" column="1" colspan="2">
-              <widget class="QCheckBox" name="togRadButDebyeScherrer">
-               <property name="text">
-                <string/>
-               </property>
               </widget>
              </item>
              <item row="1" column="0">
@@ -999,6 +972,16 @@
                 </size>
                </property>
               </spacer>
+             </item>
+             <item row="5" column="1">
+              <widget class="QCheckBox" name="togRadButDebyeScherrer"/>
+             </item>
+             <item row="6" column="1">
+              <widget class="QCheckBox" name="togRadioButtonPara">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
              </item>
             </layout>
            </widget>
@@ -1756,110 +1739,11 @@
              <string>Experiment</string>
             </property>
             <layout class="QGridLayout" name="gridLayout_38">
-             <item row="4" column="0">
-              <widget class="QLabel" name="lblBeamcenterX">
-               <property name="text">
-                <string>Beam center:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="3">
-              <widget class="QCheckBox" name="fitEditWavelength">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
              <item row="2" column="1">
               <widget class="QDoubleSpinBox" name="inpEditDet"/>
              </item>
-             <item row="3" column="1">
-              <widget class="QDoubleSpinBox" name="inpEditWavelength"/>
-             </item>
-             <item row="2" column="3">
-              <widget class="QCheckBox" name="fitEditDet">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="4" column="2">
-              <widget class="QDoubleSpinBox" name="inpBeamPosY_BeamPosX">
-               <property name="prefix">
-                <string>Y=</string>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="1">
-              <widget class="QDoubleSpinBox" name="inpEditPixelNoX">
-               <property name="prefix">
-                <string>X=</string>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="2">
-              <widget class="QDoubleSpinBox" name="inpEditPixelY_EditPixelX">
-               <property name="prefix">
-                <string>Y=</string>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="0">
-              <widget class="QLabel" name="lblEditWavelength">
-               <property name="text">
-                <string>Wavelength:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="4" column="1">
-              <widget class="QDoubleSpinBox" name="inpBeamPosX">
-               <property name="prefix">
-                <string>X=</string>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="0">
-              <widget class="QLabel" name="lblEditPixelNoX">
-               <property name="text">
-                <string>PixelNo.:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="1">
-              <widget class="QDoubleSpinBox" name="inpEditPixelX">
-               <property name="prefix">
-                <string>X=</string>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="2">
-              <widget class="QDoubleSpinBox" name="inpEditPixelNoY_EditPixelNoX">
-               <property name="prefix">
-                <string>Y=</string>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="0">
-              <widget class="QLabel" name="lblEditPixelX">
-               <property name="text">
-                <string>PixelSize:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="3">
-              <widget class="QCheckBox" name="fitEditPixelNoX">
+             <item row="1" column="3">
+              <widget class="QCheckBox" name="fitEditPixelX">
                <property name="text">
                 <string/>
                </property>
@@ -1875,7 +1759,24 @@
                </property>
               </widget>
              </item>
-             <item row="6" column="0">
+             <item row="4" column="0" colspan="4">
+              <widget class="QLabel" name="label_34">
+               <property name="text">
+                <string>Used center for calculation:</string>
+               </property>
+              </widget>
+             </item>
+             <item row="9" column="0">
+              <widget class="QLabel" name="lblComment">
+               <property name="text">
+                <string>Comment:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="11" column="0">
               <spacer name="verticalSpacer_13">
                <property name="orientation">
                 <enum>Qt::Vertical</enum>
@@ -1888,23 +1789,123 @@
                </property>
               </spacer>
              </item>
-             <item row="1" column="3">
-              <widget class="QCheckBox" name="fitEditPixelX">
+             <item row="1" column="1">
+              <widget class="QDoubleSpinBox" name="inpEditPixelX">
+               <property name="prefix">
+                <string>X=</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="2">
+              <widget class="QDoubleSpinBox" name="inpEditPixelY_EditPixelX">
+               <property name="prefix">
+                <string>Y=</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="lblEditPixelX">
+               <property name="text">
+                <string>PixelSize:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="2">
+              <widget class="QDoubleSpinBox" name="inpBeamPosY_BeamPosX">
+               <property name="prefix">
+                <string>Y=</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QDoubleSpinBox" name="inpEditPixelNoX">
+               <property name="prefix">
+                <string>X=</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="0">
+              <widget class="QLabel" name="lblEditPixelNoX">
+               <property name="text">
+                <string>PixelNo.:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="3">
+              <widget class="QCheckBox" name="fitEditDet">
                <property name="text">
                 <string/>
                </property>
               </widget>
              </item>
-             <item row="5" column="1" colspan="3">
-              <widget class="QLineEdit" name="txtComment"/>
+             <item row="0" column="2">
+              <widget class="QDoubleSpinBox" name="inpEditPixelNoY_EditPixelNoX">
+               <property name="prefix">
+                <string>Y=</string>
+               </property>
+              </widget>
              </item>
-             <item row="5" column="0">
-              <widget class="QLabel" name="lblComment">
+             <item row="5" column="1">
+              <widget class="QDoubleSpinBox" name="inpBeamPosX">
+               <property name="prefix">
+                <string>X=</string>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="0" colspan="4">
+              <widget class="Line" name="line_6">
+               <property name="orientation">
+                <enum>Qt::Horizontal</enum>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="1">
+              <widget class="QDoubleSpinBox" name="inpEditWavelength"/>
+             </item>
+             <item row="0" column="3">
+              <widget class="QCheckBox" name="fitEditPixelNoX">
                <property name="text">
-                <string>Comment:</string>
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0">
+              <widget class="QLabel" name="lblEditWavelength">
+               <property name="text">
+                <string>Wavelength:</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="9" column="1" colspan="3">
+              <widget class="QLineEdit" name="txtComment"/>
+             </item>
+             <item row="3" column="3">
+              <widget class="QCheckBox" name="fitEditWavelength">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="0">
+              <widget class="QRadioButton" name="radCenterBeam">
+               <property name="text">
+                <string>Beam:</string>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="0" colspan="3">
+              <widget class="QRadioButton" name="radCenterMidpoint">
+               <property name="text">
+                <string>Mid point</string>
                </property>
               </widget>
              </item>
@@ -4564,7 +4565,7 @@ with file definitions</string>
              <item row="0" column="1">
               <widget class="QSpinBox" name="inpNumCores">
                <property name="toolTip">
-                <string>More than 1 makes only sense with HKLmax &gt; 5</string>
+                <string>Set to zero to activate the GPU if available.</string>
                </property>
                <property name="specialValueText">
                 <string>GPU</string>
@@ -4808,7 +4809,7 @@ with file definitions</string>
              <item row="2" column="0" colspan="2">
               <widget class="QPushButton" name="butParamSearchDoit">
                <property name="text">
-                <string>Search for parameter files (*.ini)</string>
+                <string>Search for parameter files (*.ini, *.sas_tpv)</string>
                </property>
               </widget>
              </item>

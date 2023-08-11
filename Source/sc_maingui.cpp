@@ -29,7 +29,7 @@
 
 
 // This version information is displayed in the top right corner
-#define MYVERSION "2.0.1  (May 2023)"
+#define MYVERSION "2.0.2  (Aug 2023)"
 
 
 // Global (static) variables
@@ -69,46 +69,46 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
 #ifdef Q_OS_LINUX
     // To draw frames around the QGrupBox not visible in the default linux style
     QStyle *winstyle = QStyleFactory::create("Windows");
-    ui->grpAIoptions->setStyle(winstyle);
-    ui->grpAIoutdir->setStyle(winstyle);
-    ui->grpCalcDestCalc->setStyle(winstyle);
-    ui->grpCalcDestConf->setStyle(winstyle);
-    ui->grpCalcTests->setStyle(winstyle);
-    ui->grpCalculation->setStyle(winstyle);
-    ui->grpClass->setStyle(winstyle);
+    ui->grpDataFile->setStyle(winstyle);
+    ui->grpLattice->setStyle(winstyle);
+    ui->grpParticle->setStyle(winstyle);
+    ui->grpPeakShape->setStyle(winstyle);
+    ui->grpAniso->setStyle(winstyle);
+    ui->grpOrientation->setStyle(winstyle);
+    ui->grpInformations->setStyle(winstyle);
     ui->grpColorMarker->setStyle(winstyle);
     ui->grpControl->setStyle(winstyle);
-    ui->grpDataFile->setStyle(winstyle);
-    ui->grpDefColTbl->setStyle(winstyle);
+    ui->grpPixelManipul->setStyle(winstyle);
+    ui->grpCalculation->setStyle(winstyle);
+    ui->grpCalcDestCalc->setStyle(winstyle);
     ui->grpEditQmaxGroup->setStyle(winstyle);
+    ui->grpQuadrants->setStyle(winstyle);
     ui->grpExperimant->setStyle(winstyle);
+    ui->grpWindows->setStyle(winstyle);
     ui->grpExtractImage->setStyle(winstyle);
-    ui->grpFFTinput->setStyle(winstyle);
+    ui->grpNoFitRegions->setStyle(winstyle);
+    ui->grpFrameColor->setStyle(winstyle);
     ui->grpFFToutput->setStyle(winstyle);
     ui->grpFFTuseRphi->setStyle(winstyle);
-    ui->grpFileInput->setStyle(winstyle);
+    ui->grpFFTinput->setStyle(winstyle);
     ui->grpFitParams->setStyle(winstyle);
     ui->grpFitResult->setStyle(winstyle);
     ui->grpFitStart->setStyle(winstyle);
-    ui->grpFrameColor->setStyle(winstyle);
-    ui->grpInformations->setStyle(winstyle);
-    ui->grpLattice->setStyle(winstyle);
-    ui->grpLastFitActions->setStyle(winstyle);
-    ui->grpMatrix->setStyle(winstyle);
-    ui->grpNoFitRegions->setStyle(winstyle);
-    ui->grpOrientation->setStyle(winstyle);
-    ui->grpParticle->setStyle(winstyle);
-    ui->grpPeakShape->setStyle(winstyle);
-    ui->grpPixelManipul->setStyle(winstyle);
-    ui->grpQuadrants->setStyle(winstyle);
-    ui->grpScanFiles->setStyle(winstyle);
-    ui->grpTimingInfo->setStyle(winstyle);
-    ui->grpTPVothers->setStyle(winstyle);
-    ui->grpTPVoutPath->setStyle(winstyle);
     ui->grpTPVvariation->setStyle(winstyle);
-    ui->grpValChg->setStyle(winstyle);
+    ui->grpTPVoutPath->setStyle(winstyle);
+    ui->grpTPVothers->setStyle(winstyle);
     ui->grpVariables->setStyle(winstyle);
-    ui->grpWindows->setStyle(winstyle);
+    ui->grpAIoptions->setStyle(winstyle);
+    ui->grpFileInput->setStyle(winstyle);
+    ui->grpClass->setStyle(winstyle);
+    ui->grpAIoutdir->setStyle(winstyle);
+    ui->grpCalcDestConf->setStyle(winstyle);
+    ui->grpLastFitActions->setStyle(winstyle);
+    ui->grpTimingInfo->setStyle(winstyle);
+    ui->grpDefColTbl->setStyle(winstyle);
+    ui->grpValChg->setStyle(winstyle);
+    ui->grpCalcTests->setStyle(winstyle);
+    ui->grpScanFiles->setStyle(winstyle);
 #endif
 
     //ui->actionFind_parameters_changing_image->setEnabled(false);
@@ -217,6 +217,10 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     ui->radQ4->setChecked( sets.value("Quadrant",2).toInt() == 4 );
     ui->togExpandImage->setChecked( sets.value("ExpandImg",true).toBool() );
     ui->togExpandImage->setEnabled( sets.value("Quadrant",2).toInt() != 4 );
+
+    ui->radCenterBeam->setChecked( sets.value("UseCenterBeam",false).toBool() );
+    ui->radCenterMidpoint->setChecked( ! ui->radCenterBeam->isChecked() );
+
     ui->lblLoadPrompt->hide();
     ui->lblLoadFilename->hide();
 
@@ -518,6 +522,7 @@ void SC_MainGUI::closeEvent(QCloseEvent *event)
         if ( ui->radQ4->isChecked() ) sets.setValue("Quadrant",4);
         sets.setValue( "ExpandImg", ui->togExpandImage->isChecked() );
         sets.setValue( "ParamSearchPath", ui->inpParamSearchPath->text() );
+        sets.setValue( "UseCenterBeam", ui->radCenterBeam->isChecked() );
 
         if ( fitparams != nullptr )
         {
@@ -1178,6 +1183,9 @@ void SC_MainGUI::on_actionSave_all_Parameters_triggered()
     if ( !fn.endsWith(".ini",Qt::CaseInsensitive) ) fn += ".ini";
     data.setValue("LastParam",fn);
     performSaveParamOperation( fn );
+    ui->lblLoadPrompt->show();
+    ui->lblLoadFilename->show();
+    ui->lblLoadFilename->setText(fn);
 } /* on_actionSave_all_Parameters_triggered() */
 
 void SC_MainGUI::performSaveParamOperation( QString fn )
@@ -1340,9 +1348,14 @@ QString SC_MainGUI::local_Load_all_Parameters(QString fn)
     ui->inpSigZ_SigX->setValue( sets.value( "Editdom3", 0.0 ).toDouble() );
     ui->inpBeamPosX->setValue( sets.value( "EditCenterX", 0 ).toDouble() );
     ui->inpBeamPosY_BeamPosX->setValue( sets.value( "EditCenterY", 0 ).toDouble() );
+    qDebug() << "Load CenterBeam:" << calcGui->currentParamValueInt("CenterBeam");
+    if ( calcGui->currentParamValueInt("CenterBeam")>0 )
+        ui->radCenterBeam->setChecked( true );
+    else
+        ui->radCenterMidpoint->setChecked( true );
 
     // EditHKLmax und EditGridPoints sind jetzt in die normalen Parameter gewandert...
-    qDebug() << "*** LOAD ***" << hklloaded << gridloaded;
+    //qDebug() << "*** LOAD ***" << hklloaded << gridloaded;
     if ( !hklloaded )
         ui->intHKLmax->setValue( sets.value( "HKLmax", 3 ).toInt() );
     if ( !gridloaded )
@@ -2004,15 +2017,17 @@ bool SC_MainGUI::local_OpenMeasFile( QString fn, widImage **imgout )
 void SC_MainGUI::copyMetaToLatticeTable( widImage *img )
 {
     DT( qDebug() << "copyMetaToLatticeTable()" );
+    bool savign = bIgnoreRecalc;
+    bIgnoreRecalc = true;
     // tblLattice3DValues --> tblHeaderData
     ui->tblHeaderData->setItem( tblLattWaveLen, 0, new QTableWidgetItem(img->metaInfo("wavelength",
                                      calcGui->currentParamValueStr("EditWavelength",true))) );
     ui->tblHeaderData->setItem( tblLattSaDist, 0, new QTableWidgetItem(img->metaInfo("SampleDist",
                                      calcGui->currentParamValueStr("EditDet",true))) );
     ui->tblHeaderData->setItem( tblLattPixelX, 0, new QTableWidgetItem(img->metaInfo("Pixel_X",
-                                     QString::number(calcGui->currentParamValueDbl("EditPixelX")*1000))) );
+                                     QString::number(calcGui->currentParamValueDbl("EditPixelX") ))) );  // *1000.
     ui->tblHeaderData->setItem( tblLattPixelY, 0, new QTableWidgetItem(img->metaInfo("Pixel_Y",
-                                     QString::number(calcGui->currentParamValueDbl("EditPixelY")*1000))) );
+                                     QString::number(calcGui->currentParamValueDbl("EditPixelY") ))) );  // *1000.
     ui->tblHeaderData->setItem( tblLattNbRows, 0, new QTableWidgetItem(img->metaInfo("NbRows")) );
     ui->tblHeaderData->setItem( tblLattNbCols, 0, new QTableWidgetItem(img->metaInfo("NbCols")) );
     int row = img->metaInfo("NbRows").toInt();
@@ -2021,6 +2036,7 @@ void SC_MainGUI::copyMetaToLatticeTable( widImage *img )
     int bsy = row/2 - ui->inpBeamPosY_BeamPosX->value();
     ui->tblHeaderData->setItem( tblLattBeamX, 0, new QTableWidgetItem(img->metaInfo("BeamPosX", QString::number(bsx))) );
     ui->tblHeaderData->setItem( tblLattBeamY, 0, new QTableWidgetItem(img->metaInfo("BeamPosY", QString::number(bsy))) );
+    bIgnoreRecalc = savign;
 }
 
 
@@ -2248,8 +2264,7 @@ bool SC_MainGUI::performSaveAIOperation( QString fn, bool doOverwrite, bool inte
         if ( ui->togFFTclipRphi->isChecked()   ) rphiScale += "Clip1 ";
         if ( ui->togFFTclip40Rphi->isChecked() ) rphiScale += "Clip4 ";
         f.write( qPrintable(QString("RPHI|%1;%2")
-                               .arg(ui->cbsFFTsizeRphi->currentText().left(3).trimmed())
-                               .arg(rphiScale.trimmed())
+                               .arg(ui->cbsFFTsizeRphi->currentText().left(3).trimmed(),rphiScale.trimmed())
                            +EOL) );
     }
     if ( useTPV ? ui->togTPVcalcFFT->isChecked() : ui->togAIUseFFTOutput->isChecked() )
@@ -4943,7 +4958,7 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
                 double *imgData = new double[(calcGui->maxX() - calcGui->minX()) * (calcGui->maxY() - calcGui->minY())];
                 for ( int ihex=calcGui->minX(); ihex<calcGui->maxX(); ihex++ )
                     for ( int i=calcGui->minY(); i<calcGui->maxY(); i++ )
-                        imgData[XY2IDX(calcGui->minX(),calcGui->maxX(),calcGui->minY(),calcGui->maxY(),ihex,i)]
+                        imgData[XY2IDX(calcGui->minX(),calcGui->maxX(),calcGui->minY(),calcGui->maxY(),ihex,i)] // fitAutomatic
                                 = fitClass->getResiduenPixel(ihex,i);
 
                 widImage* img = addImage( true, calcGui->minX(),calcGui->maxX(),calcGui->minY(),calcGui->maxY(), imgData, "Residuen", false );
@@ -5151,7 +5166,7 @@ void SC_MainGUI::on_butShowResiduen_clicked()
     double *imgData = new double[(calcGui->maxX() - calcGui->minX()) * (calcGui->maxY() - calcGui->minY())];
     for ( int ihex=calcGui->minX(); ihex<calcGui->maxX(); ihex++ )
         for ( int i=calcGui->minY(); i<calcGui->maxY(); i++ )
-            imgData[XY2IDX(calcGui->minX(),calcGui->maxX(),calcGui->minY(),calcGui->maxY(),ihex,i)]
+            imgData[XY2IDX(calcGui->minX(),calcGui->maxX(),calcGui->minY(),calcGui->maxY(),ihex,i)] // butShowResiduen
                     = fitClass->getResiduenPixel(ihex,i);
 
     widImage* img = addImage( true, calcGui->minX(),calcGui->maxX(),calcGui->minY(),calcGui->maxY(), imgData, "Residuen", false );
@@ -5442,6 +5457,7 @@ void SC_MainGUI::compString( QLineEdit *inp, QSettings &sets, QString key, QStri
     cv->par = par;
     compWerte.insert( prmt+key, cv );
     SETCOL( inp, SETCOLMARK_PARDIFF );
+    calcGui->updateToolTipForCompare( inp, cv->par );
 }
 void SC_MainGUI::compDouble( QDoubleSpinBox *inp, QSettings &sets, QString key )
 {
@@ -5453,17 +5469,20 @@ void SC_MainGUI::compDouble( QDoubleSpinBox *inp, QSettings &sets, QString key )
     cv->par = QString::number(par);
     compWerte.insert( key, cv );
     SETCOL( inp, SETCOLMARK_PARDIFF );
+    calcGui->updateToolTipForCompare( inp, cv->par );
 }
 void SC_MainGUI::compInt( QSpinBox *inp, QSettings &sets, QString key )
 {
     int cur = inp->value();
     int par = sets.value(key,0).toInt();
+    qDebug() << "compInt" << key << cur << par << inp->toolTip();
     if ( cur == par ) return;
     _CompValues *cv = new _CompValues;
     cv->cur = QString::number(cur);
     cv->par = QString::number(par);
     compWerte.insert( key, cv );
     SETCOL( inp, SETCOLMARK_PARDIFF );
+    calcGui->updateToolTipForCompare( inp, cv->par );
 }
 void SC_MainGUI::compInt( QComboBox *inp, QSettings &sets, QString key, QString prmt )
 {
@@ -5475,6 +5494,7 @@ void SC_MainGUI::compInt( QComboBox *inp, QSettings &sets, QString key, QString 
     cv->par = QString::number(par);
     compWerte.insert( prmt+key, cv );
     SETCOL( inp, SETCOLMARK_PARDIFF );
+    calcGui->updateToolTipForCompare( inp, cv->par );
 }
 void SC_MainGUI::compBool( QGroupBox *tog, QSettings &sets, QString key, QString prmt )
 {
@@ -5486,6 +5506,7 @@ void SC_MainGUI::compBool( QGroupBox *tog, QSettings &sets, QString key, QString
     cv->par = par ? "True" : "False";
     compWerte.insert( prmt+key, cv );
     SETCOL( tog, SETCOLMARK_PARDIFF );
+    calcGui->updateToolTipForCompare( tog, cv->par );
 }
 void SC_MainGUI::compBool( QCheckBox *tog, QSettings &sets, QString key, QString prmt )
 {
@@ -5497,6 +5518,7 @@ void SC_MainGUI::compBool( QCheckBox *tog, QSettings &sets, QString key, QString
     cv->par = par ? "True" : "False";
     compWerte.insert( prmt+key, cv );
     SETCOL( tog, SETCOLMARK_PARDIFF );
+    calcGui->updateToolTipForCompare( tog, cv->par );
 }
 void SC_MainGUI::compBool( QRadioButton *tog, QSettings &sets, QString key, QString prmt )
 {
@@ -5508,21 +5530,61 @@ void SC_MainGUI::compBool( QRadioButton *tog, QSettings &sets, QString key, QStr
     cv->par = par ? "True" : "False";
     compWerte.insert( prmt+key, cv );
     SETCOL( tog, SETCOLMARK_PARDIFF );
+    calcGui->updateToolTipForCompare( tog, cv->par );
 }
 
 void SC_MainGUI::on_actionCompare_current_parameters_with_file_triggered()
 {
     QSettings data(SETT_APP,SETT_PAR);
     QString fn = data.value("LastParam",".").toString();
+    fn = data.value("LastCompareParam",fn).toString();
     fn = QFileDialog::getOpenFileName( this, "Compare current Parameter", fn,
                                       "Parameter (*.ini *.sas_tpv)" );
                                       //nullptr, QFileDialog::DontUseNativeDialog | QFileDialog::DontResolveSymlinks );
     if ( fn.isEmpty() ) return;
-    //data.setValue("LastParam",fn);
+    data.setValue("LastCompareParam",fn);
 
     on_butResetColorMarker_clicked();
 
     QSettings sets( fn, QSettings::IniFormat );
+
+    // Die folgenden ObjectNames der GUI-Elemente werden in der Schleife über alle Elemente ignoriert.
+    // Der Grund: diese Werte sind im Paremeterfile in einer anderen Gruppe gespeichert.
+    QStringList tobeignored;
+    tobeignored << ui->radQ1->objectName()
+                << ui->radQ2->objectName()
+                << ui->radQ4->objectName()
+                << ui->togExpandImage->objectName()
+                << ui->inpVAx1->objectName()
+                << ui->inpAy1->objectName()
+                << ui->inpAz1->objectName()
+                << ui->inpVAx2_VAx1->objectName()
+                << ui->inpAy2_Ay1->objectName()
+                << ui->inpAz2_Az1->objectName()
+                << ui->inpVAx3_VAx1->objectName()
+                << ui->inpAy3_Ay1->objectName()
+                << ui->inpAz3_Az1->objectName()
+                << ui->inpSigX->objectName()
+                << ui->inpSigY_SigX->objectName()
+                << ui->inpSigZ_SigX->objectName()
+                //<< ui->intHKLmax->objectName()
+                //<< ui->intGridPoints->objectName()
+                //<< ui->inpNumCores->objectName()
+                << ui->inpBeamPosX->objectName()
+                << ui->inpBeamPosY_BeamPosX->objectName();
+    //sets.beginGroup( "AI" );
+    //compString( ui->inpSubDir, sets, "LastSubDir", "AI:" );
+    //compInt( ui->cbsAIoutputFormat, sets, "Grayscale", "AI:" );
+    //compBool( ui->grpFileInput, sets, "FileInputEna", "AI:" );
+    //compString( ui->inpFileName, sets, "FileInputLast", "AI:" );
+    //compString( ui->inpFileClass, sets, "FileClass", "AI:" );
+    //compBool( ui->togAIUseFFTOutput, sets, "GenerateIFFT", "AI:" );
+    //compBool( ui->radAILinOutput, sets, "LinOut", "AI:" );
+    //compBool( ui->togAIScaleOutput, sets, "ScaleOut", "AI:" );
+    //sets.endGroup();
+
+    calcGui->compareParameter( sets, compWerte, tobeignored );
+
     sets.beginGroup( "Inputs" );
     compBool( ui->radQ1, sets, "RadioButtonQ1" );
     compBool( ui->radQ2, sets, "RadioButtonQ2" );
@@ -5537,37 +5599,26 @@ void SC_MainGUI::on_actionCompare_current_parameters_with_file_triggered()
     compDouble( ui->inpVAx3_VAx1, sets, "EditAxis3x" );
     compDouble( ui->inpAy3_Ay1, sets, "EditAxis3y" );
     compDouble( ui->inpAz3_Az1, sets, "EditAxis3z" );
-    //compDouble( ui->inpN1, sets, "Editxrel" );
-    //compDouble( ui->inpN2, sets, "Edityrel" );
-    //compDouble( ui->inpN3, sets, "Editzrel" );
     compDouble( ui->inpSigX, sets, "Editdom1" );
     compDouble( ui->inpSigY_SigX, sets, "Editdom2" );
     compDouble( ui->inpSigZ_SigX, sets, "Editdom3" );
-    //compDouble( ui->inpU1, sets, "Editx1rel" );
-    //compDouble( ui->inpU2, sets, "Edity1rel" );
-    //compDouble( ui->inpU3, sets, "Editz1rel" );
-    //compDouble( ui->inpV1, sets, "Editx2rel" );
-    //compDouble( ui->inpV2, sets, "Edity2rel" );
-    //compDouble( ui->inpV3, sets, "Editz2rel" );
-    compInt( ui->intHKLmax, sets, "HKLmax" );
-    compInt( ui->intGridPoints, sets, "GridPoints" );
-    compInt( ui->inpNumCores, sets, "Threads" );
+    compInt( ui->intHKLmax, sets, "HKLmax" );               // TODO
+    compInt( ui->intGridPoints, sets, "GridPoints" );       // TODO
+    //compInt( ui->inpNumCores, sets, "Threads" ); - macht hier weniger Sinn...
     compDouble( ui->inpBeamPosX, sets, "EditCenterX" );
     compDouble( ui->inpBeamPosY_BeamPosX, sets, "EditCenterY" );
     sets.endGroup();
-    sets.beginGroup( "AI" );
-    compString( ui->inpSubDir, sets, "LastSubDir", "AI:" );
-    compInt( ui->cbsAIoutputFormat, sets, "Grayscale", "AI:" );
-    compBool( ui->grpFileInput, sets, "FileInputEna", "AI:" );
-    compString( ui->inpFileName, sets, "FileInputLast", "AI:" );
-    compString( ui->inpFileClass, sets, "FileClass", "AI:" );
-    compBool( ui->togAIUseFFTOutput, sets, "GenerateIFFT", "AI:" );
-    compBool( ui->radAILinOutput, sets, "LinOut", "AI:" );
-    //compBool( ui->radAILogOutput, ! sets.value("LinOut").toBool() );
-    compBool( ui->togAIScaleOutput, sets, "ScaleOut", "AI:" );
-    sets.endGroup();
+    //sets.beginGroup( "AI" );
+    //compString( ui->inpSubDir, sets, "LastSubDir", "AI:" );
+    //compInt( ui->cbsAIoutputFormat, sets, "Grayscale", "AI:" );
+    //compBool( ui->grpFileInput, sets, "FileInputEna", "AI:" );
+    //compString( ui->inpFileName, sets, "FileInputLast", "AI:" );
+    //compString( ui->inpFileClass, sets, "FileClass", "AI:" );
+    //compBool( ui->togAIUseFFTOutput, sets, "GenerateIFFT", "AI:" );
+    //compBool( ui->radAILinOutput, sets, "LinOut", "AI:" );
+    //compBool( ui->togAIScaleOutput, sets, "ScaleOut", "AI:" );
+    //sets.endGroup();
 
-    calcGui->compareParameter( sets, compWerte );
     showColorMarker( SETCOLMARK_PARDIFF );
 /*
     if ( compWerte.size() > 0 )
@@ -6985,7 +7036,7 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "EditAzi", true );
         myGuiParam::setEnabled( "EditDebyeWaller", true );
         gp=myGuiParam::setEnabled( "CheckBoxTwinned", true );                  /*  twinned  */  //Z=36511
-        gp->tog()->setChecked(true);
+        //gp->tog()->setChecked(true);
         //??EditTwRatio.Visible = true;
         myGuiParam::setEnabled( "HKLmax", true );
         myGuiParam::setEnabled( "acpl", false );
@@ -7017,7 +7068,7 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "EditAzi", true );
         myGuiParam::setEnabled( "EditDebyeWaller", true );
         gp=myGuiParam::setEnabled( "CheckBoxTwinned", true );                  /*  twinned  */  //Z=36511
-        gp->tog()->setChecked(true);
+        //gp->tog()->setChecked(true);
         //??EditTwRatio.Visible = true;
         myGuiParam::setEnabled( "HKLmax", true );
         myGuiParam::setEnabled( "acpl", false );
@@ -7049,7 +7100,7 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "EditAzi", true );
         myGuiParam::setEnabled( "EditDebyeWaller", true );
         gp=myGuiParam::setEnabled( "CheckBoxTwinned", true );                  /*  twinned  */  //Z=36511
-        gp->tog()->setChecked(true);
+        //gp->tog()->setChecked(true);
         //??EditTwRatio.Visible = true;
         myGuiParam::setEnabled( "HKLmax", true );
         myGuiParam::setEnabled( "acpl", false );
@@ -7177,7 +7228,7 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "EditAzi", true );
         myGuiParam::setEnabled( "EditDebyeWaller", true );
         gp=myGuiParam::setEnabled( "CheckBoxTwinned", true );                  /*  twinned  */  //Z=36511
-        gp->tog()->setChecked(true);
+        //gp->tog()->setChecked(true);
         //??EditTwRatio.Visible = true;
         myGuiParam::setEnabled( "HKLmax", true );
         myGuiParam::setEnabled( "acpl", false );
@@ -7837,35 +7888,35 @@ void SC_MainGUI::on_cbsComboBoxPeak_currentIndexChanged(int index)
     {
     case 0:     /*  Gaussian  */  //Z=37787
         myGuiParam::setEnabled( "EditPeakPar", false );     /*  peak par  */  //Z=37788
-        //GroupBoxAniso.Visible = false;  //Z=37790
+        myGuiParam::setEnabled( ui->grpAniso, false );  //Z=37790
         break;
     case 1:    /*  Lorentzian  */  //Z=37793
         myGuiParam::setEnabled( "EditPeakPar", false );     /*  peak par  */  //Z=37794
-        //GroupBoxAniso.Visible = false;  //Z=37796
+        myGuiParam::setEnabled( ui->grpAniso, false );  //Z=37796
         break;
     case 2:     /*  Lorentzian I  */  //Z=37799
         myGuiParam::setEnabled( "EditPeakPar", false );     /*  peak par  */  //Z=37800
-        //GroupBoxAniso.Visible = false;  //Z=37802
+        myGuiParam::setEnabled( ui->grpAniso, false );  //Z=37802
         break;
     case 3:     /*  Lorentzian II  */  //Z=37805
         myGuiParam::setEnabled( "EditPeakPar", false );     /*  peak par  */  //Z=37806
-        //GroupBoxAniso.Visible = false;  //Z=37808
+        myGuiParam::setEnabled( ui->grpAniso, false );  //Z=37808
         break;
     case 4:     /*  Pseudo-Voigt  */  //Z=37811
         myGuiParam::setEnabled( "EditPeakPar", true  );     /*  peak par  */  //Z=37812
-        //GroupBoxAniso.Visible = false;  //Z=37814
+        myGuiParam::setEnabled( ui->grpAniso, false );  //Z=37814
         break;
     case 5:     /*  Pearson  */  //Z=37817
         myGuiParam::setEnabled( "EditPeakPar", true  );     /*  peak par  */  //Z=37818
-        //GroupBoxAniso.Visible = false;  //Z=37820
+        myGuiParam::setEnabled( ui->grpAniso, false );  //Z=37820
         break;
     case 6:    /*  gamma  */  //Z=37823
         myGuiParam::setEnabled( "EditPeakPar", true  );     /*  peak par  */  //Z=37824
-        //GroupBoxAniso.Visible = false;  //Z=37826
+        myGuiParam::setEnabled( ui->grpAniso, false );  //Z=37826
         break;
     case 7:     /*  anisotropic  */  //Z=37829
         myGuiParam::setEnabled( "EditPeakPar", true  );     /*  peak par  */  //Z=37830
-        //GroupBoxAniso.Visible = true;  //Z=37832
+        myGuiParam::setEnabled( ui->grpAniso, myGuiParam::isEnabled("ComboBoxPeak") );  //Z=37832
         break;
     }
     if ( !updFlag && sender() != nullptr )
@@ -7887,11 +7938,12 @@ void SC_MainGUI::on_actionHide_unused_values_triggered(bool checked)
     DT( qDebug() << "on_actionHide_unused_values_triggered()" << bIgnoreRecalc );
     bool updFlag = bIgnoreRecalc;
     bIgnoreRecalc = true;
-    myGuiParam::setHideFlag(checked);
-
+    // Zuerst alle UI-Elemente ohne Namen sichtbar schalten, da sonst diese auf das Flag reagieren
+    myGuiParam::setEnabled( ui->grpAniso, true );
     //myGuiParam::setEnabled(ui->grpOrientation, true);   wird nirgend auf false gesetzt...
-    //myGuiParam::setEnabled( "ShellNo", false );   wird nirgends auf true gesetzt und in der Berechnung nicht verwendet
-
+    // erst jetzt das globale Flag setzen und alle Elemente mit Namen schalten
+    myGuiParam::setHideFlag(checked);
+    // Jetzt zur Sicherheit noch alle CBS Callbacks aufrufen
     on_cbsLType_currentIndexChanged( ui->cbsLType->currentIndex() );
     on_cbsComboBoxParticle_currentIndexChanged( ui->cbsComboBoxParticle->currentIndex() );
     on_cbsOrdis_currentIndexChanged( ui->cbsOrdis->currentIndex() );
@@ -7930,8 +7982,8 @@ void SC_MainGUI::on_butCopyHdrdata2Params_clicked()
     calcGui->updateParamValue( "BeamPosY",       bsy, SETCOLMARK_IGNORED );
     calcGui->updateParamValue( "EditWavelength", ui->tblHeaderData->item(tblLattWaveLen,0)->text().toDouble(), SETCOLMARK_IGNORED );
     calcGui->updateParamValue( "EditDet",        ui->tblHeaderData->item(tblLattSaDist, 0)->text().toDouble(), SETCOLMARK_IGNORED );
-    calcGui->updateParamValue( "EditPixelX",     ui->tblHeaderData->item(tblLattPixelX, 0)->text().toDouble()/1000., SETCOLMARK_IGNORED );
-    calcGui->updateParamValue( "EditPixelY",     ui->tblHeaderData->item(tblLattPixelY, 0)->text().toDouble()/1000., SETCOLMARK_IGNORED );
+    calcGui->updateParamValue( "EditPixelX",     ui->tblHeaderData->item(tblLattPixelX, 0)->text().toDouble(), SETCOLMARK_IGNORED );  //  /1000.
+    calcGui->updateParamValue( "EditPixelY",     ui->tblHeaderData->item(tblLattPixelY, 0)->text().toDouble(), SETCOLMARK_IGNORED );  //  /1000.
     // In tblHeaderData steht die Pixelsize in [mm], im Eingabefeld in [m] ...
 }
 

@@ -49,9 +49,9 @@ public:
     void setUCalpha( double v ) { params.ucalpha_deg = v; }
     void setUCbeta( double v ) { params.ucbeta_deg = v; }
     void setUCgamma( double v ) { params.ucgamma_deg = v; }
-    void setCeffF( double val ) { params.ceff = val; }
+    void setCeffF( double val ) { params.ceff = val; }      //ZN=20305, EditTwRatio
     void setCheckBoxTwinned( bool f ) { CheckBoxTwinned = f; }
-    void setCeffCyl( double val ) { conc=epsilon=val; }  //StrToFloat(EditCeffcyl.Text);
+    void setCeffCyl( double val ) { epsilon=val; }  //StrToFloat(EditCeffcyl.Text);, ='conc' wird aber nicht verwendet
     void setReff( double v ) { params.reff=v; }
     void setAcpl( double v ) { acpl=v; }
     void setBcpl( double v ) { bcpl=v; }
@@ -97,6 +97,7 @@ public:
     void setAlpha( double v ) { params.alphash1=v; }
     void setRho( double val ) { params.rho = val; } // neu
     void setRotAlpha( double v ) { params.alpha=v; }
+    // bfactor = StrToFloat(EditRotAlpha.Text);  //ZN=25425
 
     // PARAMETER: Peak Shape group
     typedef enum { cbpeakLorentzian=1,      // shp:=1;                          Lorentzian:=true;
@@ -143,16 +144,18 @@ public:
     // PARAMETER: Experiment group
     void setpixnox( double v ) { pixnox=v; }
     void setpixnoy( double v ) { pixnoy=v; }
-    void setpixx( double v ) { pixx=v; }
-    void setpixy( double v ) { pixy=v; }
+    void setpixx( double v_mm ) { pixx_m=v_mm/1000.; } // Übergabe aus Eingabefeld in Millimeter, intern weiter in Meter
+    void setpixy( double v_mm ) { pixy_m=v_mm/1000.; } // -"-
     void setdet( double val ) { det = val; }
     void setwave( double val ) { params.wavelength=val;  wave=val; /*wave kann geändert werden*/ }
     void setBeamStop( double x, double y ) { beamX0=x; beamY0=y; }
+    void setUseBeamStop( bool f ) { useBeamStop=f; }
 
     // PARAMETER: Controls group
     void setBFactorF( double val ) { bfactor = val; }
     void setCheckBoxWAXS( bool v ) { CheckBoxWAXS = v; }
     void setP1( double v ) { params.p1=v; }
+    // bfactor = StrToFloat(EditRotAlpha.Text);  //ZN=25425
 
     // PARAMETER: Pixel Manipulation group
     void setIso( double v ) { iso=v; }
@@ -197,7 +200,10 @@ private:
     int zmax;
     double dwfactor, qmax, displacement, bfactor;
 
-    double beamX0, beamY0;  // neu - Beamstop
+    //??? bool twin;  // wird bei LType=4 oder 5 gesetzt und bei corotations verwendet
+
+    double beamX0, beamY0;  // Beamstop
+    bool   useBeamStop;
 
     _cbInterior ComboBoxInterior;
     _cbParticle ComboBoxParticle;
@@ -226,34 +232,34 @@ private:
     double acpl, bcpl;
 
     // internal flags
-    bool generic, twin, debyescherrer, paracrystal, quad1, quad2, quad4,
+    bool /*generic=true,*/ twin, debyescherrer, paracrystal, quad1, quad2, quad4,
          lattice, lat1d, lat2d, lat3d, Lorentzian, Gaussian, Lorentzian1,
          Lorentzian2, Voigt, Pearson, BurgerG,
          partsphere, partcylinder, partdisk, partvesicle, partcube,
          partellipsoid, parttriellipsoid, partbarrel, partball, partchain,
          partkpchain, homogeneous, coreshell, coreinshell, lipo, myelin;
 
-    double conc, epsilon;        //StrToFloat(EditCeffcyl.Text);
+    double epsilon;        //StrToFloat(EditCeffcyl.Text);
 
-    double fhkl, qhkl, qhkl0;
+    double fhkl, qhkl; //, qhkl0;
     double qxhkl, qyhkl, qzhkl, qxyhkl;
-    double qxhklt, qyhklt, qzhklt;
+    double qxhklt, qyhklt, qzhklt, qhklt;
     int    mhkl, h, k, l, hmax, kmax, lmax;
     //double mildist, milq, angles, qxs, qys, norms, milqs, hs, ks, ls;
     //   werden gesetzt/berechnet, um in die GUI geschrieben zu werden, was hier nicht genutzt wird
-    double peaknorm1, peaknorm2, g3, x2phihkl;
+    double peaknorm1, peaknorm1t, peaknorm2, /*g3, g3t,*/ x2phihkl, x2phihklt; //, x2psihkl;
 
     //{NV} - unit cell definiton (TODO: Double3?)
     double cosa, cosb, cosg, ucpsi, ucvol,
            ucn1, ucn2, ucn3, ucn, ucn1n, ucn2n, ucn3n,
            ucphi, uctheta, cosphi, sinphi, costheta, sintheta,
-           ucl1,ucl2,ucl3, pixnox,pixx, pixnoy,pixy, det;
+           ucl1,ucl2,ucl3, pixnox,pixx_m, pixnoy,pixy_m, det;
     double ri11,ri12,ri13,ri21,ri22,ri23,ri31,ri32,ri33,
            rt11,rt12,rt13,rt21,rt22,rt23,rt31,rt32,rt33,
            nuvwx,nuvwy,nuvwz,uuvwx,uuvwy,uuvwz,vuvwx,vuvwy,vuvwz,
            nhklx,nhkly,nhklz,uhklx,uhkly,uhklz,vhklx,vhkly,vhklz;
     int   *latpar1ptr/* 6*/, *latpar2ptr/* 6*/;
-    float *latpar3ptr/*14*/; //, *latpar4ptr/* 2*/; // : Array[1..5000,0..15] of real;
+    float *latpar3ptr/*17*/; //, *latpar4ptr/* 2*/; // : Array[1..5000,0..15] of real;
     //  latpar4 wird (noch) nicht wirklich gebraucht
     double latpar[4];
     int peakmax1, peakmax2;
@@ -264,16 +270,15 @@ private:
 #include "sc_libs_gpu.h"
 #include "sc_memory_gpu.h"
 
+//    inline int   latpar1( int a, int b ) const { latparMaxCheck(0,a); return latpar1ptr[latparIDX(a,b, 6)]; }      // [5000][6], genutzt: 0,1,2,3,4,5
+//    inline int   latpar2( int a, int b ) const { latparMaxCheck(1,a); return latpar2ptr[latparIDX(a,b, 6)]; }      // [5000][6], genutzt: 0,1,2,3,4,5
+//    inline float latpar3( int a, int b ) const { latparMaxCheck(2,a); return latpar3ptr[latparIDX(a,b,17)]; }      // [5000][15], genutzt: 1 bis 16
+//    //#define latpar4(a,b) latpar4ptr[latparIDX(a,b, 2)]      // [5000][15], genutzt: nichts
 
-    int   latpar1( int a, int b ) const { return latpar1ptr[latparIDX(a,b, 6)]; }      // [5000][6], genutzt: 0,1,2,3,4,5
-    int   latpar2( int a, int b ) const { return latpar2ptr[latparIDX(a,b, 6)]; }      // [5000][6], genutzt: 0,1,2,3,4,5
-    float latpar3( int a, int b ) const { return latpar3ptr[latparIDX(a,b,14)]; }      // [5000][15], genutzt: 1 bis 12
-    //#define latpar4(a,b) latpar4ptr[latparIDX(a,b, 2)]      // [5000][15], genutzt: nichts
-
-    void setLatpar1( int a, int b, int v ) { latpar1ptr[latparIDX(a,b, 6)] = v; }      // [5000][6], genutzt: 0,1,2,3,4,5
-    void setLatpar2( int a, int b, int v ) { latpar2ptr[latparIDX(a,b, 6)] = v; }      // [5000][6], genutzt: 0,1,2,3,4,5
-    void setLatpar3( int a, int b, float v ) { latpar3ptr[latparIDX(a,b,14)] = v; }    // [5000][15], genutzt: 1 bis 13
-    //#define latpar4(a,b) latpar4ptr[latparIDX(a,b, 2)]      // [5000][15], genutzt: nichts
+//    inline void setLatpar1( int a, int b, int v ) { latparMaxCheck(0,a); latpar1ptr[latparIDX(a,b, 6)] = v; }      // [5000][6], genutzt: 0,1,2,3,4,5
+//    inline void setLatpar2( int a, int b, int v ) { latparMaxCheck(1,a); latpar2ptr[latparIDX(a,b, 6)] = v; }      // [5000][6], genutzt: 0,1,2,3,4,5
+//    inline void setLatpar3( int a, int b, float v ) { latparMaxCheck(2,a); latpar3ptr[latparIDX(a,b,17)] = v; }    // [5000][15], genutzt: 1 bis 16
+//    //#define latpar4(a,b) latpar4ptr[latparIDX(a,b, 2)]      // [5000][15], genutzt: nichts
 
     // Internal variables outside all loops
     int zzmin, zzmax, iimin, iimax;

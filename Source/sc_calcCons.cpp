@@ -413,7 +413,7 @@ void SC_CalcCons::prepareCalculation( bool fromFit )
  * @return true if the parameter was found, false in case of error
  * If in GUI mode the internal values are updated before returning.
  */
-bool SC_CalcCons::dataGetter( QString p, _valueTypes &v )
+void SC_CalcCons::dataGetter( QString p, _valueTypes &v )
 {
     if ( params.contains(p) )
     {
@@ -433,24 +433,23 @@ bool SC_CalcCons::dataGetter( QString p, _valueTypes &v )
             D(qDebug() << "paramHelper::toggle" << p << v.checked;)
             break;
         default:
-            return false;
+            break;
         }
-        return true;
+        return;
     }
     if ( inpValues.contains(p) )
     {
         v.value = inpValues[p];
         D(qDebug() << "inpValues" << p << v.value;)
-        return true;
+        return;
     }
     if ( inpVectors.contains(p) )
     {
         v.vec = inpVectors[p];
         D(qDebug() << "inpVectors" << p << v.vec.toString();)
-        return true;
+        return;
     }
     std::cerr << "dataGetter: '" << qPrintable(p) << "' not found" << std::endl;
-    return false;
 }
 
 

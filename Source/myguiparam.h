@@ -41,6 +41,8 @@ public:
     static myGuiParam *setEnabled(QString key, bool ena, QString lbl="");
     static void        setEnabled(QWidget *w, bool ena);
     static void        setLabel(QString key, QString txt);
+    static bool        isEnabled(QString key);
+    static bool        isEnabled(QWidget *w);
 
     void setLocLabel(QWidget *w, QString on);
     void setLocSelect(QWidget *w, QString on, QStringList sl, QString def);

@@ -93,7 +93,7 @@ public:
 private:
     SC_Calc_GENERIC *calcGeneric;
 
-    static bool dataGetter( QString p, _valueTypes &v );
+    static void dataGetter( QString p, _valueTypes &v );
 
 };
 
