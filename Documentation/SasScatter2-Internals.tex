@@ -80,7 +80,7 @@
 
 
 \setlength{\tabcolsep}{1mm} % Setzt den Längenwert von {Abstand zwischen den Spalten einer Tabelle} auf den Wert 1mm
-\setcounter{tocdepth}{2} % Tiefe des Inhaltsverzeichnisses
+\setcounter{tocdepth}{3} % Tiefe des Inhaltsverzeichnisses
 
 \begin{document}
 
@@ -95,6 +95,7 @@
 \hline
 April 2023 & M.Wagener & First edit phase. \\ \hline
 June 2023 & M.Wagener & Updates. \\ \hline
+Auguts 2023 & M.Wagener & Some updates and insert Python code \\ \hline
 \end{longtable}
 
 \centerline{All sources saved at https://github.com/neutron-simlab/CrystalScatter}
@@ -285,7 +286,7 @@ In this screenshot all possible parameters are shown. The parameters with grey l
  \caption{Calculation parameter grouping with no hidden values.}
 \end{figure}
 
-\subsection{Variable settings}
+\subsection{Variable settings - individual calls for each variable}
 
 There is one call to each variable. Some variables are converted directly to the correct internal range. There is no range checking done. This must be provided by the gui or the caller.
 \begin{itemize}\itemsep0pt
@@ -317,8 +318,11 @@ There is one call to each variable. Some variables are converted directly to the
 \item setDBetaF(double dbeta) in degrees.
 \item setLength(double length) in nm.
 \item setSigmaL(double sigmal)
-\item setAlphash(double alpha)
+\item setAlpha(double alphash)
 \item setRho(double rho)
+\item setRotAlpha(double alpha)
+\item double getRelDis() - returns the value of reldis to be displayed
+\item double getDist() - returns the value of dist to be displayed
 % 
 \item[] {\it PeakShape params}
 \item setComboBoxPeak(int cbpeak) this has a range from 0 to 7.
@@ -331,10 +335,10 @@ There is one call to each variable. Some variables are converted directly to the
 % 
 \item[] {\it PeakShapeMatrix params} \\
 	The class {\it Double3} contains x, y and z values.
-\item setAx1(Double3) sets ax1, ay1, az1.
-\item setAx2(Double3) sets ax2, ay2, az2.
-\item setAx3(Double3) sets ax3, ay3, az3.
-\item setSigXYZ(Double3) sets sigx, sigy, sigz.
+\item setAx1(Double3) sets ax1, ay1, az1
+\item setAx2(Double3) sets ax2, ay2, az2
+\item setAx3(Double3) sets ax3, ay3, az3
+\item setSigXYZ(Double3 p) sets sigx=4/p.x, sigy=4/p.y, sigz=4/p.z
 % 
 \item[] {\it Orientation params}
 \item setUCpsi(double ucpsi)
@@ -363,6 +367,7 @@ There is one call to each variable. Some variables are converted directly to the
 \item setdet(double detdist) detector distance in m.
 \item setwave(double wavelength) wavelength in nm.
 \item setBeamStop(double beamcx, double beamcy) sets the x and y coordinates of the beamstop in pixel indices.
+\item setUseBeamStop(bool usebs) if {\it usebs} is true, the above values are used to calculate the qx,qy,qz from the pixelindices. If {\it usebs} is false, the qx,qy,qz are only calculated from the qmax value above and the pixelindices.
 % 
 \item[] {\it Control params}
 \item setBFactorF(double bfactor)
@@ -376,7 +381,7 @@ There is one call to each variable. Some variables are converted directly to the
 \end{itemize}
 
 
-\subsection{Group settings}
+\subsection{Group settings - combined calls for each group of variables}
 
 There are calls for almost every group of parameters: Lattice, Particle, Peak Shape with the matrix, Orientation, Calculation with Qmax and Quadrants, Experiment, Controls, Pixel manipulation. The parameter names are the same as above.
 
@@ -389,7 +394,7 @@ There are calls for almost every group of parameters: Lattice, Particle, Peak Sh
 \item {\bf setParticleParams}(int cbparticle, int cbordis, int cbinterior,
                            double radius, double radiusi, double sigma,
                            double dbeta, double length, double sigmal,
-                           double alpha, double rho)
+                           double alphash, double rho, double alpha)
 \item {\bf setPeakShapeParams}(int cbpeak, double peakpar, double debyewaller,
                             double azi, double domainsize, bool debyescherrer,
                             bool para)
@@ -397,23 +402,25 @@ There are calls for almost every group of parameters: Lattice, Particle, Peak Sh
                             double ay1, double ay2, double ay3,
                             double az1, double az2, double az3,
                             double sigx, double sigy, double sigz)
+\item {\bf setPeakShapeMatrix}(Double3 ax1, Double3 ax2, Double3 ax3, Double3 sig) \\
+	same routine as above with other parameter data types.
 \item {\bf setOrientationParams}(double ucpsi, double ucn1, double ucn2, double ucn3,
                               double theta, double phi, double rottheta, double rotphi)
 \item {\bf setCalculationParams}(int gridp, int hklmax, double qmax, bool radq1,
                               bool radq2, bool radq4, bool expand)
 \item {\bf setExperimentParams}(double pixelnox, double pixelnoy, double pixelsizex,
                              double pixelsizey, double detdist, double wavelength,
-                             double beamcx, double beamcy)
+                             double beamcx, double beamcy, bool usebs)
 \item {\bf setControlParams}(double bfactor, bool waxs, double p1)
 \item {\bf setPixelManipulationParams}(double iso, double i0, double base)
 \end{itemize}
 
 
-\subsection{Model settings}
+\subsection{Model settings - examples of usage}
 
-This part is still under development. If you want to extract sone code pieces to write your own implementation, please ask for the correct statements.
+This part is still under development. If you want to extract some code pieces to write your own implementation, please ask for the correct statements.
 
-\subsubsection{Spheres}
+\subsubsection{Spheres - C++ calls}
 
 If you want a simple sphere model for the sample, you can extract some code and implement your own routines (see below) or you can call some of the above routines and get the resultant image from this package. Here is a list of routines to be called with some parameter settings for the result. Bold parameter names denotes the values you have to specify, here are the values for the image shown below.
 \begin{itemize}
@@ -425,7 +432,8 @@ If you want a simple sphere model for the sample, you can extract some code and 
 \item setPeakShapeMatrix(ax1=1, ax2=0, ax3=0, ay1=0, ay2=1, ay3=0, az1=0, az2=0, az3=1, sigx=40, sigy=40, sigz=40)
 \item setOrientationParams(ucpsi=0, ucn1=1, ucn2=0, ucn3=0, theta=0, phi=0, rottheta=0, rotphi=0)
 \item setCalculationParams({\bf gridp}=128, hklmax=1, {\bf qmax}=2, radq1=false, radq2=false, radq4=true, expand=false)
-\item setExperimentParams({\bf pixelnox}=128, {\bf pixelnoy}=128, {\bf pixelsizex}=0.0025, {\bf pixelsizey}=0.0025, {\bf detdist}=10, {\bf wavelength}=0.154, {\bf beamcx}=0, {\bf beamcy}=0)
+\item setExperimentParams({\bf pixelnox}=128, {\bf pixelnoy}=128, {\bf pixelsizex}=0.0025, {\bf pixelsizey}=0.0025, {\bf detdist}=10, {\bf wavelength}=0.154, {\bf beamcx}=0, {\bf beamcy}=0, usebf=false) \\
+	the bold params are used only if the {\it usebf} parameter is set to {\it true}.
 \item setControlParams(bfactor=0.01, waxs=false, p1=0)
 \item setPixelManipulationParams(iso=0, i0=1, base=0)
 \end{itemize} % group
@@ -463,6 +471,7 @@ If you want a simple sphere model for the sample, you can extract some code and 
 \item setdet({\bf detdist}=10)
 \item setwave({\bf wavelength}=0.154)
 \item setBeamStop({\bf beamcx}=0, {\bf beamcy}=0)
+\item setUseBeamStop(usebs=false) the bold params from pixelnox up to beamcy are used only if the {\it usebf} parameter is set to {\it true}
 \item setBFactorF(bfactor=0.01)
 \item setCheckBoxWAXS(waxs=false)
 \item setP1(p1=0)
@@ -479,6 +488,8 @@ Then a call to doCalculation() starts the calculations and you can retrieve the 
 \end{figure}
 
 \clearpage
+\subsubsection{Spheres - C++ code extracted}
+
 If you want to extract the source code for the same result, then you can use the following parts. The values provided as inputs are written in capital letters and the code presented here is cleaned up a little bit.
 \begin{itemize}
 \item First you have to calculate the coefficients. This is done in sc\_calc\_generic\_gpu.cu in the routine SasCalc\_GENERIC\_calculation::coefficients() and is called only once for each image: \\
@@ -486,8 +497,8 @@ If you want to extract the source code for the same result, then you can use the
 {\it Inputs:} dim=3=sphere, cs=0=homogeneous from the gui
  % , xleftmargin=0.1cm, xrightmargin=0.1cm
 \begin{lstlisting}[frame=single]
-zz = (1-sqr(SIGMA))/sqr(SIGMA); 
-xrz = RADIUS/(2.0*(zz+1));
+z = (1-sqr(SIGMA))/sqr(SIGMA); 
+xrz = RADIUS/(2.0*(z+1));
 xr2z = xrz*xrz;
 xrn[0] = 1;
 z12v[0] = 1;
@@ -559,8 +570,220 @@ pixelval = base + izero*pq;
 \end{lstlisting}
 {\it Output:} Pixelvalue at the given (radius,sigma,q) position.
 
+\item Around these calculations you have to program a two dimensional loop. This is done in sc\_calc\_generic\_gpu.cu in the routine SasCalc\_GENERIC\_calculation::doCalculation() together with the preparation, optimized for GPU or multithreading. This is the first loop dimension calling another routine for the second loop dimension. This is done for the threads. From this last loop dimension the qx,qy,qz values are calculated and then the real calculation routine is called.
+{\it Inputs:} all values from the gui
+\begin{lstlisting}[frame=single]
+zzmin = radq4 ? -gridp : 0;
+zzmax = gridp;
+iimin = radq1 ? 0 : -gridp;
+iimax = gridp;
+for ( int ihex=zzmin; ihex<zzmax; ihex++ )
+{
+    //doIntCalc_GENERIC( ihex++ );
+    for ( int i=iimin; i<iimax; i++ )
+    {
+        //doIntCalc_GENERIC_F( *this, ihex, i );
+        double qx, qy, qz;
+        if ( CALC.useBeamStop )
+        {   // Use the beam stop values
+            double mdet = ihex*CALC.pixnoy/(2.0*CALC.zmax);
+            double ndet = i   *CALC.pixnox/(2.0*CALC.zmax);
+            double xdet = CALC.pixx_m * (ndet - CALC.beamX0);
+            double ydet = CALC.pixy_m * (mdet - CALC.beamY0);
+            double rdet = sqrt(xdet*xdet+ydet*ydet);
+            double phidet = atan2(ydet,xdet);
+            double thetadet = atan2(rdet,CALC.det);
+            qx = 2*M_PI*cos(phidet)*sin(thetadet)/CALC.wave;
+            qy = 2*M_PI*sin(phidet)*sin(thetadet)/CALC.wave;
+            qz = 2*M_PI*(1-cos(thetadet))/CALC.wave;
+        }
+        else
+        {   // Use midpoint
+            qx = CALC.qmax * i    / (double)(CALC.zmax);
+            qy = CALC.qmax * ihex / (double)(CALC.zmax);
+            qz = 1e-20;
+        }
+        double pixval = doIntCalc_GENERIC_q_xyz(CALC, qx, qy, qz);
+        CALC.setXYIntensity( ihex, i, pixval ); // set image pixel
+    } // for i
+} // for ihex
+\end{lstlisting}
+
 \end{itemize}
 
+\subsubsection{Spheres - Python code example}
+
+The following code shows the same calculations in Python. There is no multithreading optimization done.
+
+\begin{itemize}
+\item Include all used libraries. The platform is used to make some changes under windows because of the shorter exponent (see below).
+\begin{lstlisting}[frame=single]
+import math
+import numpy as np
+import platform
+import time
+import matplotlib.pyplot as plt
+\end{lstlisting}
+
+\item Definition of all input parameter and image dimensions.
+\begin{lstlisting}[frame=single]
+# Global input parameters
+radius = 16.7 # nm
+sigma  = 0.0639
+part   = 0 # Sphere (Particle combobox)
+dim    = 3 # Sphere (selected from the part value)
+cs     = 0 # homogeneous
+qmax   = 2 # maximum Q value
+base   = 0 # pixelvalue offset
+izero  = 1 # pixelvalue factor
+
+# Dimensions of the result image
+gridpoints = 100
+iimin = -gridpoints
+iimax = +gridpoints
+zzmin = -gridpoints
+zzmax = +gridpoints
+image = np.zeros( (gridpoints*2, gridpoints*2), dtype=np.longdouble )
+
+# Other values
+nmax   = 120   # maximum array length
+carr4p = []    # intermediate array
+min4   = 1E-40 # min for the calculation to find the limit
+iswin  = False # flag set if the program runs under windows
+\end{lstlisting}
+
+\item This routine calculates the coefficients and runs only once for each image. The {\it if dim==3:} and {\it if cs==0:} are optional in this case but needed if other coefficient calculations will be used. The numpy logdouble data type is used to have more precision and a larger exponent. But: {\it x86 machines provide hardware floating-point with 80-bit precision, and while most C compilers provide this as their long double type, MSVC (standard for Windows builds) makes long double identical to double (64 bits).}\footnote{Taken from https://numpy.org/doc/stable/user/basics.types.html\#extended-precision}
+\begin{lstlisting}[frame=single]
+def coefficients():
+    global limq4, carr4p, n4
+    z    = np.longdouble( (1.-(sigma*sigma))/(sigma*sigma) )
+    xrz  = np.longdouble( radius/(2.0*(z+1.)) )
+    xr2z = np.longdouble( xrz*xrz )
+    xrn  = np.longdouble(1)
+    z12v = np.longdouble(1)
+    fkv  = np.longdouble(1)
+    gam3 = np.longdouble( math.sqrt(math.pi)/2.0 )
+    n4   = nmax  # nmax=120, the Dimension of carr4p[]
+    carr4p = [ 1. ]
+    #/* ** isotropic case for spheres ** */
+    #if dim==3: needed if other calculations are implemented
+    #    if cs==0:
+    spi9 = np.longdouble( 9. * math.sqrt(math.pi) )
+    n=0
+    for n in range(1, nmax+1):
+        z12v = z12v * (z-1. + 2.*n) * (z + 2.*n)
+        #  RuntimeWarning: overflow encountered in scalar multiply
+        if np.isinf(z12v) or np.isnan(z12v):
+            if n < n4:
+                n4 = n-1
+            break
+            # On Windows the exponent can only be +-308,
+            # On Linux the exponent can be up to +-4000
+            # Both with the numpy.longdouble() !!
+        fkv  = fkv*n
+        gam3 = gam3*(2.*n+1)/2.0
+        xrn  = -xrn*xr2z
+        carr4p.append( spi9 * np.power(4.0,n,dtype=np.longdouble) *
+                      (z12v*xrn) / (2. * (n+3.) * (n+2.) * (n+3./2.) *
+                       gam3 * fkv) )
+        if iswin and (z12v >= 1e307):
+            # This will prevent the runtime warning shown above on Windows
+            if n < n4:
+                n4 = n
+            break
+        if math.fabs(carr4p[n])<min4:
+            if n<n4:
+                n4 = n
+    limq4 = math.pow(math.fabs(carr4p[n4]),-1./(2.0*n4))
+    return
+    # if cs==0
+    # if dim==3
+\end{lstlisting}
+
+\item In the formpq routine the formfactor will be calculated. The {\it if part==0:} and {\it if cs==0:} are optional in this case but needed if other formfactor calculations will be used.
+\begin{lstlisting}[frame=single]
+def formpq(i,ihex):
+    global limq4, carr4p, n4
+    # Here only use the midpoint
+    qx = qmax * i    / gridpoints
+    qy = qmax * ihex / gridpoints
+    qz = 1e-20;
+    q  = math.sqrt(qx*qx + qy*qy + qz*qz) + 1e-9
+
+    zr = np.longdouble( (1.-(sigma*sigma))/(sigma*sigma) )
+    #if part==0: needed if other formfactors are implemented
+    #    if cs==0:
+    if q < 0.4*limq4:
+        pqsum = 1.
+        oldpqsum = 0.
+        qq2 = 1.
+        for nser in range(1,n4):
+            qq2 = qq2*q*q;
+            pqsum = pqsum+carr4p[nser]*qq2;
+            delser = math.fabs((pqsum-oldpqsum)/pqsum);
+            if delser<0.0001:
+                break;
+            oldpqsum = pqsum;
+        return pqsum;
+    else:
+        argq = q*radius/(zr+1)
+        pqr = (1./(2.*zr*(zr-1)*(zr-2)*(zr-3)))*math.pow(argq,-4)
+        pq1 = pqr*(1+math.cos((zr-3)*math.atan(2.*argq))/
+              math.pow(1.+4*argq*argq,(zr-3)/2.))
+        pq2 = (pqr/((zr-4)*argq))*math.sin((zr-4)*math.atan(2.*argq))/
+              math.pow(1.+4*argq*argq,(zr-4)/2.)
+        pq3 = (pqr/((zr-4)*(zr-5)*argq*argq))*(1-math.cos((zr-5)*
+            math.atan(2.*argq))/math.pow(1.+4*argq*argq,zr-5)/2.)
+        return 9.*(pq1-2*pq2+pq3)
+    # if cs==0
+    # if part==0
+\end{lstlisting}
+
+\item This main program will calculate the coefficients, then loop over the image pixel indices, calculates the formfactor and the pixelvalue, then scale the image to the whole range of used values. The image is displayed with a logarithmic value scaling. There are some prints which can be removed. For both calculation part, the runtime will be measured with the simple time function. At the end the image will be displayed with matplotlib.
+\begin{lstlisting}[frame=single]
+if __name__ == '__main__':
+    if platform.system() == 'Windows':
+        iswin = True
+
+    print("Start coef")
+    canf = time.time()
+    coefficients()
+    cend = time.time()
+
+    print("Start loop")
+    lanf = time.time()
+    imgmin = 10000
+    imgmax = 0
+    for i in range(iimin,iimax):
+        for ihex in range(zzmin,zzmax):
+            pq = formpq(ihex,i)
+            pix = math.log10(base + izero*pq)
+            if pix < imgmin:
+                imgmin = pix
+            if pix > imgmax:
+                imgmax = pix
+            image[i-iimin,ihex-zzmin] = pix
+    for i in range(iimin,iimax):
+        for ihex in range(zzmin,zzmax):
+            image[i-iimin,ihex-zzmin] = (image[i-iimin,ihex-zzmin] -
+                                         imgmin) / (imgmax - imgmin)
+    lend = time.time()
+    
+    print("times: coeff ", cend-canf)
+    print("        loop ", lend-lanf)
+    
+    plt.imshow(image, cmap='gray', vmin=0, vmax=1)
+    plt.show()
+\end{lstlisting}
+
+\end{itemize}
+
+The above code generates this image (left) compared to the image from the C++ (middle). In the right the gui with all parameters is shown.
+\begin{figure}[H]
+ \centering
+ \includegraphics[width=\textwidth]{Python2C.png}
+% \caption{Example sphere image.}
+\end{figure}
 
 
 %------------------------

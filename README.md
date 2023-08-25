@@ -14,7 +14,8 @@ will use only all found CPU-Cores for the maximum number of threads.
 
 # Documentation
 The documentation provided here might have older screenshots. Except the
-SasScatter2-Internals.tex and .pdf, this document is up to date.
+SasScatter2-Internals.tex and .pdf, this document is up to date and includes
+code examples in C++ and Python to calculate a sphere.
 
 Not all implemented features are documented in the SasScatter2-Userdoc.tex
 and .pdf at the moment. Inline source documentation will be added.
