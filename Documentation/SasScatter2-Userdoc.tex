@@ -83,7 +83,9 @@
 \maketitle
 \tableofcontents % toc anzeigen
 
-\begin{figure}[b] % die History Tabelle am unteren Seitenrand der ersten Seite anzeigen...
+\clearpage
+\begin{figure}  % [b] % die History Tabelle am unteren[b] Seitenrand der ersten Seite anzeigen...
+% Da das Inhaltsverzeichnis größer geworden ist, wird diese jetzt auf der zweiten Seite platziert.
 \begin{longtable}{|p{2.7cm}|p{2.6cm}|p{10.3cm}|}
 \caption{Document revision history} \\
 \hline\rowcolor{rowcolor}{\bf Date} & {\bf Author} & {\bf Short description} \\
@@ -96,6 +98,7 @@
 08. Dec 2022 & M.Wagener & Upload to github (under the name CrystalScatter). \\ \hline
 12. Jun 2023 & M.Wagener & Start writing about the GUI-Redesign. \\ \hline
 22. Jun 2023 & M.Wagener & Finish the first version after GUI-Redesign. \\ \hline
+27. Jun 2024 & M.Wagener & Update screenshots and some descriptions, add Chatbot. \\ \hline
 \end{longtable}
 
 \centerline{All sources saved at https://iffgit.fz-juelich.de/wagener/sas-crystal (only private access)}
@@ -193,6 +196,7 @@ There are some tools implemented, mostly as an answer to development questions a
 \item {\it Compare binary data files} - this will compare two data files saved with this program. These files contains the dimensions (first 20 characters) and then the image in binary representation.
 \item {\it Compare current parameters with file} - this will compare all current parameters with the informations read from a parameter file. All different parameters are highlighted with a green background and the value from the file is put in the tooltip text for this parameter.
 \item {\it Find parameters changing image} - all parameters (except the size informations) will be checked if they are changing the binary image. For this the current image is calculated and saved in memory, then each parameter ist changed +10\% and -10\% and each time the calculated image is compared with the starting image. Each parameter with a change will be highlighted with a cyan background.
+\item {\it Start autoprocessing file} - this will select a file with some commands and process them. Then this file can be used to be automatically processed at program start if given as a command line parameter.
 \end{itemize}
 If one colored background is set, an explanation for the colors is displayed in the Usage group box.
 
@@ -372,11 +376,11 @@ During the fit operations all informations can be saved in special files if the 
 
 
 \clearpage
-\subsubsection{Training Param Variation}
+\subsubsection{Random modifications}
 \begin{figure}[H]
  \centering
  \includegraphics[width=\textwidth]{gui-tpv.png}
- \caption{Training parameter variation}
+ \caption{Random modifications}
 \end{figure}
 
 In this tab you can generate a sequence of images comparable with the AI sequence explained below. The differences are (1) that you have here less manipulation features and (2) all images are saved in SPR-Format.
@@ -436,6 +440,28 @@ The usage might sound a bit complicated. Here I'll describe the input fields, th
 \item The output of the background process is shown in this list.
 \end{itemize}
 
+
+
+
+\subsubsection{Chatbot}
+\begin{figure}[H]
+ \centering
+ \includegraphics[width=\textwidth]{gui-chatbot.png}
+ \caption{Chatbot options}
+\end{figure}
+
+Some work in the SimLab delas with a chatbot interface for this program. The idea of the usage was, that the background process started in this tab looks for a special file, read it, calculates an image, save this as a png file and then remove the input file and wait again.
+
+The parts of this tab are:
+\begin{itemize}\itemsep0pt
+\item {\it Filename with inputs from the chatbot} - this is the file the background process looks for. The checkbox {\it Single calculation mode} is more for debug reasons. If checked at start of the background process, it will exit after the calculation and will  not remove the input file.
+\item {\it Output image configuration} - these settings can be modified in the GUI in each image window. To generate allways the same images, you can modify them here.
+\item {\it Use logfile during calculations} - if checked the given file is used to save some informations from the background process. These are not the same as displayed in the box at the bottom of this tab.
+\item {\it Generate training files} - this generate a training file from the current calculation parameters. The file will be appended each time the {\it Save config} button will be pressed. This file will be use to train the chatbot to learn the parameters.
+\item The buttons {\it Start} and {\it Stop} manipulates the background process.
+\item {\it Read clipboard} - this makes it easier to copy the relevant informations from the chatbot interface to be used by this program. Normally you have to save the chatbot output to a special file (see above). With this you copy the text into the clipboard and click on this button to perform the calculation.
+\end{itemize}
+The background process is the console version of this program described later with some special parameters.
 
 
 
@@ -511,6 +537,8 @@ The Meta button will show the table of all stored metadata informations on the r
 This function allows the user to make a simple test of the performance of the current used system.
 
 In the shown dialog the number of used threads are selectable, 1 thread is the slowest, 4 threads are the maximum on my development system (used for comparison), the maximum number of threads are determined by the program. The GPU can be enabled too. If not more than 4 threads possible or if no GPU found, then the apropriate checkboxes are disabled. The value of HKLmax can be set to different values, higher values increases the calculation time. If you want, you can also make the calculations for different quadrants.
+
+The {\it New switch selection} was inserted to check the differences in internal code optimization. The old one use only the generic calculation function. The new one use special optimized functions for some of the combobox selections. So it might be a little bit faster. But at the moment not all combinations of the comboboxes are implemented as optimized functions. If one combination is not available, the generic function is used in both options.
 
 The program calculates an image with the current parameter settings for each of the combination Quadrants/HKLmax/Threads in this loop order. The images are only saved if the apropriate checkbox is checked. The saved image files have the naming syntax: {\it timetest-t={\bf 1}-hkl={\bf 3}-q={\bf 2}.png}. No imagefiles are deleted before the test starts!
 
@@ -674,7 +702,12 @@ To perform the calculation work in a batch job, the console version of the progr
  & -{}-color & {\it color} & Set the used colortable to one of: grey, glow, earth, temp. \\ \hline
  & -{}-tpv & {\it file} & Inputfile (*.sas\_tpv) for the train parameter variation section to generate a number of random modified datasets (incl. r,phi and fft images). This parameter can be given more than once. If this is the last parameter, a wildcard for the filename can be used too. \\ \hline
  & -{}-tpvimg & {\it number} & Number of images to generate, will overwrite the factor value in the *.sas\_tpv files. \\ \hline
+ & -{}-timetest & {\it filename} & Start timing test. No output image is generated. Use -o to set the generated output file with the statistics and -p for the parametr file for the calculation. The given config file can be generated with the GUI and contains the test definitions. \\ \hline
+ & -{}-chatbot & {\it filename} & The program waits for the given input file (generated from a chatbot), calculates and saves the image and removes the input file. \\ \hline
+ & -{}-cbkeep & & If set, the inputfile is kept and the program ends after one calculation. This is useful during debugging, not needed in normal operations. \\ \hline
 \end{longtable}
+
+
 
 
 \end{document}

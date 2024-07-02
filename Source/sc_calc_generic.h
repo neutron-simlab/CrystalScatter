@@ -34,8 +34,8 @@ public:
     void prepareData( _dataGetter );
     void updateOutputData( _dataSetter );
 
-    void doCalculation( int numThreads )
-    { calc->doCalculation( numThreads ); } //230512//
+    void doCalculation( int numThreads, bool bIgnoreNewSwitch )
+    { calc->doCalculation( numThreads, bIgnoreNewSwitch ); } //230512//
 
     double doFitCalculation( int numThreads, int bstop, int border, long &cnt, long &nancnt )
     { return calc->doFitCalculation( numThreads, bstop, border, cnt, nancnt ); }
@@ -43,7 +43,6 @@ public:
     std::string tpvPerformRandom(std::list<std::string> ids) { return calc->tpvPerformRandom(ids); }
 
     double higResTimerElapsedPrep() { return calc->higResTimerElapsedPrep; }
-
     double higResTimerElapsedCalc() { return calc->higResTimerElapsedCalc; }
 
     void endThread() { calc->endThread(); }
@@ -60,12 +59,8 @@ public:
     int lastX() { return calc->lastX(); }
     int lastY() { return calc->lastY(); }
 
-#ifdef COPY_FITDATA_TO_GPU  // FITDATA_IN_GPU ok, real func
-    bool setArrDataForFit( const double *data ) { return calc->setArrDataForFit(data); }
-#ifdef CALC_FQS_IN_GPU
-    double getFQS() { return calc->getFQS(); }
-#endif
-#endif
+    bool newSwitchUsed() { return calc->newSwitchUsed(); }
+
 #ifdef FITDATA_IN_GPU  // real func
     bool setFitData( int sx, int sy, const double *data ) { return calc->setFitData(sx,sy,data); }
 #endif

@@ -592,6 +592,7 @@ widImage *SC_ReadData::readImageSasCrystal( myAddImage add, QString fnpar )
     //qDebug() << daten;
     //qDebug() << daten.size();
 
+    /*
     // Das Image muss noch um 90° gedreht werden, dann entspricht es dem Ausduck
     // Die Y-Achse muss gespiegelt werden, da die Grafik mit Y=0 oben arbeitet
     // Dann wird auch das Simulationsbild mit den gleichen BeamStop-Koordinaten
@@ -601,14 +602,15 @@ widImage *SC_ReadData::readImageSasCrystal( myAddImage add, QString fnpar )
         for ( int c=0; c<NbCols; c++, d++ ) // x
             imgData[XY2IDX(0,NbCols,0,NbRows,c,r)] = daten[d];
     //#define XY2IDX(X0,X1,Y0,Y1,x,y) ((-X0 + (x)) + (X1-X0)*(-Y0 + (y)))
-
+    */
     QFile ftxt(fntxt);
     if ( ! ftxt.open(QIODevice::ReadOnly) )
     {
         qDebug() << ftxt.fileName() << ftxt.errorString();
+        //delete imgData;
         return nullptr;
     }
-    widImage* img = add( 0, NbCols, 0, NbRows, imgData, "SasCrystal-Image" );
+    widImage* img = add( 0, NbCols, 0, NbRows, daten.data()/*imgData*/, "SasCrystal-Image" );
     img->addMetaInfo( "From File", fncsv ); // SasCrystalImage
     img->addMetaInfo( "NbRows", QString::number(NbRows) );
     img->addMetaInfo( "NbCols", QString::number(NbCols) );
@@ -807,6 +809,7 @@ widImage *SC_ReadData::readImageKWSData( myAddImage add, QString fn )
         return nullptr;
     }
 
+    /*
     // Das Image muss noch um 90° gedreht werden, dann entspricht es dem Ausduck
     // Die Y-Achse muss gespiegelt werden, da die Grafik mit Y=0 oben arbeitet
     // Dann wird auch das Simulationsbild mit den gleichen BeamStop-Koordinaten
@@ -817,6 +820,11 @@ widImage *SC_ReadData::readImageKWSData( myAddImage add, QString fn )
             imgData[XY2IDX(0,NbCols,0,NbRows,c,r)] = daten[d];
     //#define XY2IDX(X0,X1,Y0,Y1,x,y) ((-X0 + (x)) + (X1-X0)*(-Y0 + (y)))
     widImage* img = add( 0, NbCols, 0, NbRows, imgData, "KWS-Image" );
+
+    ==> NEIN. Durch Vergleiche mit dem Orginalprogramm passt es direkt ohne Drehung.
+        (es wird an anderer Stelle gedreht, damit es mit der Programmversion Aug.2023 passt)
+    */
+    widImage* img = add( 0, NbCols, 0, NbRows, daten.data(), "KWS-Image" );
     img->addMetaInfo( "From File", fn );    // KWS-Data
     img->addMetaInfo( "NbRows", QString::number(NbRows) );
     img->addMetaInfo( "NbCols", QString::number(NbCols) );
@@ -1057,12 +1065,21 @@ widImage *SC_ReadData::readImageHDF5( myAddImage add, QString fn, bool onlyOneIm
             int ndims = dataspace.getSimpleExtentDims( dims_out, NULL);
             dbg += QString(", rank=%1, ndims=%2, ").arg(rank).arg(ndims);
             size_t dimsize = 1;
+            size_t dimmax = 0;
+            bool dimdiff = false;
             for ( int i=0; i<rank; i++ )
             {
                 dimsize *= dims_out[i];
                 dbg += QString(" [%1]=%2").arg(i).arg(dims_out[i]);
+                if ( dims_out[i] > dimmax ) dimmax = dims_out[i];
+                else if ( dims_out[i] != dimmax ) dimdiff = true;
             }
-            qDebug() << dbg;    // Nur eine Zeile pro Image
+            qDebug() << dbg << dimdiff << dimmax;    // Nur eine Zeile pro Image
+
+            //if ( dimdiff && dlg != nullptr && dlg->makeSquare() )  TODO
+            //{
+            // "DS=/entry0/D22/Detector 1/data1, rank=3, ndims=3,  [0]=128 [1]=256 [2]=1" true 256
+            //}
 
             H5T_class_t type_class = dataset.getTypeClass();
             if ( type_class == H5T_INTEGER )
@@ -1260,11 +1277,43 @@ int SC_ReadData::iterate( QString file_name, QString grp_path, const hid_t loc_i
                         break;
                     case H5T_INTEGER:    //= 0,  /**< integer types                           */
                     {
-                        //int val;
                         qDebug() << "dataset" << grp_path << info.name << datatype_size << "Bytes" << sign + dtc2str[datatype_class] << tmp;
-                        //attr = H5Aopen_by_name(did, qPrintable(grp_path), info.name, H5P_DEFAULT, H5P_DEFAULT);
-                        //ret = H5Aread(attr, H5T_NATIVE_INT, &val);
+
+                        //int val;
+
+                        //hid_t attr = H5Aopen_by_name(did, qPrintable(grp_path), info.name, H5P_DEFAULT, H5P_DEFAULT);
+                        //HDF5-DIAG: Error detected in HDF5 (1.12.1) thread 0:
+                        //  #000: C:\SimLab\CMake-hdf5-1.12.1\hdf5-1.12.1\src\H5A.c line 528 in H5Aopen_by_name(): can't open attribute
+                        //    major: Attribute
+                        //    minor: Can't open object
+                        //  #001: C:\SimLab\CMake-hdf5-1.12.1\hdf5-1.12.1\src\H5VLcallback.c line 1091 in H5VL_attr_open(): attribute open failed
+                        //    major: Virtual Object Layer
+                        //    minor: Can't open object
+                        //  #002: C:\SimLab\CMake-hdf5-1.12.1\hdf5-1.12.1\src\H5VLcallback.c line 1058 in H5VL__attr_open(): attribute open failed
+                        //    major: Virtual Object Layer
+                        //    minor: Can't open object
+                        //  #003: C:\SimLab\CMake-hdf5-1.12.1\hdf5-1.12.1\src\H5VLnative_attr.c line 130 in H5VL__native_attr_open(): can't open attribute
+                        //    major: Attribute
+                        //    minor: Can't open object
+                        //  #004: C:\SimLab\CMake-hdf5-1.12.1\hdf5-1.12.1\src\H5Aint.c line 545 in H5A__open_by_name(): unable to load attribute info from object header
+                        //    major: Attribute
+                        //    minor: Unable to initialize object
+                        //  #005: C:\SimLab\CMake-hdf5-1.12.1\hdf5-1.12.1\src\H5Oattribute.c line 494 in H5O__attr_open_by_name(): can't locate attribute: 'det1_size'
+                        //    major: Attribute
+                        //    minor: Object not found
+
+                        //herr_t ret = H5Aread(attr, H5T_NATIVE_INT, &val);
+                        //HDF5-DIAG: Error detected in HDF5 (1.12.1) thread 0:
+                        //  #000: C:\SimLab\CMake-hdf5-1.12.1\hdf5-1.12.1\src\H5A.c line 698 in H5Aread(): not an attribute
+                        //    major: Invalid arguments to routine
+                        //    minor: Inappropriate type
+
                         //ret = H5Aclose(attr);
+                        //HDF5-DIAG: Error detected in HDF5 (1.12.1) thread 0:
+                        //  #000: C:\SimLab\CMake-hdf5-1.12.1\hdf5-1.12.1\src\H5A.c line 1624 in H5Aclose(): not an attribute
+                        //    major: Invalid arguments to routine
+                        //    minor: Inappropriate type
+
                         //qDebug() << "        =" << val;
                         break;
                     }
@@ -1561,6 +1610,7 @@ widImage *SC_ReadData::readImage2dSans( myAddImage add, QString fn )
                 sl = line.split( QRegExp("[\t ]"), Qt::SkipEmptyParts );
                 //qDebug() << line << sl;
                 //break;
+                if ( index >= sl.size() ) continue; // Zu wenige Daten in der Zeile, ignorieren (TODO)
                 double val = sl[index].toDouble(&ok);
                 if ( ok )
                     daten.append( val );
@@ -1624,9 +1674,10 @@ widImage *SC_ReadData::readImageEDF( myAddImage add, QString fn )
 
     QString fileType;
     QStringList keywords;
-    int EDF_BinarySize, headSize, NbCols, NbRows;
+    int EDF_BinarySize=0, headSize=0, NbCols=0, NbRows=0;
     QString ByteOrder, DataType, Title;
-    double ExposureTime, BeamPosX, BeamPosY, pixel_x, pixel_y, SampleDist, Wavelength, DetectorPos;
+    double ExposureTime=0, BeamPosX=0, BeamPosY=0, pixel_x=0, pixel_y=0, SampleDist=0, Wavelength=0, DetectorPos=0;
+    // =0 um Compiler-Warnungen bei <static> zu vermeiden
 
     line = fimg.readLine().trimmed();
     if ( line.startsWith("EDF_DataBlockID") )

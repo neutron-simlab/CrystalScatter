@@ -36,15 +36,15 @@ QStringList SC_Calc_GENERIC::guiLayoutNeu()
         {
             // Lattice group, 07.07.23: Bezeichnungen angepasst und zwei neue Werte dazu!
             "C;LType;Lamellae|Hexagonally packed cylinders (P6/mm)|Square packed cylinders (P4/mm)|Rectangular centered cylinders (cmm)"
-                "|BCC (lm3m)|FCC (Fm3m)|HCP (P6/mmc)|SC (Pm3m)|BCT (l4/mm)|Gyroid (la3d)|OBDD (Pn3m)|Plumbers Nightmare (lm3m)|None|CP-Layers"
-                "|2DHex (GISAXS)|2DSquare (GISAXS)|1DLam (GISAXS)|Fd3m|Orthorombic|LDQ12|Percus-Yevick|Teubner-Strey|Pm3n (A15)"
-                "|P42/mnm (sigma)|Fddd-network;;None",  // diese beiden Auswahlen sind neu
-            "N;uca;2|0.01|100|nm;;30",
-            "N;ucb;2|0.01|100|nm;;30",
-            "N;ucc;2|0.01|100|nm;;30",
-            "N;ucalpha;3|0|360|°;;0",  //??
-            "N;ucbeta;3|0|360|°;;0",  //??
-            "N;ucgamma;3|0|360|°;;0",  //??
+                "|BCC (lm3m)|FCC (Fm3m)|HCP (P6/mmc)|SC (Pm3m)|BCT (l4/mm)|Gyroid (Ia3d)|OBDD (Pn3m)|Plumbers Nightmare (Im3m)|None|CP-Layers"
+                "|2DHex (GISAXS)|2DSquare (GISAXS)|1DLam (GISAXS)|Fd3m|Orthorombic|LDQ12;Lattice type selection;None",
+                //20240301 - weg: "|Percus-Yevick|Teubner-Strey|Pm3n (A15)|P42/mnm (sigma)|Fddd-network"
+            "N;uca;2|0.01|1000| nm;Unit cell dimension a [nm];30",
+            "N;ucb;2|0.01|1000| nm;Unit cell dimension b [nm];30",
+            "N;ucc;2|0.01|1000| nm;Unit cell dimension c [nm];30",
+            "N;ucalpha;3|0|360|°;Unit cell rotation alpha [°];0",  //??
+            "N;ucbeta;3|0|360|°;Unit cell rotation beta [°];0",  //??
+            "N;ucgamma;3|0|360|°;Unit cell rotation gamma [°];0",  //??
             "N;EditCeff;4|0|1;;1",  //TwRatio
             "T;CheckBoxTwinned;;;0",  //??
             "N;EditCeffcyl;4|0|999;;0",  //??
@@ -58,7 +58,7 @@ QStringList SC_Calc_GENERIC::guiLayoutNeu()
 
             // Particle group
             "C;ComboBoxParticle;sphere|cylinder|disk|vesicle|cube|ellipsoid|triaxial ellipsoid|super ellipsoid, barrel"
-                "|superball|excluded volume chain|Kratky Porod chain;;Sphere",
+                "|superball|excluded volume chain|Kratky Porod chain;Particle type selection;Sphere",
             "C;Ordis;Gaussian|Exponential|Onsager|Maier-Saupe|Cut-off|Laguerre|z-dir|isotropic|mirrored Gaussian"
                 "|mirrored Exponential|mirrored Onsager|mirrored Maier-Saupe|mirrored Cut-off|fiber pattern;;isotropic",
             "C;ComboBoxInterior;homogeneous|core + homogeneous sh|core + inhomogeneous sh|multi-shell|myelin;;homogeneous",
@@ -75,9 +75,9 @@ QStringList SC_Calc_GENERIC::guiLayoutNeu()
             // Peak Shape group
             "C;ComboBoxPeak;Lorentzian|Gaussian|mod. 1 Lorentzian|mod. 2 Lorentzian|Pseudo-Voigt|Pearson VII|Gamma|Anisotropic Gaussian;;Gaussian",
             "N;EditPeakPar;;;0",  //??
-            "N;EditDebyeWaller;3|0|100|nm;Also called Displacement;2",
+            "N;EditDebyeWaller;3|0|100| nm;Also called Displacement [nm];2",
             "N;EditAzi;;;180",
-            "N;EditDomainSize;2|0|1000|nm;Radial domain size in nm;400",
+            "N;EditDomainSize;2|0|5000| nm;Radial domain size [nm];400",
             "T;RadButDebyeScherrer;;;0",  //??
             "T;RadioButtonPara;;;0",  //??
             "N;VAx1;3|-1000|1000;Ax1;1",  //??
@@ -104,24 +104,24 @@ QStringList SC_Calc_GENERIC::guiLayoutNeu()
             "N;rotPhi;3|0|360|°;;90",
 
             // Calculation group
-            "I;GridPoints;16|2049;;64",  //?? - werden nicht auf 20 runtergesetzt
-            "I;HKLmax;1|20;;5",
-            "N;EditQmax;4;Qmax preset from user;1",                   // Das genutzte QMax wird über die
-            "N;CalcQmax;4;Qmax calculated from data header above;",   // Radiobuttons darunter ausgewählt
-            "T;EditQmaxData;;;",   // auch wenn das Radiobuttons sind
-            "T;EditQmaxPreset;;;", // -"-
+            "I;GridPoints;16|2049;Half of the size of each image dimension;64",  //?? - werden nicht auf 20 runtergesetzt
+            "I;HKLmax;1|20;Number of iterations in the h,k,l-loops;5",
+            "N;EditQmax;4|0.001|100| nm-1;Qmax preset from user [nm-1];1",                   // Das genutzte QMax wird über die
+            "N;CalcQmax;4|0.001|100| nm-1;Qmax calculated from data header above [nm-1];",   // Radiobuttons darunter ausgewählt
+            "T;EditQmaxData;;Use the Qmax from the data;",   // auch wenn das Radiobuttons sind
+            "T;EditQmaxPreset;;Use the Qmax provided here;", // -"-
 
             // Experiment group
             "N;EditPixelNoX;1|16|10000;Number of horizontal detector pixel;2048",
             "N;EditPixelNoY;1|16|10000;Number of vertical detector pixel;2048",
-            "N;EditPixelX;5|0.0001|10|mm;Width of one detector pixel in Millimeter;0.172",
-            "N;EditPixelY;5|0.0001|10|mm;Height of one detector pixel in Millimeter;0.172",
-            "N;EditDet;4|0.001|100|m;Distance Sample - Detector;1",
-            "N;EditWavelength;5|0.001|200|nm;;0.09499",
-            "N;BeamPosX;3|-1000|1000;;0",
-            "N;BeamPosY;3|-1000|1000;;0",
-            "T;CenterBeam;;;",          // Radiobutton für die Beamposition
-            "T;CenterMidpoint;;;",      // Radiobutton für den Mittelpunkt (andere qx,qy,qz Berechnungen)
+            "N;EditPixelX;5|0.1|50| mm;Width of one detector pixel [mm];1",
+            "N;EditPixelY;5|0.1|50| mm;Height of one detector pixel [mm];1",
+            "N;EditDet;4|0.001|100| m;Distance Sample - Detector [m];1",
+            "N;EditWavelength;5|0.001|200| nm;Wavelength [nm];0.09499",
+            "N;BeamPosX;3|-1000|1000;Horitontal center of the beam in pixel coordinates;0",
+            "N;BeamPosY;3|-1000|1000;Vertical center of the beam in pixel coordinates;0",
+            "T;CenterBeam;;Use beam position;",          // Radiobutton für die Beamposition
+            "T;CenterMidpoint;;Use center point;",      // Radiobutton für den Mittelpunkt (andere qx,qy,qz Berechnungen)
 
             // Controls group
             "N;EditBFactor;3|0.01|999;;1",  //??

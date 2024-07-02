@@ -13,12 +13,14 @@ class dlgHdfSelection : public QDialog
 public:
     explicit dlgHdfSelection( QString fn, QStringList names, QWidget *parent = nullptr);
     bool isChecked( QString k );
+    bool makeSquare();
 
 private slots:
-    void on_butClose_clicked();
+    void onButCloseClicked();
 
 private:
     QHash<QString,QCheckBox*> map;
+    QCheckBox *togSquare;
 };
 
 #endif // DLGHDFSELECTION_H

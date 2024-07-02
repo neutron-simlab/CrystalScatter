@@ -28,6 +28,7 @@ SOURCES += \
     dlgtimetests.cpp \
     myguiparam.cpp \
     sc_calc_generic.cpp \
+    sc_calc_generic_cpu.cpp \
     sc_calcgui.cpp \
     sc_main.cpp \
     sc_maingui.cpp \
@@ -43,16 +44,33 @@ HEADERS += \
     myguiparam.h \
     sc_calc_generic.h \
     sc_calc_generic_gpu.h \
-    sc_libs_gpu.h \
-    sc_memory_gpu.h \
     sc_calcgui.h \
     sc_globalConfig.h \
+    sc_gpu_generic.h \
+    sc_gpu_pCub_lNon_oIso.h \
+    sc_gpu_pCyl_lNon_oGau.h \
+    sc_gpu_pSph_lNon_oIso.h \
+    sc_gpu_pSph_pGau_lFCC_oGau.h \
+    sc_gpu_pCyl_lNon_oZDi.h \
+    sc_gpu_pCyl_pGau_lBCT_oZDi.h \
+    sc_lib_formfq_partCylinder.h \
+    sc_lib_formfq_partDisk.h \
+    sc_lib_formfq_partSphere.h \
+    sc_lib_formpq_partCube.h \
+    sc_lib_formpq_partCylinder.h \
+    sc_lib_formpq_partDisk.h \
+    sc_lib_formpq_partEllips.h \
+    sc_lib_formpq_partSphere.h \
+    sc_lib_formpq_partSuperEllips.h \
+    sc_lib_formpq_partSuperball.h \
+    sc_lib_formpq_partTriaxEllips.h \
     sc_maingui.h \
     sc_math.h \
     sc_postproc.h \
     sc_readdata.h \
     sc_simplexfit2d.h \
     widimage.h
+    #sc_lib_formfq_partCube.h \
 
 FORMS += \
     dlgconfigautofit.ui \
@@ -67,13 +85,20 @@ else: unix:!android: target.path = /opt/sas_scatter2/bin
 !isEmpty(target.path): INSTALLS += target
 
 
+# OpenCL definitions
+#win32:{
+#    DEFINES += CL_HPP_TARGET_OPENCL_VERSION=300
+#    OCL_DIR = "../../OpenCL-SDK/install"
+#}
+
+
 # CUDA definitions
 unix:{
     CUDA_DIR = /usr/local/cuda-12.2   # Path to cuda sdk/toolkit install
     CUDA_EXE = $$CUDA_DIR/bin/nvcc
 }
 win32:{
-    #CUDA_DIR = "C:/Program\ Files/NVIDIA\ GPU\ Computing\ Toolkit/CUDA/v11.0"
+    #CUDA_DIR = "C:/Program\ Files/NVIDIA\ GPU\ Computing\ Toolkit/CUDA/v12.2"
     # -> nvcc fatal   : A single input file is required for a non-link phase when an outputfile is specified
     #                   -> nvcc has problems with spaces in filenames...
     CUDA_DIR = "C:/SimLab/CUDA/v12.2"  # link to above dir
@@ -90,17 +115,28 @@ CUDA_SOURCES += sc_calc_generic_gpu.cu
     # if no cuda support is installed, treat this as a normal c++ file
     SOURCES += $$CUDA_SOURCES
     QMAKE_CFLAGS += -x c++ -std=gnu++11
+
+    #exists($$OCL_DIR) {
+    #    # OpenCL usage
+    #    INCLUDEPATH += $$OCL_DIR/include
+    #    HEADERS += $$OCL_DIR/include/CL/opencl.hpp
+    #    LIBS += -L$$OCL_DIR/lib -lOpenCL
+    #    DEFINES += __OPENCL__
+    #    message("Use OpenCL in " $$OCL_DIR)
+    #}
 } else {
     # CUDA settings <-- may change depending on your system
     SYSTEM_NAME = Win64         # Depending on your system either 'Win32', 'x64', or 'Win64'
-    SYSTEM_TYPE = 64            # '32' or '64', depending on your system
-    CUDA_ARCH = compute_52      # Type of CUDA architecture, for example 'compute_10', 'compute_11', 'sm_10'
-    NVCC_OPTIONS = --use_fast_math -std=c++11  # todo: -warning 550 ...
+    CUDA_ARCH = sm_75  # native #  compute_52      # Type of CUDA architecture, for example 'compute_10', 'compute_11', 'sm_10'
+    NVCC_OPTIONS = --use_fast_math -std=c++11 # --verbose --keep
     #NVCC_OPTIONS += --ptxas-options=--verbose  # Specify options directly to ptxas, the PTX optimizing assembler.
+    NVCC_OPTIONS += -diag-suppress 550         # variable "xx" set but never used
 
-# The following library conflicts with something in Cuda
-    QMAKE_LFLAGS_RELEASE = /NODEFAULTLIB:msvcrt.lib         # TODO: Unter Linux: file not found...
-    QMAKE_LFLAGS_DEBUG   = /NODEFAULTLIB:msvcrtd.lib
+    win32:{
+        # The following library conflicts with something in Cuda
+        QMAKE_LFLAGS_RELEASE = /NODEFAULTLIB:msvcrt.lib
+        QMAKE_LFLAGS_DEBUG   = /NODEFAULTLIB:msvcrtd.lib
+    }
 
     message("Use CUDA")
 
@@ -108,26 +144,33 @@ CUDA_SOURCES += sc_calc_generic_gpu.cu
     win32:{
         # c++  cpp  g++  gcc  x86_64-w64-mingw32-c++  x86_64-w64-mingw32-g++  x86_64-w64-mingw32-gcc
         NVCC_OPTIONS += --dont-use-profile \
-            --allow-unsupported-compiler \
-            -ccbin=C:/Qt/Tools/mingw810_64/bin/x86_64-w64-mingw32-g++.exe \
+            --allow-unsupported-compiler --use-local-env \
+            -ccbin=C:/Qt/Tools/mingw810_64/bin/x86_64-w64-mingw32-c++.exe \
             --forward-unknown-to-host-compiler \
             --forward-unknown-to-host-linker \
-            --drive-prefix="/" --verbose
+            --verbose --drive-prefix="/"
         LIBS += "-l$$CUDA_DIR/lib/x64/cuda"
         LIBS += "-l$$CUDA_DIR/lib/x64/cudart"
         CUDA_INC = "$$CUDA_DIR/include"
+        #--compiler-bindir <path>                        (-ccbin)
+        #        Specify the directory in which the host compiler executable resides.  The
+        #        host compiler executable name can be also specified to ensure that the correct
+        #        host compiler is selected.  In addition, driver prefix options ('--input-drive-prefix',
+        #        '--dependency-drive-prefix', or '--drive-prefix') may need to be specified,
+        #        if nvcc is executed in a Cygwin shell or a MinGW shell on Windows.
     } else {
         LIBS += -L$$CUDA_DIR/lib64 -lcuda -lcudart
         CUDA_INC = -I$$CUDA_DIR/include
-        CUDA_INC += -I/usr/include/qt5 -I/usr/include/qt5/QtCore
+        #CUDA_INC += -I/usr/include/qt5 -I/usr/include/qt5/QtCore
     }
 
     # Configuration of the Cuda compiler
+    #   --machine 64  is the only allowed and default
     CONFIG(debug, debug|release) {
         # Debug mode
         cuda_d.input = CUDA_SOURCES
         cuda_d.output = ${QMAKE_FILE_BASE}_cuda.o
-        cuda_d.commands = $$CUDA_EXE -D_DEBUG $$NVCC_OPTIONS -I $$CUDA_INC --machine $$SYSTEM_TYPE -arch=$$CUDA_ARCH -c -o ${QMAKE_FILE_OUT} ${QMAKE_FILE_NAME}
+        cuda_d.commands = $$CUDA_EXE -D_DEBUG $$NVCC_OPTIONS -I $$CUDA_INC -arch=$$CUDA_ARCH -c -o ${QMAKE_FILE_OUT} ${QMAKE_FILE_NAME}
         cuda_d.dependency_type = TYPE_C
         QMAKE_EXTRA_COMPILERS += cuda_d
     }
@@ -135,7 +178,7 @@ CUDA_SOURCES += sc_calc_generic_gpu.cu
         # Release mode
         cuda.input = CUDA_SOURCES
         cuda.output = ${QMAKE_FILE_BASE}_cuda.o
-        cuda.commands = $$CUDA_EXE $$NVCC_OPTIONS -I $$CUDA_INC $$LIBS --machine $$SYSTEM_TYPE -arch=$$CUDA_ARCH -c -o ${QMAKE_FILE_OUT} ${QMAKE_FILE_NAME}
+        cuda.commands = $$CUDA_EXE $$NVCC_OPTIONS -I $$CUDA_INC $$LIBS -arch=$$CUDA_ARCH -c -o ${QMAKE_FILE_OUT} ${QMAKE_FILE_NAME}
         cuda.dependency_type = TYPE_C
         QMAKE_EXTRA_COMPILERS += cuda
     }
@@ -220,13 +263,11 @@ unix: {     # no static !
 }
 
 DISTFILES += \
-    "../Pascal-Sourcecodes/20221004 - crystal3d1.pas" \
     "../Pascal-Sourcecodes/20230420 - crystal3d1.pas" \
-    sc_memory_gpu.cu \
-    sc_libs_gpu.cu
-    #sc_libs_gpu.h \
-    #sc_memory_gpu.h \
+    "../Pascal-Sourcecodes/20220730 - Upq1.pas" \
+    "../Pascal-Sourcecodes/20240301 - crystal3d1.pas"
 
+    #"../Pascal-Sourcecodes/20221004 - crystal3d1.pas" \
     #"../20210616 - Neue Routinen/FHKL_routine_full.txt" \
     #"../20210616 - Neue Routinen/HKL_routine_basic.txt" \
     #"../20210616 - Neue Routinen/coordinate_rotation_routine_full.txt" \

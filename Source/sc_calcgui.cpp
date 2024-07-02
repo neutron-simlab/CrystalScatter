@@ -7,7 +7,6 @@
 #include <QAbstractItemView>
 #include "sc_maingui.h"
 #include "sc_calc_generic.h"
-#include "myguiparam.h"
 
 
 QHash<QString,Double3> SC_CalcGUI::inpVectors;
@@ -115,10 +114,10 @@ void SC_CalcGUI::saveParameter( QString fn )
             sets.setValue( par->key, par->value.flag /*bool*/ );
             break;
         }
-        if ( par->gui.w != nullptr && par->togFit != nullptr )
+        if ( par->gui.w != nullptr && par->gpFit != nullptr )
         {
             QString s = "00";
-            if ( par->togFit->isChecked() )
+            if ( par->gpFit->isFitUsed() )
             {
                 s[0] = '1';
                 //s[1] = par->used4fit ? '1' : '0';
@@ -148,31 +147,42 @@ QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, boo
     QString rv="";
     hkl  = false;
     grid = false;
-    QSettings sets( fn, QSettings::IniFormat );
+    QSettings infile( fn, QSettings::IniFormat );
     if ( !onlyMethod.isEmpty() && onlyMethod[0] == '@' )
-        sets.beginGroup( onlyMethod.mid(1) );
+        infile.beginGroup( onlyMethod.mid(1) );
     else
-        sets.beginGroup( calcGeneric->methodName() );
-    QStringList slKeys = sets.allKeys();
+        infile.beginGroup( calcGeneric->methodName() );
+    QStringList slKeysFile = infile.allKeys();
+    //qDebug() << "LOAD PARAM anf" << slKeysFile;
+    if ( slKeysFile.isEmpty() )
+    {
+        return "Error: old fileformat" EOL;
+    }
     QHash<QString,paramHelper*>::iterator ip = params.begin();
+    QStringList slKeysPar = params.keys();
     while ( ip != params.end() )
     {
         paramHelper *par = ip.value();
-        slKeys.removeOne( par->key );
 
-        //qDebug() << "LOAD" << par->key;
-        if ( par->key == "EditQmaxPreset" )
-        {   // Die RadioButtons für die Qmax Auswahl, nur einen nutzen...
+        if (par->key == "EditQmaxPreset" ||     // Die RadioButtons für die Qmax Auswahl, nur einen nutzen...
+            par->key == "CenterMidpoint" ||     // Radiobuttons für BeamCenter, nur einen nutzen...
+            par->key.startsWith("FITFLAG_") )   // Das Flag zum Fitten wird hier auch gespeichert, wird aber später separat eingelesen.
+        {
             ++ip;
+            slKeysFile.removeOne( par->key );
+            slKeysPar.removeOne( par->key );
             continue;
         }
-        if ( par->key == "CenterMidpoint" )
-        {   // Radiobuttons für BeamCenter, nur einen nutzen...
-            ++ip;
-            continue;
+
+        if ( infile.contains(par->key) )
+        {
+            //qDebug() << "LOAD PARAM" << "key found" << par->key;
+            slKeysFile.removeOne( par->key );
+            slKeysPar.removeOne( par->key );
         }
-        if ( par->key.startsWith("FITFLAG_") )
-        {   // Das Flag zum Fitten wird hier auch gespeichert, wird aber später separat eingelesen.
+        else
+        {   // Somit bleibt der Key in der Liste und generiert eine Fehlermeldung
+            //qDebug() << "LOAD PARAM" << "key unknown" << par->key << "!";
             ++ip;
             continue;
         }
@@ -181,8 +191,7 @@ QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, boo
         switch ( par->type )
         {
         case paramHelper::numdbl:
-            // Damit bei unbekannten Schlüsseln die Daten nicht auf 0 gesetzt werden
-            par->value.number = sets.value( par->key, par->value.number ).toDouble();
+            par->value.number = infile.value( par->key, par->value.number ).toDouble();
             if ( par->key == "EditPixelX" || par->key == "EditPixelY" )
             {   // In den "alten" Datensätzen waren diese Werte in Metern angegeben (also 0.0001m für 1mm)
                 // daher sollten diese Werte jetzt angepasst werden, da hier Millimeter verwendet werden
@@ -194,21 +203,24 @@ QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, boo
             break;
         case paramHelper::numint:
             // Damit bei unbekannten Schlüsseln die Daten nicht auf 0 gesetzt werden
-            par->value.number = sets.value( par->key, par->value.number ).toDouble();
+            par->value.number = infile.value( par->key, par->value.number ).toDouble();
             if ( par->gui.w )
                 par->gui.numi->setValue( par->value.number );
             //if ( par->key.contains("HKLmex",Qt::CaseInsensitive) ) hkl=true;      TODO
             //if ( par->key.contains("GridPoints",Qt::CaseInsensitive) ) grid=true;
             break;
         case paramHelper::select:
-            par->value.number = sets.value( par->key, par->value.number ).toDouble();
+            par->value.number = infile.value( par->key, par->value.number ).toDouble();
+            if ( par->value.number == 30 && par->key.contains("LType",Qt::CaseInsensitive) )
+            {
+                //qDebug() << par->key << par->value.number;
+                par->value.number = 12; // 30=Generic --> None
+            }
             if ( par->gui.w )
                 par->gui.cbs->setCurrentIndex( par->value.number );
-            //if ( par->key.contains("LType",Qt::CaseInsensitive) )
-            //    qDebug() << par->key << par->value.number;
             break;
         case paramHelper::toggle:
-            par->value.flag = sets.value( par->key, par->value.flag ).toBool();
+            par->value.flag = infile.value( par->key, par->value.flag ).toBool();
             //qDebug() << "*** LOAD toggle" << par->key << par->gui.w << par->value.flag;
             if ( par->gui.w )
             {
@@ -220,7 +232,7 @@ QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, boo
                     (static_cast<QRadioButton*>(params["CenterMidpoint"]->gui.w))->setChecked( ! par->value.flag );
                 }
                 else if ( par->key == "EditQmaxData" )
-                {   // Von dieser Gruppe werden zwar beide Werte im Parameterfile gespeichert, aber nur bei einem di GUI gesetzt.
+                {   // Von dieser Gruppe werden zwar beide Werte im Parameterfile gespeichert, aber nur bei einem die GUI gesetzt.
                     //  "T;EditQmaxData;;;",   // auch wenn das Radiobuttons sind
                     //  "T;EditQmaxPreset;;;", // -"-
                     (static_cast<QRadioButton*>(par->gui.w))->setChecked( par->value.flag );
@@ -233,22 +245,56 @@ QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, boo
         default:
             break;
         }
-        if ( par->gui.w != nullptr && par->togFit != nullptr )
+        if ( par->gui.w != nullptr && par->gpFit != nullptr )
         {
-            QString s = sets.value( "FITFLAG_"+par->key, "?" ).toString();
+            QString s = infile.value( "FITFLAG_"+par->key, "?" ).toString();
             // Wenn kein Wert im INI-File vorhanden ist, dann bleibt der Status des Fit-
             //  Toggles in der GUI erhalten.
             if ( s[0] == '?' )
-                s = par->togFit->isChecked() ? "11" : "00";
-            par->togFit->setChecked(s[0]!='0');
+                s = par->gpFit->isFitUsed() ? "11" : "00";
+            par->gpFit->setFitCheck(s[0]!='0');
             //par->fitparam = s[1]!='0';
-
+            slKeysFile.removeOne( "FITFLAG_"+par->key );
+            slKeysPar.removeOne( "FITFLAG_"+par->key );
         }
         ++ip;
     }
-    if ( slKeys.size() > 0 )
-        rv += /*"Method: "+im.key()+*/"Unknown keys in file: "+slKeys.join(", ")+EOL;
-    sets.endGroup();
+    slKeysFile.removeOne("FITFLAG_EditDist");       // Output-Parameter
+    slKeysFile.removeOne("FITFLAG_EditRelDis");     // Output-Parameter
+    slKeysFile.removeOne("FITFLAG_EditQmaxPreset"); // Macht eh keinen Sinn
+    slKeysFile.removeOne("FITFLAG_ShellNo");        // Noch von früher
+    if ( slKeysFile.size() > 0 )
+    {   // Diese Schlüssel sind veraltet und werden nicht mehr verwendet
+        slKeysFile.sort();
+        for ( int i=0; i<slKeysFile.size(); i++ )
+        {
+            slKeysFile[i] += "=" + infile.value(slKeysFile[i],"?").toString();
+        }
+        rv += EOL "Old keys in file (ignored):" EOL + slKeysFile.join(", ")+EOL;
+        //Old keys in file (ignored): CheckBoxf2q=false, EditAnglexy=0, EditStretch=1, EditWAXSangle=0,
+        //                            Editx=0, Edity=0, MaxIter=2, RadioButtonCHS=false, RadioButtonCS=false,
+        //                            RadioButtonSolid=false, RadioButtonVertical=false, Rot_Angle=0,
+        //                            Rot_X=0, Rot_Y=0, Rot_Z=0, Tilt_Angle=0
+    }
+    slKeysPar.removeOne("EditDist");    // Output-Parameter
+    slKeysPar.removeOne("EditRelDis");  // Output-Parameter
+    if ( slKeysPar.size() > 0 )
+    {
+        slKeysPar.sort();
+        for ( int i=0; i<slKeysPar.size(); i++ )
+        {
+            updateParamValueColor( slKeysPar[i], SETCOLMARK_OLDPARAM );
+            slKeysPar[i] += "=" + currentParamValueStr(slKeysPar[i],true);
+        }
+        rv += EOL "Unknown parameters in file (as current): " EOL + slKeysPar.join(", ")+EOL;
+        //Unknown parameters in file (as current):
+        //    Alpha=0, Ay1=0, Ay2=1, Ay3=0, Az1=0, Az2=0, Az3=1, BeamPosX=0, BeamPosY=0, CalcQmax=1.665,
+        //    CenterBeam=False, CheckBoxTwinned=False, EditCeffcyl=0, EditQmaxData=False, GridPoints=64,
+        //    HKLmax=5, LType=BCT (l4/mm) {8}, Length=1, P1=0, RotAlpha=0, SigX=40, SigY=40, SigZ=40,
+        //    SigmaL=0.06, VAx1=1, VAx2=0, VAx3=0, acpl=0, bcpl=0, ifluc=0, reff=0, rfluc=0, rotPhi=90,
+        //    rotTheta=90
+    }
+    infile.endGroup();
     return rv;
 }
 
@@ -260,10 +306,10 @@ void SC_CalcGUI::saveFitFlags( QSettings &sets )
     while ( ip != params.end() )
     {
         paramHelper *par = ip.value();
-        if ( par->gui.w != nullptr && par->togFit != nullptr )
+        if ( par->gui.w != nullptr && par->gpFit != nullptr )
         {
             QString s = "00";
-            if ( par->togFit->isChecked() )
+            if ( par->gpFit->isFitUsed() )
             {
                 s[0] = '1';
                 //s[1] = par->used4fit ? '1' : '0';
@@ -288,10 +334,10 @@ void SC_CalcGUI::loadFitFlags( QSettings &sets )
                 ++ip;
                 continue;
             }
-            if ( par->gui.w != nullptr && par->togFit != nullptr )
+            if ( par->gui.w != nullptr && par->gpFit != nullptr )
             {
                 QString s = sets.value( "FITFLAG_"+par->key, "00" ).toString();
-                par->togFit->setChecked(s[0]!='0');
+                par->gpFit->setFitCheck(s[0]!='0');
                 //par->fitparam = s[1]!='0';
             }
             ++ip;
@@ -426,7 +472,9 @@ QStringList SC_CalcGUI::paramsForMethod(bool num, bool glob, bool fit )
     {
         if ( fit )
         {   // Fit Parameter gehen hier vor
-            if ( ip.value()->togFit != nullptr && ip.value()->togFit->isChecked() && ip.value()->togFit->isEnabled() )
+            //if ( ip.value()->key.startsWith("Sig") && ip.value()->gpFit != nullptr && ip.value()->gpFit->fit() != nullptr )
+            //    qDebug() << ip.value()->key << ip.value()->gpFit->isFitUsed() << ip.value()->gpFit->fit()->isChecked() << ip.value()->gpFit->fit()->isEnabled();
+            if ( ip.value()->gpFit != nullptr && ip.value()->gpFit->isFitUsed() )
             {
                 //ip.value()->fitparam = true;
                 rv << ip.value()->key;
@@ -649,10 +697,10 @@ bool SC_CalcGUI::limitsOfParamValue(QString p, double &min, double &max, bool &c
 bool SC_CalcGUI::updateParamValue(QString p, double v, QColor col, bool dbg )
 {
     DT( qDebug() << "updateParamValue()" << p );
-    if ( p.contains("Grid",Qt::CaseInsensitive) ) dbg=true;
-    if ( p.contains("BeamPos",Qt::CaseInsensitive) ) dbg=true;
-    if ( p.contains("Beamcenter",Qt::CaseInsensitive) ) dbg=true;
-    if ( p.contains("Debye",Qt::CaseInsensitive) ) dbg=true;
+    //if ( p.contains("Grid",Qt::CaseInsensitive) ) dbg=true;
+    //if ( p.contains("BeamPos",Qt::CaseInsensitive) ) dbg=true;
+    //if ( p.contains("Beamcenter",Qt::CaseInsensitive) ) dbg=true;
+    //if ( p.contains("Debye",Qt::CaseInsensitive) ) dbg=true;
 
     if ( params.contains(p) )
     {
@@ -823,6 +871,24 @@ SC_CalcGUI::_numericalParams SC_CalcGUI::allNumericalParams()
     return rv;
 }
 
+bool SC_CalcGUI::isCurrentParameterVisible(QString p, QString &dbg)
+{
+    if ( params.contains(p) )
+    {
+        dbg = "Norm";
+        //if ( params[p]->gui.w == nullptr ) return false;
+        return params[p]->enabled; // gui.w->isVisible();
+    }
+    // Globaler Wert?
+    if ( inpValues.contains(p) ) { dbg="Inp"; return true; }
+    // Globaler Vektor-Wert?
+    if ( inpVectors.contains(p) ) { dbg="Vec"; return true; }
+    // Globaler Vektor-Wert als Einzelwert?
+    if ( inpSingleValueVectors.contains(p) ) { dbg="VecSingle"; return true; }
+    // Nicht gefunden
+    return false;
+}
+
 bool SC_CalcGUI::isCurrentParameterValid(QString p, bool forfit )
 {
     // Methodenspezifischer Parameter?
@@ -830,8 +896,8 @@ bool SC_CalcGUI::isCurrentParameterValid(QString p, bool forfit )
     {
         if ( forfit )
         {   // Die Fit-Parameter anders untersuchen
-            if ( params[p]->togFit == nullptr ) return false;
-            return params[p]->togFit->isEnabled() && params[p]->togFit->isChecked();
+            if ( params[p]->gpFit == nullptr ) return false;
+            return params[p]->gpFit->isFitUsed();
         }
         return true;
     }
@@ -903,8 +969,8 @@ void SC_CalcGUI::dataGetter( QString p, _valueTypes &v )
         if ( p=="ucb" || p=="ucc" )
         {   // Anscheinend wird in der Berechnung das ucb / ucc genutzt, auch wenn dieses nicht freigegeben ist.
             // Somit zur Sicherheit hier die Werte von uca übernehmen, falls ucb / ucc nicht da sind.
-            D(qDebug() << "dataGetter()" << p << par->togFit->isVisible() << par->togFit->isEnabled();)
-            if ( ! par->togFit->isEnabled() || ! par->togFit->isVisible() )  // Dieser Toggle ist immer da
+            D(qDebug() << "dataGetter()" << p << par->gpFit->isFitUsed();)
+            if ( ! par->gpFit->isFitUsed() /*|| ! par->togFit->isVisible()*/ )  // Dieser Toggle ist immer da
             {
                 //D(p+="*";) // für Debugausgabe ein * anhängen ...
                 par = params["uca"];
@@ -1088,9 +1154,9 @@ void SC_CalcGUI::dataGetterForFit( QString p, _valueTypes &v )
  * @param numThreads - number of used threads (ignored in GPU mode)
  * Starts the calculation of the current method.
  */
-void SC_CalcGUI::doCalculation( int numThreads )
+void SC_CalcGUI::doCalculation( int numThreads, bool bIgnoreNewSwitch )
 {
-    calcGeneric->doCalculation( numThreads );
+    calcGeneric->doCalculation( numThreads, bIgnoreNewSwitch );
 }
 
 /**

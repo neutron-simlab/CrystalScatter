@@ -143,9 +143,7 @@ public:
     inline _fileInfos *getFileInfos() { return &fileInfos; }
 
     void saveImage( QString fn );
-//#ifndef CONSOLENPROG
-    void saveImageColor( QString fn, QString coltbl );
-//#endif
+    bool saveImageColor( QString fn, QString coltbl, QString &dbg );
     void saveImageGray( QString fn );
     void saveImageBinary( QString fn );
     void saveImage( QString fn, QSize siz );
@@ -205,9 +203,6 @@ private:
     int  zoomFactor;
     bool useLinOut;
 
-    bool firstView; // zum Sperren weiterer adjustSize() bei setData(...)
-    // TODO: Wenn sich Bildgröße oder Zoom geändert hat, dann einmal adjustSize() wieder freigeben.
-
     _fileInfos fileInfos;
     bool bRekursiv;
 
@@ -231,6 +226,9 @@ private:
 
     calcHistorgramm *histoThread;
     bool histogramValid;
+
+    bool firstView; // zum Sperren weiterer adjustSize() bei setData(...)
+    // TODO: Wenn sich Bildgröße oder Zoom geändert hat, dann einmal adjustSize() wieder freigeben.
 
     bool   enaExtract;
     QRect  extractRect;

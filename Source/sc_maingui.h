@@ -14,6 +14,7 @@
 #include <QGroupBox>
 #include <QProcess>
 #include <QShowEvent>
+#include <QClipboard>
 #include "sc_calcgui.h"
 #include "sc_simplexfit2d.h"
 #include "widimage.h"
@@ -66,8 +67,10 @@ public:
     void run();
     void beenden() { calcGuiThread->endThread(); /*_exit=true;*/ }
     void setThreads( int n ) { numThreads=n; }
+    void setIgnoreNewSwitch( bool f ) { bIgnoreNewSwitch=f; }
 private:
     int numThreads;
+    bool bIgnoreNewSwitch;
     SC_CalcGUI *calcGuiThread;  // myCalcThread
     //bool _exit;
 };
@@ -226,6 +229,20 @@ private slots:
     void on_actionAbout_triggered();
     void on_actionAbout_Qt_triggered();
 
+    void on_actionStart_autoprocessing_file_triggered();
+
+    void on_butChatbotSearch_clicked();
+    void on_butChatbotStart_clicked();
+    void on_butChatbotStop_clicked();
+    void chatbotBackProg_error(QProcess::ProcessError error);
+    void chatbotBackProg_finished(int exitCode, QProcess::ExitStatus exitStatus);
+    void chatbotBackProg_readyRead();
+    void on_butChatbotLogSearch_clicked();
+    void on_butChatbotTrainfileSearch_clicked();
+    void on_butChatbotSaveConfig_clicked();
+    void on_butChatbotReadClipboard_clicked();
+    void chatbotClipboardChanged(QClipboard::Mode);
+
 private:
     Ui::SC_MainGUI *ui;
 
@@ -278,6 +295,9 @@ private:
     bool useFixedScaling;
     double minFixedScale, maxFixedScale;
 
+    void performTimingTests(QString out);
+    bool timingTestsRunning;
+
     // Daten für die History (Verlauf der Werteänderungen beim Fit)
 #define UnusedValue 1e10    // Dieser Wert in der Liste bedeutet, dass er nicht berechnet wurde
 #ifdef UnusedValue
@@ -286,7 +306,7 @@ private:
 #endif
 
     static SC_MainGUI *current;
-    static bool _bAbbruch;
+    static bool _bAbbruch, _bAbortTimer;
     void updateProgBar( int val );
 
     static widImage *myAddImage( int x0, int x1, int y0, int y1, double *d, QString title )
@@ -326,6 +346,7 @@ private:
     QProcess *aiBackProg;
     void aiBackProgAddLog( QString );
     bool localRemoveDirectory( QString fn );
+    QString getConsoleExecutable(bool domsg);
 
     // other
     void findBeamCenter( widImage *ikws, int &xerg, int &yerg );
@@ -333,6 +354,7 @@ private:
     void setCurrentNoFitRect();
 
     QString local_Load_all_Parameters(QString fn);
+    double loadParameter_checkOldFormat( double cur, QString key, QString &rv );
     bool local_OpenMeasFile( QString fn, widImage **imgout );
     void copyMetaToLatticeTable( widImage *img );
     bool copyParamsToFitTable();
@@ -359,6 +381,13 @@ private:
     void compString( QLineEdit *inp, QSettings &sets, QString key, QString prmt="" );
 
     void showColorMarker( QColor c );
+
+    // Tab "ChatBot"
+    QString chatbotConsProg;
+    QProcess *chatbotBackProg;
+    void chatbotBackProgAddLog(QString msg);
+    void chatbotSaveConfigHelper(QFile &fTrain, QString key, bool showena, bool isena);
+
 };
 
 #endif // SASMAIN_H

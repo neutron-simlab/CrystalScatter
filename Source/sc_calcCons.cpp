@@ -459,9 +459,9 @@ void SC_CalcCons::dataGetter( QString p, _valueTypes &v )
  * @param pa         - function to show the progress and get the abort flag
  * Starts the calculation of the current method.
  */
-void SC_CalcCons::doCalculation( int numThreads )
+void SC_CalcCons::doCalculation(int numThreads, bool ignNewSwitch)
 {
-    calcGeneric->doCalculation( numThreads );
+    calcGeneric->doCalculation( numThreads, ignNewSwitch );
 }
 
 double SC_CalcCons::doFitCalculation( int numThreads, int bstop, int border, long &cnt, long &nancnt )

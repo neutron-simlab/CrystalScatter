@@ -10,6 +10,35 @@
 #include <QLayout>
 #include <QVector>
 #include <QFontMetricsF>
+#include <QRadioButton>
+
+
+class myGuiParam;
+
+// Diese Struktur sollte auch alle Daten ohne GUI enthalten können
+typedef struct
+{
+    enum { undef, numdbl, numint, select, toggle, outdbl } type;
+    QString key;        // Name des Parameters
+    QString tooltip;    // Default ToolTip ohne Fitrange oder andere Zusatzinfos (aus der Liste)
+    myGuiParam *gpFit;  // !=0 wenn ein Fit möglich ist (enabled und checked ==> kommt in die Tabelle)
+    union
+    {
+        QDoubleSpinBox *numd;   // Zahl (double)
+        QSpinBox  *numi;        // Zahl (int)
+        QComboBox *cbs;         // Auswahl (int)
+        QCheckBox *tog;         // Bool
+        QRadioButton *rad;      // Bool, nur für die spezielle Auswahl von Qmax intern verwendet
+        QLineEdit *out;         // Für Outputs (ReadOnly)
+        QWidget *w;             // vereinfacht den Zugriff
+    } gui;              // nur in der GUI-Version gefüllt
+    bool  enabled;
+    struct
+    {
+        double  number; // also for selections
+        bool    flag;
+    } value;    // immer genutzt
+} paramHelper;
 
 
 
@@ -42,7 +71,7 @@ public:
     static void        setEnabled(QWidget *w, bool ena);
     static void        setLabel(QString key, QString txt);
     static bool        isEnabled(QString key);
-    static bool        isEnabled(QWidget *w);
+    //static bool        isEnabled(QWidget *w);
 
     void setLocLabel(QWidget *w, QString on);
     void setLocSelect(QWidget *w, QString on, QStringList sl, QString def);
@@ -54,6 +83,7 @@ public:
 
     bool isFitEnabled() { return _fit != nullptr; }
     bool isFitUsed();
+    void setFitCheck(bool f); // { if ( _fit != nullptr ) { _fit->setChecked(f); _fitUsed=f; } }
 
     void setValueSel( int v );
     void setValueSel( QString v );
@@ -88,6 +118,9 @@ public:
     inline QLabel    *lbl() { return _lbl; }
     inline QLineEdit *out() { return _out; }
 
+private slots:
+    void fitToggled(bool);
+
 signals:
     void valueChanged();
 
@@ -101,6 +134,10 @@ private:
     QLineEdit *_out;
 
     QString _keyName, _keyName2, _keyName3;
+
+    bool _fitUsed;
+
+    paramHelper *_par;
 
     static myGuiParam *searchParam(QWidget *w, QString &on);
     static QString searchSubKey(QString key);

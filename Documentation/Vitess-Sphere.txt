@@ -1,0 +1,84 @@
+_CalcTime_	44.8757 ms
+_Calculation_	Sphere
+_PrepTime_	25.9327 ms
+acpl	0
+Alfa	0
+Ax1	(1,0,0)
+Ax2	(0,1,0)
+Ax3	(0,0,1)
+Ay1	0
+Ay2	1
+Ay3	0
+Az1	0
+Az2	0
+Az3	1
+Base	0
+bcpl	0
+BeamPosX	0
+BeamPosY	0
+CalcQmax	0
+CheckBoxTwinned	False
+CheckBoxWAXS	False
+ComboBoxInterior	homogeneous {0}
+ComboBoxParticle	sphere {0}
+ComboBoxPeak	Anisotropic Gaussian {7}
+EditAzi	0
+EditBFactor	0.01
+EditCeff	0.01
+EditCeffcyl	0
+EditDbeta	0
+EditDebyeWaller	0
+EditDet	10
+EditDomainSize	0
+EditPeakPar	0
+EditPixelNoX	128
+EditPixelNoY	128
+EditPixelX	0.0025
+EditPixelY	0.0025
+EditQmax	2
+EditQmaxData	False
+EditQmaxPreset	True
+EditRadius	16.7
+EditRadiusi	0
+EditRho	0.08
+EditSigma	0.0639
+EditWavelength	0.154
+ExpandImage	True
+GridPoints	128
+HKLmax	1
+I0	1
+ifluc	0
+iso	0
+Length	0
+LType	None {12}
+Ordis	isotropic {7}
+P1	0
+phi	0
+RadButDebyeScherrer	False
+RadioButtonPara	False
+RadioButtonQ1	False
+RadioButtonQ2	False
+RadioButtonQ4	True
+reff	0
+rfluc	0
+rotPhi	0
+rotTheta	0
+SigmaL	0.11
+SigX	40
+SigXYZ	(40,40,40)
+SigY	40
+SigZ	40
+theta	0
+uca	1
+ucalpha	0
+ucb	1
+ucbeta	0
+ucc	1
+ucgamma	0
+ucn1	1
+ucn2	0
+ucn3	0
+ucpsi	0
+VAx1	1
+VAx2	0
+VAx3	0

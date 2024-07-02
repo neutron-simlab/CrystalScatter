@@ -63,21 +63,9 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
         return summe;
     }
 #endif
-    calc->doCalculation(numThreads);
+    calc->doCalculation(numThreads,false);
     numImgCalc++;
     // TODO qApp->processEvents();
-
-#ifdef COPY_FITDATA_TO_GPU
-#ifdef CALC_FQS_IN_GPU
-    //double fqs_gpu = -10.0;
-    if ( useGpuForMask )
-    {
-        info = QString("(gpu/%1px)").arg((_xmax-_xmin)*(_ymax-_ymin));
-        //fqs_gpu = calc->getFQS();
-        return calc->getFQS();
-    }
-#endif
-#endif
 
     double summe = 0.0;
     long   cnt = 0;     // Pixelcounter for Debug
@@ -176,9 +164,6 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
     info = QString("(%1px/%2px)").arg(cnt).arg((_xmax-_xmin)*(_ymax-_ymin));
     if ( nancnt > 0 ) info += QString(" NaN:%1").arg(nancnt);
     if ( nullcnt > 0 ) info += QString(" NULL:%1").arg(nullcnt);
-//#ifdef COPY_FITDATA_TO_GPU
-//    if ( fqs_gpu >= 0 ) info += QString(" GPU=%1").arg(fqs_gpu);
-//#endif
     return summe;
 }
 
@@ -233,7 +218,7 @@ double SasCalc_SimplexFit2D::amotry( int numThreads,
         {
             sum[j] += ptry[j]-p[ihi][j]; // (* Centrum schon mal umrechnen *)
             p[ihi][j]=ptry[j];           // (* Vertex durch Testvertex ersetzen *)
-            DBGMODIFY( qDebug() << "amotry set" << ihi << j << "=" << p[ihi][j]; )
+            /*DBGMODIFY(*/ qDebug() << "amotry set" << ihi << j << "=" << p[ihi][j]; /*)*/
         }
     }
     return ytry; // (* gibt y = FQS des Testvertex zurück *)
@@ -246,9 +231,6 @@ void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit,
 {
     aborted = false;
     retinfo = "";
-#ifdef COPY_FITDATA_TO_GPU
-    useGpuForMask = false;
-#endif
 
     parVals = vals;
     //typedef enum { fitNone, fitNumeric, fitCbs } _fitTypes;
@@ -365,9 +347,9 @@ void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit,
             step[i] = 0.0;
         pp[i]   = step[i] * (rootn1+mmax)*mroot2;
         q[i]    = step[i] * rootn1*mroot2;
-        //if ( enabled[i] )
-        //    qDebug() << indVec[i] << "Val" << values[i] << "Step" << step[i]
-        //                << "pp,q,psum" << pp[i] << q[i] << psum[i];
+        if ( enabled[i] )
+            qDebug() << indVec[i] << "Val" << values[i] << "Step" << step[i]
+                        << "pp,q,psum" << pp[i] << q[i] << psum[i];
     }
     for ( int i=mmax; i<map; i++ )
     {
@@ -400,23 +382,6 @@ void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit,
         if ( progLogging(logbuffer) ) return;
         DBGMODIFY( qDebug() << logbuffer; )
     }
-
-#ifdef COPY_FITDATA_TO_GPU
-    // Da der GPU-Speicher (auch intensityForFit) erst bei der ersten Berechnung
-    //  angelegt wird, erst danach testen, ob diese Option für uns passt.
-    if ( _bstoppixel == -1 )
-    {
-        if ( !useGpuForMask )
-        {
-            useGpuForMask = calc->setArrDataForFit( intensityForFit );
-#ifndef __CUDACC__
-            qDebug() << "ArrDataForFit:" << useGpuForMask;
-#endif
-        }
-    }
-    else
-        useGpuForMask = false;
-#endif
 
     for ( int i=1; i<nmax; i++ ) // (* restliche Vertices p[i,...] *)
     {

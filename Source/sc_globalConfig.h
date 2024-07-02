@@ -1,7 +1,9 @@
 #ifndef SC_GLOBALCONFIG_H
 #define SC_GLOBALCONFIG_H
 
+#ifndef __CUDACC__
 #include <QtGlobal>
+#endif
 
 
 /* Hier stehen alle Definitionen (kein Code), welche an verschiedenen Stellen des Programms
@@ -9,17 +11,8 @@
  */
 
 
-//#define COPY_FITDATA_TO_GPU
-// Wenn definiert, wird das anzufittende Bild beim Start in einen Speicher in die GPU kopiert
-// und dort werden die Vergleiche bzgl. Corner-Pixel-Mask durchgeführt (wird besonders auf dem
-// PC wohl schneller).
-// Die FQS wird dort nicht berechnet, da es recht aufwendig ist, unter CUDA das Thread-Locking
-// zu machen.
-
-//#define CALC_FQS_IN_GPU
-// Wenn COPY_FITDATA_TO_GPU definiert ist, wird hiermit gleichzeitig die Fehlerquadratsumme in
-// einem weiteren Array pixelweise festgehalten und in der Simplex-Routine kann dann die Summe
-// ohne weitere Berechnungen schnell bestimmt werden.
+// This version information is displayed in the top right corner in the GUI and with -v in the console
+#define MYVERSION "2.1.1  (Jun 2024)"
 
 
 #define FITDATA_IN_GPU  // Neu im Juli 2022
@@ -50,7 +43,7 @@
 // Definition der Breite der Eingabeelemente (cbs,inp) im Calculation-Tab, wird in myguiparam.cpp verwendet
 // Fehlt der Eintrag, wird der Qt-Default genommen
 #ifdef Q_OS_WIN
-#define CALC_INPUT_MAXWIDTH  85
+#define CALC_INPUT_MAXWIDTH  90
 #else
 #define CALC_INPUT_MAXWIDTH  100
 #endif
@@ -63,6 +56,7 @@
 #define DT(x) //x
 
 
+#ifndef __CUDACC__
 
 // Syntaxänderungen bei neueren Qt-Versionen
 #if (QT_VERSION <= QT_VERSION_CHECK(5, 12, 11))
@@ -75,6 +69,7 @@
 #define FONTMETRIC_WIDTH(s) horizontalAdvance(s)
 #endif
 
+#endif // CUDACC
 
 
 // Da in der Routine ButtonHKLClick() u.U. bestimmte Variablen modifiziert werden, sollten diese auch

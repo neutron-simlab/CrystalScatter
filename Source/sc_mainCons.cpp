@@ -15,7 +15,7 @@
 
 #include <QDebug> // nur zum Test
 
-//#define USEGENCOLORTBL
+#define USEGENCOLORTBL
 
 
 //#define USE_INTERNAL_DEFAULTS
@@ -83,8 +83,8 @@ int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
 
-    QCoreApplication::setApplicationName("sas-scatter");
-    QCoreApplication::setApplicationVersion("1.0");
+    QCoreApplication::setApplicationName("sas-scatter2");
+    QCoreApplication::setApplicationVersion("Version " MYVERSION);
 
     QCommandLineParser parser;
     parser.setApplicationDescription("Calculation of simulated SAXS / SANS using a theoretical model of the structure.");
@@ -177,6 +177,25 @@ int main(int argc, char *argv[])
     parser.addOption(genColTblOption);
 #endif // USEGENCOLORTBL
 
+    QCommandLineOption timetestOption( "timetest",
+                                       "Start timing test. No output image is generated. Use -o to set the"
+                                       " generated output file with the statistics and -p for the parametr"
+                                       " file for the calculation. The given config file can be generated"
+                                       " with the GUI and contains the test definitions.",
+                                       "timetest" );
+    parser.addOption(timetestOption);
+
+    QCommandLineOption chatbotOption( "chatbot",
+                                      "The program waits for the given input file (generated from a chatbot),"
+                                      " calculates and saves the image and removes the input file.",
+                                      "file" );
+    parser.addOption(chatbotOption);
+
+    QCommandLineOption cbkeepOption( "cbkeep",
+                                     "If set, the inputfile is kept and the program ends after one calculation."
+                                     " This is useful during debugging, not needed in normal operations." );
+    parser.addOption(cbkeepOption);
+
     // Process the actual command line arguments given by the user
     parser.process(app);
 
@@ -229,6 +248,9 @@ int main(int argc, char *argv[])
     QString af_output = parser.value(outputOption);
     bool nofft        = parser.isSet(nofftOption);
     noConsolOutput    = parser.isSet(noConsolOption);
+    QString timetest  = parser.value(timetestOption);
+    QString chatbot   = parser.value(chatbotOption);
+    bool cbkeepfile   = parser.isSet(cbkeepOption);
 
     // Die TPV-Files werden hinter der Option "--tpv" geschrieben. Wenn der User
     // jetzt Files angibt (z.B. mit *) dann sollen die Positions-Argumente nicht
@@ -273,15 +295,15 @@ int main(int argc, char *argv[])
     imgZoom  = parser.value(imgZoomOption).toInt(&ok);
     if ( !ok || (imgZoom!=1 && imgZoom!=2 && imgZoom!=4) ) imgZoom = 1;
     if ( parser.value(imgColorOption).startsWith("grey",Qt::CaseInsensitive) )
-        imgColorTbl = widImage::slColorNames()[0];
+        imgColorTbl = widImage::slColorNames().at(0);
     else if ( parser.value(imgColorOption).startsWith("glow",Qt::CaseInsensitive) )
-        imgColorTbl = widImage::slColorNames()[1];
+        imgColorTbl = widImage::slColorNames().at(1);
     else if ( parser.value(imgColorOption).startsWith("earth",Qt::CaseInsensitive) )
-        imgColorTbl = widImage::slColorNames()[2];
+        imgColorTbl = widImage::slColorNames().at(2);
     else if ( parser.value(imgColorOption).startsWith("temp",Qt::CaseInsensitive) )
-        imgColorTbl = widImage::slColorNames()[6];
+        imgColorTbl = widImage::slColorNames().at(6);
     else
-        imgColorTbl = widImage::slColorNames()[0]; // tblGrey;
+        imgColorTbl = widImage::slColorNames().at(0); // tblGrey;
 
     // /* 0*/"Greyscale",     /* 1*/"Glowing colors",     /* 2*/"Earth colors",         /* 3*/"Temperature",
     // /* 4*/"Scatter-Color", /* 5*/"Scatter-Colorwheel", /* 6*/"Scatter-Temperature",  /* 7*/"Scatter-Geo",
@@ -338,6 +360,21 @@ int main(int argc, char *argv[])
     QLoggingCategory::defaultCategory()->setEnabled(QtDebugMsg, true);
 #endif
 
+    if ( !timetest.isEmpty() )
+    {
+        // --timetest "C:\SimLab\sas-crystal\20240115-Neuer_Switch_Ablauf\timetest.ini"
+        //   -p "C:\SimLab\sas-crystal\20240115-Neuer_Switch_Ablauf\partSphere_peakGauss_lattFCC_ordisGauss.ini"
+        //   -o "C:\SimLab\sas-crystal\20240115-Neuer_Switch_Ablauf\partSphere_peakGauss_lattFCC_ordisGauss_CONStimetest.txt"
+        std::cerr << "  TIMETEST: " << qPrintable(timetest) << std::endl;
+        std::cerr << "    output: " << qPrintable(af_output) << std::endl;
+        std::cerr << " parameter: " << qPrintable(paramfile) << std::endl;
+        void performTimeTest( QString par, QString cfg, QString out );
+        if ( af_output.isEmpty() || paramfile.isEmpty() )
+            std::cerr << "No outputfile and no parameterfile given. Aborted." << std::endl;
+        else
+            performTimeTest( paramfile, timetest, af_output );
+        return 0;
+    }
 
     if ( !autofit.isEmpty() )
     {   // Bei automatischem Fit wird die Eingabe von AI ignoriert
@@ -375,7 +412,7 @@ int main(int argc, char *argv[])
             std::cerr << qPrintable(logfile + " " + flog->errorString()) << std::endl;
             return 1;
         }
-        if ( onlyCalc && autofit.isEmpty() )
+        if ( onlyCalc && autofit.isEmpty() && chatbot.isEmpty() )
             flog->write(qPrintable(QString("Only one image calculated.")+EOL));
 
         flog->write( qPrintable(        "AI-Calculationfile: "+aifile+EOL) );
@@ -388,8 +425,10 @@ int main(int argc, char *argv[])
         flog->write( qPrintable(        "    TPV-Inputfiles: "+QString::number(tpvfiles.size())+EOL) );
         flog->write( qPrintable(QString("       No FFT Flag: %1").arg(nofft)+EOL) );
         flog->write( qPrintable(QString("             Image:%1%2 Rot=%3deg, Zoom=%4, Color=%5")
-                               .arg(imgSwapH?" SwapHor,":"").arg(imgSwapV?" SwapVert,":"")
-                               .arg(imgRot*90).arg(imgZoom).arg(imgColorTbl)+EOL) );
+                                   .arg((imgSwapH?" SwapHor,":""),(imgSwapV?" SwapVert,":""))
+                                   .arg(imgRot*90).arg(imgZoom).arg(imgColorTbl)+EOL) );
+        flog->write( qPrintable(        "      Chatbot file: "+chatbot+EOL) );
+        flog->write( qPrintable(QString(" Chatbot debug mode: ").arg(cbkeepfile)+EOL) );
     }
     std::cerr << "   CALC: " << qPrintable(aifile)    << std::endl;
     std::cerr << " PARAMS: " << qPrintable(paramfile) << std::endl;
@@ -402,8 +441,10 @@ int main(int argc, char *argv[])
     std::cerr << "    TPV: " << qPrintable(tpvfiles.join(", ")) << std::endl;
     std::cerr << " no FFT: " << nofft                 << std::endl;
     std::cerr << qPrintable(QString("  Image:%1%2 Rot=%3deg, Zoom=%4, Color=%5")
-                           .arg(imgSwapH?" SwapHor,":"").arg(imgSwapV?" SwapVert,":"")
-                           .arg(imgRot*90).arg(imgZoom).arg(imgColorTbl)) << std::endl;
+                                .arg((imgSwapH?" SwapHor,":""),(imgSwapV?" SwapVert,":""))
+                                .arg(imgRot*90).arg(imgZoom).arg(imgColorTbl)) << std::endl;
+    std::cerr << "CHATBOT: " << qPrintable(chatbot)    << std::endl;
+    std::cerr << "CBDebug: " << cbkeepfile << std::endl;
 
     QDateTime dtStart = QDateTime::currentDateTime();
 
@@ -412,7 +453,23 @@ int main(int argc, char *argv[])
     //slCalcArt = calc->getCalcTypes();
     if ( !paramfile.isEmpty() ) calc->loadParameter( paramfile );
 
-    if ( tpvfiles.size() > 0 )
+    if ( ! chatbot.isEmpty() )
+    {
+        void waitForChatbot( SC_CalcCons *calc, QString cbfile, QString param, int nthreads, bool keep );
+        if ( flog )
+        {
+            flog->write("*****************************************" EOL);
+            flog->write("* Chatbot mode                          *" EOL);
+            flog->write("*****************************************" EOL);
+            if ( fcsv ) flog->write("--> CSV file will be ignored." EOL);
+            flog->close(); // Wird bei jedem Eintrag unten wieder geöffnet
+        }
+        if ( fcsv ) fcsv->close();
+        waitForChatbot( calc, chatbot, paramfile, nthreads, cbkeepfile );
+        // Endlos-Schleife. Wird nur durch ein Terminate unterbrochen!
+        return 0;
+    }
+    else if ( tpvfiles.size() > 0 )
     {   // Generate AI files with TPV from one file ...
         void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthreads );
         if ( flog )
@@ -565,7 +622,7 @@ int main(int argc, char *argv[])
         }
         automaticFit( calc, imgfile, autofit, nthreads, af_output );
     }
-    else if ( !imgfile.isEmpty() )
+    else if ( ! imgfile.isEmpty() )
     {   // Generate only one image
         void generateSingleImage( SC_CalcCons *calc, QString fnpng, int nthreads );
         if ( flog )
@@ -957,7 +1014,7 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
                 //std::cerr << "TPVinfo: no random values for this image." << std::endl;
             }
         }
-        calc->doCalculation( nthreads );
+        calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
 
         std::cerr << qPrintable(fn) << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
         if ( flog )
@@ -1253,7 +1310,7 @@ void generateSingleImage( SC_CalcCons *calc, QString fnpng, int nthreads )
 
     // Berechnen
     calc->prepareCalculation( false );
-    calc->doCalculation( nthreads );
+    calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
     std::cerr << qPrintable(fnpng) << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
     if ( flog )
         flog->write(qPrintable(QString("%1 -> %2ms").arg(fnpng).arg(calc->higResTimerElapsed(SC_CalcCons::htimBoth))+EOL));
@@ -1890,7 +1947,7 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
         {
             QString tmpfn = basePath + QFileInfo(usedImages.first()).baseName() + "_out";
             calc->prepareCalculation( true );
-            calc->doCalculation( nthreads );
+            calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
             widImage *img = new widImage();
             img->setConfig(imgColorTbl, imgSwapH, imgSwapV, imgRot, imgZoom, false);
             img->setData( calc->minX(), calc->maxX(), calc->minY(), calc->maxY(), calc->data() );
@@ -1973,7 +2030,7 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
     if ( ! imgfile.isEmpty() )
     {   // Einzelfile, also jetzt erst das generierte Bild speichern
         calc->prepareCalculation( true );
-        calc->doCalculation( nthreads );
+        calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
         std::cerr << qPrintable(fnpng) << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
         if ( flog )
         {
@@ -2002,6 +2059,313 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
     }
 } /* automaticFit() */
 
+
+
+void performTimeTest( QString par, QString cfg, QString out )
+{
+    // Outputfile vorbereiten. Falls das schief geht, gehen wir hier schon raus.
+    QFile fout(out);
+    if ( ! fout.open(QIODevice::Append) )
+        if ( ! fout.open(QIODevice::WriteOnly) )
+        {
+            std::cerr << "Error open file " << qPrintable(out+": "+fout.errorString()) << std::endl;
+            return;
+        }
+    fout.write( qPrintable("% Generated with sas_scatter2Cons "+QDateTime::currentDateTime().toString("dd.MMM.yyyy hh:mm:ss")+EOL) );
+    fout.write( qPrintable("%       Parameterfile: "+par+EOL) );
+    fout.write( qPrintable("% TimeTest configfile: "+cfg+EOL) );
+    fout.write( "Threads & HKLmax & Quadrants & Switch & Min/ Mean/ Max (Prep) in ms" EOL );
+    fout.close();
+    // Einlesen der TimeTest-Konfiguration
+    QSettings sets(cfg,QSettings::IniFormat);
+    int nthreads = static_cast<int>(std::thread::hardware_concurrency());
+    QVector<int> threads;
+    if ( sets.value("thread0",true).toBool() ) threads << 0;    // TODO: ist die GPU da?
+    if ( sets.value("thread1",true).toBool() ) threads << 1;
+    if ( sets.value("thread4",true).toBool() ) threads << 4;
+    if ( sets.value("threadM",true).toBool() && nthreads>4 ) threads << nthreads;
+    QVector<int> hklmax;
+    if ( sets.value("hkl2",false).toBool() ) hklmax << sets.value("hkl2val",2).toInt();
+    if ( sets.value("hkl3",true ).toBool() ) hklmax << sets.value("hkl3val",3).toInt();
+    if ( sets.value("hkl4",false).toBool() ) hklmax << sets.value("hkl4val",4).toInt();
+    if ( sets.value("hkl5",true ).toBool() ) hklmax << sets.value("hkl5val",5).toInt();
+    QVector<int> quadrants;
+    if ( sets.value("usequadrants",true).toBool() )
+    {
+        if ( sets.value("useq1",false).toBool() ) quadrants << 1;
+        if ( sets.value("useq2",false).toBool() ) quadrants << 2;
+        if ( sets.value("useq4",true ).toBool() ) quadrants << 4;
+    }
+    else
+        quadrants << 0;
+    typedef enum { swBoth, swNew, swOld } _newSwitch;
+    _newSwitch nswitch = static_cast<_newSwitch>(sets.value("newswitch",swBoth).toInt());
+    _newSwitch nswcurr;
+    //ui->togSwitchModFN->setChecked(sets.value("switchmodfn",true).toBool());
+    //ui->togEnaUpdates->setChecked(sets.value("enaupdates",false).toBool());
+    //ui->togSaveImages->setChecked(sets.value("saveimages",false).toBool());
+    //ui->togSaveFile->setChecked(sets.value("savefile",false).toBool());
+    //on_togSaveFile_toggled(ui->togSaveFile->isChecked()); // Sicherheitshalber, falls das set keine Änderung macht
+    int numLoops = sets.value("loops",10).toInt();
+    //ui->inpSaveFilename->setText(sets.value("filename","").toString());
+    //ui->inpComment->setText(sets.value("comment","").toString());
+
+    SC_CalcCons *calc = new SC_CalcCons;
+    calc->loadParameter( par );
+
+    // ***** Loop 1 ***** Quadrants
+    foreach ( int quadr, quadrants )
+    {
+        if ( quadr > 0 )
+        {
+            calc->updateParamValue( "RadioButtonQ1", quadr == 1 );
+            calc->updateParamValue( "RadioButtonQ2", quadr == 2 );
+            calc->updateParamValue( "RadioButtonQ4", quadr == 4 );
+        }
+
+        // ***** Loop 2 ***** HKLmax
+        for ( int h=0; h<hklmax.size(); h++ )
+        {
+            calc->updateParamValue( "HKLmax", hklmax[h] );
+
+            // ***** Loop 3 ***** Threads
+            for ( int t=0; t<threads.size(); t++ )
+            {
+                if ( threads[t] == 0 && !calc->gpuAvailable() ) continue;
+
+                // ***** Loop 4 ***** NewSwitch
+                if ( nswitch/*Soll*/ == swBoth )
+                    nswcurr = swOld;
+                for ( int sw=0; sw<2; sw++ )
+                {   // Es können maximal 2 Durchläufe sein...
+
+                    double sumCalc=0;
+                    double minCalc=10000000;
+                    double maxCalc=0;
+                    double sumPrep=0;
+                    double minPrep=10000000;
+                    double maxPrep=0;
+                    std::cerr << "TimingTest: Threads=" << threads[t] << ", HKLmax=" << hklmax[h]
+                              << ", Quadrants=" << quadr << ", Switch=" << nswcurr << ", Loops="
+                              << numLoops << std::endl;
+                    for ( int i=0; i<numLoops; i++ )
+                    {
+                        // Berechnen
+                        calc->prepareCalculation( false );
+                        calc->doCalculation( threads[t], nswcurr == swOld );
+
+                        double c = calc->higResTimerElapsed(SC_CalcCons::htimCalc);
+                        double p = calc->higResTimerElapsed(SC_CalcCons::htimPrep);
+                        sumCalc += c;
+                        sumPrep += p;
+                        if ( p < minPrep ) minPrep = p;
+                        else if ( p > maxPrep ) maxPrep = p;
+                        if ( c < minCalc ) minCalc = c;
+                        else if ( c > maxCalc ) maxCalc = c;
+                    } // i < numLoops
+                    std::cerr << "ERG Calc=" << minCalc << " / " << sumCalc/numLoops << " / " << maxCalc
+                              << ", Prep=" << minPrep << " / " << sumPrep/numLoops << " / " << maxPrep << std::endl;
+                    // LaTeX Ausgabe mit den Rundungen (am Ende auf der Konsole oder in eine Datei)
+                    QFile f(out);
+                    if ( ! f.open(QIODevice::Append) )
+                    {
+                        std::cerr << "Error open file " << qPrintable(out+": "+f.errorString()) << std::endl;
+                        return;
+                    }
+                    f.write( QString("%1 & %2 & %8 & %9 & %3/ %4/ %5 (%6)%7")
+                                .arg(threads[t]).arg(hklmax[h])
+                                .arg(minCalc,0,'f',3).arg(sumCalc/numLoops,0,'f',3).arg(maxCalc,0,'f',3)
+                                .arg(sumPrep/numLoops,0,'f',3).arg(EOL).arg(quadr).arg(nswcurr==swOld?"old":"new").toLatin1() );
+                    f.close();
+
+                    //typedef enum { swBoth, swNew, swOld } _newSwitch;
+                    if (nswitch/*Soll*/ == swBoth &&
+                        nswcurr/*Ist */ == swOld)
+                    {   // Jetzt muss die Schleife nochmals wiederholt werden
+                        nswcurr = swNew;
+                    }
+                    else
+                        sw = 10;
+                } // for sw
+            } // for t
+        } // for h
+    } // for q
+} /* performTimeTest() */
+
+
+void waitForChatbot(SC_CalcCons *calc, QString cbfile, QString param, int nthreads, bool keep)
+{
+    iCurCalcArt = 0;
+    QString basepath = QFileInfo(cbfile).absolutePath();
+
+    while ( true )
+    {   // Endlosschleife. Wird vom rufenden Programm via Terminate beendet
+        if ( ! QFile::exists(cbfile) )
+        {   // Warten...
+            QThread::sleep( 2 /*sec*/ );
+            continue;
+        }
+        // default-Parameter laden
+        if ( !param.isEmpty() ) calc->loadParameter( param );
+        // cbfile einlesen ...
+        QString fnpng="";
+        QFile fcb(cbfile);
+        if ( fcb.open(QIODevice::ReadOnly) )
+        {
+            // TODO: im cbfile sollte ein Filename für das Image sein
+            while ( true )
+            {
+                QString line = fcb.readLine().trimmed();
+                if ( line.isEmpty() )
+                {
+                    if ( fcb.atEnd() ) break;
+                    continue;
+                }
+                int pos;
+                if ( (pos=line.indexOf('#')) >= 0 )
+                {   // Kommentare sind erlaubt
+                    line.truncate(pos);
+                    line = line.trimmed();
+                    if ( line.isEmpty() ) continue;
+                }
+
+                QStringList sl = line.split("=");
+                if ( sl.size() != 2 ) continue;         // Kein '=' bedeutet falsche Syntax, ignorieren
+
+                if ( sl[0].startsWith("ena_") ) continue;
+                // Diese Flags brauche ich hier nicht (mehr)
+
+                if ( ! sl[0].startsWith("val_") ) continue; // Falsche Syntax
+
+                if ( keep )
+                    std::cerr << "READ '" << qPrintable(sl[0]) << "' = '" << qPrintable(sl[1]) << "'" << std::endl;
+
+                if ( sl[0].startsWith("val_numimg",Qt::CaseInsensitive) ) continue;
+                // Erstmal ignorieren ...
+
+                if ( sl[0].contains("Dist",Qt::CaseInsensitive) ) continue; // war von früher
+
+                if ( sl[0].startsWith("val_outPath",Qt::CaseInsensitive) )
+                {   // Jetzt wird der Pfad angegeben, eventuell auch das File.
+
+                    fnpng = sl[1].trimmed();
+                    if ( fnpng.length() < 4 )
+                    {   // Jetzt ist wohl nur ein '.' angegeben
+                        fnpng = basepath + "/" + QFileInfo(cbfile).baseName() + ".png";
+                    }
+                    if ( fnpng.contains("[path]") )
+                    {
+                        fnpng.replace( "[path]", QFileInfo(cbfile).baseName()+".png" );
+                    }
+
+                    std::cerr << "OUTfile: (" << QFileInfo(fnpng).isRelative() << ") "
+                              << qPrintable(QFileInfo(fnpng).absolutePath()) << std::endl;
+                    if ( QFileInfo(fnpng).isRelative() )
+                    {
+                        fnpng = QFileInfo(basepath+"/"+fnpng).absoluteFilePath();
+                        //std::cerr << "OUTfile: neu " << qPrintable(fnpng) << std::endl;
+                    }
+                    std::cerr << "OUTfile: " << qPrintable(fnpng) << std::endl;
+                }
+                else if ( sl[1][0] != '[' )
+                {   // Wenn im Chatbot nichts angegeben war, dann wird der Wert "[value]" geschrieben,
+                    // dann sollte der Default bleiben, sonst gibt es kein Image.
+                    // Die Keys wurden zm Schreiben etwas modifiziert, das muss wieder rückgängig gemacht werden.
+                    //+ if ( key.startsWith("VAx")  ) prtkey = key.mid(1); // Das 'V' stört bei der Ausgabe
+                    //- else if ( key.startsWith("Edit") ) prtkey = key.mid(4); // Das 'Edit' stört auch
+                    //- else if ( key.startsWith("CheckBox") ) prtkey = key.mid(8);
+                    //+ else if ( key.startsWith("ComboBox") ) prtkey = "CB"+key.mid(8);
+                    //- else if ( key.startsWith("RadBut") ) prtkey = key.mid(6);
+                    //+ else if ( key.startsWith("RadioButton") ) prtkey = "RB"+key.mid(11);
+
+                    double val = sl[1].trimmed().toDouble();
+                    if ( sl[1].contains("false",Qt::CaseInsensitive) ) val = 0;
+                    else if ( sl[1].contains("true",Qt::CaseInsensitive) ) val = 1;
+
+                    QString key = sl[0].mid(4).trimmed();
+                    if ( key.startsWith("Ax") ) key = "V"+key;
+                    else if ( key.startsWith("CB") ) key = "ComboBox"+key.mid(2);
+                    else if ( key.startsWith("RB") ) key = "RadioButton"+key.mid(2);
+                    bool rv = calc->updateParamValue( key, val );
+                    if ( !rv ) rv = calc->updateParamValue( "Edit"+key, val );
+                    if ( !rv ) rv = calc->updateParamValue( "CheckBox"+key, val );
+                    if ( !rv ) rv = calc->updateParamValue( "RadBut"+key, val );
+                    // Bei return false ist der Parameter unbekannt
+                    if ( !rv && flog != nullptr )
+                    {
+                        flog->open(QIODevice::Append);
+                        flog->write(qPrintable("Parameter "+sl[0].mid(4)+" unknown."+EOL));
+                        flog->close();
+                    }
+                }
+            } // while true -> bis eof lesen
+            fcb.close();
+            if ( fnpng.isEmpty() )
+            {
+                fnpng = cbfile + ".png"; // Default, falls nichts angegeben wird
+                if ( flog )
+                {
+                    flog->open(QIODevice::Append);
+                    flog->write(qPrintable("No outputfile given, use same name as inputfile: "+fnpng+EOL));
+                    flog->close();
+                }
+            }
+        } // if open ok
+        else
+        {   // Lesefehler, obwohl Datei vorhanden ist...
+            std::cerr << qPrintable(cbfile) << " -> " << qPrintable(fcb.errorString()) << std::endl;
+            std::cerr << "Program exits." << std::endl;
+            if ( flog )
+            {
+                flog->open(QIODevice::Append);
+                flog->write(qPrintable(cbfile+" -> "+fcb.errorString()+EOL));
+                flog->write("Program exits." EOL);
+                flog->close();
+            }
+            if ( !keep ) fcb.remove(); // Versuch, wird aber wahrscheinlich scheitern ....
+            break; // Jetzt nicht mehr weiter machen
+        }
+        // Berechnen
+        calc->prepareCalculation( false );
+        calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
+        std::cerr << "IMG: " << qPrintable(fnpng) << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << "ms" << std::endl;
+        if ( flog )
+        {
+            flog->open(QIODevice::Append);
+            flog->write(qPrintable(QString("%1 -> %2ms").arg(fnpng).arg(calc->higResTimerElapsed(SC_CalcCons::htimBoth))+EOL));
+            flog->close();
+        }
+
+        widImage *img = new widImage();
+        img->setConfig(imgColorTbl, imgSwapH, imgSwapV, imgRot, imgZoom, false);
+        img->setData( calc->minX(), calc->maxX(), calc->minY(), calc->maxY(), calc->data() );
+        QString dbgsave;
+        if ( ! img->saveImageColor( fnpng, imgColorTbl, dbgsave ) )
+        {   // fnpng enthält schon den Pfad (wird oben sichergestellt)
+            std::cerr << "Error saving image " << qPrintable(dbgsave) << std::endl;
+            if ( flog )
+            {
+                flog->open(QIODevice::Append);
+                flog->write(qPrintable(QString("Error saving image: ")+dbgsave+EOL));
+                flog->close();
+            }
+        }
+
+        if ( keep ) break;
+
+        if ( ! fcb.remove() )
+        {
+            std::cerr << "Error removing inputfile. Program exits." << std::endl;
+            if ( flog )
+            {
+                flog->open(QIODevice::Append);
+                flog->write("Error removing file. Program exits." EOL);
+                flog->close();
+            }
+            break;
+        }
+    } // endless
+} /* waitForChatbot() */
 
 
 /*

@@ -3,6 +3,8 @@
 #include "sc_maingui.h"
 
 #define TT(x) //x // Untersuchungen zum ToolTip ...
+#define FF(x) //x // Untersuchungen bzgl. Fit-Toggle
+
 
 
 /*static*/ QVector<myGuiParam*> myGuiParam::allParams;
@@ -26,6 +28,7 @@ myGuiParam::myGuiParam(QObject *parent) : QObject(parent)
     _keyName  = "??";
     _keyName2 = "??";
     _keyName3 = "??";
+    _par      = nullptr;
     allParams.append(this);
 }
 
@@ -124,7 +127,7 @@ void myGuiParam::setLocInputInt(QWidget *w, QString on, int min, int max, int de
     if ( spinBoxMinH < 0 )
     {
         spinBoxMinH = _intinp->minimumSizeHint().height();
-        qDebug() << "spinBoxMinH" << spinBoxMinH;
+        //qDebug() << "spinBoxMinH" << spinBoxMinH;
     }
     else
         _intinp->setMinimumHeight(spinBoxMinH);
@@ -179,6 +182,7 @@ void myGuiParam::setLocInputDbl(QWidget *w, QString on, double min, double max, 
         _inp = static_cast<QDoubleSpinBox*>(w);
         _inp->setRange( min, max );
         _inp->setDecimals(prec);
+        if ( prec > 1 ) _inp->setStepType(QAbstractSpinBox::AdaptiveDecimalStepType);
         if ( !suff.isEmpty() ) _inp->setSuffix(suff);
         if ( !pref.isEmpty() ) _inp->setPrefix(pref);
         _inp->setValue(def);
@@ -188,7 +192,7 @@ void myGuiParam::setLocInputDbl(QWidget *w, QString on, double min, double max, 
         if ( spinBoxMinH < 0 )
         {
             spinBoxMinH = _inp->minimumSizeHint().height();
-            qDebug() << "spinBoxMinH" << spinBoxMinH;
+            //qDebug() << "spinBoxMinH" << spinBoxMinH;
         }
         else
             _inp->setMinimumHeight(spinBoxMinH);
@@ -205,6 +209,7 @@ void myGuiParam::setLocInputDbl(QWidget *w, QString on, double min, double max, 
         _inp2 = static_cast<QDoubleSpinBox*>(w);
         _inp2->setRange( min, max );
         _inp2->setDecimals(prec);
+        if ( prec > 1 ) _inp2->setStepType(QAbstractSpinBox::AdaptiveDecimalStepType);
         if ( !suff.isEmpty() ) _inp2->setSuffix(suff);
         if ( !pref.isEmpty() ) _inp2->setPrefix(pref);
         _inp2->setValue(def);
@@ -214,7 +219,7 @@ void myGuiParam::setLocInputDbl(QWidget *w, QString on, double min, double max, 
         if ( spinBoxMinH < 0 )
         {
              spinBoxMinH = _inp2->minimumSizeHint().height();
-             qDebug() << "spinBoxMinH" << spinBoxMinH;
+             //qDebug() << "spinBoxMinH" << spinBoxMinH;
         }
         else
              _inp2->setMinimumHeight(spinBoxMinH);
@@ -229,6 +234,7 @@ void myGuiParam::setLocInputDbl(QWidget *w, QString on, double min, double max, 
         _inp3 = static_cast<QDoubleSpinBox*>(w);
         _inp3->setRange( min, max );
         _inp3->setDecimals(prec);
+        if ( prec > 1 ) _inp3->setStepType(QAbstractSpinBox::AdaptiveDecimalStepType);
         if ( !suff.isEmpty() ) _inp3->setSuffix(suff);
         if ( !pref.isEmpty() ) _inp3->setPrefix(pref);
         _inp3->setValue(def);
@@ -238,7 +244,7 @@ void myGuiParam::setLocInputDbl(QWidget *w, QString on, double min, double max, 
         if ( spinBoxMinH < 0 )
         {
              spinBoxMinH = _inp3->minimumSizeHint().height();
-             qDebug() << "spinBoxMinH" << spinBoxMinH;
+             //qDebug() << "spinBoxMinH" << spinBoxMinH;
         }
         else
              _inp3->setMinimumHeight(spinBoxMinH);
@@ -335,13 +341,29 @@ void myGuiParam::setLocFitToggle( QWidget *w, QString on )
     _fit = static_cast<QCheckBox*>(w);
     _fit->setToolTip("If checked, use this variable in the Simplex 2D Fit");
     _keyName = on;
+    _fit->connect( _fit, SIGNAL(toggled(bool)), this, SLOT(fitToggled(bool)) );
+    _fitUsed = false;
+}
+void myGuiParam::fitToggled(bool f)
+{
+    FF( if ( _fit->objectName().startsWith("fitSig") ) qDebug() << "fitToggled" << f << _fit->objectName() );
+    _fitUsed = f;
 }
 
 
 bool myGuiParam::isFitUsed()
 {
     if ( _fit == nullptr ) return false;
-    return _fit->isEnabled() && _fit->isChecked();
+    FF( if ( _fit->objectName().startsWith("fitSig") ) qDebug() << "isFitUsed" << _fit->isEnabled() << _fit->isChecked() /*<< _fitUsed*/ << _fit->objectName() );
+    return _fit->isEnabled() && _fit->isChecked(); // && _fitUsed;
+}
+
+void myGuiParam::setFitCheck(bool f)
+{
+    if ( _fit == nullptr ) return;
+    FF( if ( _fit->objectName().startsWith("fitSig") ) qDebug() << "setFitCheck" << f << _fit->objectName() );
+    _fit->setChecked(f);
+    _fitUsed=f;
 }
 
 
@@ -494,7 +516,7 @@ QString myGuiParam::debug()
             // müssen, damit immer die richtigen Gruppen angelegt werden.
 
             QString on;
-            searchParam(w, on); // Returnwert interessiert hier nicht
+            myGuiParam *gp = searchParam(w, on);
             if ( ! names.contains(on) )
             {
                 //qDebug() << "no name" << on;
@@ -536,7 +558,8 @@ QString myGuiParam::debug()
             }
             //else
             //    qDebug() << "getpar" << on << par->type;
-            par->togFit = nullptr;
+            par->gpFit = nullptr;
+            par->tooltip = sl[3].trimmed();
 
             if ( w->objectName().startsWith("lbl") )
             {
@@ -606,7 +629,9 @@ QString myGuiParam::debug()
         if ( ! names.contains(on) ) continue;
         paramHelper *par = SC_MainGUI::getInst()->getCalcGui()->params[on];
         if ( par == nullptr ) continue;
-        par->togFit = hlpPar->fit();
+        par->gpFit = hlpPar; // ->fit();
+        hlpPar->_par = par;
+        //qDebug() << "setAllGuiParams" << on << "-> paramHelper";
         if ( hlpPar->fit() != nullptr )
         {
             TT( if ( w->objectName().contains("Pixel") ) qDebug() << "ToolTip:" << w->objectName()
@@ -690,10 +715,10 @@ QString myGuiParam::debug()
             if ( p->inp2()   != nullptr ) { p->inp2()->setVisible(true);   p->inp2()->setEnabled(true); }
             if ( p->inp3()   != nullptr ) { p->inp3()->setVisible(true);   p->inp3()->setEnabled(true); }
             if ( p->tog()    != nullptr ) { p->tog()->setVisible(true);    p->tog()->setEnabled(true); }
-            if ( p->fit()    != nullptr ) { p->fit()->setVisible(true);    p->fit()->setEnabled(true); }
+            if ( p->fit()    != nullptr ) { p->fit()->setVisible(true);    p->fit()->setEnabled(true);   /*p->setFitCheck(true);*/ }
             if ( p->lbl()    != nullptr ) { p->lbl()->setVisible(true);    p->lbl()->setEnabled(true); }
         }
-        //else
+        /*else
         {   // Jetzt werden die Werte nur gesperrt, aber die Eingaben bleiben verwendbar
             //if ( p->cbs()    != nullptr ) p->cbs()->setEnabled(true);
             //if ( p->intinp() != nullptr ) p->intinp()->setEnabled(true);
@@ -703,7 +728,7 @@ QString myGuiParam::debug()
             //if ( p->tog()    != nullptr ) p->tog()->setEnabled(true);
             if ( p->fit()    != nullptr ) p->fit()->setEnabled(true);
             if ( p->lbl()    != nullptr ) p->lbl()->setEnabled(true);
-        }
+        }*/
     }
 }
 
@@ -726,6 +751,31 @@ QString myGuiParam::debug()
         qDebug() << "myGuiParam::setEnabled()  unknown key" << key << searchSubKey(key);
         return nullptr;
     }
+    if ( gp->_par == nullptr )
+    {
+        paramHelper *par;
+        par = SC_MainGUI::getInst()->getCalcGui()->params.value(gp->keyName(),nullptr);
+        if ( par != nullptr )
+            gp->_par = par;
+        else if ( ! gp->keyName2().isEmpty() )
+        {
+            par = SC_MainGUI::getInst()->getCalcGui()->params.value(gp->keyName2(),nullptr);
+            if ( par != nullptr )
+                gp->_par = par;
+            else if ( ! gp->keyName3().isEmpty() )
+            {
+                par = SC_MainGUI::getInst()->getCalcGui()->params.value(gp->keyName3(),nullptr);
+                if ( par != nullptr ) gp->_par = par;
+            }
+        }
+    }
+    if ( gp->_par != nullptr )
+    {
+        //qDebug() << "setEnabled(" << key << ") =" << ena;
+        gp->_par->enabled = ena;
+    }
+    else
+        qDebug() << "setEnabled(" << key << ") _par unbekannt";
     if ( hideValues )
     {   // Jetzt sollen alle Werte versteckt werden (visible)
         if ( gp->cbs()    != nullptr ) { gp->cbs()->setVisible(ena);    gp->cbs()->setEnabled(ena); }
@@ -734,7 +784,7 @@ QString myGuiParam::debug()
         if ( gp->inp2()   != nullptr ) { gp->inp2()->setVisible(ena);   gp->inp2()->setEnabled(ena); }
         if ( gp->inp3()   != nullptr ) { gp->inp3()->setVisible(ena);   gp->inp3()->setEnabled(ena); }
         if ( gp->tog()    != nullptr ) { gp->tog()->setVisible(ena);    gp->tog()->setEnabled(ena); }
-        if ( gp->fit()    != nullptr ) { gp->fit()->setVisible(ena);    gp->fit()->setEnabled(ena); }
+        if ( gp->fit()    != nullptr ) { gp->fit()->setVisible(ena);    gp->fit()->setEnabled(ena);  gp->setFitCheck(ena); }
         if ( gp->lbl()    != nullptr ) { gp->lbl()->setVisible(ena);    gp->lbl()->setEnabled(ena); }
     }
     else
@@ -774,6 +824,10 @@ QString myGuiParam::debug()
         qDebug() << "myGuiParam::isEnabled()  unknown key" << key << searchSubKey(key);
         return false;
     }
+    if ( gp->_par != nullptr )
+        return gp->_par->enabled;
+    qDebug() << "myGuiParam::isEnabled("<<key<<")  no _par set.";
+
     if ( hideValues )
     {   // Jetzt sollen alle Werte versteckt werden (visible)
         if ( gp->cbs()    != nullptr ) return gp->cbs()->isVisible();
@@ -782,7 +836,7 @@ QString myGuiParam::debug()
         if ( gp->inp2()   != nullptr ) return gp->inp2()->isVisible();
         if ( gp->inp3()   != nullptr ) return gp->inp3()->isVisible();
         if ( gp->tog()    != nullptr ) return gp->tog()->isVisible();
-        if ( gp->fit()    != nullptr ) return gp->fit()->isVisible();
+        if ( gp->fit()    != nullptr ) return gp->isFitEnabled(); // fit()->isVisible();  eigentlich nicht verwendet
         if ( gp->lbl()    != nullptr ) return gp->lbl()->isVisible();
     }
     else
@@ -799,6 +853,7 @@ QString myGuiParam::debug()
     return true;
 }
 
+#ifdef undef
 /*static*/ bool myGuiParam::isEnabled(QWidget *w)
 {
     if ( hideValues )
@@ -806,6 +861,7 @@ QString myGuiParam::debug()
     else
         return w->isEnabled();
 }
+#endif
 
 /*static*/ void myGuiParam::setLabel(QString key, QString txt)
 {

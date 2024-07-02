@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1240</width>
-    <height>1093</height>
+    <width>1330</width>
+    <height>1133</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -1294,15 +1294,8 @@
                 <property name="spacing">
                  <number>3</number>
                 </property>
-                <item row="3" column="1">
-                 <widget class="QPushButton" name="butResetColorMarker">
-                  <property name="text">
-                   <string>Reset color marker</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="3" column="0">
-                 <spacer name="horizontalSpacer_6">
+                <item row="4" column="2">
+                 <spacer name="horizontalSpacer_7">
                   <property name="orientation">
                    <enum>Qt::Horizontal</enum>
                   </property>
@@ -1317,8 +1310,8 @@
                   </property>
                  </spacer>
                 </item>
-                <item row="3" column="2">
-                 <spacer name="horizontalSpacer_7">
+                <item row="4" column="0">
+                 <spacer name="horizontalSpacer_6">
                   <property name="orientation">
                    <enum>Qt::Horizontal</enum>
                   </property>
@@ -1343,6 +1336,23 @@
                   </property>
                  </widget>
                 </item>
+                <item row="0" column="0" colspan="3">
+                 <widget class="QLabel" name="lblColMarkTrainTbl">
+                  <property name="autoFillBackground">
+                   <bool>true</bool>
+                  </property>
+                  <property name="text">
+                   <string>Values read from Training image table</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="4" column="1">
+                 <widget class="QPushButton" name="butResetColorMarker">
+                  <property name="text">
+                   <string>Reset color marker</string>
+                  </property>
+                 </widget>
+                </item>
                 <item row="1" column="0" colspan="3">
                  <widget class="QLabel" name="lblColMarkParDiff">
                   <property name="autoFillBackground">
@@ -1353,13 +1363,13 @@
                   </property>
                  </widget>
                 </item>
-                <item row="0" column="0" colspan="3">
-                 <widget class="QLabel" name="lblColMarkTrainTbl">
+                <item row="3" column="0" colspan="3">
+                 <widget class="QLabel" name="lblColMarkOldPar">
                   <property name="autoFillBackground">
                    <bool>true</bool>
                   </property>
                   <property name="text">
-                   <string>Values read from Training image table</string>
+                   <string>Values not read from old parameter files</string>
                   </property>
                  </widget>
                 </item>
@@ -1375,21 +1385,7 @@
              <string>Controls</string>
             </property>
             <layout class="QGridLayout" name="gridLayout_39">
-             <item row="1" column="2">
-              <widget class="QDoubleSpinBox" name="inpRotY_RotX">
-               <property name="prefix">
-                <string>Y=</string>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="1">
-              <widget class="QDoubleSpinBox" name="inpRotX">
-               <property name="prefix">
-                <string>X=</string>
-               </property>
-              </widget>
-             </item>
-             <item row="4" column="1">
+             <item row="3" column="1">
               <spacer name="verticalSpacer_14">
                <property name="orientation">
                 <enum>Qt::Vertical</enum>
@@ -1402,16 +1398,6 @@
                </property>
               </spacer>
              </item>
-             <item row="2" column="1">
-              <widget class="QCheckBox" name="togCheckBoxWAXS">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="1">
-              <widget class="QDoubleSpinBox" name="inpEditBFactor"/>
-             </item>
              <item row="0" column="0">
               <widget class="QLabel" name="lblEditBFactor">
                <property name="text">
@@ -1422,27 +1408,10 @@
                </property>
               </widget>
              </item>
+             <item row="0" column="1">
+              <widget class="QDoubleSpinBox" name="inpEditBFactor"/>
+             </item>
              <item row="2" column="0">
-              <widget class="QLabel" name="lblCheckBoxWAXS">
-               <property name="text">
-                <string>WAXS:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="0">
-              <widget class="QLabel" name="lblRotX">
-               <property name="text">
-                <string>Rot:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="0">
               <widget class="QLabel" name="lblP1">
                <property name="text">
                 <string>P1:</string>
@@ -1452,7 +1421,24 @@
                </property>
               </widget>
              </item>
-             <item row="3" column="1">
+             <item row="1" column="1">
+              <widget class="QCheckBox" name="togCheckBoxWAXS">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="lblCheckBoxWAXS">
+               <property name="text">
+                <string>WAXS:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
               <widget class="QDoubleSpinBox" name="inpP1"/>
              </item>
             </layout>
@@ -1906,6 +1892,13 @@
               <widget class="QRadioButton" name="radCenterMidpoint">
                <property name="text">
                 <string>Mid point</string>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="3">
+              <widget class="QCheckBox" name="fitBeamPosX">
+               <property name="text">
+                <string/>
                </property>
               </widget>
              </item>
@@ -2642,7 +2635,21 @@
        <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="1,0,1">
         <item>
          <layout class="QGridLayout" name="gridLayout_16">
-          <item row="1" column="0" colspan="2">
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_22">
+            <property name="text">
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The following values are never changed during the fit:&lt;br/&gt;Grid points, HKLmax, Qmax with selection, Beam center /&lt;br/&gt;Mid point selection. And all values not marked for the fit usage.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_33">
+            <property name="text">
+             <string>Variables to fit:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
            <widget class="QTableWidget" name="tblFitValues">
             <property name="editTriggers">
              <set>QAbstractItemView::AnyKeyPressed|QAbstractItemView::DoubleClicked|QAbstractItemView::EditKeyPressed|QAbstractItemView::SelectedClicked</set>
@@ -2656,13 +2663,6 @@
             <attribute name="verticalHeaderDefaultSectionSize">
              <number>30</number>
             </attribute>
-           </widget>
-          </item>
-          <item row="0" column="0" colspan="2">
-           <widget class="QLabel" name="label_33">
-            <property name="text">
-             <string>Variables to fit:</string>
-            </property>
            </widget>
           </item>
          </layout>
@@ -2928,41 +2928,20 @@
               <number>1</number>
              </property>
              <property name="topMargin">
-              <number>1</number>
+              <number>3</number>
              </property>
              <property name="rightMargin">
               <number>1</number>
              </property>
              <property name="bottomMargin">
-              <number>1</number>
+              <number>3</number>
              </property>
              <property name="horizontalSpacing">
               <number>2</number>
              </property>
-             <item row="0" column="1">
-              <widget class="QPushButton" name="butFitHistoShow">
-               <property name="text">
-                <string>Show</string>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="1">
-              <widget class="QPushButton" name="butFitCurLoad">
-               <property name="toolTip">
-                <string>Loads the fit settings from the temporary file</string>
-               </property>
-               <property name="text">
-                <string>Restore</string>
-               </property>
-              </widget>
-             </item>
-             <item row="4" column="1">
-              <widget class="QPushButton" name="butShowResiduen">
-               <property name="text">
-                <string>Show</string>
-               </property>
-              </widget>
-             </item>
+             <property name="verticalSpacing">
+              <number>5</number>
+             </property>
              <item row="1" column="1">
               <widget class="QPushButton" name="butFitHistoClear">
                <property name="text">
@@ -2970,25 +2949,11 @@
                </property>
               </widget>
              </item>
-             <item row="2" column="1">
-              <widget class="QPushButton" name="butFitCurSave">
-               <property name="toolTip">
-                <string>Save only the current fit settings into a temporary file</string>
-               </property>
-               <property name="text">
-                <string>Save</string>
-               </property>
-              </widget>
-             </item>
-             <item row="5" column="1">
-              <widget class="QPushButton" name="butFitUseResult">
-               <property name="text">
-                <string>Use it</string>
-               </property>
-              </widget>
-             </item>
-             <item row="4" column="0">
+             <item row="6" column="0">
               <widget class="QLabel" name="label_41">
+               <property name="toolTip">
+                <string>This is an experimental implementation</string>
+               </property>
                <property name="text">
                 <string>Residuen-Plot:</string>
                </property>
@@ -2997,13 +2962,57 @@
                </property>
               </widget>
              </item>
-             <item row="5" column="0">
-              <widget class="QLabel" name="label_42">
-               <property name="text">
-                <string>Fit Result:</string>
+             <item row="5" column="0" colspan="2">
+              <widget class="Line" name="line_8">
+               <property name="palette">
+                <palette>
+                 <active>
+                  <colorrole role="WindowText">
+                   <brush brushstyle="SolidPattern">
+                    <color alpha="255">
+                     <red>227</red>
+                     <green>227</green>
+                     <blue>227</blue>
+                    </color>
+                   </brush>
+                  </colorrole>
+                 </active>
+                 <inactive>
+                  <colorrole role="WindowText">
+                   <brush brushstyle="SolidPattern">
+                    <color alpha="255">
+                     <red>0</red>
+                     <green>0</green>
+                     <blue>0</blue>
+                    </color>
+                   </brush>
+                  </colorrole>
+                 </inactive>
+                 <disabled>
+                  <colorrole role="WindowText">
+                   <brush brushstyle="SolidPattern">
+                    <color alpha="255">
+                     <red>120</red>
+                     <green>120</green>
+                     <blue>120</blue>
+                    </color>
+                   </brush>
+                  </colorrole>
+                 </disabled>
+                </palette>
                </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               <property name="frameShadow">
+                <enum>QFrame::Plain</enum>
+               </property>
+               <property name="orientation">
+                <enum>Qt::Horizontal</enum>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="1">
+              <widget class="QPushButton" name="butFitUseResult">
+               <property name="text">
+                <string>Use it</string>
                </property>
               </widget>
              </item>
@@ -3017,7 +3026,7 @@
                </property>
               </widget>
              </item>
-             <item row="2" column="0" rowspan="2">
+             <item row="3" column="0" rowspan="2">
               <widget class="QLabel" name="label_40">
                <property name="text">
                 <string>Current fit settings:</string>
@@ -3027,6 +3036,147 @@
                </property>
                <property name="wordWrap">
                 <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0" colspan="2">
+              <widget class="Line" name="line_7">
+               <property name="palette">
+                <palette>
+                 <active>
+                  <colorrole role="WindowText">
+                   <brush brushstyle="SolidPattern">
+                    <color alpha="255">
+                     <red>227</red>
+                     <green>227</green>
+                     <blue>227</blue>
+                    </color>
+                   </brush>
+                  </colorrole>
+                 </active>
+                 <inactive>
+                  <colorrole role="WindowText">
+                   <brush brushstyle="SolidPattern">
+                    <color alpha="255">
+                     <red>0</red>
+                     <green>0</green>
+                     <blue>0</blue>
+                    </color>
+                   </brush>
+                  </colorrole>
+                 </inactive>
+                 <disabled>
+                  <colorrole role="WindowText">
+                   <brush brushstyle="SolidPattern">
+                    <color alpha="255">
+                     <red>120</red>
+                     <green>120</green>
+                     <blue>120</blue>
+                    </color>
+                   </brush>
+                  </colorrole>
+                 </disabled>
+                </palette>
+               </property>
+               <property name="frameShadow">
+                <enum>QFrame::Plain</enum>
+               </property>
+               <property name="orientation">
+                <enum>Qt::Horizontal</enum>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="1">
+              <widget class="QPushButton" name="butFitCurLoad">
+               <property name="toolTip">
+                <string>Loads the fit settings from the temporary file</string>
+               </property>
+               <property name="text">
+                <string>Restore</string>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="1">
+              <widget class="QPushButton" name="butFitCurSave">
+               <property name="toolTip">
+                <string>Save only the current fit settings into a temporary file</string>
+               </property>
+               <property name="text">
+                <string>Save</string>
+               </property>
+              </widget>
+             </item>
+             <item row="6" column="1">
+              <widget class="QPushButton" name="butShowResiduen">
+               <property name="toolTip">
+                <string>This is an experimental implementation</string>
+               </property>
+               <property name="text">
+                <string>Show</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QPushButton" name="butFitHistoShow">
+               <property name="text">
+                <string>Show</string>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="0">
+              <widget class="QLabel" name="label_42">
+               <property name="text">
+                <string>Fit Result:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="0" colspan="2">
+              <widget class="Line" name="line_9">
+               <property name="palette">
+                <palette>
+                 <active>
+                  <colorrole role="WindowText">
+                   <brush brushstyle="SolidPattern">
+                    <color alpha="255">
+                     <red>227</red>
+                     <green>227</green>
+                     <blue>227</blue>
+                    </color>
+                   </brush>
+                  </colorrole>
+                 </active>
+                 <inactive>
+                  <colorrole role="WindowText">
+                   <brush brushstyle="SolidPattern">
+                    <color alpha="255">
+                     <red>0</red>
+                     <green>0</green>
+                     <blue>0</blue>
+                    </color>
+                   </brush>
+                  </colorrole>
+                 </inactive>
+                 <disabled>
+                  <colorrole role="WindowText">
+                   <brush brushstyle="SolidPattern">
+                    <color alpha="255">
+                     <red>120</red>
+                     <green>120</green>
+                     <blue>120</blue>
+                    </color>
+                   </brush>
+                  </colorrole>
+                 </disabled>
+                </palette>
+               </property>
+               <property name="frameShadow">
+                <enum>QFrame::Plain</enum>
+               </property>
+               <property name="orientation">
+                <enum>Qt::Horizontal</enum>
                </property>
               </widget>
              </item>
@@ -3158,7 +3308,7 @@ with file definitions</string>
       </widget>
       <widget class="QWidget" name="tabTPV">
        <attribute name="title">
-        <string>Training Param Variation</string>
+        <string>Random modifications</string>
        </attribute>
        <layout class="QGridLayout" name="gridLayout_25">
         <item row="2" column="2" rowspan="7">
@@ -3844,7 +3994,7 @@ with file definitions</string>
            </font>
           </property>
           <property name="text">
-           <string>Definitions for the generation of simulation datasets</string>
+           <string>Definitions for the generation of randomly modified simulation datasets</string>
           </property>
          </widget>
         </item>
@@ -4032,7 +4182,7 @@ with file definitions</string>
             <property name="title">
              <string>Variables changed durling calculations</string>
             </property>
-            <layout class="QGridLayout" name="gridLayout_3" rowstretch="0,0,0,0,0,0,0,0,0,0">
+            <layout class="QGridLayout" name="gridLayout_3" rowstretch="0,0,0,0,0,0,0,0,0,0,0">
              <item row="5" column="3">
               <widget class="QPushButton" name="butRemoveVar">
                <property name="text">
@@ -4040,53 +4190,13 @@ with file definitions</string>
                </property>
               </widget>
              </item>
-             <item row="8" column="1" colspan="3">
-              <widget class="QLabel" name="label_30">
-               <property name="minimumSize">
-                <size>
-                 <width>0</width>
-                 <height>32</height>
-                </size>
-               </property>
+             <item row="0" column="0" colspan="2">
+              <widget class="QLabel" name="label_28">
                <property name="text">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Step-Column:&lt;br/&gt;&lt;/span&gt;&amp;quot;n&amp;quot; = numerical step size&lt;br/&gt;&amp;quot;Rn&amp;quot; = generate &amp;lt;n&amp;gt; random values&lt;br/&gt;&amp;quot;=&amp;lt;variable&amp;gt; [+-*/] &amp;lt;number&amp;gt;&amp;quot; calculate value from variable&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                <string>Variables known:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
-               </property>
-               <property name="wordWrap">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="3">
-              <widget class="QPushButton" name="butLoadTable">
-               <property name="text">
-                <string>Load</string>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="3">
-              <widget class="QPushButton" name="butUseForAI">
-               <property name="text">
-                <string>Use this for AI</string>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="2">
-              <widget class="QComboBox" name="cbsVariables"/>
-             </item>
-             <item row="7" column="3">
-              <widget class="QPushButton" name="butClearTable">
-               <property name="text">
-                <string>Clear List</string>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="3">
-              <widget class="QPushButton" name="butSaveTable">
-               <property name="text">
-                <string>Save as ...</string>
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -4103,57 +4213,33 @@ with file definitions</string>
                </property>
               </spacer>
              </item>
-             <item row="6" column="3">
-              <spacer name="verticalSpacer_9">
-               <property name="orientation">
-                <enum>Qt::Vertical</enum>
+             <item row="3" column="3">
+              <widget class="QPushButton" name="butLoadTable">
+               <property name="text">
+                <string>Load</string>
                </property>
-               <property name="sizeHint" stdset="0">
+              </widget>
+             </item>
+             <item row="8" column="1" colspan="3">
+              <widget class="QLabel" name="label_30">
+               <property name="minimumSize">
                 <size>
-                 <width>20</width>
-                 <height>40</height>
+                 <width>0</width>
+                 <height>32</height>
                 </size>
                </property>
-              </spacer>
-             </item>
-             <item row="8" column="0">
-              <widget class="QLabel" name="label_27">
                <property name="text">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;End-Column:&lt;/span&gt;&lt;br/&gt;&amp;quot;n&amp;quot; = end of range&lt;br/&gt;&amp;quot;Vn&amp;quot; = Variation (0..1)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Step-Column:&lt;br/&gt;&lt;/span&gt;&amp;quot;n&amp;quot; = numerical step size&lt;br/&gt;&amp;quot;Rn&amp;quot; = generate &amp;lt;n&amp;gt; random values&lt;br/&gt;&amp;quot;=&amp;lt;var&amp;gt; [+-*/] &amp;lt;num&amp;gt;&amp;quot; calculate value from variable&lt;br/&gt;&amp;quot;/n&amp;quot; calculates n steps from start to end with fixed size&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
                </property>
-              </widget>
-             </item>
-             <item row="2" column="0" rowspan="6" colspan="3">
-              <widget class="QTableWidget" name="tblListe">
-               <attribute name="horizontalHeaderStretchLastSection">
+               <property name="wordWrap">
                 <bool>true</bool>
-               </attribute>
-              </widget>
-             </item>
-             <item row="1" column="0" colspan="3">
-              <widget class="QLabel" name="label_29">
-               <property name="text">
-                <string>List of variables to iterate over:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
                </property>
               </widget>
              </item>
-             <item row="0" column="0" colspan="2">
-              <widget class="QLabel" name="label_28">
-               <property name="text">
-                <string>Variables known:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="9" column="0" colspan="4">
+             <item row="10" column="0" colspan="4">
               <layout class="QGridLayout" name="gridLayout_22">
                <property name="verticalSpacing">
                 <number>2</number>
@@ -4174,6 +4260,77 @@ with file definitions</string>
                </item>
               </layout>
              </item>
+             <item row="7" column="3">
+              <widget class="QPushButton" name="butClearTable">
+               <property name="text">
+                <string>Clear List</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="3">
+              <widget class="QPushButton" name="butUseForAI">
+               <property name="text">
+                <string>Use this for AI</string>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="0">
+              <widget class="QLabel" name="label_27">
+               <property name="text">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;End-Column:&lt;/span&gt;&lt;br/&gt;&amp;quot;n&amp;quot; = end of range&lt;br/&gt;&amp;quot;Vn&amp;quot; = Variation (0..1)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="2">
+              <widget class="QComboBox" name="cbsVariables"/>
+             </item>
+             <item row="2" column="0" rowspan="6" colspan="3">
+              <widget class="QTableWidget" name="tblListe">
+               <attribute name="horizontalHeaderStretchLastSection">
+                <bool>true</bool>
+               </attribute>
+              </widget>
+             </item>
+             <item row="2" column="3">
+              <widget class="QPushButton" name="butSaveTable">
+               <property name="text">
+                <string>Save as ...</string>
+               </property>
+              </widget>
+             </item>
+             <item row="6" column="3">
+              <spacer name="verticalSpacer_9">
+               <property name="orientation">
+                <enum>Qt::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>40</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item row="1" column="0" colspan="3">
+              <widget class="QLabel" name="label_29">
+               <property name="text">
+                <string>List of variables to iterate over:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="9" column="0" colspan="4">
+              <widget class="QLabel" name="label_23">
+               <property name="text">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Start-/End-Column: &lt;/span&gt;&amp;quot;*n&amp;quot; = Calculates value from current parameter * number&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+              </widget>
+             </item>
             </layout>
            </widget>
           </item>
@@ -4186,13 +4343,17 @@ with file definitions</string>
              <property name="verticalSpacing">
               <number>3</number>
              </property>
-             <item row="5" column="0">
-              <widget class="QLabel" name="label_26">
+             <item row="0" column="0" colspan="2">
+              <widget class="QCheckBox" name="togAIUseFFTOutput">
                <property name="text">
-                <string>Output format:</string>
+                <string>Use the FFT in the same way as defined in the FFT-Tab</string>
                </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              </widget>
+             </item>
+             <item row="2" column="0" colspan="2">
+              <widget class="QRadioButton" name="radAILogOutput">
+               <property name="text">
+                <string>Output the data in logarithm</string>
                </property>
               </widget>
              </item>
@@ -4222,17 +4383,13 @@ with file definitions</string>
                </property>
               </widget>
              </item>
-             <item row="3" column="0" colspan="2">
-              <widget class="QCheckBox" name="togAIScaleOutput">
+             <item row="5" column="0">
+              <widget class="QLabel" name="label_26">
                <property name="text">
-                <string>Scale the output data to the range of 0 .. 1</string>
+                <string>Output format:</string>
                </property>
-              </widget>
-             </item>
-             <item row="2" column="0" colspan="2">
-              <widget class="QRadioButton" name="radAILogOutput">
-               <property name="text">
-                <string>Output the data in logarithm</string>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -4243,10 +4400,17 @@ with file definitions</string>
                </property>
               </widget>
              </item>
-             <item row="0" column="0" colspan="2">
-              <widget class="QCheckBox" name="togAIUseFFTOutput">
+             <item row="3" column="0" colspan="2">
+              <widget class="QCheckBox" name="togAIScaleOutput">
                <property name="text">
-                <string>Use the FFT in the same way as defined in the FFT-Tab</string>
+                <string>Scale the output data to the range of 0 .. 1</string>
+               </property>
+              </widget>
+             </item>
+             <item row="6" column="0" colspan="2">
+              <widget class="QCheckBox" name="togAILoadFromParam">
+               <property name="text">
+                <string>Load these settings from calculation parameter file</string>
                </property>
               </widget>
              </item>
@@ -4460,6 +4624,405 @@ with file definitions</string>
         </item>
        </layout>
       </widget>
+      <widget class="QWidget" name="tabChatBot">
+       <attribute name="title">
+        <string>ChatBot</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_8" columnstretch="1">
+        <item row="0" column="0">
+         <widget class="QLabel" name="label_55">
+          <property name="font">
+           <font>
+            <bold>true</bold>
+           </font>
+          </property>
+          <property name="text">
+           <string>This function is for the Chatbot interface to generate images.</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="0">
+         <widget class="QGroupBox" name="grpChatbotTraining">
+          <property name="title">
+           <string>Generate training files from current calculation configuration</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_47">
+           <item row="0" column="1">
+            <widget class="QLineEdit" name="inpChatbotTrainfile"/>
+           </item>
+           <item row="0" column="2">
+            <widget class="QPushButton" name="butChatbotTrainfileSearch">
+             <property name="maximumSize">
+              <size>
+               <width>30</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="0">
+            <widget class="QPushButton" name="butChatbotSaveConfig">
+             <property name="text">
+              <string>Save config</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="7" column="0">
+         <layout class="QVBoxLayout" name="verticalLayout_15">
+          <property name="spacing">
+           <number>3</number>
+          </property>
+          <item>
+           <widget class="QLabel" name="label_38">
+            <property name="text">
+             <string>Output of the background process:</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QListWidget" name="lisChatbotLogOut"/>
+          </item>
+         </layout>
+        </item>
+        <item row="2" column="0">
+         <widget class="QGroupBox" name="groupBox_2">
+          <property name="title">
+           <string>Output image configuration</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_33">
+           <item row="0" column="6">
+            <widget class="QCheckBox" name="togChatbotVert">
+             <property name="text">
+              <string>vertical</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="8">
+            <widget class="QLabel" name="label_58">
+             <property name="text">
+              <string>Rotation:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="4">
+            <widget class="QLabel" name="label_57">
+             <property name="text">
+              <string>Mirroring:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1" colspan="2">
+            <widget class="QComboBox" name="cbsChatbotColor">
+             <item>
+              <property name="text">
+               <string>grey</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>glow</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>earth</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>temp</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_56">
+             <property name="text">
+              <string>Colortable:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="5">
+            <widget class="QCheckBox" name="togChatbotHor">
+             <property name="text">
+              <string>horizontal</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="9">
+            <widget class="QComboBox" name="cbsChatbotRotation">
+             <item>
+              <property name="text">
+               <string>0°</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>90°</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>180°</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>270°</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="0" column="11">
+            <widget class="QLabel" name="label_59">
+             <property name="text">
+              <string>Zoom:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="3">
+            <widget class="Line" name="line_10">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="12">
+            <widget class="QComboBox" name="cbsChatbotZoom">
+             <item>
+              <property name="text">
+               <string>1</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>2</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>4</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="0" column="7">
+            <widget class="Line" name="line_11">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="10">
+            <widget class="Line" name="line_12">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QGroupBox" name="groupBox_3">
+          <property name="title">
+           <string>Filename with input from the chatbot</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_41">
+           <item row="0" column="3">
+            <widget class="QPushButton" name="butChatbotSearch">
+             <property name="maximumSize">
+              <size>
+               <width>30</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="0" colspan="3">
+            <widget class="QLineEdit" name="inpChatbotFile">
+             <property name="minimumSize">
+              <size>
+               <width>300</width>
+               <height>0</height>
+              </size>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="label_24">
+             <property name="font">
+              <font>
+               <italic>true</italic>
+              </font>
+             </property>
+             <property name="text">
+              <string>All parameters not set in the given file are taken from the current calculation tab at the point of starting the background process.</string>
+             </property>
+             <property name="wordWrap">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QLabel" name="label_61">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_53">
+             <property name="text">
+              <string>If this file exists, the program generates an image (filename given in file) and deletes this file. This is done in an endless loop.</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="2" colspan="2">
+            <widget class="QLabel" name="label_62">
+             <property name="text">
+              <string>and the background process terminates after calculation</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="2" colspan="2">
+            <widget class="QCheckBox" name="togChatbotDebug">
+             <property name="text">
+              <string>Single calculation mode, input file will not be deleted</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="3" column="0">
+         <widget class="QGroupBox" name="grpChatbotLogfile">
+          <property name="title">
+           <string>Use Logfile during calculations</string>
+          </property>
+          <property name="checkable">
+           <bool>true</bool>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_46">
+           <item row="0" column="1">
+            <widget class="QLineEdit" name="inpChatbotLogfile"/>
+           </item>
+           <item row="0" column="2">
+            <widget class="QPushButton" name="butChatbotLogSearch">
+             <property name="maximumSize">
+              <size>
+               <width>30</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_54">
+             <property name="text">
+              <string>Logfilepath:</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="5" column="0">
+         <layout class="QGridLayout" name="gridLayout_48">
+          <property name="verticalSpacing">
+           <number>2</number>
+          </property>
+          <item row="0" column="0">
+           <widget class="QPushButton" name="butChatbotStart">
+            <property name="toolTip">
+             <string>Starting the background process</string>
+            </property>
+            <property name="text">
+             <string>Start background process to wait for the chatbot file</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="2">
+           <widget class="QPushButton" name="butChatbotStop">
+            <property name="toolTip">
+             <string>Stopping the background process</string>
+            </property>
+            <property name="text">
+             <string>Stop background process</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="4">
+           <widget class="QPushButton" name="butChatbotReadClipboard">
+            <property name="text">
+             <string>Read Clipboard and generate an image</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="3">
+           <spacer name="horizontalSpacer_3">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item row="0" column="1">
+           <widget class="QLabel" name="label_60">
+            <property name="minimumSize">
+             <size>
+              <width>20</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="4">
+           <widget class="QCheckBox" name="togChatbotClpShowImg">
+            <property name="text">
+             <string>Show image</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
       <widget class="QWidget" name="tabConfig">
        <attribute name="title">
         <string>Configuration</string>
@@ -4562,6 +5125,16 @@ with file definitions</string>
              <string>Timing informations</string>
             </property>
             <layout class="QGridLayout" name="gridLayout_5">
+             <item row="4" column="0">
+              <widget class="QCheckBox" name="togLimitRuntime">
+               <property name="toolTip">
+                <string/>
+               </property>
+               <property name="text">
+                <string>Limit running time to</string>
+               </property>
+              </widget>
+             </item>
              <item row="0" column="1">
               <widget class="QSpinBox" name="inpNumCores">
                <property name="toolTip">
@@ -4575,30 +5148,10 @@ with file definitions</string>
                </property>
               </widget>
              </item>
-             <item row="2" column="0" colspan="2">
-              <widget class="QCheckBox" name="togIgnoreUpdates">
-               <property name="toolTip">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When this is checked, the updates are ignored. This means the calculation with remote operation is faster.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-               </property>
+             <item row="0" column="0">
+              <widget class="QLabel" name="label_12">
                <property name="text">
-                <string>No GUI updates at each step</string>
-               </property>
-              </widget>
-             </item>
-             <item row="4" column="0">
-              <widget class="QCheckBox" name="togLimitRuntime">
-               <property name="toolTip">
-                <string/>
-               </property>
-               <property name="text">
-                <string>Limit running time to</string>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="0">
-              <widget class="QLabel" name="label_21">
-               <property name="text">
-                <string>Time of last calculation:</string>
+                <string>Number of used cores / threads:</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -4637,13 +5190,30 @@ with file definitions</string>
                </property>
               </widget>
              </item>
-             <item row="0" column="0">
-              <widget class="QLabel" name="label_12">
+             <item row="2" column="0" colspan="2">
+              <widget class="QCheckBox" name="togIgnoreUpdates">
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When this is checked, the updates are ignored. This means the calculation with remote operation is faster.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
                <property name="text">
-                <string>Number of used cores / threads:</string>
+                <string>No GUI updates at each step</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="label_21">
+               <property name="text">
+                <string>Time of last calculation:</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="0" colspan="2">
+              <widget class="QCheckBox" name="togIgnNewSwitch">
+               <property name="text">
+                <string>Ignore new switch functions</string>
                </property>
               </widget>
              </item>
@@ -4772,7 +5342,28 @@ with file definitions</string>
              <string>Scan for files and generate images</string>
             </property>
             <layout class="QGridLayout" name="gridLayout_21">
-             <item row="6" column="0" colspan="2">
+             <item row="6" column="1">
+              <widget class="QLabel" name="lblParamSearchCount">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0" colspan="2">
+              <widget class="QPushButton" name="butParamSearchDoit">
+               <property name="text">
+                <string>Search for parameter files (*.ini, *.sas_tpv)</string>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="0" colspan="2">
+              <widget class="QPushButton" name="butDataSearchDoit">
+               <property name="text">
+                <string>Search for data files (*.*)</string>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="0" colspan="2">
               <widget class="QListWidget" name="lisParamSearchResult">
                <property name="editTriggers">
                 <set>QAbstractItemView::NoEditTriggers</set>
@@ -4782,14 +5373,10 @@ with file definitions</string>
                </property>
               </widget>
              </item>
-             <item row="3" column="0" colspan="2">
-              <widget class="QPushButton" name="butDataSearchDoit">
-               <property name="text">
-                <string>Search for data files (*.*)</string>
-               </property>
-              </widget>
+             <item row="2" column="0">
+              <widget class="QLineEdit" name="inpParamSearchPath"/>
              </item>
-             <item row="5" column="0">
+             <item row="6" column="0">
               <widget class="QLabel" name="label_20">
                <property name="text">
                 <string>Found files:</string>
@@ -4799,34 +5386,7 @@ with file definitions</string>
                </property>
               </widget>
              </item>
-             <item row="5" column="1">
-              <widget class="QLabel" name="lblParamSearchCount">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="0" colspan="2">
-              <widget class="QPushButton" name="butParamSearchDoit">
-               <property name="text">
-                <string>Search for parameter files (*.ini, *.sas_tpv)</string>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="0" colspan="2">
-              <widget class="QLabel" name="label_14">
-               <property name="text">
-                <string>Use this path as the basepath and search for all files in and below this path:</string>
-               </property>
-               <property name="wordWrap">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="0">
-              <widget class="QLineEdit" name="inpParamSearchPath"/>
-             </item>
-             <item row="1" column="1">
+             <item row="2" column="1">
               <widget class="QPushButton" name="butParamSearchPath">
                <property name="maximumSize">
                 <size>
@@ -4839,13 +5399,33 @@ with file definitions</string>
                </property>
               </widget>
              </item>
-             <item row="7" column="0" colspan="2">
+             <item row="0" column="0" colspan="2">
+              <widget class="QLabel" name="label_14">
+               <property name="text">
+                <string>Search for all files in and below this path:</string>
+               </property>
+               <property name="wordWrap">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="9" column="0" colspan="2">
               <widget class="QPushButton" name="butParamSearchGenerate">
                <property name="toolTip">
                 <string>and store them in the same folder as the input file</string>
                </property>
                <property name="text">
                 <string>Generate images for all selected files</string>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="0">
+              <widget class="QLabel" name="lblParamSearchLog">
+               <property name="text">
+                <string>TextLabel</string>
+               </property>
+               <property name="openExternalLinks">
+                <bool>true</bool>
                </property>
               </widget>
              </item>
@@ -4882,7 +5462,7 @@ with file definitions</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1240</width>
+     <width>1330</width>
      <height>26</height>
     </rect>
    </property>
@@ -4912,6 +5492,8 @@ with file definitions</string>
     <addaction name="separator"/>
     <addaction name="actionCompare_current_parameters_with_file"/>
     <addaction name="actionFind_parameters_changing_image"/>
+    <addaction name="separator"/>
+    <addaction name="actionStart_autoprocessing_file"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -4988,6 +5570,16 @@ with file definitions</string>
   <action name="actionAbout_Qt">
    <property name="text">
     <string>About Qt</string>
+   </property>
+  </action>
+  <action name="actionStart_autoprocessing_file">
+   <property name="text">
+    <string>Start autoprocessing file</string>
+   </property>
+  </action>
+  <action name="actionChatbot_input_file_calculation">
+   <property name="text">
+    <string>Chatbot input file calculation</string>
    </property>
   </action>
  </widget>

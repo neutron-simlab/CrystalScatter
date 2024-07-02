@@ -33,6 +33,10 @@ dlgTimeTests::dlgTimeTests( QString path, bool gpu, int maxt, QWidget *parent ) 
     ui->togQ2->setChecked(sets.value("useq2",false).toBool());
     ui->togQ4->setChecked(sets.value("useq4",true ).toBool());
     ui->grpQuadrants->setChecked(sets.value("usequadrants",true).toBool());
+    ui->radSwitchBoth->setChecked(sets.value("newswitch",swBoth).toInt() == swBoth);
+    ui->radSwitchNew->setChecked(sets.value("newswitch",swBoth).toInt() == swNew);
+    ui->radSwitchOld->setChecked(sets.value("newswitch",swBoth).toInt() == swOld);
+    ui->togSwitchModFN->setChecked(sets.value("switchmodfn",true).toBool());
     onTogToggled();
     ui->togEnaUpdates->setChecked(sets.value("enaupdates",false).toBool());
     ui->togSaveImages->setChecked(sets.value("saveimages",false).toBool());
@@ -58,10 +62,15 @@ void dlgTimeTests::onTogToggled()
     if ( ui->togThread1->isChecked() ) cntThreads++;
     if ( ui->togThread4->isChecked() ) cntThreads++;
     if ( ui->togThreadM->isChecked() ) cntThreads++;
-    if ( ui->togHKL2->isChecked() ) cntHKL++;
-    if ( ui->togHKL3->isChecked() ) cntHKL++;
-    if ( ui->togHKL4->isChecked() ) cntHKL++;
-    if ( ui->togHKL5->isChecked() ) cntHKL++;
+    if ( ui->grpHKLmax->isEnabled() )
+    {
+        if ( ui->togHKL2->isChecked() ) cntHKL++;
+        if ( ui->togHKL3->isChecked() ) cntHKL++;
+        if ( ui->togHKL4->isChecked() ) cntHKL++;
+        if ( ui->togHKL5->isChecked() ) cntHKL++;
+    }
+    else
+        cntHKL = 1;
     if ( ui->grpQuadrants->isChecked() )
     {
         if ( ui->togQ1->isChecked() ) cntQ++;
@@ -70,6 +79,7 @@ void dlgTimeTests::onTogToggled()
     }
     else
         cntQ = 1;
+    if ( ui->radSwitchBoth->isChecked() ) cntThreads *= 2;
     ui->lblNumCalc->setNum( cntThreads * cntHKL * cntQ );
 }
 
@@ -98,6 +108,10 @@ void dlgTimeTests::on_butStart_clicked()
     sets.setValue("loops",ui->inpNumLoops->value());
     sets.setValue("filename",ui->inpSaveFilename->text());
     sets.setValue("comment",ui->inpComment->text());
+    if ( ui->radSwitchBoth->isChecked() ) sets.setValue("newswitch",swBoth);
+    if ( ui->radSwitchNew ->isChecked() ) sets.setValue("newswitch",swNew);
+    if ( ui->radSwitchOld ->isChecked() ) sets.setValue("newswitch",swOld);
+    sets.setValue("switchmodfn",ui->togSwitchModFN->isChecked());
     accept();
 }
 
@@ -116,13 +130,24 @@ QVector<int> dlgTimeTests::getThreads()
     return rv;
 }
 
+void dlgTimeTests::setHKLmaxUsed(bool f)
+{
+    ui->grpHKLmax->setEnabled(f);
+    onTogToggled();
+}
+
 QVector<int> dlgTimeTests::getHKLmax()
 {
     QVector<int> rv;
-    if ( ui->togHKL2->isChecked() ) rv.append( ui->inpHKL2->value() );
-    if ( ui->togHKL3->isChecked() ) rv.append( ui->inpHKL3->value() );
-    if ( ui->togHKL4->isChecked() ) rv.append( ui->inpHKL4->value() );
-    if ( ui->togHKL5->isChecked() ) rv.append( ui->inpHKL5->value() );
+    if ( ui->grpHKLmax->isEnabled() )
+    {
+        if ( ui->togHKL2->isChecked() ) rv.append( ui->inpHKL2->value() );
+        if ( ui->togHKL3->isChecked() ) rv.append( ui->inpHKL3->value() );
+        if ( ui->togHKL4->isChecked() ) rv.append( ui->inpHKL4->value() );
+        if ( ui->togHKL5->isChecked() ) rv.append( ui->inpHKL5->value() );
+    }
+    else
+        rv.append(1);
     return rv;
 }
 
@@ -184,4 +209,68 @@ void dlgTimeTests::on_butSaveFilename_clicked()
     fn = QFileDialog::getSaveFileName( this, "Select file to save timings", fn );
     if ( fn.isEmpty() ) return;
     ui->inpSaveFilename->setText(fn);
+}
+
+dlgTimeTests::_newSwitch dlgTimeTests::getNewSwitchFlag()
+{
+    // typedef enum { swBoth, swNew, swOld } _newSwitch;
+    if ( ui->radSwitchBoth->isChecked() ) return swBoth;
+    if ( ui->radSwitchNew->isChecked() ) return swNew;
+    if ( ui->radSwitchOld->isChecked() ) return swOld;
+    return swBoth;
+}
+
+bool dlgTimeTests::getNewSwitchModFN()
+{
+    return ui->togSwitchModFN->isChecked();
+}
+
+QString dlgTimeTests::newSwitch2Str(_newSwitch nsw)
+{
+    switch ( nsw )
+    {
+    case swBoth: return "both";
+    case swNew:  return "new";
+    case swOld:  return "old";
+    }
+    return "both";
+}
+
+void dlgTimeTests::on_butSaveTests_clicked()
+{
+    QSettings sets(SETT_APP,SETT_PAR);
+    QString fn = sets.value("saveparams",".").toString();
+    fn = QFileDialog::getSaveFileName(this,"Save Test Params",fn,"Parameterfiles (*.ini)");
+    if ( fn.isEmpty() ) return;
+    sets.setValue("saveparams",fn);
+    sets.sync();
+
+    QSettings set2(fn,QSettings::IniFormat);
+    set2.setValue("thread0",ui->togThread0->isChecked());
+    set2.setValue("thread1",ui->togThread1->isChecked());
+    set2.setValue("thread4",ui->togThread4->isChecked());
+    set2.setValue("threadM",ui->togThreadM->isChecked());
+    set2.setValue("hkl2",ui->togHKL2->isChecked());
+    set2.setValue("hkl3",ui->togHKL3->isChecked());
+    set2.setValue("hkl4",ui->togHKL4->isChecked());
+    set2.setValue("hkl5",ui->togHKL5->isChecked());
+    set2.setValue("hkl2val",ui->inpHKL2->value());
+    set2.setValue("hkl3val",ui->inpHKL3->value());
+    set2.setValue("hkl4val",ui->inpHKL4->value());
+    set2.setValue("hkl5val",ui->inpHKL5->value());
+    set2.setValue("useq1",ui->togQ1->isChecked());
+    set2.setValue("useq2",ui->togQ2->isChecked());
+    set2.setValue("useq4",ui->togQ4->isChecked());
+    set2.setValue("usequadrants",ui->grpQuadrants->isChecked());
+    set2.setValue("enaupdates",ui->togEnaUpdates->isChecked());
+    set2.setValue("saveimages",ui->togSaveImages->isChecked());
+    set2.setValue("savefile",ui->togSaveFile->isChecked());
+    set2.setValue("loops",ui->inpNumLoops->value());
+    set2.setValue("filename",ui->inpSaveFilename->text());
+    set2.setValue("comment",ui->inpComment->text());
+    if ( ui->radSwitchBoth->isChecked() ) set2.setValue("newswitch",swBoth);
+    if ( ui->radSwitchNew ->isChecked() ) set2.setValue("newswitch",swNew);
+    if ( ui->radSwitchOld ->isChecked() ) set2.setValue("newswitch",swOld);
+    set2.setValue("switchmodfn",ui->togSwitchModFN->isChecked());
+    set2.sync();
 }

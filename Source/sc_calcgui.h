@@ -19,14 +19,16 @@
 #include <QSettings>
 
 #include "sc_calc_generic.h"
+#include "myguiparam.h"
 
 
 #define SETCOL(w,c) setColHelper::setcol(w,c)
-#define SETCOLMARK_TRAINTBL  Qt::yellow
-#define SETCOLMARK_PARDIFF   Qt::green
-#define SETCOLMARK_CHGIMG    Qt::cyan
-#define SETCOLMARK_IGNORED   Qt::black
-#define SETCOLMARK_CLEARED   Qt::white
+#define SETCOLMARK_TRAINTBL  Qt::yellow         // on_butTPVreadTrainingTable_clicked()
+#define SETCOLMARK_PARDIFF   Qt::green          // compareParameter()
+#define SETCOLMARK_CHGIMG    Qt::cyan           // on_actionFind_parameters_changing_image_triggered
+#define SETCOLMARK_OLDPARAM  QColor(150,220,255)// mark parameters not set by reading old parameter files
+#define SETCOLMARK_IGNORED   Qt::black          // updateParamValue(?) ignored
+#define SETCOLMARK_CLEARED   Qt::white          // clear color mark
 
 class setColHelper
 {
@@ -63,13 +65,14 @@ typedef struct
     QString cur, par;
 } _CompValues;
 
-
+/*
 // Diese Struktur sollte auch alle Daten ohne GUI enthalten können
 typedef struct
 {
     enum { undef, numdbl, numint, select, toggle, outdbl } type;
     QString key;        // Name des Parameters
-    QCheckBox *togFit;  // !=0 wenn ein Fit möglich ist (enabled und checked ==> kommt in die Tabelle)
+    QString tooltip;    // Default ToolTip ohne Fitrange oder andere Zusatzinfos (aus der Liste)
+    myGuiParam *gpFit;  // !=0 wenn ein Fit möglich ist (enabled und checked ==> kommt in die Tabelle)
     union
     {
         QDoubleSpinBox *numd;   // Zahl (double)
@@ -80,14 +83,14 @@ typedef struct
         QLineEdit *out;         // Für Outputs (ReadOnly)
         QWidget *w;             // vereinfacht den Zugriff
     } gui;              // nur in der GUI-Version gefüllt
+    bool  enabled;
     struct
     {
         double  number; // also for selections
         bool    flag;
     } value;    // immer genutzt
 } paramHelper;
-
-
+*/
 
 class SC_CalcGUI : public QObject
 {
@@ -132,8 +135,9 @@ public:
     _numericalParams allNumericalParams();
     bool isCurrentParameterValid( QString p, bool forfit );
     void resetParamColorMarker( QColor col );
+    bool isCurrentParameterVisible(QString p, QString &dbg);
 
-    void doCalculation( int numThreads );
+    void doCalculation(int numThreads, bool bIgnoreNewSwitch);
     double doFitCalculation(int numThreads, int bstop, int border, long &cnt, long &nancnt);
     void endThread() { calcGeneric->endThread(); }
 
@@ -150,12 +154,6 @@ public:
 
     paramHelper *getParamPtr( QString p );
 
-#ifdef COPY_FITDATA_TO_GPU  // FITDATA_IN_GPU ok, real func außen
-    bool setArrDataForFit( const double *data ) { return (calcGeneric!=nullptr) ? calcGeneric->setArrDataForFit(data) : false; }
-#ifdef CALC_FQS_IN_GPU
-    double getFQS() { return (calcGeneric!=nullptr) ? calcGeneric->getFQS() : 0.0; }
-#endif
-#endif
 #ifdef FITDATA_IN_GPU  // real func außen
     bool setFitData( int sx, int sy, const double *data )
     { return (calcGeneric!=nullptr) ? calcGeneric->setFitData(sx,sy,data) : false; }

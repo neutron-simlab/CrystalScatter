@@ -43,7 +43,8 @@ static float zoom2pix[] = {  1,  2,  4, 0.5, 0.25, 0      };
 QStringList widImage::_slColornames = { /* 0*/"Greyscale",     /* 1*/"Glowing colors",     /* 2*/"Earth colors",         /* 3*/"Temperature",
                                         /* 4*/"Scatter-Color", /* 5*/"Scatter-Colorwheel", /* 6*/"Scatter-Temperature",  /* 7*/"Scatter-Geo",
                                         /* 8*/"Scatter-Desy",  /* 9*/"Scatter-Grey",       /*10*/"Scatter-Inverse grey", /*11*/"Scatter-Jet",
-                                        /*12*/"Residuen Glow", /*13*/"Residuen Temp",      /*14*/"Mathematica",          /*15*/"Mathematica-Inv" };
+                                        /*12*/"Residuen Glow", /*13*/"Residuen Temp",      /*14*/"Mathematica",          /*15*/"Mathematica-Inv",
+                                        /*16*/"SasView" };
 
 
 widImage::widImage() :
@@ -192,7 +193,7 @@ void widImage::addMetaInfo( QString key, QString val )
     /*else if ( key.contains("qmax",Qt::CaseInsensitive) )
     {
         //qmax = val.toDouble();
-        qDebug() << key << val;
+        //qDebug() << key << val;
         //Debug: "EditQmaxData" "False"  --> wenn True, dann CalcQmax nutzen
         //Debug: "CalcQmax" "1.665"
         //Debug: "EditQmax" "2"
@@ -363,7 +364,6 @@ QString widImage::metaInfo( QString key, QString def )
  * @param x1 - X max
  * @param y0 - Y min
  * @param y1 - Y max
- * @param md - Metadata Hash
  * @param d  - data values
  */
 void widImage::setData( int x0, int x1, int y0, int y1, double *d )
@@ -437,19 +437,20 @@ void widImage::saveImage( QString fn )
         imgNormal.save(fn);
 }
 
-void widImage::saveImageColor( QString fn, QString coltbl )
+bool widImage::saveImageColor(QString fn, QString coltbl, QString &dbg)
 {
 #ifndef CONSOLENPROG
     QString savColTbl = ui->cbsColorTbl->currentText();
-    qDebug() << "saveImageColor" << fn << coltbl << "Old:" << savColTbl;
+    //qDebug() << "saveImageColor" << fn << coltbl << "Old:" << savColTbl;
 #endif
     on_cbsColorTbl_activated(coltbl);
     QImage tmp = generateImage();
-    if ( ! tmp.save(fn) )
-        qDebug() << "saveImageColor: error on save";
+    dbg = QString("FN=%1, COL=%2, IMG=%3*%4").arg(fn).arg(coltbl).arg(tmp.width()).arg(tmp.height());
+    bool rv = tmp.save(fn);
 #ifndef CONSOLENPROG
     on_cbsColorTbl_activated(savColTbl);
 #endif
+    return rv;
 }
 
 
@@ -557,6 +558,10 @@ void widImage::on_cbsColorTbl_activated(const QString &arg1)
     static int rMat[256] = { 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 254, 254, 254, 254, 253, 253,253, 253, 252, 252, 252, 252, 251, 251, 251, 251, 250, 250, 250, 250, 249, 249, 249, 249, 248, 248, 248, 247, 247, 247, 247, 247, 247, 246, 246, 246, 246, 245, 245, 245, 245, 244, 244, 244, 243, 243, 243, 243, 242, 242, 242, 242, 241, 241, 241, 241, 240, 240, 240, 240, 239, 239, 239, 239, 239, 238, 238, 238, 238, 237, 237, 237, 237, 236, 236, 236, 236, 235, 235, 235, 235, 234, 234, 234, 234, 233, 233, 233, 233, 232, 232, 232, 232, 231, 231, 231, 231, 231, 230, 228, 228, 226, 224, 222, 222, 220, 217,215, 213, 213, 211, 209, 207, 207, 205, 203, 201, 201, 199, 197, 195, 195, 193, 191, 189, 187, 187, 185, 183, 181, 181, 179, 177, 175, 175, 173, 171, 169, 167, 167, 165, 163, 161, 161, 159, 157, 155, 155, 153, 151, 149, 149, 147, 145, 143, 141, 141, 139, 137, 135, 135, 133, 131, 129, 129, 127, 125, 123, 123, 121, 119, 117, 115, 115, 112, 110, 108, 108, 106, 104, 101, 101,  99,  97,  95,  95,  93,  91,  89,  87,  87,  85,  83,  81,  81,  79,  77,  75,  75,  73,  71,  69,  67,  67,  66,  64,  63,  63, 61,  59,  58,  58,  56,  55,  53,  53,  51,  50,  48,  46,  46,  45,  43,  42,  42,  40};
     static int gMat[256] = { 242, 241, 241, 240, 239, 238, 238, 237, 236, 235, 233, 233, 232, 231, 230, 230, 229, 228, 227, 227, 226, 225, 224, 224, 223, 222, 221, 221, 221, 220, 219, 218, 218, 217, 217, 216,216, 215, 214, 213, 213, 213, 212, 211, 210, 210, 209, 209, 208, 208, 207, 206, 205, 205, 205, 204, 203, 202, 202, 201, 201, 200, 200, 199, 198, 197, 197, 197, 196, 195, 195, 194, 193, 193, 192, 192, 191, 190, 189, 189, 189, 188, 187, 187, 186, 185, 185, 185, 184, 183, 182, 181, 181, 181, 180, 179, 179, 178, 177, 177, 177, 176, 175, 174, 173, 173, 173, 172, 171, 171, 170, 169, 169, 169, 168, 167, 166, 166, 165, 165, 164, 163, 163, 162, 161, 161, 161, 160, 159, 158, 158, 158, 157, 156, 156, 155, 154,153, 153, 153, 152, 151, 150, 150, 150, 149, 148, 148, 148, 147, 146, 146, 146, 145, 144, 143, 143, 143, 142, 141, 141, 141, 140, 139, 139, 139, 138, 137, 136, 136, 136, 135, 134, 134, 134, 133, 132, 132, 131, 131, 130, 130, 129, 129, 128, 127, 127, 127, 126, 125, 125, 124, 124, 123, 123, 122, 122, 121, 121, 120, 119, 119, 118, 118, 117, 116, 115, 115, 115, 114, 113, 113, 112, 112, 111, 111, 110, 110, 109, 108, 108, 108, 107, 106, 106, 105, 105, 104, 104, 103, 103, 102, 101, 101, 100,  99,  98,  98, 97,  97,  96,  96,  95,  94,  93,  93,  92,  91,  90,  89,  89,  88,  88,  87,  87,  86};
     static int bMat[256] = { 190, 188, 188, 186, 184, 182, 182, 180, 178, 176, 174, 174, 172, 170, 168, 168, 167, 165, 163, 163, 161, 159, 157, 157, 155, 153, 152, 151, 151, 150, 149, 148, 148, 147, 146, 145,145, 144, 143, 142, 141, 141, 140, 139, 138, 138, 137, 136, 135, 135, 134, 133, 132, 132, 131, 130, 129, 128, 128, 127, 126, 125, 125, 124, 123, 122, 122, 121, 120, 119, 119, 118, 117, 116, 115, 115, 114, 113, 112, 112, 111, 110, 109, 109, 108, 107, 106, 106, 105, 104, 103, 103, 103, 102, 101, 100, 100,  99,  98,  97,  97,  96,  95,  94,  93,  93,  92,  91,  90,  90,  89,  88,  87,  87,  86,  85,  84,  84,  83,  82,  81,  80,  80,  79,  78,  77,  77,  76,  75,  75,  75,  76,  77,  78,  78,  80,  82, 83,  84,  84,  85,  87,  88,  88,  89,  90,  91,  91,  92,  94,  95,  95,  96,  97,  98,  99,  99, 101, 102, 103, 103, 104, 105, 107, 107, 108, 109, 110, 111, 111, 112, 114, 115, 115, 116, 117, 118, 118, 119, 121, 122, 122, 123, 124, 125, 127, 127, 128, 129, 130, 130, 131, 132, 134, 134, 135, 136, 137, 137, 138, 140, 141, 142, 142, 144, 145, 146, 146, 148, 149, 150, 150, 151, 152, 154, 154, 155, 156, 157, 158, 158, 160, 161, 162, 162, 163, 164, 165, 165, 167, 168, 167, 166, 166, 164, 163, 161, 161,160, 158, 157, 157, 155, 154, 152, 152, 151, 149, 148, 146, 146, 145, 143, 142, 142, 140};
+    // Aus SasView - UMDREHEN
+    static int rSasV[256] = { 120, 132, 141, 141, 146, 155, 155, 159, 168, 168, 173, 182, 182, 187, 191, 200, 200, 205, 214, 214, 218, 228, 228, 232, 241, 241, 246, 250, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 254, 251, 248, 244, 241, 238, 235, 231, 228, 225, 222, 219, 215, 212, 209, 206, 202, 199, 196, 193, 190, 186, 183, 180, 177, 173, 170, 167, 164, 160, 157, 154, 151, 148, 144, 141, 138, 135, 131, 128, 125, 122, 119, 115, 112, 109, 106, 102,  99,  96,  93,  90,  86,  83,  80,  77,  73,  70,  67,  64,  60,  57,  54,  51,  48,  44,  41,  38,  35,  31,  28,  25,  22,  19,  15,  12,   9,   6,   2,   0,   0,   0,   0,  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0};
+    static int gSasV[256] = {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   8,   8,  11,  15,  19,  22,  26,  34,  34,  37,  45,  45,  48,  56,  56, 59,  63,  67,  71,  74,  78,  82,  85,  93,  93,  96, 104, 104, 108, 115, 115, 119, 122, 126, 130, 134, 137, 141, 145, 152, 152, 156, 163, 163, 167, 171, 174, 178, 182, 185, 189, 193, 196, 200, 204, 211, 211, 215, 219, 222, 226, 230, 234, 237, 241, 245, 248, 252, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 253, 249, 245, 241, 237, 232, 229, 225, 221, 217,213, 209, 205, 200, 197, 193, 189, 185, 181, 177, 173, 168, 165, 161, 157, 153, 149, 145, 141, 141, 133, 129, 125, 121, 116, 113, 109, 105, 100,  97,  93,  89,  89,  81,  77,  77,  68,  65,  61,  57,  52,  49,  45,  41,  36,  33,  29,  25,  25,  17,  13,  13,   4,   1,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0};
+    static int bSasV[256] = {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   2,   6,   9,  12,  15,  19,  22,  25,  28,  31,  35,  38,  41,  44,  48,  51,  54,  57,  60,  64,  67,  70,  73,  77,  80,  83,  86,  90,  93,  96,  99, 102, 106, 109, 112, 115, 119, 122, 125, 128, 131, 135, 138, 141, 144, 148, 151, 154, 157, 160, 164, 167, 170, 173, 177, 180, 183, 186, 190, 193, 196, 199, 202, 206, 209, 212, 215, 219, 222, 225, 228, 231, 235, 238, 241, 244, 248, 251, 254, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 250, 246, 241, 241, 232, 227, 227, 218, 214, 214, 205, 200, 196, 191, 187, 182, 182, 173, 168, 168, 159, 155, 155, 146, 141, 141, 132, 120};
 
     // aus dem Programm von Prof. Förster (gespeicherte Farbtabelle)
     //static int rScatter[256] = {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   1,   7,  14,  20,  33,  39,  45,  52,  58,  64,  71,  77,  83,  90, 102, 109, 115, 121, 127, 134, 140, 146, 153, 159, 172, 178, 184, 191, 197, 203, 210, 216, 222, 229, 241, 248, 254, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255};
@@ -655,6 +660,11 @@ void widImage::on_cbsColorTbl_activated(const QString &arg1)
         farbtabelle.clear();
         for ( int i=255; i>=0; i-- )
             farbtabelle.append( QColor(rMat[i],gMat[i],bMat[i]) );
+        break;
+    case 16: // SasView - UMDREHEN
+        farbtabelle.clear();
+        for ( int i=255; i>=0; i-- )
+            farbtabelle.append( QColor(rSasV[i],gSasV[i],bSasV[i]) );
         break;
     }
 #ifndef CONSOLENPROG
@@ -1227,15 +1237,13 @@ void calcHistorgramm::run() // QThread
     for ( int x=0; x<farbtabelle.size()/facx; x++ )
         if ( cnt[x] > max2 && cnt[x] < cntmax ) max2 = cnt[x];
     float facy = (1.0 * HISTO_SY ) / max2;
-    //qDebug() << "Histo" << cntmax << max2 << indmax << "/" << facx << facy;
     pnt.setPen( Qt::black );
     for ( int x=0; x<farbtabelle.size()/facx; x++ )
     {
         int y = cnt[x] * facy;
-        if ( y < 0 ) { /*qDebug()<<"Histo"<<x<<y<<"<"<<cnt[x];*/ y=0; }
-        else if ( y >= HISTO_SY ) { /*qDebug()<<"Histo"<<x<<y<<">"<<cnt[x];*/ y=HISTO_SY-1; }
+        if ( y < 0 ) y=0;
+        else if ( y >= HISTO_SY ) y=HISTO_SY-1;
         else if ( y == 0 && cnt[x] > 0 ) y++;
-        //else qDebug()<< "Histo" << x << y << cnt[x];
         if ( y > 0 ) pnt.drawLine( x, HISTO_SY-y, x, HISTO_SY );
     }
     emit setHistoPixmap(dst);
@@ -1272,7 +1280,6 @@ void widImage::on_cbsZoom_activated(int index)
     }
     else if ( ! imgNormal.isNull() )
     {
-        //qDebug() << "cbsZoom";
         QPixmap pix = QPixmap::fromImage(imgNormal);
         if ( zoom2pix[index] == 0 /*640*640*/ )
             ui->lblImage->setPixmap( pix.scaled(640,640) );
@@ -1349,13 +1356,11 @@ bool widImage::mouse2data( QPoint pos, int &x, int &y, QPoint &pnt )
             pnt.setX( pnt.x() * imgNormal.width()  / 640.0 );
             pnt.setY( pnt.y() * imgNormal.height() / 640.0 );
         }
-        //qDebug() << "WID640" << pos << rpi << pnt;
     }
     else
     {
         pnt.setX( (pos.x() - rpi.left()) / zoom2pix[zoomFactor] );
         pnt.setY( (pos.y() - rpi.top() ) / zoom2pix[zoomFactor] );
-        //qDebug() << "WID" << zoom2pix[zoomFactor] << pos << rpi << pnt;
     }
 
     // The image is first mirrored, then rotated. So we must first rotate back then mirror back...
@@ -1382,7 +1387,6 @@ bool widImage::mouse2data( QPoint pos, int &x, int &y, QPoint &pnt )
             x = minX + (line.p2().x() - rpi.left()) * imgNormal.width()  / 640.0;
             y = minY + (line.p2().y() - rpi.top() ) * imgNormal.height() / 640.0;
         }
-        //qDebug() << "WID-xy" << pos << rpi << pnt << x << y;
     }
     else
     {
@@ -1411,7 +1415,6 @@ void widImage::mousePressEvent(QMouseEvent *event)
     extractRect.setBottomRight( pnt );
     emit extractUpdateRect(extractRect);
     extractMouseStart = pnt;
-    //qDebug() << "Press" << pnt << extractRect;
     extractUpdateImage(false);
 }
 
@@ -1434,7 +1437,6 @@ void widImage::mouseReleaseEvent(QMouseEvent *event)
     extractRect.setTop(    qMin(extractMouseStart.y(), pnt.y()) );
     extractRect.setBottom( qMax(extractMouseStart.y(), pnt.y()) );
     emit extractUpdateRect(extractRect);
-    //qDebug() << "Release" << pnt << extractRect;
     extractUpdateImage(false);
 }
 
@@ -1455,22 +1457,17 @@ void widImage::mouseMoveEvent(QMouseEvent *event)
     if ( (enaExtract || enaNoFit) &&
          (event->buttons() & Qt::LeftButton) && extractDrawByMouse )
     {
-        //qDebug() << swapVert << swapHor << rotIndex;
         extractRect.setLeft(   qMin(extractMouseStart.x(), pnt.x()) );
         extractRect.setRight(  qMax(extractMouseStart.x(), pnt.x()) );
         extractRect.setTop(    qMin(extractMouseStart.y(), pnt.y()) );
         extractRect.setBottom( qMax(extractMouseStart.y(), pnt.y()) );
         emit extractUpdateRect(extractRect);
-        //qDebug() << "move" << pnt << extractRect;
         extractUpdateImage(false);
         return; // Zeichnen des Mausrahmens und der Tooltip geht nicht gut zusammen.
     }
 
     int idx = XY2IDX(minX,maxX,minY,maxY,x,y);
     if ( idx < 0 || idx >= data.size() ) return;
-
-    //int ix = x - minX;
-    //int iy = y - minY;
 
     double qx, qy, qz;
     double q = xy2q( x, y, qx, qy, qz );
@@ -1554,7 +1551,6 @@ double widImage::xy2q( int x, int y, double &qx, double &qy, double &qz )
  */
 void widImage::on_lblImage_customContextMenuRequested(const QPoint &pos)
 {
-    //qDebug() << "customContextMenuRequested" << pos;
     int centerX, centerY;
     QPoint pnt;
     if ( !mouse2data( pos, centerX, centerY, pnt ) ) return;
@@ -1593,7 +1589,7 @@ void widImage::on_lblImage_customContextMenuRequested(const QPoint &pos)
 void widImage::getVarScaling( double &min, double &max )
 {
     if ( ui->lblDispMinLin->text().startsWith("(0)") )
-        min = ui->lblDispMinLin->text().mid(4).toDouble();
+        min = ui->lblDispMinLin->text().midRef(4).toDouble();
     else
         min = ui->lblDispMinLin->text().toDouble();
     max = ui->lblDispMaxLin->text().toDouble();

@@ -39,7 +39,7 @@ public:
 
     void cleanup() { if ( calcGeneric != nullptr ) calcGeneric->cleanup(); }
 
-    bool gpuAvailable(){ if ( calcGeneric != nullptr ) calcGeneric->gpuAvailable(); else return false; }
+    bool gpuAvailable(){ if ( calcGeneric != nullptr ) return calcGeneric->gpuAvailable(); else return false; }
 
     void loadParameter( QString fn );
     void saveParameter( QString fn );
@@ -58,7 +58,7 @@ public:
 
     bool updateParamValue( QString p, double v );
 
-    void doCalculation( int numThreads );
+    void doCalculation( int numThreads, bool ignNewSwitch );
     double doFitCalculation(int numThreads, int bstop, int border, long &cnt, long &nancnt);
     typedef enum { htimPrep, htimCalc, htimBoth } whichHigResTimer;
     double higResTimerElapsed( whichHigResTimer f );

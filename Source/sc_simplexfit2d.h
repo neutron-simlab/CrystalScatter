@@ -93,9 +93,6 @@ private:
         if ( intensityForFit == nullptr ) return 0.0;
         return intensityForFit[(-_xmin + (x)) + (_xmax-_xmin/*+1*/)*(-_ymin + (y))];
     }
-#ifdef COPY_FITDATA_TO_GPU
-    bool useGpuForMask;
-#endif
 #ifdef FITDATA_IN_GPU  // glob var def
     bool useGpuFit;
 #endif
