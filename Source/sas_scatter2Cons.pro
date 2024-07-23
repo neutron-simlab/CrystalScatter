@@ -34,6 +34,25 @@ HEADERS += \
     sc_postproc.h \
     sc_calc_generic.h \
     sc_calc_generic_gpu.h \
+    sc_globalConfig.h \
+    sc_gpu_generic.h \
+    sc_gpu_pCub_lNon_oIso.h \
+    sc_gpu_pCyl_lNon_oGau.h \
+    sc_gpu_pSph_lNon_oIso.h \
+    sc_gpu_pSph_pGau_lFCC_oGau.h \
+    sc_gpu_pCyl_lNon_oZDi.h \
+    sc_gpu_pCyl_pGau_lBCT_oZDi.h \
+    sc_lib_formfq_partCylinder.h \
+    sc_lib_formfq_partDisk.h \
+    sc_lib_formfq_partSphere.h \
+    sc_lib_formpq_partCube.h \
+    sc_lib_formpq_partCylinder.h \
+    sc_lib_formpq_partDisk.h \
+    sc_lib_formpq_partEllips.h \
+    sc_lib_formpq_partSphere.h \
+    sc_lib_formpq_partSuperEllips.h \
+    sc_lib_formpq_partSuperball.h \
+    sc_lib_formpq_partTriaxEllips.h \
     sc_math.h \
     sc_readdata.h \
     sc_simplexfit2d.h \

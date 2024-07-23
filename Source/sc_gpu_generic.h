@@ -710,13 +710,15 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
 #endif
                 if ( CALC.twin /*CALC.CheckBoxTwinned*/ )
                 {
-                    /*//20240301 raus:*/ const double peaknorm1t = CALC.latpar3(ii,16);   //ZN=26305
                     const double yphi = myacos((qx*qxhklt+qy*qyhklt+qz*qzhklt)/(q*qhkl));
                     const double phiord = g3*exp(-x2phi*yphi*yphi)/peaknorm1;
                     psiord = CALC.params.ceff*psiord+(1-CALC.params.ceff)*phiord;   //ZN=26313
 #ifndef __CUDACC__
                     if ( isinf(psiord) )
+                    {
+                        const double peaknorm1t = CALC.latpar3(ii,16);   // nur für Debug
                         qDebug() << "psiord2" << CALC.params.ceff << phiord << "=" << g3 << x2phi << yphi << peaknorm1t;
+                    }
 #endif
                 }
                 // TODO Hier tauchen Probleme bim BCC / BCT auf:

@@ -110,7 +110,7 @@ void SasCalc_GENERIC_calculation::kernel_selection( int Nx, int Ny, bool dofit )
         // LatticeType mit 25 Varianten
         // Ordis-Parameter mit 14 Varianten
         // Eine 4-Byte-Zahl berechnen und dann nur ein Switch. Ist übersichtlicher im Code.
-        switch ( (CALC.ComboBoxParticle << 24) | (ltype==12?0:(CALC.shp << 16)) | (ltype << 8) | params.ordis )
+        switch ( (ComboBoxParticle << 24) | (ltype==12?0:(shp << 16)) | (ltype << 8) | params.ordis )
         {
         case 0x00000C07:  // cbpartSphere(0), shp(X), ltype(None=12), ordis_Isotropic(7)
             kernel_partSphere_lattNone_ordisIsotropic<<<gridDimSpec,blockDimSpec>>>(*this,dofit);

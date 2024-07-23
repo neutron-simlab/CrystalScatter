@@ -2587,6 +2587,8 @@ QString SC_MainGUI::getConsoleExecutable(bool domsg)
         return "";
     }
     cons = tmp;
+#else
+    Q_UNUSED(domsg) // Avoid compiler warning
 #endif
     return cons;
 }

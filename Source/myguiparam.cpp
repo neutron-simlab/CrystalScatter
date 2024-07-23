@@ -516,7 +516,7 @@ QString myGuiParam::debug()
             // müssen, damit immer die richtigen Gruppen angelegt werden.
 
             QString on;
-            myGuiParam *gp = searchParam(w, on);
+            /*myGuiParam *gp =*/ searchParam(w, on);
             if ( ! names.contains(on) )
             {
                 //qDebug() << "no name" << on;
