@@ -15,7 +15,7 @@ __host__ __device__
 inline double SasCalc_GENERIC_calculation::calc_partCylinder_lattNone_ordisGauss(const SasCalc_GENERIC_calculation& CALC,
                                                          double qx, double qy, double qz)
 {
-    double pq, fq;
+    double pq=0, fq;
 
     const double q = sqrt(qx*qx+qy*qy+qz*qz)+eps9;  //Z=25254
 
@@ -35,7 +35,7 @@ inline double SasCalc_GENERIC_calculation::calc_partCylinder_lattNone_ordisGauss
 
     switch ( CALC.params.orcase )
     {
-    case 1:    /*  general orientation  */  //Z=25359
+    case orcGeneral:    /*  general orientation  */  //Z=25359
         //pq = CALC.formpq(CALC.params.sigmal,  q, qx, qy, qx*CALC.cosphic-qy*CALC.sinphic,
         //                 qx*CALC.sinphic+qy*CALC.cosphic, q, CALC.ordis);   //Z=25361
         pq = CALC.formpq_partCylinder(qx*CALC.cosphic-qy*CALC.sinphic,
@@ -47,7 +47,7 @@ inline double SasCalc_GENERIC_calculation::calc_partCylinder_lattNone_ordisGauss
             fq = CALC.formfq_partCylinder( q, qx*CALC.cosphic-qy*CALC.sinphic,
                                           qx*CALC.sinphic+qy*CALC.cosphic, q );   //Z=25365
         break;   //Z=25366
-    case 2:   /*  x-axis  */  //Z=25367
+    case orcXaxis:   /*  x-axis  */  //Z=25367
         //pq = CALC.formpq(CALC.params.sigmal, sqrt(qx*qx+(1-CALC.order)*qy*qy), qx, qy, qx, qy, q, CALC.ordis);   //Z=25369
         pq = CALC.formpq_partCylinder(qx, qy, q);   //Z=25369
         /* fq = pq;  //Z=25370 */
@@ -56,7 +56,7 @@ inline double SasCalc_GENERIC_calculation::calc_partCylinder_lattNone_ordisGauss
             //fq = CALC.formfq( sqrt(qx*qx+(1-CALC.order)*qy*qy), qx, qy, qx, qy, q, CALC.ordis );   //Z=25374
             fq = CALC.formfq_partCylinder( sqrt(qx*qx+(1-CALC.order)*qy*qy), qx, qy, q );   //Z=25374
         break;   //Z=25376
-    case 3:  /*  y-axis  */  //Z=25377
+    case orcYaxis:  /*  y-axis  */  //Z=25377
         //pq = CALC.formpq(CALC.params.sigmal, sqrt((1.0-CALC.order)*qx*qx+qy*qy), qx, qy, qx, qy, q, CALC.ordis);   //Z=25379
         pq = CALC.formpq_partCylinder(qx, qy, q);   //Z=25379
         /* fq = pq;  //Z=25380 */
@@ -64,7 +64,7 @@ inline double SasCalc_GENERIC_calculation::calc_partCylinder_lattNone_ordisGauss
             //fq = CALC.formfq( sqrt((1.0-CALC.order)*qx*qx+qy*qy), qx, qy, qx, qy, q, CALC.ordis );   //Z=25383
             fq = CALC.formfq_partCylinder( sqrt((1.0-CALC.order)*qx*qx+qy*qy), qx, qy, q );   //Z=25383
         break;   //Z=25384
-    case 4:  /*  z-axis  */  //Z=25385
+    case orcZaxis:  /*  z-axis  */  //Z=25385
         //pq = CALC.formpq(CALC.params.sigmal,  q, qx, qy, qx, qy, q, CALC.ordis);   //Z=25387
         pq = CALC.formpq_partCylinder(qx, qy, q);   //Z=25387
         /* fq = pq;  //Z=25388 */

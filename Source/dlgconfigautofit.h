@@ -18,7 +18,7 @@ public:
     QString getFilename();
     bool isLogEnabled();
     bool isLatexEnabled();
-    bool isLatexImages();    
+    bool isLatexImages();
     bool isLatexOrgImg();
     bool isLatexCalcImg();
     bool isLatexResiduenImg();
@@ -29,11 +29,15 @@ public:
     bool isMinimalOutput();
     bool isShowResult();
 
+signals:
+    void fitAutoCreateFile(dlgConfigAutoFit*);
+
 private slots:
     void on_butCancel_clicked();
     void on_butStart_clicked();
     void on_butInputfile_clicked();
     void on_butEditFile_clicked();
+    void on_butCreateFile_clicked();
 
 private:
     Ui::dlgConfigAutoFit *ui;

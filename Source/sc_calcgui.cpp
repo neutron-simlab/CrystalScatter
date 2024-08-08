@@ -31,6 +31,7 @@ SC_CalcGUI::SC_CalcGUI() : QObject()
     {
         // Each element must be in the form "type;kenn;typespec;tooltip;default" with:
         //  type     = C:Selection, N:Double, I:Integer, T:Toggle, O:DoubleOut
+        //             Zweites Zeichen ist 'F' für Fittable oder '-' für nicht fittable
         //  kenn     = internal parameter name to connect to correct gui element
         //  typespec = C:Selection : "...|...|..."  (required)
         //             N:Double    : "frac|min|max|unit"  (optional, default: "2|-10000|+10000|")

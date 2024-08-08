@@ -31,9 +31,20 @@ SC_CalcCons::SC_CalcCons()
         while ( sl.size() < 5 ) sl << " ";  // tooltip;default sind optional
 
         // TODO: Neue Struktur des guiLayout()
+        // Each element must be in the form "type;kenn;typespec;tooltip;default" with:
+        //  type     = C:Selection, N:Double, I:Integer, T:Toggle, O:DoubleOut
+        //             Zweites Zeichen ist 'F' für Fittable oder '-' für nicht fittable
+        //  kenn     = internal parameter name to connect to correct gui element
+        //  typespec = C:Selection : "...|...|..."  (required)
+        //             N:Double    : "frac|min|max|unit"  (optional, default: "2|-10000|+10000|")
+        //             I:Integer   : "min|max|unit"  (optional, default: "-10000|+10000|")
+        //             T:Toggle    : (empty)
+        //             O:DoubleOut : (empty)
+        //  tooltip  = this is the tooltip set to both prompt label and inputfield (optional)
+        //  default  = the default value (optional)
 
         paramConsHelper *e = new paramConsHelper;
-        e->fitparam = true; // TODO ??? sl[3].mid(3,3) == "fit";
+        e->fitparam = sl[0][1] == 'F';      // Dieses Flag wird in der GUI anders gespeichert, aber hier lassen wir es in dieser Struktur
         e->key = sl[1].trimmed();
         e->value.number = 0;
         e->value.flag   = false;
@@ -51,7 +62,7 @@ SC_CalcCons::SC_CalcCons()
             e->maxNum = typval.size();
             break;
         case 'N':   // Zahlenwert: "frac|min|max|unit" mit Nachkommastellen und Grenzwerten (optional)
-            e->type = paramConsHelper::number;
+            e->type = paramConsHelper::numdbl;
             e->minNum = ( typval.size() > 1 ) ? typval[1].toDouble() : -10000.0;
             e->maxNum = ( typval.size() > 2 ) ? typval[2].toDouble() :  10000.0;
             if ( !sl[4].isEmpty() )
@@ -60,7 +71,7 @@ SC_CalcCons::SC_CalcCons()
             }
             break;
         case 'I':   // Integer-Zahlenwert: "min|max|unit"
-            e->type = paramConsHelper::number;
+            e->type = paramConsHelper::numint;
             e->minNum = ( typval.size() > 0 ) ? typval[0].toDouble() : -10000.0;
             e->maxNum = ( typval.size() > 1 ) ? typval[1].toDouble() :  10000.0;
             if ( !sl[4].isEmpty() )
@@ -96,40 +107,91 @@ SC_CalcCons::SC_CalcCons()
 void SC_CalcCons::loadParameter( QString fn )
 {
     QSettings sets( fn, QSettings::IniFormat );
+    // Jetzt bessere Kopie aus der GUI
+    QStringList gr = sets.childGroups();
+    gr.removeOne("Inputs");
+    gr.removeOne("FFT");
+    gr.removeOne("AI");     // TODO: neue feste Gruppen hier ausblenden
+    QString usedGroup = calcGeneric->methodName();
+    if ( gr.size() > 1 )
+    {   // Jetzt gibt es mehr als eine Methode (Alte Dateien)
+        sets.beginGroup( "Inputs" );
+        QString m = sets.value("CurMethod","").toString();
+        sets.endGroup();
+        if ( ! m.isEmpty() )
+        {
+            QString mm = m;
+            if ( mm.indexOf(" ") > 0 ) mm.truncate(mm.indexOf(" "));
+            foreach ( QString g, gr )
+            {
+                if ( g.startsWith(mm) )
+                {
+                    usedGroup = g;
+                    break;
+                }
+            }
+            std::cerr << "Load spec" << qPrintable(m) << std::endl;
+        }
+    }
     // Erst alle Methodenspezifischen Parameter
-    sets.beginGroup( calcGeneric->methodName() );
+    sets.beginGroup( usedGroup );
+    std::cerr << "Load param '" << qPrintable(usedGroup+"' from: "+fn) << std::endl;
+    QStringList slKeys = sets.allKeys();
     QHash<QString,paramConsHelper*>::iterator ip = params.begin();
     while ( ip != params.end() )
     {
         paramConsHelper *par = ip.value();
-        if ( par->key == "EditQmaxPreset" || par->key == "EditQmaxData" )
-        {   // Die RadioButtons für die Qmax Auswahl sind auch in dieser Liste....
+        //std::cerr << "LoadParam: " << qPrintable(par->key+"="+sets.value(par->key).toString()) << std::endl;
+        slKeys.removeOne(par->key);
+        slKeys.removeOne("FITFLAG_"+par->key);
+        if (par->key == "EditQmaxPreset" ||     // Die RadioButtons für die Qmax Auswahl, nur einen nutzen...
+            par->key == "CenterMidpoint" )      // Radiobuttons für BeamCenter, nur einen nutzen...
+        {
             ++ip;
             continue;
         }
-        if ( par->key.startsWith("FITFLAG_") )
-        {   // Das Flag zum Fitten wird hier auch gespeichert...
-            ++ip;
-            continue;
-        }
-
+        QString fitflag;
         switch ( par->type )
         {
-        case paramConsHelper::number:
+        case paramConsHelper::numdbl:
             par->value.number = sets.value( par->key ).toDouble();
+            if ( par->key == "EditPixelX" || par->key == "EditPixelY" )
+            {   // In den "alten" Datensätzen waren diese Werte in Metern angegeben (also 0.0001m für 1mm)
+                // daher sollten diese Werte jetzt angepasst werden, da hier Millimeter verwendet werden
+                if ( par->value.number < 0.01 )
+                    par->value.number *= 1000.0;
+            }
+            fitflag = sets.value("FITFLAG_"+par->key,"??").toString();
+            break;
+        case paramConsHelper::numint:
+            par->value.number = sets.value( par->key ).toDouble();
+            fitflag = sets.value("FITFLAG_"+par->key,"??").toString();
             break;
         case paramConsHelper::select:
             par->value.number = sets.value( par->key ).toDouble();
+            fitflag = "??";
             break;
         case paramConsHelper::toggle:
             par->value.flag = sets.value( par->key ).toBool();
+            fitflag = "??";
             break;
         default:
             break;
         }
+        if ( fitflag != "??" )
+        {
+            par->fitparam = fitflag[0] != '0';
+            slKeys.removeOne( "FITFLAG_"+par->key );
+            //std::cerr << "LoadParam: " << qPrintable(par->key+" -> "+fitflag) << std::endl;
+        }
         ++ip;
     }
+    if ( slKeys.size() > 0 )
+    {
+        std::cerr << "LoadParams: ini keys not used: " << qPrintable(slKeys.join(", ")) << std::endl;
+    }
     sets.endGroup();
+
     // Globale Inputs für die Berechnungen
     //QHash<QString,Double3> inpVectors;
     //QHash<QString,double>  inpValues;
@@ -190,6 +252,142 @@ void SC_CalcCons::loadParameter( QString fn )
     inpSingleValueVectors.insert( "Editdom1",    inpVectors["SigXYZ"].x() );
     inpSingleValueVectors.insert( "Editdom2",    inpVectors["SigXYZ"].y() );
     inpSingleValueVectors.insert( "Editdom3",    inpVectors["SigXYZ"].z() );
+
+    // In der GUI werden Eingabefelder ein-/ausgeblendet, wenn die ComboBoxen geändert werden (per Callback).
+    // Diese Funktion ist in der Konsolenanwendung nicht notwendig, da gesperrte Eingaben nicht von den
+    // Berechnungen verwendet werden.
+    // ABER: bei bestimmten Werten vom LType werden andere Parameter manipuliert. Und das wird hier gemacht.
+    switch ( static_cast<int>(currentParamValue("LType")) )
+    {
+    case  0:  /*  Lamellae  */  //Z=36497
+        updateParamValue( "CheckBoxTwinned", 0 );
+        updateParamValue( "ComboboxParticle", 2 );
+        updateParamValue( "Length", 250 );
+        break;
+
+    case  1:  /*  hexagonal cylinders  */  //Z=36544
+        updateParamValue( "CheckBoxTwinned", false );
+        updateParamValue( "ComboboxParticle", 1 );
+        updateParamValue( "Length", 500 );
+        break;
+
+    case  2:  /*  square cylinders  */  //Z=36592
+        updateParamValue( "CheckBoxTwinned", false );
+        updateParamValue( "ComboboxParticle", 1 );
+        updateParamValue( "Length", 500 );
+        break;
+
+    case  3:  /*  rectangular centered cylinders  */  //Z=36640
+        updateParamValue( "CheckBoxTwinned", false );
+        updateParamValue( "ComboboxParticle", 1 );
+        updateParamValue( "Length", 500 );
+        break;
+
+    case  4:  /*  bcc  */  //Z=36688
+        updateParamValue( "ComboboxParticle", 0 );
+        break;
+
+    case  5:  /*  fcc  */  //Z=36735
+        updateParamValue( "ComboboxParticle", 0 );
+        break;
+
+    case  6:  /*  hcp  */  //Z=36782
+        updateParamValue( "ComboboxParticle", 0 );
+        break;
+
+    case  7:  /*  sc  */  //Z=36829
+        updateParamValue( "CheckBoxTwinned", false );
+        updateParamValue( "ComboboxParticle", 0 );
+        break;
+
+    case  8:  /*  tetragonal centered spheres  */  //Z=36876
+        updateParamValue( "CheckBoxTwinned", false );
+        updateParamValue( "ComboboxParticle", 0 );
+        break;
+
+    case 17:  /*  fd3m  */  //Z=36923
+        updateParamValue( "CheckBoxTwinned", false );
+        updateParamValue( "ComboboxParticle", 0 );
+        break;
+
+    case  9:  /*  gyroid  */  //Z=37018
+        updateParamValue( "CheckBoxTwinned", false );
+        updateParamValue( "ComboboxParticle", 3 );
+        break;
+
+    case 10:  /*  OBDD  */  //Z=37066
+        {/*1*/  //Z=45878
+        const double b = 0.5484;  //Z=45879
+        const double c = 0.6200;  //Z=45880
+        const double n = 2;  //Z=45881
+        double a, Ri, Ro, phi; //, area, lp;  //Z=45883
+        a = currentParamValue("uca");
+        Ro = c*a;  //Z=45887
+        Ri = b*Ro;  //Z=45888
+        phi = n*4*M_PI*c*c*c*(1-b*b*b)/3.0;  //Z=45889
+        updateParamValue( "EditRadius", Ri );  //Z=45893
+        updateParamValue( "EditLength", Ro );  //Z=45894
+        updateParamValue( "EditPhi", phi );  //Z=45895
+        }/*1*/  //Z=45898
+        updateParamValue( "CheckBoxTwinned", false );
+        updateParamValue( "ComboboxParticle", 3 );
+        break;
+
+    case 11:  /*  Im3m  */  //Z=37114
+        updateParamValue( "CheckBoxTwinned", false );
+        updateParamValue( "ComboboxParticle", 3 );
+        break;
+
+    case 12:  /*  none  */  //Z=37162
+        updateParamValue( "CheckBoxTwinned", false );
+        updateParamValue( "ComboboxParticle", 0 );
+        break;
+
+    case 13:  /*  cpl  */  //Z=37206
+        updateParamValue( "CheckBoxTwinned", false );
+        updateParamValue( "ComboBoxPeak", 7 );
+        updateParamValue( "ComboboxParticle", 0 );
+        updateParamValue( "Editdom1", 200 );  //Editdom1.Text = '200';
+        updateParamValue( "Editdom2", 200 ); //Editdom2.Text = '200';
+        updateParamValue( "Editdom3", 200 ); //Editdom3.Text = '200';
+        inpVectors["SigXYZ"].setX( 200 );
+        inpVectors["SigXYZ"].setY( 200 );
+        inpVectors["SigXYZ"].setZ( 200 );
+        break;
+
+    case 14:  /*  2D-Hex-GiSAXS  */  //Z=37256
+        updateParamValue( "CheckBoxTwinned", false );
+        updateParamValue( "ComboboxParticle", 0 );
+        break;
+
+    case 15:  /*  2D-Square-GiSAXS  */  //Z=37314
+        updateParamValue( "CheckBoxTwinned", false );
+        updateParamValue( "ComboboxParticle", 0 );
+        break;
+
+    case 16:  /*  1D-Lam-GiSAXS  */  //Z=37372
+        updateParamValue( "CheckBoxTwinned", false );
+        updateParamValue( "ComboboxParticle", 2 );
+        break;
+
+    case 18:  /*  orthogonal centered spheres  */  //Z=37430
+        updateParamValue( "CheckBoxTwinned", false );
+        updateParamValue( "ComboboxParticle", 0 );
+        break;
+
+    case 19:  /*  quasicrystal  */  //Z=37477
+        updateParamValue( "CheckBoxTwinned", false );
+        updateParamValue( "ComboBoxPeak", 7 );
+        updateParamValue( "ComboboxParticle", 0 );
+        updateParamValue( "Editdom1", 200 );  //Editdom1.Text = '200';
+        updateParamValue( "Editdom2", 200 ); //Editdom2.Text = '200';
+        updateParamValue( "Editdom3", 200 ); //Editdom3.Text = '200';
+        inpVectors["SigXYZ"].setX( 200 );
+        inpVectors["SigXYZ"].setY( 200 );
+        inpVectors["SigXYZ"].setZ( 200 );
+        break;
+
+    } // switch currentParamValue("LType")
 }
 
 
@@ -204,7 +402,8 @@ void SC_CalcCons::saveParameter( QString fn )
         paramConsHelper *par = ip.value();
         switch ( par->type )
         {
-        case paramConsHelper::number:
+        case paramConsHelper::numdbl:
+        case paramConsHelper::numint:
             sets.setValue( par->key, par->value.number /*double*/ );
             break;
         case paramConsHelper::select:
@@ -212,6 +411,8 @@ void SC_CalcCons::saveParameter( QString fn )
             break;
         case paramConsHelper::toggle:
             sets.setValue( par->key, par->value.flag /*bool*/ );
+            break;
+        default:
             break;
         }
         ++ip;
@@ -261,17 +462,19 @@ QStringList SC_CalcCons::paramsForMethod( bool num, bool glob, bool fit )
             if ( ip.value()->fitparam )
                 rv << ip.value()->key;
         }
-        else if ( !num || (ip.value()->type == paramConsHelper::number) )
+        else if ( !num ||
+                 (ip.value()->type == paramConsHelper::numdbl) ||
+                 (ip.value()->type == paramConsHelper::numint) )
             rv << ip.value()->key;
         ++ip;
     }
     if ( fit )
     {   // Add global fittable parameter (at the end)
-        rv.sort();
         //-- QStringList tmp = inpSingleValueVectors.keys();
         //-- tmp.sort();
         //-- rv << tmp;  --> werden zuviele
         rv << "Editdom1" << "Editdom2" << "Editdom3";  // und mehr nicht.
+        rv.sort();
         return rv;
     }
     if ( glob )
@@ -291,12 +494,15 @@ double SC_CalcCons::currentParamValue( QString p )
         paramConsHelper *par = params.value(p);
         switch ( par->type )
         {
-        case paramConsHelper::number:
+        case paramConsHelper::numdbl:
+        case paramConsHelper::numint:
             return par->value.number;
         case paramConsHelper::select:
             return par->value.number;
         case paramConsHelper::toggle:
             return par->value.flag;
+        default:
+            break;
         }
         return 0;
     }
@@ -320,7 +526,8 @@ bool SC_CalcCons::limitsOfParamValue( QString p, double &min, double &max, bool 
         paramConsHelper *par = params.value(p);
         switch ( par->type )
         {
-        case paramConsHelper::number:
+        case paramConsHelper::numdbl:
+        case paramConsHelper::numint:
             min = par->minNum;
             max = par->maxNum;
             return true;
@@ -334,6 +541,8 @@ bool SC_CalcCons::limitsOfParamValue( QString p, double &min, double &max, bool 
             max = 1;
             countable = true;
             return true;
+        default:
+            break;
         }
         return false;
     }
@@ -348,7 +557,8 @@ bool SC_CalcCons::updateParamValue( QString p, double v )
         paramConsHelper *par = params.value(p);
         switch ( par->type )
         {
-        case paramConsHelper::number:
+        case paramConsHelper::numdbl:
+        case paramConsHelper::numint:
             par->value.number = v;
             return true;
         case paramConsHelper::select:
@@ -357,15 +567,18 @@ bool SC_CalcCons::updateParamValue( QString p, double v )
         case paramConsHelper::toggle:
             par->value.flag = v != 0;
             return true;
+        default:
+            break;
         }
         return false;
     }
     // Globaler Wert?
-    /*if ( inpValues.contains(p) )
+    if ( inpValues.contains(p) )
     {
-        inpValues[p] = Double3::
+        std::cerr << "UPDATE PARAM (3) " << qPrintable(p) << std::endl;
+        //inpValues[p] = Double3::
         return true;
-    }*/
+    }
     // Globaler Vektor-Wert als Einzelwert?
     if ( inpSingleValueVectors.contains(p) )
     {
@@ -420,7 +633,8 @@ void SC_CalcCons::dataGetter( QString p, _valueTypes &v )
         paramConsHelper *par = params[p];
         switch ( par->type )
         {
-        case paramConsHelper::number:
+        case paramConsHelper::numdbl:
+        case paramConsHelper::numint:
             v.value = par->value.number;
             D(qDebug() << "paramHelper::number" << p << v.value;)
             break;

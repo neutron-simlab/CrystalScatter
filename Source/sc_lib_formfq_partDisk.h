@@ -507,7 +507,7 @@ double SasCalc_GENERIC_calculation::formfq_partDisk( /*double limql,*/ double qx
             const double cc6 = -params.rho/(dim-params.alphash1);  //Z=19645
             const double sumc = cc1+cc4+cc6;  //Z=19646
 
-            double F12, F42, F62;
+            double F12, F42=0, F62;
 
             /*  term #1 series  */  //Z=19648
             if ( (xradp)<lim1 )

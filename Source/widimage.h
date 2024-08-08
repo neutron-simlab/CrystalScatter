@@ -84,6 +84,8 @@ public:
     QRect getNoFitRect( int r ) { return noFitRect[r]; }
     void saveNoFitRects();
 
+    bool loadImageFile( QString fn );
+
 #else
 
 class widImage
@@ -107,7 +109,7 @@ public:
     void setFixScaling( double min, double max );
     void setLogScaling( bool on );
 
-    void setData(int x0, int x1, int y0, int y1, /*_metaData &md,*/ double *d);
+    int setData(int x0, int x1, int y0, int y1, /*_metaData &md,*/ double *d);
     const double *dataPtr() { return data.constData(); }
     double xmin() { return minX; }
     double xmax() { return maxX; }
@@ -229,6 +231,8 @@ private:
 
     bool firstView; // zum Sperren weiterer adjustSize() bei setData(...)
     // TODO: Wenn sich Bildgröße oder Zoom geändert hat, dann einmal adjustSize() wieder freigeben.
+
+    bool   useImageFileOnly;    // if set, an imagefile is loaded and no manipulation possible
 
     bool   enaExtract;
     QRect  extractRect;

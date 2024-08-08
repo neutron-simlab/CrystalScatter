@@ -95,3 +95,9 @@ void dlgConfigAutoFit::on_butEditFile_clicked()
     }
     QProcess::startDetached( editor, QStringList()<<ui->inpInputfile->text() );
 }
+
+void dlgConfigAutoFit::on_butCreateFile_clicked()
+{
+    emit fitAutoCreateFile(this);
+}
+

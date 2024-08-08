@@ -73,6 +73,8 @@ public:
     static bool        isEnabled(QString key);
     //static bool        isEnabled(QWidget *w);
 
+    static void updateAdaptiveSteps(bool flg);
+
     void setLocLabel(QWidget *w, QString on);
     void setLocSelect(QWidget *w, QString on, QStringList sl, QString def);
     void setLocInputInt(QWidget *w, QString on, int min, int max, int def, QString pref="", QString suff="");

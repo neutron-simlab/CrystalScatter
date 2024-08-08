@@ -19,6 +19,7 @@ QStringList SC_Calc_GENERIC::guiLayoutNeu()
 
     // Each element must be in the form "type;kenn;typespec;tooltip;default" with:
     //  type     = C:Selection, N:Double, I:Integer, T:Toggle, O:DoubleOut
+    //             Zweites Zeichen ist 'F' für Fittable oder '-' für nicht fittable
     //  kenn     = internal parameter name to connect to correct gui element
     //  typespec = C:Selection : "...|...|..."  (required)
     //             N:Double    : "frac|min|max|unit"  (optional, default: "2|-10000|+10000|")
@@ -35,103 +36,103 @@ QStringList SC_Calc_GENERIC::guiLayoutNeu()
     static QStringList slGUI =
         {
             // Lattice group, 07.07.23: Bezeichnungen angepasst und zwei neue Werte dazu!
-            "C;LType;Lamellae|Hexagonally packed cylinders (P6/mm)|Square packed cylinders (P4/mm)|Rectangular centered cylinders (cmm)"
+            "C-;LType;Lamellae|Hexagonally packed cylinders (P6/mm)|Square packed cylinders (P4/mm)|Rectangular centered cylinders (cmm)"
                 "|BCC (lm3m)|FCC (Fm3m)|HCP (P6/mmc)|SC (Pm3m)|BCT (l4/mm)|Gyroid (Ia3d)|OBDD (Pn3m)|Plumbers Nightmare (Im3m)|None|CP-Layers"
                 "|2DHex (GISAXS)|2DSquare (GISAXS)|1DLam (GISAXS)|Fd3m|Orthorombic|LDQ12;Lattice type selection;None",
                 //20240301 - weg: "|Percus-Yevick|Teubner-Strey|Pm3n (A15)|P42/mnm (sigma)|Fddd-network"
-            "N;uca;2|0.01|1000| nm;Unit cell dimension a [nm];30",
-            "N;ucb;2|0.01|1000| nm;Unit cell dimension b [nm];30",
-            "N;ucc;2|0.01|1000| nm;Unit cell dimension c [nm];30",
-            "N;ucalpha;3|0|360|°;Unit cell rotation alpha [°];0",  //??
-            "N;ucbeta;3|0|360|°;Unit cell rotation beta [°];0",  //??
-            "N;ucgamma;3|0|360|°;Unit cell rotation gamma [°];0",  //??
-            "N;EditCeff;4|0|1;;1",  //TwRatio
-            "T;CheckBoxTwinned;;;0",  //??
-            "N;EditCeffcyl;4|0|999;;0",  //??
-            "N;reff;;;0", //??
-            "N;acpl;;;0", //?? Editastack
-            "N;bcpl;;;0", //?? Editbstack
-            "N;ifluc;4|0|1000;;0",  //??
-            "N;rfluc;4|0|1000;;0",  //??
-            "O;EditRelDis;;;",
-            "O;EditDist;;;",
+            "NF;uca;2|0.01|1000| nm;Unit cell dimension a [nm];30",
+            "NF;ucb;2|0.01|1000| nm;Unit cell dimension b [nm];30",
+            "NF;ucc;2|0.01|1000| nm;Unit cell dimension c [nm];30",
+            "NF;ucalpha;3|0|360|°;Unit cell rotation alpha [°];90",  // Default auf 90°
+            "NF;ucbeta;3|0|360|°;Unit cell rotation beta [°];90",    //
+            "NF;ucgamma;3|0|360|°;Unit cell rotation gamma [°];90",  //
+            "NF;EditCeff;4|0|1;;1",  //TwRatio
+            "T-;CheckBoxTwinned;;;0",  //??
+            "NF;EditCeffcyl;4|0|999;;0",  //??
+            "NF;reff;;;0", //??
+            "NF;acpl;;;0", //?? Editastack
+            "NF;bcpl;;;0", //?? Editbstack
+            "NF;ifluc;4|0|1000;;0",  //??
+            "NF;rfluc;4|0|1000;;0",  //??
+            "O-;EditRelDis;;;",
+            "O-;EditDist;;;",
 
             // Particle group
-            "C;ComboBoxParticle;sphere|cylinder|disk|vesicle|cube|ellipsoid|triaxial ellipsoid|super ellipsoid, barrel"
+            "C-;ComboBoxParticle;sphere|cylinder|disk|vesicle|cube|ellipsoid|triaxial ellipsoid|super ellipsoid, barrel"
                 "|superball|excluded volume chain|Kratky Porod chain;Particle type selection;Sphere",
-            "C;Ordis;Gaussian|Exponential|Onsager|Maier-Saupe|Cut-off|Laguerre|z-dir|isotropic|mirrored Gaussian"
+            "C-;Ordis;Gaussian|Exponential|Onsager|Maier-Saupe|Cut-off|Laguerre|z-dir|isotropic|mirrored Gaussian"
                 "|mirrored Exponential|mirrored Onsager|mirrored Maier-Saupe|mirrored Cut-off|fiber pattern;;isotropic",
-            "C;ComboBoxInterior;homogeneous|core + homogeneous sh|core + inhomogeneous sh|multi-shell|myelin;;homogeneous",
-            "N;EditRadius;;Inner radius;1",
-            "N;EditRadiusi;;Outer radius;0",  //??
-            "N;EditSigma;4;;0.07",
-            "N;EditDbeta;4|0|360|°;;0.4",
-            "N;Length;4|0|1000;;1",
-            "N;SigmaL;4;;0.06",
-            "N;Alpha;;Internal 'alphash';0",  //??
-            "N;EditRho;;;0",  //??
-            "N;RotAlpha;;Internal 'alpha';0",  //??
+            "C-;ComboBoxInterior;homogeneous|core + homogeneous sh|core + inhomogeneous sh|multi-shell|myelin;;homogeneous",
+            "NF;EditRadius;;Inner radius;1",
+            "NF;EditRadiusi;;Outer radius;0",  //??
+            "NF;EditSigma;4;;0.07",
+            "NF;EditDbeta;4|0|360|°;;0.4",
+            "NF;Length;4|0|1000;;1",
+            "NF;SigmaL;4;;0.06",
+            "NF;Alpha;;Internal 'alphash';0",  //??
+            "NF;EditRho;;;0",  //??
+            "NF;RotAlpha;;Internal 'alpha';0",  //??
 
             // Peak Shape group
-            "C;ComboBoxPeak;Lorentzian|Gaussian|mod. 1 Lorentzian|mod. 2 Lorentzian|Pseudo-Voigt|Pearson VII|Gamma|Anisotropic Gaussian;;Gaussian",
-            "N;EditPeakPar;;;0",  //??
-            "N;EditDebyeWaller;3|0|100| nm;Also called Displacement [nm];2",
-            "N;EditAzi;;;180",
-            "N;EditDomainSize;2|0|5000| nm;Radial domain size [nm];400",
-            "T;RadButDebyeScherrer;;;0",  //??
-            "T;RadioButtonPara;;;0",  //??
-            "N;VAx1;3|-1000|1000;Ax1;1",  //??
-            "N;VAx2;3|-1000|1000;Ax2;0",
-            "N;VAx3;3|-1000|1000;Ax3;0",
-            "N;Ay1;3|-1000|1000;Ay1;0",
-            "N;Ay2;3|-1000|1000;Ay2;1",
-            "N;Ay3;3|-1000|1000;Ay3;0",
-            "N;Az1;3|-1000|1000;Az1;0",
-            "N;Az2;3|-1000|1000;Az2;0",
-            "N;Az3;3|-1000|1000;Az3;1",
-            "N;SigX;3|0.01|9999;editdom1;40",  //??
-            "N;SigY;3|0.01|9999;editdom2;40",
-            "N;SigZ;3|0.01|9999;editdom3;40",
+            "C-;ComboBoxPeak;Lorentzian|Gaussian|mod. 1 Lorentzian|mod. 2 Lorentzian|Pseudo-Voigt|Pearson VII|Gamma|Anisotropic Gaussian;;Gaussian",
+            "NF;EditPeakPar;;;0",  //??
+            "NF;EditDebyeWaller;3|0|100| nm;Also called Displacement [nm];2",
+            "NF;EditAzi;;;180",
+            "NF;EditDomainSize;2|0|5000| nm;Radial domain size [nm];400",
+            "T-;RadButDebyeScherrer;;;0",  //??
+            "T-;RadioButtonPara;;;0",  //??
+            "N-;VAx1;3|-1000|1000;Ax1;1",  //??
+            "N-;VAx2;3|-1000|1000;Ax2;0",
+            "N-;VAx3;3|-1000|1000;Ax3;0",
+            "N-;Ay1;3|-1000|1000;Ay1;0",
+            "N-;Ay2;3|-1000|1000;Ay2;1",
+            "N-;Ay3;3|-1000|1000;Ay3;0",
+            "N-;Az1;3|-1000|1000;Az1;0",
+            "N-;Az2;3|-1000|1000;Az2;0",
+            "N-;Az3;3|-1000|1000;Az3;1",
+            "NF;SigX;3|0.01|9999;editdom1;40",  //??
+            "NF;SigY;3|0.01|9999;editdom2;40",
+            "NF;SigZ;3|0.01|9999;editdom3;40",
 
             // Orientation group
-            "N;ucpsi;3|0|360|°;;0",
-            "N;ucn1;;;1",
-            "N;ucn2;;;1",
-            "N;ucn3;;;1",
-            "N;theta;3|0|360|°;;90",  // -> PolTheta   Begriffe werden nicht geändert, damit
-            "N;phi;3|0|360|°;;0",     // -> PolPhi     die Daten von vorher lesbar bleiben.
-            "N;rotTheta;3|0|360|°;;90",
-            "N;rotPhi;3|0|360|°;;90",
+            "NF;ucpsi;3|0|360|°;;0",
+            "NF;ucn1;;;1",
+            "NF;ucn2;;;1",
+            "NF;ucn3;;;1",
+            "NF;theta;3|0|360|°;;90",  // -> PolTheta   Begriffe werden nicht geändert, damit
+            "NF;phi;3|0|360|°;;0",     // -> PolPhi     die Daten von vorher lesbar bleiben.
+            "NF;rotTheta;3|0|360|°;;90",
+            "NF;rotPhi;3|0|360|°;;90",
 
             // Calculation group
-            "I;GridPoints;16|2049;Half of the size of each image dimension;64",  //?? - werden nicht auf 20 runtergesetzt
-            "I;HKLmax;1|20;Number of iterations in the h,k,l-loops;5",
-            "N;EditQmax;4|0.001|100| nm-1;Qmax preset from user [nm-1];1",                   // Das genutzte QMax wird über die
-            "N;CalcQmax;4|0.001|100| nm-1;Qmax calculated from data header above [nm-1];",   // Radiobuttons darunter ausgewählt
-            "T;EditQmaxData;;Use the Qmax from the data;",   // auch wenn das Radiobuttons sind
-            "T;EditQmaxPreset;;Use the Qmax provided here;", // -"-
+            "I-;GridPoints;16|2049;Half of the size of each image dimension;64",  //?? - werden nicht auf 20 runtergesetzt
+            "I-;HKLmax;1|20;Number of iterations in the h,k,l-loops;5",
+            "N-;EditQmax;4|0.001|100| nm-1;Qmax preset from user [nm-1];1",                   // Das genutzte QMax wird über die
+            "N-;CalcQmax;4|0.001|100| nm-1;Qmax calculated from data header above [nm-1];",   // Radiobuttons darunter ausgewählt
+            "T-;EditQmaxData;;Use the Qmax from the data;",   // auch wenn das Radiobuttons sind
+            "T-;EditQmaxPreset;;Use the Qmax provided here;", // -"-
 
             // Experiment group
-            "N;EditPixelNoX;1|16|10000;Number of horizontal detector pixel;2048",
-            "N;EditPixelNoY;1|16|10000;Number of vertical detector pixel;2048",
-            "N;EditPixelX;5|0.1|50| mm;Width of one detector pixel [mm];1",
-            "N;EditPixelY;5|0.1|50| mm;Height of one detector pixel [mm];1",
-            "N;EditDet;4|0.001|100| m;Distance Sample - Detector [m];1",
-            "N;EditWavelength;5|0.001|200| nm;Wavelength [nm];0.09499",
-            "N;BeamPosX;3|-1000|1000;Horitontal center of the beam in pixel coordinates;0",
-            "N;BeamPosY;3|-1000|1000;Vertical center of the beam in pixel coordinates;0",
-            "T;CenterBeam;;Use beam position;",          // Radiobutton für die Beamposition
-            "T;CenterMidpoint;;Use center point;",      // Radiobutton für den Mittelpunkt (andere qx,qy,qz Berechnungen)
+            "NF;EditPixelNoX;1|16|10000;Number of horizontal detector pixel;2048",
+            "NF;EditPixelNoY;1|16|10000;Number of vertical detector pixel;2048",
+            "NF;EditPixelX;5|0.1|50| mm;Width of one detector pixel [mm];1",
+            "NF;EditPixelY;5|0.1|50| mm;Height of one detector pixel [mm];1",
+            "NF;EditDet;4|0.001|100| m;Distance Sample - Detector [m];1",
+            "NF;EditWavelength;5|0.001|200| nm;Wavelength [nm];0.09499",
+            "NF;BeamPosX;3|-1000|1000;Horitontal center of the beam in pixel coordinates;0",
+            "NF;BeamPosY;3|-1000|1000;Vertical center of the beam in pixel coordinates;0",
+            "T-;CenterBeam;;Use beam position;",          // Radiobutton für die Beamposition
+            "T-;CenterMidpoint;;Use center point;",      // Radiobutton für den Mittelpunkt (andere qx,qy,qz Berechnungen)
 
             // Controls group
-            "N;EditBFactor;3|0.01|999;;1",  //??
-            "T;CheckBoxWAXS;;;0",  //??
-            "N;P1;;;0",       //?? wird in formpq verwendet
+            "N-;EditBFactor;3|0.01|999;;1",  //??
+            "T-;CheckBoxWAXS;;;0",  //??
+            "N-;P1;;;0",       //?? wird in formpq verwendet
 
             // Pixel Manipulation group
-            "N;iso;5|0|1000;;0",    // Multiplikator für radintensity (generic)
-            "N;I0;5|0|100000;;10000",
-            "N;Base;5|-10000|10000;;0",  // Eigentlich 1e-10
+            "NF;iso;5|0|1000;;0",    // Multiplikator für radintensity (generic)
+            "NF;I0;5|0|100000;;10000",
+            "NF;Base;5|-10000|10000;;0",  // Eigentlich 1e-10
         };
     return slGUI;
 }

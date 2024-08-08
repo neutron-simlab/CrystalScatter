@@ -77,7 +77,7 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
         {/*7*/  //Z=25319
             switch ( CALC.params.orcase )
             {
-            case 1:     // General: phi!=0 && phi!=90 && theta!=0 && theta!=90
+            case orcGeneral:     // General: phi!=0 && phi!=90 && theta!=0 && theta!=90
             {
                 //Z=25320
                 //const double limql = sqrt(sqr((qx*CALC.cosphi-qy*CALC.sinphi)*CALC.costheta*CALC.sintheta)
@@ -93,7 +93,7 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
                                      qx*CALC.cosphi*CALC.sintheta, qy*CALC.sinphi*CALC.sintheta,q );  //Z=25327
                 break;   //Z=25328
             }
-            case 2:     // X-Axis phi==0 && theta==90
+            case orcXaxis:     // X-Axis phi==0 && theta==90
                 //Z=25329
                 //pq = CALC.formpq(CALC.params.sigmal, fabs(qx), qx, qy, qx, 0, q, CALC.ordis);   //Z=25331
                 pq = CALC.formpq_partCylinder(qx, 0, q);   //Z=25331
@@ -101,7 +101,7 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
                     //fq = CALC.formfq( fabs(qx), qx, qy, qx, 0, q, CALC.ordis );   //Z=25335
                     fq = CALC.formfq_partCylinder( fabs(qx), qx, 0, q );   //Z=25335
                 break;   //Z=25336
-            case 3:     // Y-Axis phi==90 && theta==90
+            case orcYaxis:     // Y-Axis phi==90 && theta==90
                 /*Z=24733*/
                 //pq = CALC.formpq(CALC.params.sigmal, fabs(qy), qx, qy, 0, qy, q, CALC.ordis);   //Z=25339
                 pq = CALC.formpq_partCylinder(0, qy, q);   //Z=25339
@@ -109,7 +109,7 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
                     //fq = CALC.formfq( fabs(qy), qx, qy, 0, qy, q, CALC.ordis );   //Z=25343
                     fq = CALC.formfq_partCylinder( fabs(qy), 0, qy, q );   //Z=25343
                 break;   //Z=25344
-            case 4:     // Z-Axis (phi==0 || phi==90) && theta==0
+            case orcZaxis:     // Z-Axis (phi==0 || phi==90) && theta==0
                 /*Z=24741*/
                 //pq = CALC.formpq(CALC.params.sigmal,  q, qx, qy, qx, qy, q, CALC.ordis);   //Z=25347
                 pq = CALC.formpq_partCylinder(qx, qy, q);   //Z=25347
@@ -125,7 +125,7 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
         {   //Z=25358
             switch ( CALC.params.orcase )
             {
-            case 1:    /*  general orientation  */  //Z=25359
+            case orcGeneral:    /*  general orientation  */  //Z=25359
                 //pq = CALC.formpq(CALC.params.sigmal,  q, qx, qy, qx*CALC.cosphic-qy*CALC.sinphic,
                 //                 qx*CALC.sinphic+qy*CALC.cosphic, q, CALC.ordis);   //Z=25361
                 pq = CALC.formpq_partCylinder(qx*CALC.cosphic-qy*CALC.sinphic,
@@ -136,7 +136,7 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
                     fq = CALC.formfq_partCylinder( q, qx*CALC.cosphic-qy*CALC.sinphic,
                                      qx*CALC.sinphic+qy*CALC.cosphic, q );   //Z=25365
                 break;   //Z=25366
-            case 2:   /*  x-axis  */  //Z=25367
+            case orcXaxis:   /*  x-axis  */  //Z=25367
                 //pq = CALC.formpq(CALC.params.sigmal, sqrt(qx*qx+(1-CALC.order)*qy*qy), qx, qy, qx, qy, q, CALC.ordis);   //Z=25369
                 pq = CALC.formpq_partCylinder(qx, qy, q);   //Z=25369
                 if ( CALC.lattice )
@@ -144,7 +144,7 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
                     fq = CALC.formfq_partCylinder( sqrt(qx*qx+(1-CALC.order)*qy*qy), qx, qy, q );   //Z=25374
                 szq = pq; // ffq;  //Z=25375  TODO das macht hier keinen Sinn
                 break;   //Z=25376
-            case 3:  /*  y-axis  */  //Z=25377
+            case orcYaxis:  /*  y-axis  */  //Z=25377
                 //pq = CALC.formpq(CALC.params.sigmal, sqrt((1.0-CALC.order)*qx*qx+qy*qy), qx, qy, qx, qy, q, CALC.ordis);   //Z=25379
                 pq = CALC.formpq_partCylinder(qx, qy, q);   //Z=25379
                 /* fq = pq;  //Z=25380 */
@@ -152,7 +152,7 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
                     //fq = CALC.formfq( sqrt((1.0-CALC.order)*qx*qx+qy*qy), qx, qy, qx, qy, q, CALC.ordis );   //Z=25383
                     fq = CALC.formfq_partCylinder( sqrt((1.0-CALC.order)*qx*qx+qy*qy), qx, qy, q );   //Z=25383
                 break;   //Z=25384
-            case 4:  /*  z-axis  */  //Z=25385
+            case orcZaxis:  /*  z-axis  */  //Z=25385
                 //pq = CALC.formpq(CALC.params.sigmal,  q, qx, qy, qx, qy, q, CALC.ordis);   //Z=25387
                 pq = CALC.formpq_partCylinder(qx, qy, q);   //Z=25387
                 /* fq = pq;  //Z=25388 */
@@ -187,7 +187,7 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
         {
             switch ( CALC.params.orcase )
             {
-            case 1:
+            case orcGeneral:
             {
                 const double limql = sqrt(CALC.sinphi*qx*qx+CALC.cosphi*qy*qy+eps6);
                 pq=CALC.formpq_partDisk( limql, qx, qy, qx*CALC.cosphi*CALC.sintheta/q, qy*CALC.sinphi*CALC.sintheta/q, q, CALC.params.ordis);
@@ -195,19 +195,19 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
                     fq = CALC.formfq_partDisk( qx, qy, qx*CALC.cosphi*CALC.sintheta/q, qy*CALC.sinphi*CALC.sintheta/q, q );
                 break;
             }
-            case 2:
+            case orcXaxis:
                 //pq=CALC.formpq(CALC.params.sigmal, fabs(qy), qx,qy,qx/q,0,q,CALC.ordis);   //Z=25425
                 pq=CALC.formpq_partDisk( fabs(qy), qx, qy, qx/q, 0, q, CALC.params.ordis );
                 if ( CALC.lattice )
                     fq = CALC.formfq_partDisk( qx, qy, qx/q, 0, q );
                 break;
-            case 3:
+            case orcYaxis:
                 //pq=CALC.formpq(CALC.params.sigmal, fabs(qx), qx,qy,0,qy/q,q,CALC.ordis);  //Z=25433
                 pq=CALC.formpq_partDisk(fabs(qx), qx,qy,0,qy/q,q,CALC.params.ordis);
                 if ( CALC.lattice )
                     fq = CALC.formfq_partDisk( qx, qy, 0, qy/q, q );
                 break;
-            case 4:
+            case orcZaxis:
                 //pq=CALC.formpq(CALC.params.sigmal, q, qx,qy,qx,qy,q,CALC.ordis);   //Z=25441
                 pq=CALC.formpq_partDisk(q, qx,qy,qx,qy,q,CALC.params.ordis);
                 if ( CALC.lattice )
@@ -233,7 +233,7 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
 #endif
             switch ( CALC.params.orcase )
             {
-            case 1:
+            case orcGeneral:
                 //pq=CALC.formpq(CALC.params.sigmal,
                 //                 q,qx,qy,qx*CALC.cosphic/q-qy*CALC.sinphic/q,qx*CALC.sinphic/q+qy*CALC.cosphic/q,q,CALC.ordis);   //Z=25459
                 pq=CALC.formpq_partDisk(q,qx,qy,qx*CALC.cosphic/q-qy*CALC.sinphic/q,qx*CALC.sinphic/q+qy*CALC.cosphic/q,q,CALC.params.ordis);   //Z=25459
@@ -241,21 +241,21 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
                     //fq=CALC.formfq( q, qx, qy, qx*CALC.cosphic/q-qy*CALC.sinphic/q, qx*CALC.sinphic/q+qy*CALC.cosphic/q, q, CALC.ordis );   //Z=25463
                     fq=CALC.formfq_partDisk( /*q,*/ qx, qy, qx*CALC.cosphic/q-qy*CALC.sinphic/q, qx*CALC.sinphic/q+qy*CALC.cosphic/q, q/*, CALC.params.ordis*/ );   //Z=25463
                 break;  //Z=25464
-            case 2:  //Z=25465
+            case orcXaxis:  //Z=25465
                 //pq=CALC.formpq(CALC.params.sigmal, sqrt((1.0-CALC.order)*qx*qx+qy*qy), qx,qy,qx/q,qy/q,q,CALC.ordis);
                 pq=CALC.formpq_partDisk(sqrt((1.0-CALC.order)*qx*qx+qy*qy), qx,qy,qx/q,qy/q,q,CALC.params.ordis);
                 if ( CALC.lattice ) //fq:=pq;
                     //fq=CALC.formfq( sqrt((1.0-CALC.order)*qx*qx+qy*qy), qx, qy, qx/q, qy/q, q, CALC.ordis );  //Z=25471
                     fq=CALC.formfq_partDisk( /*sqrt((1.0-CALC.order)*qx*qx+qy*qy),*/ qx, qy, qx/q, qy/q, q/*, CALC.params.ordis*/ );  //Z=25471
                 break;  //Z=25472
-            case 3:  //Z=25473
+            case orcYaxis:  //Z=25473
                 //pq=CALC.formpq(CALC.params.sigmal,sqrt(qx*qx+(1-CALC.order)*qy*qy),qx,qy,qx/q,qy/q,q,CALC.ordis );  //Z=25475
                 pq=CALC.formpq_partDisk(sqrt(qx*qx+(1-CALC.order)*qy*qy),qx,qy,qx/q,qy/q,q,CALC.params.ordis );  //Z=25475
                 if ( CALC.lattice )
                     //fq=CALC.formfq( sqrt(qx*qx+(1-CALC.order)*qy*qy), qx, qy, qx/q, qy/q, q, CALC.ordis );  //Z=25479
                     fq=CALC.formfq_partDisk( /*sqrt(qx*qx+(1-CALC.order)*qy*qy),*/ qx, qy, qx/q, qy/q, q/*, CALC.params.ordis*/ );  //Z=25479
                 break;  //Z=25480
-            case 4:  //Z=25481
+            case orcZaxis:  //Z=25481
                 //pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);  //Z=25483
                 pq=CALC.formpq_partDisk(q,qx,qy,qx,qy,q,CALC.params.ordis);  //Z=25483
                 if ( CALC.lattice ) //fq:=pq;
@@ -339,19 +339,19 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
             {
                 //double formpq_partEllips( double sigmal, double qx, double qy, double qxs, double qys, double q ) const;
 
-            case 1:
+            case orcGeneral:
                 //pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);  //Z=25548
                 pq=CALC.formpq_partEllips(CALC.params.sigmal,qx,qy,qx*CALC.cosphi,qy*CALC.sinphi,q);  //Z=25548
                 break;
-            case 2:
+            case orcXaxis:
                 //pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,0,q,CALC.ordis);  //Z=25551
                 pq=CALC.formpq_partEllips(CALC.params.sigmal,qx,qy,qx,qy,q);  //Z=25551
                 break;
-            case 3:
+            case orcYaxis:
                 //pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qy,qx,q,CALC.ordis);  //Z=25554
                 pq=CALC.formpq_partEllips(CALC.params.sigmal,qx,qy,qy,qx,q);  //Z=25554
                 break;
-            case 4:
+            case orcZaxis:
                 //pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);  //Z=25557
                 pq=CALC.formpq_partEllips(CALC.params.sigmal,qx,qy,qx,qy,q);  //Z=25557
                 break;
@@ -364,14 +364,14 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
         {   //Z=25563
             switch ( CALC.params.orcase )
             {
-            case 1:   /*  general orientation  */  //Z=25564
+            case orcGeneral:   /*  general orientation  */  //Z=25564
                 //pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx*CALC.cosphic-qy*CALC.sinphic,qx*CALC.sinphic+qy*CALC.cosphic,q,CALC.ordis);  //Z=25566
                 pq=CALC.formpq_partEllips(CALC.params.sigmal,qx,qy,qx*CALC.cosphic-qy*CALC.sinphic,qx*CALC.sinphic+qy*CALC.cosphic,q);  //Z=25566
                 /* fq = pq;  //Z=25567 */
                 //if ( CALC.lattice )
                 //    fq=pq; // undef CALC.formfq( q, qx, qy, qx*CALC.cosphic-qy*CALC.sinphic, qx*CALC.sinphic+qy*CALC.cosphic, q, CALC.ordis );  //Z=25570
                 break;  //Z=25571
-            case 2:  /*  x-axis  */  //Z=25572
+            case orcXaxis:  /*  x-axis  */  //Z=25572
                 //pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);  //Z=25574
                 pq=CALC.formpq_partEllips(CALC.params.sigmal,qx,qy,qx,qy,q);  //Z=25574
                 fq = pq;  //Z=25575
@@ -381,14 +381,14 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
                 /*    part,cs,ordis,orcase,myarray,carr1p^,carr2f^,carr3f^,carr4f^,carr5f^,carr6f^,carr7f^,carr11pm^,carr22pm^);  //Z=25579 */
                 /* szq:=ffq;  //Z=25580 */
                 break;  //Z=25581
-            case 3:  /*  y-axis  */  //Z=25582
+            case orcYaxis:  /*  y-axis  */  //Z=25582
                 //pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);  //Z=25584
                 pq=CALC.formpq_partEllips(CALC.params.sigmal,qx,qy,qx,qy,q);  //Z=25584
                 /* fq = pq;  //Z=25585 */
                 //if ( CALC.lattice )
                 //    fq=pq; // undef CALC.formfq( q, qx, qy, qx, qy, q, CALC.ordis );  //Z=25588
                 break;  //Z=25589
-            case 4:  /*  z-axis  */  //Z=25590
+            case orcZaxis:  /*  z-axis  */  //Z=25590
                 //pq=CALC.formpq(CALC.params.sigmal,q,qx,qy,qx,qy,q,CALC.ordis);  //Z=25592
                 pq=CALC.formpq_partEllips(CALC.params.sigmal,qx,qy,qx,qy,q);  //Z=25592
                 /* fq = pq;  //Z=25593 */
@@ -534,7 +534,7 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
     intensity = 0.0;
 
     /* ** lattice hkl-factor calcuation  */  //Z=25744
-    if ( CALC.lattice )
+    if ( CALC.lattice /* bei LType=None(12) immer false */ )
     {/*6*/  //Z=25745
 
         /*  PC-version  */  //Z=25748
@@ -556,14 +556,24 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
             const double x2   = sqr(q-qhkl)/sqr(widthiso);  //Z=25766
             const double sq   = exp(-4*x2/M_PI)/(M_PI*widthiso/2.0);  //Z=25767
 
+            const double savintens = radintensity;
             radintensity += sq*mhkl*fhkl;  //Z=25768
+            if ( isinf(radintensity) || isnan(radintensity) )
+            {
+                radintensity = savintens;
+//#ifndef __CUDACC__
+//                qDebug() << "RADINTENS=INF" << sq << mhkl << fhkl << "ii" << ii << x2 << widthiso << "q" << q << qhkl;
+//#endif
+                break;
+            }
+
         } /* of peak loop */  //Z=25769
 
         for ( int ii=1; ii<=CALC.peakmax2; ii++ )
         {   //Z=25779  //ZN=25987
             if ( CALC._endThread ) return 0;  // Falls Anwender abgebrochen hat
             const double qhkl  = CALC.latpar3(ii,5);
-            if ( qhkl <= 0 ) continue; // Abfrage vor intensity+=...
+            if ( qhkl <= 0 || isnan(qhkl) ) continue; // Abfrage vor intensity+=...
             const int h = CALC.latpar2(ii,1);
             const int k = CALC.latpar2(ii,2);
             const int l = CALC.latpar2(ii,3);
@@ -828,12 +838,12 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
             {
                 const double savintens = intensity;
                 intensity += sq*mhkl*fhkl*psiord;  //Z=26176
-                if ( isinf(intensity) )
+                if ( isinf(intensity) || isnan(intensity) )
                 {
                     intensity = savintens;
-#ifndef __CUDACC__
-                    qDebug() << "INTENS=INF" << sq << mhkl << fhkl << psiord << "ii" << ii << CALC.peakmax2;
-#endif
+//#ifndef __CUDACC__
+//                    qDebug() << "INTENS=INF" << sq << mhkl << fhkl << psiord << "ii" << ii << CALC.peakmax2;
+//#endif
                     break;
                 }
             }
@@ -855,17 +865,17 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
     //Z=30277: xyintensity^[ihex+zmax][i+zmax] = base+izero*xyintensity^[ihex+zmax][i+zmax]+ifluc/(1.0+q*q*rfluc*rfluc);  //Z=30277
     // retval ist der Pixelwert bei [ihex+zmax][i+zmax]
 
-#ifndef __CUDACC__
-    if ( retval < -1e8 || isnan(retval) || isinf(retval) )
-        qDebug() << "_generic.h" << "szq"<<szq << "pq"<<pq <<"fq"<<fq << "szqiso"<<szqiso << "pqiso"<<pqiso << "q"<<q
-                 << "intens"<<intensity << "radint"<<radintensity << CALC.peakmax1
-                 << "="<<retval;
+//#ifndef __CUDACC__
+//    if ( retval < -1e8 || isnan(retval) || isinf(retval) )
+//        qDebug() << "_generic.h" << "szq"<<szq << "pq"<<pq <<"fq"<<fq << "szqiso"<<szqiso << "pqiso"<<pqiso << "q"<<q
+//                 << "intens"<<intensity << "radint"<<radintensity << CALC.peakmax1
+//                 << "="<<retval;
     // szq inf pq 2.16215e-05 fq 2.08036e-07 szqiso 1 pqiso 2.16215e-05 q 2.74004 intens inf radint 2.45523 107 = inf
 
-#else
+//#else
     //if ( retval < -1e6 )
     //    printf( "szq=%lf pq=%lf fq=%lf szqiso=%lf pqiso=%lf q=%lf intens=%lf radint=%lf erg=%lf\n", szq, pq, fq, szqiso, pqiso, q, intensity, radintensity, retval );
-#endif
+//#endif
 
     return retval;
 } /* calc_GENERIC() */

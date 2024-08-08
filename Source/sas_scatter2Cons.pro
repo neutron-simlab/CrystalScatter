@@ -176,15 +176,29 @@ win32: {
     }
 
     # HDF5 Library
-    #HDF5_BASE = ..\..\CMake-hdf5-1.12.0
-    #HDF5_GEN  = $$HDF5_BASE/build-hdf5-1.12.0-Desktop_Qt_5_14_2_MinGW_64_bit-MinSizeRel
-    #exists($$HDF5_GEN/bin) {
-    #    INCLUDEPATH += $$HDF5_BASE/hdf5-1.12.0/src $$HDF5_BASE/hdf5-1.12.0/c++/src $$HDF5_GEN
-    #    LIBS += -L$$HDF5_GEN/bin -lhdf5_cpp -lhdf5_hl -lhdf5
-    #}
-    #else {
+    HDF5_BASE = ..\..\CMake-hdf5-1.12.1
+    HDF5_SRC  = $$HDF5_BASE/hdf5-1.12.1
+    CONFIG(static) {
+        # C:\SimLab\CMake-hdf5-1.12.1\build-ZLib-Desktop_Qt_5_14_2_MinGW_64_bit-Debug\bin\libzlib_D.a
+        # C:\Windows\System32>echo %ZLIB_DIR%
+        # C:\SimLab\CMake-hdf5-1.12.1\build-ZLib-Desktop_Qt_5_14_2_MinGW_64_bit-Debug
+
+        HDF5_GEN  = $$HDF5_BASE/build-hdf5-1.12.1-Desktop_Qt_5_14_2_MinGW_64_bit-MinSizeRel
+        HDF5_LIBS = -L$$HDF5_GEN/bin -lhdf5_cpp -lhdf5_hl_cpp -lhdf5 -lhdf5_hl \
+                    -L$$(ZLIB_DIR)/bin -lzlib_D
+    }
+    else {
+        HDF5_GEN  = $$HDF5_BASE/build-hdf5-1.12.1-Desktop_Qt_5_14_2_MinGW_64_bit-Debug
+        HDF5_LIBS = -L$$HDF5_GEN/bin -lhdf5_cpp_D -lhdf5_hl_cpp_D -lhdf5_D -lhdf5_hl_D
+    }
+    exists($$HDF5_GEN/bin) {
+        INCLUDEPATH += $$HDF5_SRC/src $$HDF5_SRC/c++/src $$HDF5_GEN $$HDF5_GEN/src
+        LIBS += $$HDF5_LIBS
+    }
+    else {
         DEFINES += NOHDF5
-    #}
+        message("No HDF5 found in " $$HDF5_GEN)
+    }
 }
 unix: { # exists(../fftw-3.3.9) {
     # FFTW3 Library (Büro-PC)
@@ -192,6 +206,15 @@ unix: { # exists(../fftw-3.3.9) {
     INCLUDEPATH += /usr/local/include
     HEADERS += /usr/local/include/fftw3.h
 
-    DEFINES += NOHDF5
+    # HDF5 Library
+    HDF5_BASE = /usr/local/hdf5
+    exists($$HDF5_BASE/bin) {
+        INCLUDEPATH += $$HDF5_BASE/include
+        LIBS += -L$$HDF5_BASE/lib -lhdf5_cpp -lhdf5_hl_cpp -lhdf5 -lhdf5_hl
+    }
+    else {
+        DEFINES += NOHDF5
+        message("No HDF5 found in " $$HDF5_BASE)
+    }
 
 }

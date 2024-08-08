@@ -16,7 +16,7 @@ __host__ __device__
 inline double SasCalc_GENERIC_calculation::calc_partCylinder_peakGauss_lattBCT_ordisZDir(const SasCalc_GENERIC_calculation& CALC,
                                                                    double qx, double qy, double qz)
 {
-    double pq, fq, intensity, radintensity;
+    double pq=0, fq=0, intensity, radintensity;
 
     const double q = sqrt(qx*qx+qy*qy+qz*qz)+eps9;  //Z=25254
 
@@ -35,7 +35,7 @@ inline double SasCalc_GENERIC_calculation::calc_partCylinder_peakGauss_lattBCT_o
     //{/*7*/  //Z=25319
     switch ( CALC.params.orcase )
     {
-    case 1:     // General: phi!=0 && phi!=90 && theta!=0 && theta!=90
+    case orcGeneral:     // General: phi!=0 && phi!=90 && theta!=0 && theta!=90
     {
         //Z=25320
         //const double limql = sqrt(sqr((qx*CALC.cosphi-qy*CALC.sinphi)*CALC.costheta*CALC.sintheta)
@@ -53,7 +53,7 @@ inline double SasCalc_GENERIC_calculation::calc_partCylinder_peakGauss_lattBCT_o
                                       qx*CALC.cosphi*CALC.sintheta, qy*CALC.sinphi*CALC.sintheta,q );  //Z=25327
         break;   //Z=25328
     }
-    case 2:     // X-Axis phi==0 && theta==90
+    case orcXaxis:     // X-Axis phi==0 && theta==90
         //Z=25329
         //pq = CALC.formpq(CALC.params.sigmal, fabs(qx), qx, qy, qx, 0, q, CALC.ordis);   //Z=25331
         pq = CALC.formpq_partCylinder(qx, 0, q);   //Z=25331
@@ -62,7 +62,7 @@ inline double SasCalc_GENERIC_calculation::calc_partCylinder_peakGauss_lattBCT_o
         //fq = CALC.formfq( fabs(qx), qx, qy, qx, 0, q, CALC.ordis );   //Z=25335
         fq = CALC.formfq_partCylinder( fabs(qx), qx, 0, q );   //Z=25335
         break;   //Z=25336
-    case 3:     // Y-Axis phi==90 && theta==90
+    case orcYaxis:     // Y-Axis phi==90 && theta==90
         /*Z=24733*/
         //pq = CALC.formpq(CALC.params.sigmal, fabs(qy), qx, qy, 0, qy, q, CALC.ordis);   //Z=25339
         pq = CALC.formpq_partCylinder(0, qy, q);   //Z=25339
@@ -71,7 +71,7 @@ inline double SasCalc_GENERIC_calculation::calc_partCylinder_peakGauss_lattBCT_o
         //fq = CALC.formfq( fabs(qy), qx, qy, 0, qy, q, CALC.ordis );   //Z=25343
         fq = CALC.formfq_partCylinder( fabs(qy), 0, qy, q );   //Z=25343
         break;   //Z=25344
-    case 4:     // Z-Axis (phi==0 || phi==90) && theta==0
+    case orcZaxis:     // Z-Axis (phi==0 || phi==90) && theta==0
         /*Z=24741*/
         //pq = CALC.formpq(CALC.params.sigmal,  q, qx, qy, qx, qy, q, CALC.ordis);   //Z=25347
         pq = CALC.formpq_partCylinder(qx, qy, q);   //Z=25347

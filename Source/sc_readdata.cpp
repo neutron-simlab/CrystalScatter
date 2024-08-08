@@ -5,7 +5,9 @@
 #include <QXmlStreamReader>
 
 #ifndef NOHDF5
+#ifndef CONSOLENPROG
 #include "dlghdfselection.h"
+#endif
 
 #include "H5Cpp.h"
 using namespace H5;
@@ -29,7 +31,9 @@ widImage *SC_ReadData::readImageTiff( myAddImage add, QString fn )
     QFile fimg(fn);
     if ( ! fimg.open(QIODevice::ReadOnly) )
     {
+#ifndef CONSOLENPROG
         qDebug() << fimg.fileName() << fimg.errorString();
+#endif
         return nullptr;
     }
 
@@ -61,13 +65,13 @@ widImage *SC_ReadData::readImageTiff( myAddImage add, QString fn )
             break;
         }
     }
-    qDebug() << "Anfang" << anf;
+    //qDebug() << "Anfang" << anf;
     // Jetzt ab dem Anfang erneut lesen und die XML-Daten extrahieren
     fimg.seek(anf);
     RecRead = fimg.read( buf.c, 20000 );
     if ( RecRead != 20000 )
     {
-        qDebug() << fn << "read" << RecRead;
+        //qDebug() << fn << "read" << RecRead;
         fimg.close();
         return nullptr;
     }
@@ -102,7 +106,9 @@ widImage *SC_ReadData::readImageTiff( myAddImage add, QString fn )
                 //qDebug() << "PARAM: fertig" << ii << param.last() << num.last();
                 if ( param.last().at(0) == 0x00 )
                 {
+#ifndef CONSOLENPROG
                     qDebug() << "No parameters found in file.";
+#endif
                     param.clear();
                     num.clear();
                     break;
@@ -128,19 +134,23 @@ widImage *SC_ReadData::readImageTiff( myAddImage add, QString fn )
         LittleEndian = false;
     else
     {
+#ifndef CONSOLENPROG
         qDebug() << fn << "ERR: not a tiff file";
+#endif
         fimg.close();
         return nullptr;
     }
     if ( buf.c[2] != 42 /* '*' */ )
     {
+#ifndef CONSOLENPROG
         qDebug() << fn << "ERR: not a tiff file";
+#endif
         fimg.close();
         return nullptr;
     }
     /*28596*/
     int OffsetIFD = buf.i[1];  // Bytes 4 to 7
-    qDebug() << "OffsetIFD" << OffsetIFD;
+    //qDebug() << "OffsetIFD" << OffsetIFD;
     fimg.seek( OffsetIFD );
     /*28602*/
     fimg.read( buf.c, 2 );  // BlockRead(MarTifFile,buff2B,1,RecRead);
@@ -157,7 +167,7 @@ widImage *SC_ReadData::readImageTiff( myAddImage add, QString fn )
         //BlockRead(MarTifFile,buff2B,1,RecRead); //read TagCode
         unsigned int TagCode = buf.uw[0];
         //BlockRead(MarTifFile,buff2B,1,RecRead); //read TagDataType
-        int TagDataType = buf.w[1];     // ==> nur für Debug im default:
+        //int TagDataType = buf.w[1];     // ==> nur für Debug im default:
         //  (* TagDataTypes: 1: byte; 2: ASCII; 3: short; 4: long; 5: rational;
         //     TIFF 6.0 data types: 6: sbyte; 7: undefined; 8: sshort; 9: slong;
         //                     10: srational; 11: float; 12: double
@@ -195,7 +205,7 @@ widImage *SC_ReadData::readImageTiff( myAddImage add, QString fn )
             if ( NbVal == 1 )
             {
                 NbCols = buf.i[2];
-                qDebug() << "NbCols =" << NbCols;
+                //qDebug() << "NbCols =" << NbCols;
                 param << "NbCols";
                 num   << QString::number(NbCols);
             }
@@ -204,7 +214,7 @@ widImage *SC_ReadData::readImageTiff( myAddImage add, QString fn )
             if ( NbVal == 1 )
             {
                 NbRows = buf.i[2];
-                qDebug() << "NbRows =" << NbRows;
+                //qDebug() << "NbRows =" << NbRows;
                 param << "NbRows";
                 num   << QString::number(NbRows);
             }
@@ -213,7 +223,7 @@ widImage *SC_ReadData::readImageTiff( myAddImage add, QString fn )
             if ( NbVal == 1 )
             {
                 BitsPerSample = buf.i[2];
-                qDebug() << "BitsPerSample =" << BitsPerSample;
+                //qDebug() << "BitsPerSample =" << BitsPerSample;
                 param << "BitsPerSample";
                 num   << QString::number(BitsPerSample);
             }
@@ -223,14 +233,14 @@ widImage *SC_ReadData::readImageTiff( myAddImage add, QString fn )
             {
                 if ( buf.i[2] != 1 )
                 {
-                    qDebug() << "ERROR: compressed data. Not supported";
+                    //qDebug() << "ERROR: compressed data. Not supported";
                     fimg.close();
 #ifdef WIN32
                     fflush(stderr);
 #endif
                     return nullptr;
                 }
-                qDebug() << "No compression used.";
+                //qDebug() << "No compression used.";
             }
             break;
         case 262: //PhotometricInterpretation (short; uses only 2 Bytes)
@@ -238,7 +248,7 @@ widImage *SC_ReadData::readImageTiff( myAddImage add, QString fn )
             {
                 if ( buf.i[2] != 0 && buf.i[2] != 1 )
                 {
-                    qDebug() << "ERROR: PhotometricInterpretation=" << buf.i[2] << " Not supported";
+                    //qDebug() << "ERROR: PhotometricInterpretation=" << buf.i[2] << " Not supported";
                     fimg.close();
 #ifdef WIN32
                     fflush(stderr);
@@ -246,16 +256,16 @@ widImage *SC_ReadData::readImageTiff( myAddImage add, QString fn )
                     return nullptr;
                     // isRGBtiff = true;
                 }
-                qDebug() << "PhotomInterp =" << buf.i[2];
+                //qDebug() << "PhotomInterp =" << buf.i[2];
                 param << "PhotomInterp";
                 num   << QString::number(buf.i[2]);
             }
             break;
         case 269: //DocumentName (ASCII). NbVal can be > 4
-            qDebug() << "Document name ignored."; // TODO
+            //qDebug() << "Document name ignored."; // TODO
             break;
         case 270: //ImageDescription (ASCII). NbVal can be > 4
-            qDebug() << "Image description ignored."; // TODO
+            //qDebug() << "Image description ignored."; // TODO
             break; //ignore ImageDescription
         case 273: //StripOffsets (long)
             if ( NbVal == 1 )
@@ -268,7 +278,7 @@ widImage *SC_ReadData::readImageTiff( myAddImage add, QString fn )
                 StripOffsets = buf.i[0];
                 fimg.seek( RecPos );
             }
-            qDebug() << "StripOffsets=" << StripOffsets;
+            //qDebug() << "StripOffsets=" << StripOffsets;
             param << "StripOffsets";
             num   << QString::number(StripOffsets);
             break;
@@ -277,35 +287,37 @@ widImage *SC_ReadData::readImageTiff( myAddImage add, QString fn )
             {
                 if ( buf.i[2] != 1 )
                 {
+#ifndef CONSOLENPROG
                     qDebug() << "ERROR: SamplesPerPixel=" << buf.i[2] << " Not supported";
+#endif
                     fimg.close();
 #ifdef WIN32
                     fflush(stderr);
 #endif
                     return nullptr;
                 }
-                qDebug() << "SamplesPerPixel =" << buf.i[2];
+                //qDebug() << "SamplesPerPixel =" << buf.i[2];
                 param << "SamplesPerPixel";
                 num   << QString::number(buf.i[2]);
             }
             break;
         case 279: //StripByteCounts (short or long). NbVal can be > 1
-            qDebug() << "Strip Byte Count ignored."; // TODO
+            //qDebug() << "Strip Byte Count ignored."; // TODO
             break;
         case 305: //Software (ASCII). NbVal can be > 4
-            qDebug() << "Software ignored."; // TODO
+            //qDebug() << "Software ignored."; // TODO
             break;
         case 34710: //Mar specific tag
             if ( NbVal == 1 )
             {
                 if ( buf.i[2] == 1024 )
                     isMarTif = true;
-                qDebug() << "Mar TagData =" << buf.i[2] << isMarTif;
+                //qDebug() << "Mar TagData =" << buf.i[2] << isMarTif;
             }
             break;
         default:
-            qDebug() << "---TagCode:" << TagCode << "TagDataType:" << TagDataType << "NbVal:" << NbVal
-                     << QString("buf[2]: %1=0x%2").arg(buf.i[2]).arg(buf.i[2],0,16);
+            //qDebug() << "---TagCode:" << TagCode << "TagDataType:" << TagDataType << "NbVal:" << NbVal
+            //         << QString("buf[2]: %1=0x%2").arg(buf.i[2]).arg(buf.i[2],0,16);
             break;
         } // switch
         /*28731*/
@@ -319,7 +331,7 @@ widImage *SC_ReadData::readImageTiff( myAddImage add, QString fn )
         //CheckBoxSeries.Checked := True; //to avoid another OpenDialog
         //CheckBoxViewSeries.Checked := True; //to display the image and update EditYmax & EditYmin
         //DataInfoValid := False; //values in the fields (if any) are false
-        qDebug() << "*** Tiff16bitClick(Sender); ***"; //LoadTiffFromFile(fileName,totoBmp)
+        //qDebug() << "*** Tiff16bitClick(Sender); ***"; //LoadTiffFromFile(fileName,totoBmp)
         //CheckBoxSeries.Checked := False;
         //CheckBoxViewSeries.Checked := False;
         return nullptr;
@@ -332,7 +344,7 @@ widImage *SC_ReadData::readImageTiff( myAddImage add, QString fn )
     fimg.read( buf.c, 4 );
     int HeadType = buf.i[0];
     buf.c[4] = 0;
-    qDebug() << "HeadType:" << HeadType << "MarTifFlag:" << isMarTif << "LittleEndian:" << LittleEndian << buf.c;
+    //qDebug() << "HeadType:" << HeadType << "MarTifFlag:" << isMarTif << "LittleEndian:" << LittleEndian << buf.c;
     if ( isMarTif && (HeadType == 2) )
     {
         /*28756*/
@@ -354,7 +366,7 @@ widImage *SC_ReadData::readImageTiff( myAddImage add, QString fn )
 //    origIma,zoomIma,origIma1,origIma2: Array[0..maxdim,0..maxdim] of real; //was: double
     double val;
 
-    qDebug() << "READ" << BytesPerPix << LittleEndian << "Start at" << StripOffsets << NbRows*NbCols;
+    //qDebug() << "READ" << BytesPerPix << LittleEndian << "Start at" << StripOffsets << NbRows*NbCols;
 
     switch ( BytesPerPix ) // Demo-Picture = 4
     {
@@ -465,7 +477,7 @@ widImage *SC_ReadData::readImageTiff( myAddImage add, QString fn )
                     pixCnt++;
                 } // for nn
             } //while
-            qDebug() << "Pixelcount:" << pixCnt;
+            //qDebug() << "Pixelcount:" << pixCnt;
         }
         else
         {   //i.e. Big Endian
@@ -553,7 +565,9 @@ widImage *SC_ReadData::readImageSasCrystal( myAddImage add, QString fnpar )
     QFile fimg(fncsv);
     if ( ! fimg.open(QIODevice::ReadOnly) )
     {
+#ifndef CONSOLENPROG
         qDebug() << fimg.fileName() << fimg.errorString();
+#endif
         return nullptr;
     }
 
@@ -606,7 +620,9 @@ widImage *SC_ReadData::readImageSasCrystal( myAddImage add, QString fnpar )
     QFile ftxt(fntxt);
     if ( ! ftxt.open(QIODevice::ReadOnly) )
     {
+#ifndef CONSOLENPROG
         qDebug() << ftxt.fileName() << ftxt.errorString();
+#endif
         //delete imgData;
         return nullptr;
     }
@@ -637,7 +653,9 @@ widImage *SC_ReadData::readImageKWSData( myAddImage add, QString fn )
     QFile fimg(fn);
     if ( ! fimg.open(QIODevice::ReadOnly) )
     {
+#ifndef CONSOLENPROG
         qDebug() << fimg.fileName() << fimg.errorString();
+#endif
         return nullptr;
     }
 
@@ -648,12 +666,12 @@ widImage *SC_ReadData::readImageKWSData( myAddImage add, QString fn )
     {
         if ( QString(fimg.readLine()).trimmed().contains("Data columns") )
         {
-            qDebug() << "KWS -> 2D-SANS";
+            //qDebug() << "KWS -> 2D-SANS";
             fimg.close();
             return readImage2dSans(add,fn);
         }
     }
-    qDebug() << "Real KWS";
+    //qDebug() << "Real KWS";
     fimg.seek(0);
     // Sondertest ende
 
@@ -756,8 +774,8 @@ widImage *SC_ReadData::readImageKWSData( myAddImage add, QString fn )
             {
                 if ( line.startsWith("(*") )
                     lookForColli = false;
-                else
-                    qDebug() << "COLLI:" << line;
+                //else
+                //    qDebug() << "COLLI:" << line;
             }*/
             if ( line.startsWith("(* Detector Discription *)") )
                 lookForDetpos = true;
@@ -805,7 +823,9 @@ widImage *SC_ReadData::readImageKWSData( myAddImage add, QString fn )
     }
     else
     {
+#ifndef CONSOLENPROG
         qDebug() << daten.size() << "undefined format";
+#endif
         return nullptr;
     }
 
@@ -1005,6 +1025,9 @@ static herr_t get_name_type_cb( hid_t loc_id, const char *name, const H5L_info_t
 
 widImage *SC_ReadData::readImageHDF5( myAddImage add, QString fn, bool onlyOneImg, bool swapvert )
 {
+#ifdef CONSOLENPROG
+    Q_UNUSED(onlyOneImg)
+#endif
     QList<widImage*> images;    // Wenn mehrere Datensätze in einem File sind, dann werden
                                 //  auch mehrere Images angezeigt. Das kann später noch
                                 //  geändert werden (TODO).
@@ -1016,7 +1039,7 @@ widImage *SC_ReadData::readImageHDF5( myAddImage add, QString fn, bool onlyOneIm
     //if ( (fid = H5Fopen( qPrintable(fn), H5F_ACC_RDONLY, H5P_DEFAULT ) ) < 0 )
     if ( fid < 0 )
     {
-        qDebug() << "Unable to open" << fn;
+        //qDebug() << "Unable to open" << fn;
         hdfFileName = "";
         return nullptr;
     }
@@ -1040,22 +1063,25 @@ widImage *SC_ReadData::readImageHDF5( myAddImage add, QString fn, bool onlyOneIm
     slHdfPathImages.clear();
     iterate( fn, "/", fid );
 
-    qDebug() << "ALL:" << slHdfPathAll;
+    //qDebug() << "ALL:" << slHdfPathAll;
     //qDebug() << "IMG:" << slHdfPathImages;
 
     if ( slHdfPathImages.size() > 0 )
     {   // Datensätze zu lesen macht nur Sinn, wenn auch welche da sind.
 
+#ifndef CONSOLENPROG
         dlgHdfSelection *dlg = nullptr;
-        if ( slHdfPathImages.size() > 1 )
+        if ( slHdfPathImages.size() > 1 && !onlyOneImg )
         {   // Nur bei mehr als einem Datensatz den User fragen...
             dlg = new dlgHdfSelection( fn, slHdfPathImages );
             dlg->exec();
         }
-
+#endif
         foreach ( QString dsname, slHdfPathImages )
         {
-            if ( dlg != nullptr &&  ! dlg->isChecked(dsname) ) continue;
+#ifndef CONSOLENPROG
+            if ( !onlyOneImg && dlg != nullptr && ! dlg->isChecked(dsname) ) continue;
+#endif
             QString dbg = "DS=" + dsname;
             DataSet dataset = file.openDataSet( qPrintable(dsname) );
 
@@ -1074,41 +1100,91 @@ widImage *SC_ReadData::readImageHDF5( myAddImage add, QString fn, bool onlyOneIm
                 if ( dims_out[i] > dimmax ) dimmax = dims_out[i];
                 else if ( dims_out[i] != dimmax ) dimdiff = true;
             }
+#ifndef CONSOLENPROG
             qDebug() << dbg << dimdiff << dimmax;    // Nur eine Zeile pro Image
+#endif
 
             //if ( dimdiff && dlg != nullptr && dlg->makeSquare() )  TODO
             //{
             // "DS=/entry0/D22/Detector 1/data1, rank=3, ndims=3,  [0]=128 [1]=256 [2]=1" true 256
             //}
 
+            if ( dimsize == 0 ) continue;
+
             H5T_class_t type_class = dataset.getTypeClass();
             if ( type_class == H5T_INTEGER )
             {
-                qDebug() << "**INT**" << dimsize;  // ist im Beispiel vorhanden
-
+#ifndef CONSOLENPROG
+                qDebug() << "**INT**" << dimsize << dimdiff << dimmax*dimmax;
+#endif
                 int buffer[dimsize];
                 dataset.read( buffer, PredType::NATIVE_INT ); // , memspace, dataspace );
 
-                double dblbuf[dimsize];
-                if ( swapvert )
-                {   // Vertikal umdrehen
-                    for ( hsize_t r=0; r<dims_out[0]; r++ )     // y
-                        for ( hsize_t c=0; c<dims_out[1]; c++ ) // x
-                            dblbuf[XY2IDX(0,dims_out[1],0,dims_out[0],c,r)] = buffer[XY2IDX(0,dims_out[1],0,dims_out[0],c,dims_out[0]-r-1)];
-                    //#define XY2IDX(X0,X1,Y0,Y1,x,y) ((-X0 + (x)) + (X1-X0)*(-Y0 + (y)))
+                double *dblbuf;
+                hsize_t dim_x, dim_y;
+#ifndef CONSOLENPROG
+                if ( dimdiff && (onlyOneImg || (dlg != nullptr && dlg->makeSquare())) )
+#else
+                if ( dimdiff )
+#endif
+                {   // onlyOneImg=true beim Fit2D und der geht nur mit quadratischen Bildern.
+                    dblbuf = new double[dimmax*dimmax];
+                    dim_x  = dimmax; // dims_out[1];
+                    dim_y  = dimmax; // dims_out[0];
+                    int fac_x = dimmax / dims_out[1];
+                    int fac_y = dimmax / dims_out[0];
+                    //qDebug() << fac_x << fac_y << swapvert;
 
-                }
+                    if ( swapvert )
+                    {   // Vertikal umdrehen
+                        for ( hsize_t r=0; r<dims_out[0]; r++ )     // y
+                            for ( hsize_t c=0; c<dims_out[1]; c++ ) // x
+                            {
+                                double tmp = buffer[XY2IDX(0,dims_out[1],0,dims_out[0],c,dims_out[0]-r-1)];
+                                for ( int rr=0; rr<fac_y; rr++ )
+                                    for ( int cc=0; cc<fac_x; cc++ )
+                                        dblbuf[XY2IDX(0,dim_x,0,dim_y,c*fac_x+cc,r*fac_y+rr)] = tmp;
+                            }
+                        //#define XY2IDX(X0,X1,Y0,Y1,x,y) ((-X0 + (x)) + (X1-X0)*(-Y0 + (y)))
+                    }
+                    else
+                    {   // Daten nur Formatmäßig kopieren
+                        for ( hsize_t r=0; r<dims_out[0]; r++ )     // y
+                            for ( hsize_t c=0; c<dims_out[1]; c++ ) // x
+                            {
+                                double tmp = buffer[XY2IDX(0,dims_out[1],0,dims_out[0],c,r)];
+                                for ( int rr=0; rr<fac_y; rr++ )
+                                    for ( int cc=0; cc<fac_x; cc++ )
+                                        dblbuf[XY2IDX(0,dim_x,0,dim_y,c*fac_x+cc,r*fac_y+rr)] = tmp;
+                            }
+                        //#define XY2IDX(X0,X1,Y0,Y1,x,y) ((-X0 + (x)) + (X1-X0)*(-Y0 + (y)))
+                    }
+                } // if makeSquare()
                 else
-                {   // Daten nur Formatmäßig kopieren
-                    int    *pi = buffer;
-                    double *pd = dblbuf;
-                    for ( size_t i=0; i<dimsize; i++ ) *(pd++) = *(pi++);
-                }
-                widImage* img = add( 0, dims_out[1], 0, dims_out[0], dblbuf, "HDF5-Image" );
+                {
+                    dblbuf = new double[dimsize];
+                    dim_x=dims_out[1];
+                    dim_y=dims_out[0];
+                    if ( swapvert )
+                    {   // Vertikal umdrehen
+                        for ( hsize_t r=0; r<dim_y; r++ )     // y
+                            for ( hsize_t c=0; c<dim_x; c++ ) // x
+                                dblbuf[XY2IDX(0,dim_x,0,dim_y,c,r)] = buffer[XY2IDX(0,dim_x,0,dim_y,c,dim_y-r-1)];
+                        //#define XY2IDX(X0,X1,Y0,Y1,x,y) ((-X0 + (x)) + (X1-X0)*(-Y0 + (y)))
+                    }
+                    else
+                    {   // Daten nur Formatmäßig kopieren
+                        int    *pi = buffer;
+                        double *pd = dblbuf;
+                        for ( size_t i=0; i<dimsize; i++ ) *(pd++) = *(pi++);
+                    }
+                } // if ! makeSquare()
+
+                widImage* img = add( 0, dim_x, 0, dim_y, dblbuf, "HDF5-Image" );
                 img->addMetaInfo( "Dataset", dsname );
                 img->addMetaInfo( "From File", fn );    // HDF5 (Int)
-                img->addMetaInfo( "NbRows", QString::number(dims_out[0]) );
-                img->addMetaInfo( "NbCols", QString::number(dims_out[1]) );
+                img->addMetaInfo( "NbRows", QString::number(dim_y) );
+                img->addMetaInfo( "NbCols", QString::number(dim_x) );
                 //img->addMetaInfo( "BeamPosX", QString::number(BeamPosX) );
                 //img->addMetaInfo( "BeamPosY", QString::number(BeamPosY) );
                 //img->addMetaInfo( "wavelength", wavelen );
@@ -1120,7 +1196,7 @@ widImage *SC_ReadData::readImageHDF5( myAddImage add, QString fn, bool onlyOneIm
             }
             else if ( type_class == H5T_FLOAT )
             {
-                qDebug() << "**FLOAT**" << dimsize;
+                //qDebug() << "**FLOAT**" << dimsize; // TODO: makesquare
 
                 float buffer[dimsize];
                 dataset.read( buffer, PredType::NATIVE_FLOAT ); // , memspace, dataspace );
@@ -1154,12 +1230,18 @@ widImage *SC_ReadData::readImageHDF5( myAddImage add, QString fn, bool onlyOneIm
                 //img->addMetaInfo( "Pixel_Y", QString::number(5.3) );
                 images.append(img);
             }
+#ifndef CONSOLENPROG
             else
             {
                 qDebug() << "Invalid data type";
             }
+#endif
             dataset.close();
+#ifndef CONSOLENPROG
             if ( onlyOneImg ) break; // Automatic fit sollte nur ein Image lesen
+#else
+            break;
+#endif
         } // foreach ( QString dsname, slHdfPathImages )
 
     }
@@ -1223,7 +1305,9 @@ int SC_ReadData::iterate( QString file_name, QString grp_path, const hid_t loc_i
         case H5G_DATASET:
         {
             hid_t did, sid, ftid, mtid;
-            size_t datatype_size;
+#ifndef CONSOLENPROG
+            size_t datatype_size;   // Only for debug
+#endif
             H5T_sign_t datatype_sign;
             H5T_class_t datatype_class;
             hsize_t dims[H5S_MAX_RANK];
@@ -1239,7 +1323,9 @@ int SC_ReadData::iterate( QString file_name, QString grp_path, const hid_t loc_i
             ///////////////////////////////////////////////////////////////////////////////////////
             //store datatype sizes and metadata needed to display HDF5 buffer data
             ///////////////////////////////////////////////////////////////////////////////////////
+#ifndef CONSOLENPROG
             datatype_size = H5Tget_size(mtid); // ) == 0)
+#endif
             datatype_sign = H5Tget_sign(mtid); // ) < 0)
             datatype_class = H5Tget_class(mtid); // ) < 0)
             H5Sclose(sid);
@@ -1250,7 +1336,11 @@ int SC_ReadData::iterate( QString file_name, QString grp_path, const hid_t loc_i
                                          "Array" };
             if ( datatype_class == H5T_NO_CLASS ||
                  datatype_class >= static_cast<int>(sizeof(dtc2str)/sizeof(dtc2str[0])) )
+            {
+#ifndef CONSOLENPROG
                 qDebug() << "dataset" << path << datatype_size << datatype_sign << "*DataTypeClass ERROR*";
+#endif
+            }
             else
             {
                 QString tmp = "Dims:";
@@ -1277,8 +1367,9 @@ int SC_ReadData::iterate( QString file_name, QString grp_path, const hid_t loc_i
                         break;
                     case H5T_INTEGER:    //= 0,  /**< integer types                           */
                     {
+#ifndef CONSOLENPROG
                         qDebug() << "dataset" << grp_path << info.name << datatype_size << "Bytes" << sign + dtc2str[datatype_class] << tmp;
-
+#endif
                         //int val;
 
                         //hid_t attr = H5Aopen_by_name(did, qPrintable(grp_path), info.name, H5P_DEFAULT, H5P_DEFAULT);
@@ -1341,7 +1432,9 @@ int SC_ReadData::iterate( QString file_name, QString grp_path, const hid_t loc_i
                         break;
                     }
                 }
+#ifndef CONSOLENPROG
                 //qDebug() << "dataset" << path << datatype_size << "Bytes" << sign + dtc2str[datatype_class] << tmp;
+#endif
                 slHdfPathAll << path + "  (" + sign + dtc2str[datatype_class] + ", " + tmp + ")";
                 if ( rank >= 2 && !allDimsOne /*&& dims[rank-1] >= 32 && dims[rank-2] >= 32*/ )    // TODO: sind Bilder kleiner 32*32 sinnvoll?
                     slHdfPathImages << path; // + "  (" + sign + dtc2str[datatype_class] + ", " + tmp + ")";
@@ -1368,7 +1461,9 @@ widImage *SC_ReadData::readImage2dSans( myAddImage add, QString fn )
     QFile fimg(fn);
     if ( ! fimg.open(QIODevice::ReadOnly) )
     {
+#ifndef CONSOLENPROG
         qDebug() << fimg.fileName() << fimg.errorString();
+#endif
         return nullptr;
     }
 
@@ -1403,7 +1498,7 @@ widImage *SC_ReadData::readImage2dSans( myAddImage add, QString fn )
                 break;
             case QXmlStreamReader::EndDocument:
                 // The reader reports the end of the document.
-                qDebug() << "END doc" << path;
+                //qDebug() << "END doc" << path;
                 break;
             case QXmlStreamReader::StartElement:
                 // The reader reports the start of an element with namespaceUri() and name().
@@ -1436,7 +1531,7 @@ widImage *SC_ReadData::readImage2dSans( myAddImage add, QString fn )
                           xml.name() == "date" )
                 {
                     tmp = xml.readElementText();
-                    qDebug() << path << xml.name() << tmp;
+                    //qDebug() << path << xml.name() << tmp;
                     if ( ! tmp.isEmpty() )
                         metadata.insert( path.join("/")+"/"+xml.name(), tmp );
                 }
@@ -1479,8 +1574,10 @@ widImage *SC_ReadData::readImage2dSans( myAddImage add, QString fn )
         }
         if ( xml.hasError() )
         {
+#ifndef CONSOLENPROG
             qDebug() << "Read Error:" << xml.errorString()
                      << "Line" << xml.lineNumber(); // , columnNumber(), and characterOffset() ;
+#endif
             fimg.close();
             return nullptr;
         }
@@ -1528,7 +1625,7 @@ widImage *SC_ReadData::readImage2dSans( myAddImage add, QString fn )
             }
         }
         //qDebug() << daten;
-        qDebug() << daten.size();
+        //qDebug() << daten.size();
 
         fimg.close();
     } // csv
@@ -1574,10 +1671,10 @@ widImage *SC_ReadData::readImage2dSans( myAddImage add, QString fn )
             if ( line.length() < 2 ) continue; // Leerzeilen werden ignoriert
             if ( hdr )
             {   // Header
-                qDebug() << line;
+                //qDebug() << line;
                 if ( line.startsWith("Data columns") )
                 {
-                    qDebug() << "COLS:" << line;
+                    //qDebug() << "COLS:" << line;
                     line.replace("Data columns ","");
                     line.replace("are ","");
                     cols = line.split(" - ");
@@ -1587,7 +1684,7 @@ widImage *SC_ReadData::readImage2dSans( myAddImage add, QString fn )
                             index = i;
                             break;
                         }
-                    qDebug() << "     " << cols << index;
+                    //qDebug() << "     " << cols << index;
                 }
                 else if ( line.startsWith("ASCII") )
                 {
@@ -1621,7 +1718,7 @@ widImage *SC_ReadData::readImage2dSans( myAddImage add, QString fn )
         NbRows = sqrt( daten.size() );
         if ( NbRows < 2 ) NbRows = 2;
         NbCols = daten.size() / NbRows;
-        qDebug() << daten.size() << NbRows << NbCols;
+        //qDebug() << daten.size() << NbRows << NbCols;
         fimg.close();
     }
     else
@@ -1662,7 +1759,9 @@ widImage *SC_ReadData::readImageEDF( myAddImage add, QString fn )
     QFile fimg(fn);
     if ( ! fimg.open(QIODevice::ReadOnly) )
     {
+#ifndef CONSOLENPROG
         qDebug() << fimg.fileName() << fimg.errorString();
+#endif
         return nullptr;
     }
     QString line;
@@ -1724,7 +1823,9 @@ widImage *SC_ReadData::readImageEDF( myAddImage add, QString fn )
 
     if ( line.startsWith("EDF_DataFormatVersion") )
     {
+#ifndef CONSOLENPROG
         qDebug() << "ATTN: more than 1 DataBlock per file. FileType 'K2' is not supported."; // TODO
+#endif
         fimg.close();
         return nullptr;
     }
@@ -1961,7 +2062,9 @@ widImage *SC_ReadData::readImageEDF( myAddImage add, QString fn )
 
     else
     {
+#ifndef CONSOLENPROG
         qDebug() << "EdfDataClick: data format not supported";
+#endif
         fimg.close();
         return nullptr;
     }
@@ -2009,7 +2112,9 @@ widImage *SC_ReadData::readImageSpreadsheet( myAddImage add, QString fn )
     QFile fimg(fn);
     if ( ! fimg.open(QIODevice::ReadOnly) )
     {
+#ifndef CONSOLENPROG
         qDebug() << fimg.fileName() << fimg.errorString();
+#endif
         return nullptr;
     }
 

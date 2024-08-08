@@ -3311,7 +3311,31 @@ with file definitions</string>
         <string>Random modifications</string>
        </attribute>
        <layout class="QGridLayout" name="gridLayout_25">
-        <item row="2" column="2" rowspan="7">
+        <item row="9" column="1">
+         <widget class="QPushButton" name="butTPVstart">
+          <property name="font">
+           <font>
+            <bold>true</bold>
+           </font>
+          </property>
+          <property name="text">
+           <string>Start</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0" colspan="3">
+         <widget class="QLabel" name="label_31">
+          <property name="font">
+           <font>
+            <bold>true</bold>
+           </font>
+          </property>
+          <property name="text">
+           <string>Definitions for the generation of randomly modified simulation datasets</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="2" rowspan="8">
          <layout class="QVBoxLayout" name="verticalLayout_12">
           <item>
            <widget class="QLabel" name="lblTPVbackProc">
@@ -3332,10 +3356,223 @@ with file definitions</string>
           </item>
          </layout>
         </item>
+        <item row="1" column="2">
+         <widget class="QGroupBox" name="grpTPVoutPath">
+          <property name="title">
+           <string>Output path</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_26">
+           <item row="0" column="1">
+            <widget class="QLineEdit" name="inpTPVoutPath"/>
+           </item>
+           <item row="0" column="2">
+            <widget class="QPushButton" name="butTPVoutPath">
+             <property name="maximumSize">
+              <size>
+               <width>30</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1" colspan="2">
+            <widget class="QLabel" name="label_45">
+             <property name="text">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Below this path the subdirectories &lt;span style=&quot; font-weight:600;&quot;&gt;scat&lt;/span&gt;, &lt;span style=&quot; font-weight:600;&quot;&gt;rphi&lt;/span&gt;, &lt;span style=&quot; font-weight:600;&quot;&gt;fft&lt;/span&gt; are created.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="4" column="0" rowspan="6">
+         <widget class="QGroupBox" name="grpTPVothers">
+          <property name="title">
+           <string>Other settings</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_24">
+           <item row="2" column="2">
+            <widget class="QSpinBox" name="inpTPVaddLinesV">
+             <property name="prefix">
+              <string>V=</string>
+             </property>
+             <property name="maximum">
+              <number>10</number>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="1" colspan="2">
+            <widget class="QCheckBox" name="togTPVcalcFFT">
+             <property name="text">
+              <string>calculate FFT</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QCheckBox" name="togTPVaddLines">
+             <property name="text">
+              <string>Add a number of blind lines</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QSpinBox" name="inpTPVaddLinesH">
+             <property name="prefix">
+              <string>H=</string>
+             </property>
+             <property name="maximum">
+              <number>10</number>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="0">
+            <widget class="QCheckBox" name="togTPVcalcRphi">
+             <property name="text">
+              <string>calculate (r,phi)-Plot</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1" colspan="2">
+            <widget class="QCheckBox" name="togTPVaddBS">
+             <property name="text">
+              <string>Add Beam Stop</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="lblTPVaddLines">
+             <property name="text">
+              <string>width of the lines:</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="10" column="0">
+            <widget class="QLabel" name="label_50">
+             <property name="text">
+              <string>Number of images to generate:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="10" column="1">
+            <widget class="QSpinBox" name="inpTPVnumimg"/>
+           </item>
+           <item row="4" column="0">
+            <widget class="QCheckBox" name="togTPVconvolute">
+             <property name="text">
+              <string>Convolute</string>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="0" colspan="3">
+            <widget class="QCheckBox" name="togTPVsaveBaseExtra">
+             <property name="text">
+              <string>Save unmodified images in separate directory</string>
+             </property>
+            </widget>
+           </item>
+           <item row="9" column="0" colspan="3">
+            <widget class="QCheckBox" name="togTPVgeneratePNG">
+             <property name="text">
+              <string>Generate PNG Imagefiles for each SPR file</string>
+             </property>
+            </widget>
+           </item>
+           <item row="8" column="0" colspan="3">
+            <widget class="QCheckBox" name="togTPVscaleScat">
+             <property name="text">
+              <string>Scale scat images to [0 .. 1]</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="0">
+            <widget class="QCheckBox" name="togTPVaddNoise">
+             <property name="text">
+              <string>Add noise</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QSpinBox" name="inpTPVaddLinesHwidth">
+             <property name="prefix">
+              <string>H=</string>
+             </property>
+             <property name="minimum">
+              <number>1</number>
+             </property>
+             <property name="maximum">
+              <number>20</number>
+             </property>
+             <property name="value">
+              <number>2</number>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="2">
+            <widget class="QSpinBox" name="inpTPVaddLinesVwidth">
+             <property name="prefix">
+              <string>V=</string>
+             </property>
+             <property name="minimum">
+              <number>1</number>
+             </property>
+             <property name="maximum">
+              <number>20</number>
+             </property>
+             <property name="value">
+              <number>2</number>
+             </property>
+            </widget>
+           </item>
+           <item row="11" column="0" colspan="3">
+            <widget class="QPushButton" name="butTPVupdateAllFiles">
+             <property name="text">
+              <string>Update settings to all *.sas_tpv files</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
         <item row="5" column="1">
          <widget class="QPushButton" name="butTPVloadOptions">
           <property name="text">
            <string>load options</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="1">
+         <widget class="QPushButton" name="butTPVsaveOptions">
+          <property name="text">
+           <string>save options</string>
+          </property>
+         </widget>
+        </item>
+        <item row="10" column="0">
+         <spacer name="verticalSpacer_8">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item row="7" column="1">
+         <widget class="QPushButton" name="butTPVreadTrainingTable">
+          <property name="text">
+           <string>Train.table</string>
           </property>
          </widget>
         </item>
@@ -3931,240 +4168,16 @@ with file definitions</string>
           </layout>
          </widget>
         </item>
-        <item row="9" column="0">
-         <spacer name="verticalSpacer_8">
-          <property name="orientation">
-           <enum>Qt::Vertical</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
+        <item row="6" column="1">
+         <widget class="QLabel" name="label_63">
+          <property name="maximumSize">
            <size>
-            <width>20</width>
+            <width>16777215</width>
             <height>40</height>
            </size>
           </property>
-         </spacer>
-        </item>
-        <item row="1" column="2">
-         <widget class="QGroupBox" name="grpTPVoutPath">
-          <property name="title">
-           <string>Output path</string>
-          </property>
-          <layout class="QGridLayout" name="gridLayout_26">
-           <item row="0" column="1">
-            <widget class="QLineEdit" name="inpTPVoutPath"/>
-           </item>
-           <item row="0" column="2">
-            <widget class="QPushButton" name="butTPVoutPath">
-             <property name="maximumSize">
-              <size>
-               <width>30</width>
-               <height>16777215</height>
-              </size>
-             </property>
-             <property name="text">
-              <string>...</string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="1" colspan="2">
-            <widget class="QLabel" name="label_45">
-             <property name="text">
-              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Below this path the subdirectories &lt;span style=&quot; font-weight:600;&quot;&gt;scat&lt;/span&gt;, &lt;span style=&quot; font-weight:600;&quot;&gt;rphi&lt;/span&gt;, &lt;span style=&quot; font-weight:600;&quot;&gt;fft&lt;/span&gt; are created.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignCenter</set>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item row="4" column="1">
-         <widget class="QPushButton" name="butTPVsaveOptions">
           <property name="text">
-           <string>save options</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="0" colspan="3">
-         <widget class="QLabel" name="label_31">
-          <property name="font">
-           <font>
-            <bold>true</bold>
-           </font>
-          </property>
-          <property name="text">
-           <string>Definitions for the generation of randomly modified simulation datasets</string>
-          </property>
-         </widget>
-        </item>
-        <item row="4" column="0" rowspan="5">
-         <widget class="QGroupBox" name="grpTPVothers">
-          <property name="title">
-           <string>Other settings</string>
-          </property>
-          <layout class="QGridLayout" name="gridLayout_24">
-           <item row="2" column="2">
-            <widget class="QSpinBox" name="inpTPVaddLinesV">
-             <property name="prefix">
-              <string>V=</string>
-             </property>
-             <property name="maximum">
-              <number>10</number>
-             </property>
-            </widget>
-           </item>
-           <item row="6" column="1" colspan="2">
-            <widget class="QCheckBox" name="togTPVcalcFFT">
-             <property name="text">
-              <string>calculate FFT</string>
-             </property>
-            </widget>
-           </item>
-           <item row="2" column="0">
-            <widget class="QCheckBox" name="togTPVaddLines">
-             <property name="text">
-              <string>Add a number of blind lines</string>
-             </property>
-            </widget>
-           </item>
-           <item row="2" column="1">
-            <widget class="QSpinBox" name="inpTPVaddLinesH">
-             <property name="prefix">
-              <string>H=</string>
-             </property>
-             <property name="maximum">
-              <number>10</number>
-             </property>
-            </widget>
-           </item>
-           <item row="6" column="0">
-            <widget class="QCheckBox" name="togTPVcalcRphi">
-             <property name="text">
-              <string>calculate (r,phi)-Plot</string>
-             </property>
-            </widget>
-           </item>
-           <item row="0" column="1" colspan="2">
-            <widget class="QCheckBox" name="togTPVaddBS">
-             <property name="text">
-              <string>Add Beam Stop</string>
-             </property>
-            </widget>
-           </item>
-           <item row="3" column="0">
-            <widget class="QLabel" name="lblTPVaddLines">
-             <property name="text">
-              <string>width of the lines:</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item row="10" column="0">
-            <widget class="QLabel" name="label_50">
-             <property name="text">
-              <string>Number of images to generate:</string>
-             </property>
-            </widget>
-           </item>
-           <item row="10" column="1">
-            <widget class="QSpinBox" name="inpTPVnumimg"/>
-           </item>
-           <item row="4" column="0">
-            <widget class="QCheckBox" name="togTPVconvolute">
-             <property name="text">
-              <string>Convolute</string>
-             </property>
-            </widget>
-           </item>
-           <item row="7" column="0" colspan="3">
-            <widget class="QCheckBox" name="togTPVsaveBaseExtra">
-             <property name="text">
-              <string>Save unmodified images in separate directory</string>
-             </property>
-            </widget>
-           </item>
-           <item row="9" column="0" colspan="3">
-            <widget class="QCheckBox" name="togTPVgeneratePNG">
-             <property name="text">
-              <string>Generate PNG Imagefiles for each SPR file</string>
-             </property>
-            </widget>
-           </item>
-           <item row="8" column="0" colspan="3">
-            <widget class="QCheckBox" name="togTPVscaleScat">
-             <property name="text">
-              <string>Scale scat images to [0 .. 1]</string>
-             </property>
-            </widget>
-           </item>
-           <item row="0" column="0">
-            <widget class="QCheckBox" name="togTPVaddNoise">
-             <property name="text">
-              <string>Add noise</string>
-             </property>
-            </widget>
-           </item>
-           <item row="3" column="1">
-            <widget class="QSpinBox" name="inpTPVaddLinesHwidth">
-             <property name="prefix">
-              <string>H=</string>
-             </property>
-             <property name="minimum">
-              <number>1</number>
-             </property>
-             <property name="maximum">
-              <number>20</number>
-             </property>
-             <property name="value">
-              <number>2</number>
-             </property>
-            </widget>
-           </item>
-           <item row="3" column="2">
-            <widget class="QSpinBox" name="inpTPVaddLinesVwidth">
-             <property name="prefix">
-              <string>V=</string>
-             </property>
-             <property name="minimum">
-              <number>1</number>
-             </property>
-             <property name="maximum">
-              <number>20</number>
-             </property>
-             <property name="value">
-              <number>2</number>
-             </property>
-            </widget>
-           </item>
-           <item row="11" column="0" colspan="3">
-            <widget class="QPushButton" name="butTPVupdateAllFiles">
-             <property name="text">
-              <string>Update settings to all *.sas_tpv files</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item row="8" column="1">
-         <widget class="QPushButton" name="butTPVstart">
-          <property name="font">
-           <font>
-            <bold>true</bold>
-           </font>
-          </property>
-          <property name="text">
-           <string>Start</string>
-          </property>
-         </widget>
-        </item>
-        <item row="6" column="1">
-         <widget class="QPushButton" name="butTPVreadTrainingTable">
-          <property name="text">
-           <string>Train.table</string>
+           <string/>
           </property>
          </widget>
         </item>
@@ -5122,29 +5135,16 @@ with file definitions</string>
           <item>
            <widget class="QGroupBox" name="grpTimingInfo">
             <property name="title">
-             <string>Timing informations</string>
+             <string>Timing informations and other settings</string>
             </property>
             <layout class="QGridLayout" name="gridLayout_5">
-             <item row="4" column="0">
-              <widget class="QCheckBox" name="togLimitRuntime">
+             <item row="2" column="0" colspan="2">
+              <widget class="QCheckBox" name="togIgnoreUpdates">
                <property name="toolTip">
-                <string/>
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When this is checked, the updates are ignored. This means the calculation with remote operation is faster.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="text">
-                <string>Limit running time to</string>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="1">
-              <widget class="QSpinBox" name="inpNumCores">
-               <property name="toolTip">
-                <string>Set to zero to activate the GPU if available.</string>
-               </property>
-               <property name="specialValueText">
-                <string>GPU</string>
-               </property>
-               <property name="minimum">
-                <number>0</number>
+                <string>No GUI updates at each step</string>
                </property>
               </widget>
              </item>
@@ -5155,6 +5155,39 @@ with file definitions</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="label_21">
+               <property name="text">
+                <string>Time of last calculation:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="0">
+              <widget class="QCheckBox" name="togLimitRuntime">
+               <property name="toolTip">
+                <string/>
+               </property>
+               <property name="text">
+                <string>Limit running time to</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QLabel" name="lblTimeUsed">
+               <property name="minimumSize">
+                <size>
+                 <width>60</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>555555 ms</string>
                </property>
               </widget>
              </item>
@@ -5177,43 +5210,36 @@ with file definitions</string>
                </property>
               </widget>
              </item>
-             <item row="1" column="1">
-              <widget class="QLabel" name="lblTimeUsed">
-               <property name="minimumSize">
-                <size>
-                 <width>60</width>
-                 <height>0</height>
-                </size>
-               </property>
-               <property name="text">
-                <string>555555 ms</string>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="0" colspan="2">
-              <widget class="QCheckBox" name="togIgnoreUpdates">
+             <item row="0" column="1">
+              <widget class="QSpinBox" name="inpNumCores">
                <property name="toolTip">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When this is checked, the updates are ignored. This means the calculation with remote operation is faster.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                <string>Set to zero to activate the GPU if available.</string>
                </property>
-               <property name="text">
-                <string>No GUI updates at each step</string>
+               <property name="specialValueText">
+                <string>GPU</string>
                </property>
-              </widget>
-             </item>
-             <item row="1" column="0">
-              <widget class="QLabel" name="label_21">
-               <property name="text">
-                <string>Time of last calculation:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+               <property name="minimum">
+                <number>0</number>
                </property>
               </widget>
              </item>
-             <item row="5" column="0" colspan="2">
+             <item row="5" column="0">
               <widget class="QCheckBox" name="togIgnNewSwitch">
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;There is one general calculation routine and some specialized routines. The specialized routines are called inside a switch function. If this is checked, the calculation is done only in the general routine.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
                <property name="text">
                 <string>Ignore new switch functions</string>
+               </property>
+              </widget>
+             </item>
+             <item row="6" column="0" colspan="2">
+              <widget class="QCheckBox" name="togUseAdaptiveStep">
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If checked, all input fields use an Adaptive decimal step. This means that the step size (for the up/down arrows) will continuously be adjusted to one power of ten below the current value.&lt;/p&gt;&lt;p&gt;If not checked, then the up/down arrows makes steps of 1.&lt;/p&gt;&lt;p&gt;The page up/down makes a step of 10 times the arrow step size.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               </property>
+               <property name="text">
+                <string>Input fields use Adaptive decimal step</string>
                </property>
               </widget>
              </item>

@@ -43,7 +43,7 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
     {
         calc->updateParamValue( indVec[j]/*Parametername*/, params[j]/*Wert dazu*/
 #ifndef CONSOLENPROG
-                               , Qt::black, false );
+                               , SETCOLMARK_IGNORED, false/*ohne Debug*/ );
 #else
                                 );
 #endif
@@ -218,7 +218,7 @@ double SasCalc_SimplexFit2D::amotry( int numThreads,
         {
             sum[j] += ptry[j]-p[ihi][j]; // (* Centrum schon mal umrechnen *)
             p[ihi][j]=ptry[j];           // (* Vertex durch Testvertex ersetzen *)
-            /*DBGMODIFY(*/ qDebug() << "amotry set" << ihi << j << "=" << p[ihi][j]; /*)*/
+            DBGMODIFY( qDebug() << "amotry set" << ihi << j << "=" << p[ihi][j]; )
         }
     }
     return ytry; // (* gibt y = FQS des Testvertex zurück *)
@@ -300,8 +300,10 @@ void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit,
 #ifndef CONSOLENPROG
 #ifdef FITDATA_IN_GPU  // init fit (no Console)
     useGpuFit = calc->setFitData( _xmax - _xmin, _ymax - _ymin, intensityForFit );
-    qDebug() << "Fit: useGpu =" << useGpuFit;
+    //qDebug() << "Fit: useGpu =" << useGpuFit;
 #endif
+#else
+    useGpuFit = false;  // Wenn CONSOLENPROG
 #endif
 
     QString info;   // For informations from fehlerquadratsumme()
@@ -347,9 +349,9 @@ void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit,
             step[i] = 0.0;
         pp[i]   = step[i] * (rootn1+mmax)*mroot2;
         q[i]    = step[i] * rootn1*mroot2;
-        if ( enabled[i] )
-            qDebug() << indVec[i] << "Val" << values[i] << "Step" << step[i]
-                        << "pp,q,psum" << pp[i] << q[i] << psum[i];
+        //if ( enabled[i] )
+        //    qDebug() << indVec[i] << "Val" << values[i] << "Step" << step[i]
+        //                << "pp,q,psum" << pp[i] << q[i] << psum[i];
     }
     for ( int i=mmax; i<map; i++ )
     {
@@ -467,7 +469,7 @@ void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit,
             }
         }
 
-        if ( fabs(y[ihi]) + fabs(y[ilo]) == 0 )
+        if ( isnan(y[ihi]) || isnan(y[ilo]) || fabs(y[ihi])+fabs(y[ilo]) == 0 )
         {   // ==> rtol=nan, makes no sense...
             aborted = true;
             qDebug() << "ABORT rtol=NaN";
@@ -478,7 +480,7 @@ void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit,
         double rtol = 2.0 * fabs( y[ihi] - y[ilo] ) / ( fabs(y[ihi]) + fabs(y[ilo]) );
 
         if ( isnan(rtol) )
-            qDebug() << "rtol=NAN" << ihi << ilo << y[ihi] << y[ilo];
+            qDebug() << "rtol=NAN, ihi, ilo, yhi, ylo:" << ihi << ilo << y[ihi] << y[ilo];
 
         if ( progLogging )
         {

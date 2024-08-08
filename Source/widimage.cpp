@@ -26,6 +26,11 @@
 // die automatische Skalierung unbrauchbar wurde.
 
 
+#define CountNanValues
+// Wenn definiert, wird bei setData() die Anzahl der NaN Werte gezählt und mit qDebug() ausgegeben
+
+
+
 #define SETT_APP   "JCNS-1-SasCrystal"  // auch in sc_maingui.h
 #define SETT_IMG   "ImageScaling"
 
@@ -62,6 +67,7 @@ widImage::widImage( QString tit, QString dp, QWidget *parent ) :
     ui(new Ui::widImage),
     noGUI(false)
 {
+    useImageFileOnly = false;
     histoThread = nullptr;
     histogramValid = false;
     useResiduenColors = false;
@@ -175,6 +181,8 @@ void widImage::addMetaInfo( QString key, QString val )
         ui->tblMetaData->resizeColumnsToContents();
         return;
     }
+    if ( val == "?2" )
+        return;     // ReadOnly Parameter, werden im Laufe der Berechnungen bestimmt
     if ( key == "_Calculation_" )
         ui->grpImage->setTitle( "Image "+val );
     else if ( key == "From Image" )
@@ -366,7 +374,7 @@ QString widImage::metaInfo( QString key, QString def )
  * @param y1 - Y max
  * @param d  - data values
  */
-void widImage::setData( int x0, int x1, int y0, int y1, double *d )
+int widImage::setData( int x0, int x1, int y0, int y1, double *d )
 {
     //qDebug() << "widImage::setData(" << x0 << x1 << y0 << y1 << d << " )";
     if ( d == nullptr )
@@ -374,7 +382,7 @@ void widImage::setData( int x0, int x1, int y0, int y1, double *d )
 #ifndef CONSOLENPROG
         QMessageBox::critical( this, "No data", "No image data given", QMessageBox::Ok );
 #endif
-        return;
+        return -2;
     }
 
     // Preset internal structure
@@ -394,11 +402,17 @@ void widImage::setData( int x0, int x1, int y0, int y1, double *d )
     data.clear();
     int len = (x1-x0)*(y1-y0);
     //qDebug() << len;
+#ifdef CountNanValues
+    int cntNan=0;
+#endif
     data.reserve( len );
     for ( int i=0; i<len; i++ )
     {
         if ( isnan(*d) )
         {
+#ifdef CountNanValues
+            cntNan++;
+#endif
             d++;
             data.append(0.0);
         }
@@ -408,6 +422,12 @@ void widImage::setData( int x0, int x1, int y0, int y1, double *d )
 #ifdef CONSOLENPROG
     imgNoGUI = generateImage(); // Zum Abspeichern wichtig...
 #else
+    loadImageFile("");  // Reset disabled gui elements
+
+#ifdef CountNanValues
+    if ( cntNan > 0 ) qDebug() << "widImage::setData  len=" << len << ", NaN=" << cntNan;
+#endif
+
     histogramValid = false;
     if ( !noGUI )   // setData, ena cbs
     {
@@ -415,7 +435,11 @@ void widImage::setData( int x0, int x1, int y0, int y1, double *d )
         ui->cbsZoom->setEnabled(true);
     }
     on_butUpdate_clicked(); // Redraw Image
-    if ( noGUI ) return;    // setData
+#ifdef CountNanValues
+    if ( noGUI ) return cntNan;    // setData
+#else
+    if ( noGUI ) return -1;    // setData
+#endif
 //#ifndef NOADJUST
 // Hier noch ein adjustSize() zulassen, sonst ist das Fenster zu groß
 #ifdef IMG_ONE_WINDOW
@@ -427,7 +451,48 @@ void widImage::setData( int x0, int x1, int y0, int y1, double *d )
 //#endif
     raise(); // show Window on top of other windows
 #endif
+#ifdef CountNanValues
+    return cntNan;
+#else
+    return -1;
+#endif
 }
+
+
+#ifndef CONSOLENPROG
+/**
+ * @brief widImage::loadImageFile
+ * @param fn - imagefilename to load (if empty reset the disabled gui elements)
+ * @return true if successful, false if failed
+ * Load the given imagefile, disables all image manipulations in the gui.
+ */
+bool widImage::loadImageFile( QString fn )
+{
+    if ( fn.isEmpty() )
+    {
+        useImageFileOnly = false;
+        ui->grpScaling->setEnabled(true);
+        return true;
+    }
+    bool rv;
+    if ( noGUI )
+        rv = imgNoGUI.load(fn);
+    else
+        rv = imgNormal.load(fn);
+    if ( !rv )
+    {
+        useImageFileOnly = false;
+        ui->grpScaling->setEnabled(true);
+        return false;
+    }
+
+    useImageFileOnly = true;
+    ui->grpScaling->setEnabled(false);
+    update();
+    return true;
+}
+#endif
+
 
 void widImage::saveImage( QString fn )
 {
@@ -440,6 +505,7 @@ void widImage::saveImage( QString fn )
 bool widImage::saveImageColor(QString fn, QString coltbl, QString &dbg)
 {
 #ifndef CONSOLENPROG
+    if ( useImageFileOnly ) return false;
     QString savColTbl = ui->cbsColorTbl->currentText();
     //qDebug() << "saveImageColor" << fn << coltbl << "Old:" << savColTbl;
 #endif
@@ -729,7 +795,8 @@ void widImage::updateColortable( int *r, int *g, int *b )
 void widImage::on_butUpdate_clicked()
 {
     qApp->setOverrideCursor(Qt::WaitCursor);
-    imgNormal = generateImage();
+    if ( !useImageFileOnly )
+        imgNormal = generateImage();
     if ( imgNormal.isNull() )
     {
         if ( !noGUI )

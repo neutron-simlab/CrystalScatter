@@ -33,7 +33,7 @@
 //  bleiben die Labels so, wie die Parameternamen lauten. Hilfreich für erklärende Screenshots.
 
 
-#define ChatbotIgnoreImages
+//#define ChatbotIgnoreImages
 // Wenn definiert, werden die im Chatbot-Tab generierten Images nicht automatisch angezeigt.
 // Es werden ja nur PNG-Images erzeugt und keine normalen Datenfiles gesichert, die im Programm
 //  weiterverwendet werden könnten.
@@ -138,6 +138,7 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
         fileDir.cdUp();
     fileDir.cd( "data" );
     dataPath = fileDir.absolutePath();
+    lastDataFile = "";
     numberCounter = 0;
     closeMainActive = false;
 
@@ -1471,16 +1472,27 @@ QString SC_MainGUI::local_Load_all_Parameters(QString fn)
             QString mm = m;
             if ( mm.indexOf(" ") > 0 ) mm.truncate(mm.indexOf(" "));
             qDebug() << "Load spec" << m << mm;
+
+            // Suchen des richtigen LType-Wertes durch scan der Combobox-Texte
+            for ( int val=0; val<ui->cbsLType->count(); val++ )
+                if ( ui->cbsLType->itemText(val).startsWith(mm,Qt::CaseInsensitive) )
+                {
+                    calcGui->updateParamValue( "LType", val, SETCOLMARK_IGNORED, false );
+                    break;
+                }
+            /*
+            // Suchen des richtigen LType-Wertes mittels setzen und rücklesen
             int val = 0;
             while ( true )
             {
-                calcGui->updateParamValue( "LType", val, Qt::black, false );
+                calcGui->updateParamValue( "LType", val, SETCOLMARK_IGNORED, false );
                 QString tmp = calcGui->currentParamValueStr( "LType", true ); // hier in aktueller Methode suchen...
                 //qDebug() << "    " << val << tmp;
                 if ( tmp.isEmpty() || tmp[0] == '?' ) break; // Ende der Liste oder Fehlermeldung
                 if ( tmp.startsWith(mm,Qt::CaseInsensitive) ) break; // gefunden
                 val++;
             }
+            */
             rv = calcGui->loadParameter(fn,"@"+m,hklloaded,gridloaded);
             isloaded = true;
         }
@@ -1616,13 +1628,15 @@ widImage* SC_MainGUI::addImage( bool neu, int x0, int x1, int y0, int y1, double
     ui->butIFFT->setEnabled( images.size() > 0 );  // Add Img
     ui->butFFT->setEnabled( images.size() > 0 );  // Add Img
 
-    img->setData( x0, x1, y0, y1, d );
+    int cntNaN = img->setData( x0, x1, y0, y1, d );
     if ( meta )
     {   // Meta-Daten übertragen
         // Kommentar wird als Info über dem Image verwendet
         img->addMetaInfo( "_Calculation_", ui->txtComment->text() ); // calcGui->curMethod->subCalc->methodName() );
         // Das Flag für den neuen Switch wird ebenfalls kopiert
         img->addMetaInfo( "_OptimizedSwitch_", calcGui->getCalcPtr()->newSwitchUsed() ? "True" : "False" );
+        if ( cntNaN > 0 )
+            img->addMetaInfo( "_NaNvalues_", QString::number(cntNaN) );
         // Methodenspezifische Metadaten
         QHash<QString,paramHelper*>::iterator ip = calcGui->params.begin();
         while ( ip != calcGui->params.end() )
@@ -2123,6 +2137,7 @@ void SC_MainGUI::on_butOpenMeasFile_clicked()
                                        //QFileDialog::DontUseNativeDialog );
     if ( fn.isEmpty() ) return;
     data.setValue("LastImage",fn);
+    lastDataFile = fn;
     if ( ! local_OpenMeasFile(fn,nullptr) )
     {
         qDebug() << fn << "unknown format";
@@ -2176,7 +2191,7 @@ bool SC_MainGUI::local_OpenMeasFile( QString fn, widImage **imgout )
             img = SC_ReadData::readImage2dSans( myAddImage, fn );
     }
     qApp->restoreOverrideCursor();
-    qDebug() << "ReadData (1)" << tt.elapsed();
+    //qDebug() << "ReadData (1)" << tt.elapsed();
     if ( img == nullptr ) return false; // Lesefehler oder unbekannte Dateiendung
 
     if ( imgout != nullptr ) *imgout = img;
@@ -2184,7 +2199,7 @@ bool SC_MainGUI::local_OpenMeasFile( QString fn, widImage **imgout )
     // Jetzt werden noch Meta-Daten in die GUI kopiert. Das mache ich bei allen Datentypen,
     //  da ich nicht wissen kann, ob diese Meta-Infos nicht doch enthalten sind.
     copyMetaToLatticeTable( img );
-    qDebug() << "ReadData (2)" << tt.elapsed();
+    //qDebug() << "ReadData (2)" << tt.elapsed();
 
     // Datenfiles werden nie bei neuen Berechnungen automatisch überschrieben!
     ui->radLastImageCfg->setChecked( false );
@@ -3735,7 +3750,10 @@ bool SC_MainGUI::copyParamsToFitTable()
             fl->used     = slVal[0].toInt() != 0;
             fl->min      = slVal[1].toDouble();
             fl->max      = slVal[2].toDouble();
-            fl->fitType  = static_cast<_fitTypes>(slVal[3].toInt());
+            if ( fl->min >= fl->max || fl->max == 0 )
+                fl->fitType = _fitTypes::fitNone;       // Jetzt stimmen die Grenzen nicht, nehme die interne Struktur
+            else
+                fl->fitType  = static_cast<_fitTypes>(slVal[3].toInt());
             fitparams->insert( p, fl );
         }
         fl->orgval = fl->fitstart = calcGui->currentParamValueDbl( p );
@@ -3929,9 +3947,6 @@ void SC_MainGUI::on_butFitStart_clicked()
     //ui->butFitUseResult->setEnabled(false);
     //ui->butShowResiduen->setEnabled(false);
 
-    // Automatic button enabled => the start button was pressed
-    if ( savAutoEna ) fitIsRunning = true;
-
     // Get datapointer of selected image
     curFitImage = nullptr;
     for ( int i=0; i<images.size(); i++ )
@@ -3949,6 +3964,16 @@ void SC_MainGUI::on_butFitStart_clicked()
         //ui->butFitAutomatic->setEnabled(savAutoEna);
         return;
     }
+    if ( curFitImage->myHeight() != curFitImage->myWidth() )
+    {
+        ui->lisFitLog->addItem("None square images not working '"+ui->cbsFitImageWindows->currentText()+"'");
+        ui->butFitStart->setEnabled(true);
+        //ui->butFitAutomatic->setEnabled(savAutoEna);
+        return;
+    }
+
+    // Automatic button enabled => the start button was pressed
+    if ( savAutoEna ) fitIsRunning = true;
 
     // Jetzt erst noch alle (geänderten) Startwerte aus der Tabelle auslesen
     for ( int r=0; r<ui->tblFitValues->rowCount(); r++ )
@@ -4221,6 +4246,7 @@ void SC_MainGUI::on_butFitUseResult_clicked()
     }
     bIgnoreRecalc = savign;
 }
+
 
 void SC_MainGUI::on_radQ1_toggled(bool checked)
 {
@@ -4703,10 +4729,88 @@ void SC_MainGUI::autoProcessingTimer()
 }
 
 
+void SC_MainGUI::fitAutomaticCreateFile(dlgConfigAutoFit *dlg)
+{
+    if ( lastDataFile.isEmpty() )
+    {
+        QMessageBox::information(dlg,"Create automatic file","No datafile loaded, no automatic fit file is written.");
+        return;
+    }
+
+    QFile f(dlg->getFilename());
+    if ( !f.open(QIODevice::WriteOnly) )
+    {
+        QMessageBox::critical(dlg,"Open file error",f.fileName()+":\n"+f.errorString());
+        return;
+    }
+    f.write("# This file is generated from the current settings." EOL);
+    f.write("# Uncomment lines to activate the commands." EOL);
+    f.write(EOL);
+    f.write("# -- The following commands are interpreted during the first scan of the file:" EOL);
+    f.write(EOL);
+    f.write("# Scale: <min>, <max>  # this can be used to scale all images to the same range." EOL);
+    f.write("#                      otherwise all images are scaled to the min/max of the original image." EOL);
+    f.write(EOL);
+    QFileInfo fi(f.fileName());
+    f.write(qPrintable("GlobLog: "+fi.completeBaseName()+".log" EOL));
+    f.write("# The given filename (without path) is used for the global logfile." EOL);
+    f.write(EOL);
+    f.write(qPrintable("Param: "+ui->lblLoadFilename->text()+EOL));
+    f.write("# The parameter input file to be used during the fit as a first start." EOL);
+    f.write(EOL);
+    f.write("# DirMask: *.dat   # Filemask used for the DirUp / DirDown commands." EOL);
+    f.write("# DirUp: <dir>     # Directory to be scanned in alphanumeric ascending order." EOL);
+    f.write("# DirDown: <dir>   # Directory to be scanned in alphanumeric descending order." EOL);
+    f.write(qPrintable("File: "+lastDataFile+"  # Single file to be used (multiple occurances possible)." EOL));
+    f.write(EOL);
+    QStringList slUse, slRest;
+    for ( int r=0; r<ui->tblFitValues->rowCount(); r++ )
+    {
+        QString tmp = ui->tblFitValues->verticalHeaderItem(r)->text();
+        tblCheckBox *tog = static_cast<tblCheckBox*>(ui->tblFitValues->cellWidget(r,0));
+        if ( tog->tog()->isChecked() ) slUse << tmp; else slRest << tmp;
+        tmp = "Limits: "+tmp+QString("; %1; %2  # Min; Max")
+                                     .arg(ui->tblFitValues->item(r,1)->text(),
+                                          ui->tblFitValues->item(r,3)->text())+EOL;
+        f.write(qPrintable(tmp));
+    }
+    f.write(EOL);
+    f.write("# -- The following commands are interpreted for every input file." EOL);
+    f.write(EOL);
+    f.write("# Info: <text>  # This text (up to 20 chars) will be shown in the GUI." EOL);
+    f.write(EOL);
+    f.write("Threads: 0  # Number of threads to use (0=GPU if available)" EOL);
+    f.write(EOL);
+    f.write(qPrintable(QString("Border: %1; %2; %3" EOL)
+                           .arg(ui->inpFitBorder->value())
+                           .arg(ui->inpFitBStop->value())
+                           .arg(ui->togFitUseMask->isChecked()?1:0)));
+    f.write("# Border size; Beamstop half-size; Flag(0/1) to ignore pixel less equal corner pixel" EOL);
+    f.write(EOL);
+    f.write(qPrintable("Use: "+slUse.join(", ")+EOL));
+    f.write("# List of parameternames used during the next fit step." EOL);
+    f.write(qPrintable("# Rest of parameters selected for fit: "+slRest.join(", ")+EOL));
+    f.write(EOL);
+    f.write(qPrintable(QString("Fit: Stp=%1; Iter=%2; Tol=%3; Diff<5; Kenn=A-@D-@F" EOL)
+                           .arg(ui->inpFitStepSize->value(),0,'f',1)
+                           .arg(ui->inpFitMaxIter->value())
+                           .arg(ui->inpFitTolerance->text()) ));
+    f.write("# Perform one fit operation. The values of Stp= (Step size), Iter= (Maximum iterations)," EOL);
+    f.write("# Tol= (Tolerance) are the same as in the GUI used for this fit run. After each fit run" EOL);
+    f.write("# the percentual change of each parameter is summed up and if this sum is less than the" EOL);
+    f.write("# Diff= value the fit step is finished. If not, this fit run is repeated up to 20 times" EOL);
+    f.write("# to avoid endless loops. Kenn= is used for the logfiles of each run, @D is the current" EOL);
+    f.write("# date, @F is the current input file to fit, a runnumber is appended automatically." EOL);
+    f.close();
+}
+
+
 void SC_MainGUI::on_butFitAutomatic_clicked()
 {
     // Abfragen des Input-Files und diverser Flags
     dlgConfigAutoFit *dlgCfgAuto = new dlgConfigAutoFit( this );
+    connect( dlgCfgAuto, SIGNAL(fitAutoCreateFile(dlgConfigAutoFit*)),
+             this, SLOT(fitAutomaticCreateFile(dlgConfigAutoFit*)) );
     if ( dlgCfgAuto->exec() != QDialog::Accepted ) return;
     QString fnInput = dlgCfgAuto->getFilename();
 
@@ -4743,7 +4847,7 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
 
     ui->butFitAutomatic->setEnabled(false);
     fitIsRunning = true;
-    QString kenn = QDate::currentDate().toString("-yyyyMMdd-");
+    QString kenn = QDate::currentDate().toString("-yyyyMMdd-");     // Als Default
     bool firstScanOfFile = true;
     QString dirMask = "*";
     QStringList usedImages; // wird während des Abarbeitens geleert, daher kein Index nötig
@@ -4785,9 +4889,10 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
         while ( ! finp.atEnd() )
         {
             QString line = finp.readLine().trimmed();
+            int posc = line.indexOf("#");
+            if ( posc >= 0 ) { line.truncate(posc); line=line.trimmed(); }
             if ( line.isEmpty() ) continue;         // Ignore empty lines
             if ( firstScanOfFile ) slInputLines << line;
-            if ( line.startsWith("#") ) continue;   // Comment
 
 #ifdef Q_OS_LINUX
             line.replace( "C:/SimLab/", "/home/wagener/" );
@@ -4963,26 +5068,24 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
                 if ( line.startsWith("Limits:") )
                 {   // "Limits: Base; 0; 1000" Angabe von Grenzen der Parameter
                     QStringList sl = line.mid(7).trimmed().split(";");
+                    if ( sl.size() != 3 ) continue;     // Es müssen immer genau "Name;Min;Max" angegeben werden
                     for ( int i=0; i<sl.size(); i++ )
                         sl[i] = sl[i].trimmed();
                     _param2fitval *p2f = fitparams;
-                    if ( p2f != nullptr ) // TODO?
+                    if ( p2f != nullptr )
                     {
                         for ( int r=0; r<ui->tblFitValues->rowCount(); r++ )
                         {
                             QString p = ui->tblFitValues->verticalHeaderItem(r)->text();
                             if ( p == sl[0] )
                             {
-                                if ( sl.size() > 1 )
-                                {   // Minimum
-                                    ui->tblFitValues->item(r,1)->setText(sl[1]);
-                                    p2f->value(p)->min = sl[1].toDouble();
-                                }
-                                if ( sl.size() > 2 )
-                                {   // Maximum
-                                    ui->tblFitValues->item(r,3)->setText(sl[2]);
-                                    p2f->value(p)->max = sl[2].toDouble();
-                                }
+                                double min = sl[1].toDouble();
+                                double max = sl[2].toDouble();
+                                if ( min >= max ) break;
+                                ui->tblFitValues->item(r,1)->setText(sl[1]);
+                                p2f->value(p)->min = min;
+                                ui->tblFitValues->item(r,3)->setText(sl[2]);
+                                p2f->value(p)->max = max;
                                 break;
                             }
                         }
@@ -5047,7 +5150,23 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
                     }
                 }
                 continue;
-            } // "Use:"
+            }
+
+            if ( line.startsWith("Border:") )  // NEU 25.07.2024
+            {   // "Border: 0; 0; 0"
+                // Border size; Beamstop half-size; ignore pixel
+                lastAutoFitLine += "\n" + line;
+                ui->editAutoFit->appendPlainText(lastAutoFitLine);
+                QStringList slCmd = line.mid(7).trimmed().split(";");
+                for ( int i=0; i<slCmd.size(); i++ )
+                    slCmd[i] = slCmd[i].trimmed();
+                //qDebug() << slCmd;
+                while ( slCmd.size() < 3 ) slCmd << "0";
+                ui->inpFitBorder->setValue(slCmd[0].toInt());
+                ui->inpFitBStop->setValue(slCmd[1].toInt());
+                ui->togFitUseMask->setChecked(slCmd[2].toInt()!=0);
+                continue;
+            }
 
             // Neue Befehle (ANF) - zum (auch bedingtem) Setzen von Variablen
 
@@ -5153,6 +5272,7 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
                                 kenn = kenn.replace("@F", QFileInfo(usedImages.first()).baseName() );
                             else
                                 kenn = kenn.replace("@F", "" );
+                            if ( !kenn.endsWith("-") ) kenn += "-";  // Damit man den Zähler erkennt.
                         }
                 }
 #ifdef USEREPETITIONS
@@ -5171,6 +5291,13 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
                             if ( images.at(i)->windowTitle() == ui->cbsFitImageWindows->currentText() )
                             {
                                 lastFitImage = images.at(i);
+                                // Jetzt auch noch als _org abspeichern
+                                QString tmpfn = basePath + QFileInfo(usedImages.first()).baseName() + "_org.png";
+                                if ( useFixedScaling ) lastFitImage->setFixScaling( minFixedScale, maxFixedScale );
+                                lastFitImage->saveImage( tmpfn );
+                                if ( fglobLog ) fglobLog->write(qPrintable("Data file: "+usedImages.first()+EOL) );
+                                if ( ftex != nullptr && dlgCfgAuto->isLatexOrgImg() )
+                                    latexImg1 = tmpfn;
                                 break;
                             }
                         }
@@ -5185,7 +5312,22 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
                             ui->lblAutofitInfo->setText("NO FIT IMG");
                             ui->butFitAutomatic->setEnabled(true);
                             fitIsRunning = false;
-                            return; // TODO: Fehlermeldung
+                            QMessageBox::critical( this, "Fit image", "No fit image found", QMessageBox::Ok );
+                            return;
+                        }
+                        if ( lastFitImage != nullptr && lastFitImage->myHeight() != lastFitImage->myWidth() )
+                        {
+                            if ( fglobLog )
+                            {
+                                fglobLog->write(qPrintable("None square images not supported: "+usedImages.first()+EOL) );
+                                fglobLog->close();
+                            }
+                            if ( ftex ) ftex->close();
+                            ui->lblAutofitInfo->setText("None square data");
+                            ui->butFitAutomatic->setEnabled(true);
+                            fitIsRunning = false;
+                            QMessageBox::critical( this, "Fit image", "None square images not supported" EOL+usedImages.first(), QMessageBox::Ok );
+                            return;
                         }
                     }
                     if ( lastFitImage == nullptr || lastFitImage->getFileInfos()->filePath != usedImages.first() )
@@ -5206,7 +5348,22 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
                             ui->lblAutofitInfo->setText("NO MEAS FILE");
                             ui->butFitAutomatic->setEnabled(true);
                             fitIsRunning = false;
-                            return; // TODO: Fehlermeldung
+                            QMessageBox::critical( this, "Fit image", "File open error" EOL+usedImages.first(), QMessageBox::Ok );
+                            return;
+                        }
+                        if ( lastFitImage->myHeight() != lastFitImage->myWidth() )
+                        {
+                            if ( fglobLog )
+                            {
+                                fglobLog->write(qPrintable("None square images not supported: "+usedImages.first()+EOL) );
+                                fglobLog->close();
+                            }
+                            if ( ftex ) ftex->close();
+                            ui->lblAutofitInfo->setText("None square data");
+                            ui->butFitAutomatic->setEnabled(true);
+                            fitIsRunning = false;
+                            QMessageBox::critical( this, "Fit image", "None square images not supported" EOL+usedImages.first(), QMessageBox::Ok );
+                            return;
                         }
                         QString tmpfn = basePath + QFileInfo(usedImages.first()).baseName() + "_org.png";
                         if ( useFixedScaling ) lastFitImage->setFixScaling( minFixedScale, maxFixedScale );
@@ -5806,7 +5963,6 @@ void SC_MainGUI::on_butFitHistoClear_clicked()
     qDebug() << "nyi";
 #endif
 }
-
 
 
 void SC_MainGUI::compString( QLineEdit *inp, QSettings &sets, QString key, QString prmt)
@@ -6893,7 +7049,30 @@ void SC_MainGUI::on_butTPVreadTrainingTable_clicked()
     fin.seek(0);
     /*line =*/ fin.readLine();  // 1. Zeile (Dimensionen), die Werte dort brauche ich nicht
     /*line =*/ fin.readLine();  // 2. Zeile (Schlüssel), die Werte dort brauche ich jetzt nicht mehr
+
+    // Um einen besseren Startwert zu haben, versuche ich den LType anhand des Verzeichnis-Namens zu ermitteln
+    QString mm = QFileInfo(fin).absoluteDir().dirName();
+    int pos = mm.indexOf(QRegExp("[_ ]"));
+    //qDebug() << "TPV base" << fn << mm << pos;
+    if ( pos > 0 ) mm.truncate(pos);
+    // Suchen des richtigen LType-Wertes durch scan der Combobox-Texte
+    QString ltypeval = "";
+    int ltypeind = -1;
+    for ( int val=0; val<ui->cbsLType->count(); val++ )
+        if ( ui->cbsLType->itemText(val).startsWith(mm,Qt::CaseInsensitive) )
+        {
+            ltypeval = ui->cbsLType->itemText(val);
+            ltypeind = val;
+            break;
+        }
+
     QDialog *dlg = new QDialog(this);
+    QCheckBox *tog = nullptr;
+    if ( ltypeind >= 0 )
+    {
+        tog = new QCheckBox("Set LType to: "+ltypeval);
+        tog->setChecked(true);
+    }
     QLabel *lbl = new QLabel(QString("Enter run no to load (0 - %1):").arg(maxrun));
     QSpinBox *inp = new QSpinBox();
     inp->setRange( 0, maxrun );
@@ -6901,6 +7080,8 @@ void SC_MainGUI::on_butTPVreadTrainingTable_clicked()
     QVBoxLayout *lay = new QVBoxLayout();
     lay->addWidget(lbl);
     lay->addWidget(inp);
+    if ( ltypeind >= 0 )
+        lay->addWidget(tog);
     lay->addWidget(but);
     dlg->setLayout(lay);
     connect( but, SIGNAL(clicked()), dlg, SLOT(accept()) );
@@ -6908,6 +7089,9 @@ void SC_MainGUI::on_butTPVreadTrainingTable_clicked()
 
     int usedRun = inp->value();
     //qDebug() << usedRun;
+    if ( ltypeind >= 0 )
+        if ( tog->isChecked() )
+            calcGui->updateParamValue( "LType", ltypeind, SETCOLMARK_IGNORED, false );
 
     bool pixelSizeChanged = tpvParamsKeys.contains("EditPixelX");
     double defPixX = calcGui->currentParamValueDbl("EditPixelX");
@@ -7273,12 +7457,14 @@ void SC_MainGUI::showColorMarker( QColor c )
         ui->lblColMarkChgImg->setVisible(false);
         ui->lblColMarkParDiff->setVisible(false);
         ui->lblColMarkTrainTbl->setVisible(false);
+        ui->lblColMarkOldPar->setVisible(false);
         ui->grpColorMarker->setVisible(false);
         return;
     }
     if ( c == SETCOLMARK_CHGIMG   ) ui->lblColMarkChgImg->setVisible(true);
     if ( c == SETCOLMARK_PARDIFF  ) ui->lblColMarkParDiff->setVisible(true);
     if ( c == SETCOLMARK_TRAINTBL ) ui->lblColMarkTrainTbl->setVisible(true);
+    if ( c == SETCOLMARK_OLDPARAM ) ui->lblColMarkOldPar->setVisible(true);
     ui->grpColorMarker->setVisible(true);
 }
 
@@ -8576,11 +8762,13 @@ void SC_MainGUI::chatbotBackProgAddLog( QString msg )
     {   // Wenn das Bild erzeugt wurde, soll es angezeigt werden.
         // Die Meldung lautet dann: "IMG:<filename> -> <zeit>ms"
         int pos = msg.indexOf("IMG:");
+        qDebug() << "##" << pos << msg;
         if ( pos < 0 ) return;
         QString fn = msg.mid(pos+4);
         pos = fn.indexOf(".png");
         fn.truncate(pos+4);
         qDebug() << "CBFILE:" << fn << "  Reading not yet implemented";
+
     }
 #endif
 }
@@ -8724,4 +8912,9 @@ void SC_MainGUI::chatbotClipboardChanged(QClipboard::Mode)
 {
     if ( chatbotConsProg.isEmpty() ) return;
     ui->butChatbotReadClipboard->setEnabled( ! qApp->clipboard()->text().isEmpty() );
+}
+
+void SC_MainGUI::on_togUseAdaptiveStep_toggled(bool checked)
+{
+    myGuiParam::updateAdaptiveSteps(checked);
 }

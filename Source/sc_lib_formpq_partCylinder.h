@@ -446,7 +446,7 @@ double SasCalc_GENERIC_calculation::formpq_partCylinder(double qxs, double qys, 
             const double cc6 = sqr(params.rho)/sqr(dim-params.alphash1);  //Z=16458
             const double vv3 = cc1+cc2+cc3+cc4+cc5+cc6;  //Z=16459
 
-            double F12, F22, F32, F42, F52, F62;
+            double F12, F22, F32=0, F42=0, F52, F62;
 
             /*  term #1 series  */  //Z=16461
             if ( (xradp)<lim1 )

@@ -76,6 +76,9 @@ private:
 };
 
 
+class dlgConfigAutoFit;
+
+
 QT_BEGIN_NAMESPACE
 namespace Ui { class SC_MainGUI; }
 QT_END_NAMESPACE
@@ -160,6 +163,7 @@ private slots:
     void on_togFitUseMask_toggled(bool checked);
     void on_butFitUseResult_clicked();
     void on_butFitAutomatic_clicked();
+    void fitAutomaticCreateFile(dlgConfigAutoFit*);
 
     void autoProcessingTimer();
 
@@ -243,6 +247,8 @@ private slots:
     void on_butChatbotReadClipboard_clicked();
     void chatbotClipboardChanged(QClipboard::Mode);
 
+    void on_togUseAdaptiveStep_toggled(bool checked);
+
 private:
     Ui::SC_MainGUI *ui;
 
@@ -270,8 +276,9 @@ private:
     QVector<widImage*> images;
     int numberCounter;
     int imgPosX, imgPosX0, imgPosY, imgPosY0;
-    QString dataPath;  // Save path to last image
-    bool closeMainActive;  // True if the main window closes all image windows due to exit
+    QString dataPath;       // Save path to last image
+    QString lastDataFile;   // das letzte geöffnete Messdatenfile
+    bool closeMainActive;   // True if the main window closes all image windows due to exit
     widImage* addImage( bool neu, int x0, int x1, int y0, int y1, double *d, QString title, bool meta );
     widImage *lastUsedImage;        // das letzte (aktuellste) gerechnete Bild
     widImage *curFitImage;          // das anzufittende Bild

@@ -515,7 +515,7 @@ QString myGuiParam::debug()
             // dass die Widgetnamen mit '_' (d.h. inp2, inp3) immer im Nachgang bearbeitet werden
             // müssen, damit immer die richtigen Gruppen angelegt werden.
 
-            QString on;
+            QString on; // von "ObjectName", ist der Name des Parameters
             /*myGuiParam *gp =*/ searchParam(w, on);
             if ( ! names.contains(on) )
             {
@@ -536,6 +536,7 @@ QString myGuiParam::debug()
 
             // Each element must be in the form "type;kenn;typespec;tooltip;default" with:
             //  [0]type     = C:Selection, N:Double, I:Integer, T:Toggle, O:DoubleOut
+            //                Zweites Zeichen ist 'F' für Fittable oder '-' für nicht fittable
             //  [1]kenn     = internal parameter name to connect to correct gui element
             //  [2]typespec = C:Selection : "...|...|..."  (required)
             //                N:Double    : "frac|min|max|unit"  (optional, default: "2|-10000|+10000|")
@@ -599,6 +600,7 @@ QString myGuiParam::debug()
             }
             else if ( w->objectName().startsWith("fit") )
             {
+                if ( sl[0][1] != 'F' ) qDebug() << "myGuiParams::setAllGuiParams" << on << "Kin F gesetzt";
                 myGuiParam::setFitToggle(w);
             }
             else if ( w->objectName().startsWith("tog") ||  w->objectName().startsWith("rad") )
@@ -872,4 +874,19 @@ QString myGuiParam::debug()
         return;
     }
     if ( gp->lbl() != nullptr ) gp->lbl()->setText(txt);
+}
+
+/*static*/ void myGuiParam::updateAdaptiveSteps(bool flg)
+{
+    QSpinBox::StepType st = flg ? QAbstractSpinBox::AdaptiveDecimalStepType : QAbstractSpinBox::DefaultStepType;
+
+    foreach ( myGuiParam *p, allParams )
+    {
+        if ( p->inp() != nullptr )
+            p->inp()->setStepType(st);
+        if ( p->inp2() != nullptr )
+            p->inp2()->setStepType(st);
+        if ( p->inp3() != nullptr )
+            p->inp3()->setStepType(st);
+    }
 }

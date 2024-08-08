@@ -384,6 +384,13 @@ public:
 
     } _carrXX;
 
+    typedef enum
+    {
+        orcGeneral,     // 1
+        orcXaxis,       // 2
+        orcYaxis,       // 3
+        orcZaxis        // 4
+    } _orcaseType;
     // to reduce the number of parameters in each call,
     // some global variables are stored here for all classes:
     typedef struct
@@ -410,7 +417,8 @@ public:
         double psphere_r, psphere_z;  // helper var for psphere
 
         double norm, por; // por ist ein Output von Coefficients()
-        int    part, cs, orcase;
+        int    part, cs;
+        _orcaseType orcase;
         double polTheta, polPhi;
         double limq1, limq2, limq3, limq4, limq5, limq6, limq7, limq8, limq9;
         double limq1f, limq2f, limq3f, limq4f, limq5f, limq6f, limq7f, limq8f, limq9f;
@@ -440,7 +448,7 @@ public:
     inline void latparMaxCheck( const int i, const int a ) const
     {   if ( params.CR->latparMaxCheckCount[i]<a ) params.CR->latparMaxCheckCount[i]=a;
 #ifndef __CUDACC__
-        if ( a >= latparlen ) qDebug() << "##################################################" << a << latparlen;
+        if ( a >= latparlen ) qDebug() << "################################################## latpar" << i << a << latparlen;
 #endif
     }
 
@@ -636,7 +644,6 @@ private:
                      double &nuvwx, double &nuvwy, double &nuvwz, double &uuvwx, double &uuvwy, double &uuvwz, double &vuvwx, double &vuvwy, double &vuvwz,
                      double &nhklx, double &nhkly, double &nhklz, double &uhklx, double &uhkly, double &uhklz, double &vhklx, double &vhkly, double &vhklz );
     void coefficients(int dim, int nmax, double &order);
-    void coefficients_old(int dim, int nmax, double &order);
     void ButtonHKLClick(int ltype) const;
     void fhkl_c(int lat, int h, int k, int l,
                 double &sphno, double &fhkl, double &qhkl, double &qhkl0 ) const;

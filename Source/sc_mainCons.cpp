@@ -56,6 +56,8 @@ bool    imgSwapH, imgSwapV;
 int     imgRot, imgZoom;
 bool    noConsolOutput;
 
+bool    doPrintParameter;
+
 QStringList strColTblNames = {"grey", // 0="Greyscale"
                               "glow", // 1="Glowing colors"
                               "earth",  // 2="Earth colors"
@@ -122,7 +124,10 @@ int main(int argc, char *argv[])
     parser.addOption(csvOption);
 
     QCommandLineOption autofitOption( QStringList() << "f" << "autofit",
-                                      "Filepath and name for the automatic fit routine (*.txt). If this is given, the AI-File is ignored and the imagefile is an input dataset.",
+                                      "Filepath and name for the automatic fit routine (*.txt)."
+                                      " The parameterfile and the dataset are taken from this fit file."
+                                      " Or use the -p for the parameterfile and the -i for the dataset."
+                                      " Use -l for the global logfile.",
                                       "autofit" );
     parser.addOption(autofitOption);
 
@@ -196,6 +201,11 @@ int main(int argc, char *argv[])
                                      " This is useful during debugging, not needed in normal operations." );
     parser.addOption(cbkeepOption);
 
+    QCommandLineOption printParOption( "prtpar",
+                                    "If set, the parameter are printed before calculation (internal)." );
+    printParOption.setFlags(QCommandLineOption::HiddenFromHelp);
+    parser.addOption(printParOption);
+
     // Process the actual command line arguments given by the user
     parser.process(app);
 
@@ -251,6 +261,7 @@ int main(int argc, char *argv[])
     QString timetest  = parser.value(timetestOption);
     QString chatbot   = parser.value(chatbotOption);
     bool cbkeepfile   = parser.isSet(cbkeepOption);
+    doPrintParameter  = parser.isSet(printParOption);
 
     // Die TPV-Files werden hinter der Option "--tpv" geschrieben. Wenn der User
     // jetzt Files angibt (z.B. mit *) dann sollen die Positions-Argumente nicht
@@ -428,7 +439,7 @@ int main(int argc, char *argv[])
                                    .arg((imgSwapH?" SwapHor,":""),(imgSwapV?" SwapVert,":""))
                                    .arg(imgRot*90).arg(imgZoom).arg(imgColorTbl)+EOL) );
         flog->write( qPrintable(        "      Chatbot file: "+chatbot+EOL) );
-        flog->write( qPrintable(QString(" Chatbot debug mode: ").arg(cbkeepfile)+EOL) );
+        flog->write( qPrintable(QString(" Chatbot debug mode: %1").arg(cbkeepfile)+EOL) );
     }
     std::cerr << "   CALC: " << qPrintable(aifile)    << std::endl;
     std::cerr << " PARAMS: " << qPrintable(paramfile) << std::endl;
@@ -445,6 +456,8 @@ int main(int argc, char *argv[])
                                 .arg(imgRot*90).arg(imgZoom).arg(imgColorTbl)) << std::endl;
     std::cerr << "CHATBOT: " << qPrintable(chatbot)    << std::endl;
     std::cerr << "CBDebug: " << cbkeepfile << std::endl;
+    if ( doPrintParameter )
+        std::cerr << " PrtPar: yes (internal)" << std::endl;
 
     QDateTime dtStart = QDateTime::currentDateTime();
 
@@ -1350,10 +1363,70 @@ bool myProgressLogging( char *msg )
 }
 
 
+void printAllParameter( SC_CalcCons *calc, QFile *f )
+{
+    if ( f == nullptr )
+    {
+        std::cerr << "printAllParameter - no file" << std::endl;
+        return;
+    }
+    std::cerr << "printAllParameter - " << qPrintable(f->fileName()) << std::endl;
+    f->write("------------------------------ Parameters Start" EOL);
+
+    QStringList meta = calc->getCalcPtr()->guiLayoutNeu();
+    for ( int m=0; m<meta.size(); m++ )
+    {
+        QStringList sl = meta[m].split(";");
+        while ( sl.size() < 5 ) sl << " ";  // tooltip;default sind optional
+
+        // TODO: Neue Struktur des guiLayout()
+        // Each element must be in the form "type;kenn;typespec;tooltip;default" with:
+        //  type     = C:Selection, N:Double, I:Integer, T:Toggle, O:DoubleOut
+        //             Zweites Zeichen ist 'F' für Fittable oder '-' für nicht fittable
+        //  kenn     = internal parameter name to connect to correct gui element
+        //  typespec = C:Selection : "...|...|..."  (required)
+        //             N:Double    : "frac|min|max|unit"  (optional, default: "2|-10000|+10000|")
+        //             I:Integer   : "min|max|unit"  (optional, default: "-10000|+10000|")
+        //             T:Toggle    : (empty)
+        //             O:DoubleOut : (empty)
+        //  tooltip  = this is the tooltip set to both prompt label and inputfield (optional)
+        //  default  = the default value (optional)
+
+        QString isfit  = sl[0][1] == 'F' ? "Fittable" : "";
+        QString key = sl[1].trimmed();
+        QStringList typval = sl[2].split("|",Qt::SkipEmptyParts);
+        paramConsHelper *par = calc->params[key];
+        if ( par == nullptr )
+        {
+            f->write(qPrintable(QString("%1 = unknown" EOL).arg(key)));
+            continue;
+        }
+        switch ( sl[0][0].toLatin1() )
+        {
+        case 'C':   // ComboBox  : "...|...|..." mit den jeweiligen Werten
+            f->write(qPrintable(QString("%1 = %2  ").arg(par->key).arg(par->value.number)));
+            if ( typval.size() > par->value.number )
+                f->write(qPrintable(typval[par->value.number]));
+            f->write(EOL);
+            break;
+        case 'N':   // Zahlenwert: "frac|min|max|unit" mit Nachkommastellen und Grenzwerten (optional)
+        case 'I':   // Integer-Zahlenwert: "min|max|unit"
+            f->write(qPrintable(QString("%1 = %2  %3" EOL).arg(par->key).arg(par->value.number).arg(isfit)));
+            break;
+        case 'T':   // CheckBox  : "tog"
+            f->write(qPrintable(QString("%1 = %2" EOL).arg(par->key,par->value.flag?"true":"false")));
+            break;
+        }
+    }
+    f->write("------------------------------ Parameters End" EOL);
+}
+
+
+
 double doFitStart( SC_CalcCons *calc, widImage *img, int nthreads,
                    double inpFitStepSize, double tolerance,
                    int inpFitRepetitions, int inpFitMaxIter,
-                   int inpFitBorder, int inpFitBStop/*-1 for mask*/,
+                   int inpFitBorder, int inpFitBStop,
                    double &timeForAll, int &loopsForAll, int &imgGenForAll )
 {
     if ( fitClass == nullptr )
@@ -1465,6 +1538,57 @@ double doFitStart( SC_CalcCons *calc, widImage *img, int nthreads,
 }
 
 
+widImage *local_OpenMeasFile(QString fn, bool &iskws)
+{
+    iskws = false;
+    widImage *img = nullptr;
+    if ( fn.endsWith(".dat",Qt::CaseInsensitive) ||
+        fn.endsWith(".csv",Qt::CaseInsensitive) ||
+        fn.endsWith(".txt",Qt::CaseInsensitive) )
+    {   // Special Test to read back previously saved date from this program
+        int pos = fn.lastIndexOf(".");
+        QString base = fn.left(pos);
+        if ( QFileInfo::exists(base+".csv") &&
+            QFileInfo::exists(base+".dat") &&
+            QFileInfo::exists(base+".txt") )
+        {
+            img = SC_ReadData::readImageSasCrystal( addImage, fn );
+        }
+    }
+    if ( img == nullptr )
+    {
+        // Routines in sc_readdata.cpp
+        if ( fn.endsWith(".tif",Qt::CaseInsensitive) ||
+            fn.endsWith(".tiff",Qt::CaseInsensitive) )
+            img = SC_ReadData::readImageTiff( addImage, fn );
+        else if ( fn.endsWith(".dat",Qt::CaseInsensitive) ||
+                 fn.endsWith(".data",Qt::CaseInsensitive) )
+        {
+            img = SC_ReadData::readImageKWSData( addImage, fn );
+            iskws = true;
+        }
+        else if ( fn.endsWith(".edf",Qt::CaseInsensitive) )
+            img = SC_ReadData::readImageEDF( addImage, fn );
+        else if ( fn.endsWith(".spr",Qt::CaseInsensitive) )
+            img = SC_ReadData::readImageSpreadsheet( addImage, fn );
+#ifndef NOHDF5
+        else if ( fn.endsWith(".h5",Qt::CaseInsensitive) ||
+                 fn.endsWith(".hdf",Qt::CaseInsensitive) ||
+                 fn.endsWith(".hdf5",Qt::CaseInsensitive) )
+            img = SC_ReadData::readImageHDF5( addImage, fn, true/*onlyOneImage*/, false/*swap vert*/ );
+        else if ( fn.endsWith(".nxs",Qt::CaseInsensitive) )     // 2D SANS (ILL)
+            img = SC_ReadData::readImageHDF5( addImage, fn, true/*onlyOneImage*/, true/*swap vert*/ );
+#endif
+        else if ( fn.endsWith(".xml",Qt::CaseInsensitive) ||    // 2D SANS (ILL)
+                 fn.endsWith(".csv",Qt::CaseInsensitive) ||    // 2D SANS (ILL)
+                 fn.endsWith(".txt",Qt::CaseInsensitive) )     // 2D SANS (ILL)
+            img = SC_ReadData::readImage2dSans( addImage, fn );
+    }
+    return img;
+}
+
+
+
 /**
  * @brief automaticFit - performs the automatic 2d simplex fit with recipe
  * @param calc      = pointer to calculation class
@@ -1495,31 +1619,52 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
         if ( !basePath.endsWith("/") ) basePath += "/";
         QDir().mkpath(basePath);
     }
+    std::cerr << "Used basepath: " << qPrintable(basePath) << std::endl;
+
+    // Jetzt werden alle Files außer dem Inputfile gelöscht
+    QStringList sl = QDir(basePath).entryList( QDir::Files | QDir::NoDotAndDotDot );
+    sl.removeOne(QFileInfo(autofit).fileName());
+    if ( flog ) sl.removeOne(QFileInfo(*flog).fileName());  // Das Logfile ist geöffnet und kann nicht gelöscht werden
+    std::cerr << "Remove: " << qPrintable(sl.join(", ")) << std::endl;
+    foreach ( QString f, sl )
+    {
+        if ( ! QFile::remove(basePath+f) )
+            std::cerr << "Remove fail: " << qPrintable(basePath+f) << std::endl;
+            // Beim Fehler nur eine Meldung, kein Abbruch!
+    }
 
     widImage *imgZiel = nullptr;
     int bs_x=0, bs_y=0;
 
     if ( !imgfile.isEmpty() )
     {
-        imgZiel = SC_ReadData::readImageKWSData( addImage, imgfile );
+        bool iskws;
+        imgZiel = local_OpenMeasFile(imgfile, iskws);
         if ( imgZiel == nullptr )
         {
             if ( flog ) flog->write(qPrintable("unable to open "+imgfile+EOL));
             std::cerr << "Unable to open data file: " << qPrintable(imgfile) << std::endl;
             return;
         }
-        SC_ReadData::findBeamCenter( imgZiel, bs_x, bs_y );
-        imgZiel->addMetaInfo( "BeamPosX", QString::number(bs_x) );
-        imgZiel->addMetaInfo( "BeamPosY", QString::number(bs_y) );
-        calc->updateParamValue( "BeamPosX", bs_x - imgZiel->myWidth()/2. );
-        calc->updateParamValue( "BeamPosY", bs_y - imgZiel->myHeight()/2. );
-        if ( flog )
-            flog->write(qPrintable(QString("AutoBeamstop: in data (%1 / %2), in calc (%3 / %4)").arg(bs_x).arg(bs_y)
-                                   .arg(bs_x - imgZiel->myWidth()/2.).arg(bs_y - imgZiel->myHeight()/2.)+EOL));
-        std::cerr << "ImageInfos: X=" << imgZiel->xmin() << " .. " << imgZiel->xmax()
-                  << ", Y=" << imgZiel->ymin() << " .. " << imgZiel->ymax()
-                  << ", BS=" << imgZiel->getFileInfos()->centerX << " / " << imgZiel->getFileInfos()->centerY
-                  << std::endl;
+        if ( iskws )
+        {
+            SC_ReadData::findBeamCenter( imgZiel, bs_x, bs_y );
+            imgZiel->addMetaInfo( "BeamPosX", QString::number(bs_x) );
+            imgZiel->addMetaInfo( "BeamPosY", QString::number(bs_y) );
+            calc->updateParamValue( "BeamPosX", bs_x - imgZiel->myWidth()/2. );
+            calc->updateParamValue( "BeamPosY", bs_y - imgZiel->myHeight()/2. );
+            if ( flog )
+                flog->write(qPrintable(QString("AutoBeamstop: in data (%1 / %2), in calc (%3 / %4)").arg(bs_x).arg(bs_y)
+                                           .arg(bs_x - imgZiel->myWidth()/2.).arg(bs_y - imgZiel->myHeight()/2.)+EOL));
+            std::cerr << "ImageInfos: X=" << imgZiel->xmin() << " .. " << imgZiel->xmax()
+                      << ", Y=" << imgZiel->ymin() << " .. " << imgZiel->ymax()
+                      << ", BS=" << imgZiel->getFileInfos()->centerX << " / " << imgZiel->getFileInfos()->centerY
+                      << std::endl;
+        }
+        else
+            std::cerr << "ImageInfos: X=" << imgZiel->xmin() << " .. " << imgZiel->xmax()
+                      << ", Y=" << imgZiel->ymin() << " .. " << imgZiel->ymax()
+                      << ", BS not searched" << std::endl;
     }
 
     if ( fcsv ) fcsv->write("Variables ; rtol ; MeanDiffPercentage" EOL);
@@ -1529,20 +1674,8 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
     // und nutze die 'flog' um für jedes Bild der Serie eine eigene Logdatei zu schreiben, die bleibt dann kleiner.
     QFile *globLog = flog;
     flog = nullptr;
-/*
-    // Da die Eingaben z.T. in anderer Groß/Kleinschreibung kommt als in der Definition
-    // festgelegt, wird hier ein Angleich ausgeführt, damit die folgenden Routinen laufen.
-    QStringList types = calc->getCalcTypes();
-    foreach (QString s, types)
-    {
-        if ( s.startsWith(parMethod,Qt::CaseInsensitive) )
-        {
-            parMethod = s;
-            break;
-        }
-    }
-*/
-    // Jetzt die Struktur p2f füllen mit allen fitbaren Variablen aus den Definitionne der angegebenen Methode
+
+    // Jetzt die Struktur p2f füllen mit allen fitbaren Variablen aus den Definitionen der angegebenen Methode
     QStringList slParams = calc->paramsForMethod( false, false, true );
     foreach (QString p, slParams)
     {
@@ -1576,10 +1709,10 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
 
     // Jetzt kommen die Min/Max/Start Werte Modifikationen aus den Settings
     // (wenn das Programm im manuellen Modus auf diesem Rechner schon mal lief)
+    // Diese Daten werdn aus den globalen Settings geholt, nicht aus dem Parameterfile
     QSettings sets(SETT_APP,SETT_GUI);
     sets.beginGroup( "Fit-Limits" );
     QStringList slKeys = sets.allKeys();
-    //qDebug() << m << slKeys;
     foreach (QString k, slKeys)
     {
         if ( ! calc->isCurrentParameterValid(k) ) continue;
@@ -1591,14 +1724,17 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
         fl->max  = slVal[2].toDouble();
         fl->fitType = static_cast<_fitTypes>(slVal[3].toInt());
         fl->fitvalid = false;  // fitresult not stored!
-        //qDebug() << "REG:" << k << fl->min << fl->max;
+        //std::cerr << "REG: " << qPrintable(k) << "=" << fl->min << " .. " << fl->max << std::endl;
     }
 
+    QString kenn = QDate::currentDate().toString("-yyyyMMdd-");     // Als Default
     bool firstScanOfFile = true;
     QString dirMask = "*";
     QStringList usedImages; // wird während des Abarbeitens geleert, daher kein Index nötig
     QFile *ftex = nullptr;
     QDateTime startZeit;
+    int fitBorder=0;    // keine Pixel am Rand ignorieren
+    int fitBeamstop=0;  // 0=keinen BS in der Mitte, -1=Eckpixel maskiert, >0=BS in der Mitte ausblenden
 
     typedef struct
     {
@@ -1624,21 +1760,44 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
         while ( ! finp.atEnd() )
         {
             QString line = finp.readLine().trimmed();
+            int pos = line.indexOf("#");
+            if ( pos >= 0 ) { line.truncate(pos); line=line.trimmed(); }
             if ( line.isEmpty() ) continue;         // Ignore empty lines
-            if ( line.startsWith("#") ) continue;   // Comment
 
             // Keine Kommentare in das LaTeX File schreiben lassen, dann gibt es auch keine
             //  Probleme mit den Umlauten (bzw. UTF-8)
             if ( firstScanOfFile ) slInputLines << line;
 
-            std::cerr << "AutoFit:" << qPrintable(line) << std::endl;
+            std::cerr << "AutoFit: " << qPrintable(line) << std::endl;
             if ( globLog != nullptr && firstScanOfFile ) globLog->write(qPrintable("Autofit: "+line+EOL));
+
+            if ( line.startsWith("EOF") ) break; // Hier ist das File zu Ende
+            // Das erspart beim Testen das Auskommentieren der restlichen Zeilen
 
             if ( firstScanOfFile )
             {   // Einige Einträge werden nur beim ersten Durchlauf interpretiert
 
+                // Scale: TODO
+
                 if ( line.startsWith("GlobLog:") )
                 {   // "GlobLog: <filename>  Globales Logfile für alle Informationen
+
+                    // Hier ist 'globLog' ein globales Logfile von gesamten Konsolenprogramm.
+                    // 'flog' dagegen ist die lokale Logdatei für die Berechnungen.
+                    /*
+                    if ( flog != nullptr ) flog->close();
+                    flog = new QFile( basePath + line.mid(8).trimmed() );
+                    if ( ! flog->open(QIODevice::WriteOnly) )
+                    {
+                        if ( globLog )
+                            globLog->write(qPrintable(flog->fileName()+": "+flog->errorString()+EOL));
+                        flog->deleteLater();
+                        flog = nullptr;
+                    }
+                    else if ( globLog )
+                        globLog->write(qPrintable("Write to "+flog->fileName()+EOL));
+                    */
+
                     // Hier verwendet für den LaTeX Output
                     startZeit = QDateTime::currentDateTime();
                     if ( globLog ) globLog->write(qPrintable("Start: "+startZeit.toString("dd.MMM.yyyy hh:MM:ss")+EOL));
@@ -1697,6 +1856,9 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
                 {   // "Param: <filepath>
                     if ( globLog ) globLog->write(qPrintable("Load Paramfile "+line.mid(6).trimmed()+EOL) );
                     calc->loadParameter( line.mid(6).trimmed() );
+
+                    if ( doPrintParameter ) printAllParameter( calc, globLog );
+
                     continue;
                 }
 
@@ -1770,6 +1932,8 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
                 continue;
             }
 
+            // Threads: TODO
+
             if ( line.startsWith("Use:") )
             {   // "Use: Base, I0"
                 bool oneUsed = false;
@@ -1779,6 +1943,7 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
                 QHash<QString,_fitLimits*>::const_iterator it = p2f.constBegin();
                 while ( it != p2f.constEnd() )
                 {
+
                     it.value()->used = slNames.contains(it.key(),Qt::CaseInsensitive);
                     it.value()->orgval = it.value()->fitstart = calc->currentParamValue( it.key() );
                     oneUsed |= it.value()->used;
@@ -1794,12 +1959,39 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
                 if ( !oneUsed )
                 {
                     if ( globLog ) globLog->write(qPrintable("ERROR no parameter used: "+line+EOL));
+                    if ( flog ) flog->close();
+                    flog = globLog;
+                    if ( ftex ) ftex->close();
                     qDebug() << "ERROR" << slNames << p2f.keys();
                     finp.close();
                     return;
                 }
+                if ( globLog )
+                {
+                    globLog->write(qPrintable("USE Names="+slNames.join(", ")+EOL));
+                    globLog->write(qPrintable("USE p2fkeys="+p2f.keys().join(", ")+EOL));
+                    globLog->write(qPrintable("USE param2values="+param2values.keys().join(", ")+EOL));
+                    globLog->flush();
+                }
                 continue;
             } // if "Use:..."
+
+            if ( line.startsWith("Border:") )  // NEU 25.07.2024
+            {   // "Border: 0; 0; 0"
+                // Border size; Beamstop half-size; ignore pixel
+                QStringList slCmd = line.mid(7).trimmed().split(";");
+                for ( int i=0; i<slCmd.size(); i++ )
+                    slCmd[i] = slCmd[i].trimmed();
+                while ( slCmd.size() < 3 ) slCmd << "0";
+                fitBorder   = slCmd[0].toInt(); // Pixel am Rand ignorieren
+                fitBeamstop = slCmd[1].toInt(); // 0=keinen BS in der Mitte, >0=BS in der Mitte ausblenden
+                if ( slCmd[2].toInt() != 0 ) fitBeamstop = -1; // -1=Eckpixel maskiert
+                continue;
+            }
+
+            // SetVarAnf: - noch experimentell und nur in der GUI
+            // SetVarEnd: - noch experimentell und nur in der GUI
+            // SetVar:    - noch experimentell und nur in der GUI
 
             else if ( line.startsWith("Fit:") )
             {   // "Fit: Rep=10; Stp=3.0; Iter=20; Tol=0.0010; Diff<5; Kenn=..."
@@ -1808,13 +2000,18 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
                     slCmd[i] = slCmd[i].trimmed();
                 //qDebug() << slCmd;
                 double maxDif=100, stp=3.0, tol=0.001;
+#ifdef USEREPETITIONS
                 int rep=10;
+#endif
                 int iter=10;
                 for ( int i=0; i<slCmd.size(); i++ )
                 {
+#ifdef USEREPETITIONS
                     if ( slCmd[i].startsWith("Rep=") )
                         rep = slCmd[i].mid(4).toInt();
-                    else if ( slCmd[i].startsWith("Stp=") )
+                    else
+#endif
+                        if ( slCmd[i].startsWith("Stp=") )
                         stp = slCmd[i].mid(4).toDouble();
                     else if ( slCmd[i].startsWith("Iter=") )
                         iter = slCmd[i].mid(5).toInt();
@@ -1824,12 +2021,17 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
                         maxDif = slCmd[i].mid(5).toDouble();
                     else if ( slCmd[i].startsWith("Kenn=") )
                     {   // Diese Kennung war zum speichern der Logfiles in der interaktiven Session.
-                        //kenn = slCmd[i].mid(5);
-                        //kenn = kenn.replace( "@D", QDate::currentDate().toString("yyyyMMdd") );
+                        kenn = slCmd[i].mid(5);
+                        kenn = kenn.replace( "@D", QDate::currentDate().toString("yyyyMMdd") );
+                        if ( usedImages.size() > 0 )
+                            kenn = kenn.replace("@F", QFileInfo(usedImages.first()).baseName() );
+                        else
+                            kenn = kenn.replace("@F", "" );
+                        if ( !kenn.endsWith("-") ) kenn += "-";  // Damit man den Zähler erkennt.
                     }
                 }
 #ifndef USEREPETITIONS
-                rep = 1;    // ist so am einfachsten...
+                int rep = 1;    // ist so am einfachsten...
 #endif
                 double timeForAll=0;        // Summen über alle Loops
                 int    loopsForAll=0;
@@ -1840,10 +2042,11 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
                      curImgZiel != usedImages.first() )
                 {   // Jetzt muss das erste Image geladen werden ...
 
-                    // TODO: jedes Imageformat lesen (ConsFit)
                     // TODO: Zudem die richtigen Metadaten neben dem File lesen
 
-                    imgZiel = SC_ReadData::readImageKWSData( addImage, usedImages.first() );
+                    bool iskws;
+                    imgZiel = local_OpenMeasFile(usedImages.first(), iskws);
+                    //imgZiel = SC_ReadData::readImageKWSData( addImage, usedImages.first() );
                     if ( imgZiel == nullptr )
                     {
                         if ( globLog ) globLog->write(qPrintable("unable to open "+usedImages.first()+EOL));
@@ -1853,6 +2056,9 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
                         return;
                     }
                     curImgZiel = usedImages.first();
+                    if ( globLog )
+                        globLog->write(qPrintable("Imgfile "+curImgZiel+EOL));
+/*
                     if ( flog ) flog->close();
                     flog = new QFile( basePath+QFileInfo(curImgZiel).baseName()+"_calc.log");
                     if ( ! flog->open(QIODevice::WriteOnly) )
@@ -1862,15 +2068,19 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
                         flog = nullptr;
                     }
                     else if ( globLog )
-                        globLog->write(qPrintable("Use "+flog->fileName()+EOL));
-                    SC_ReadData::findBeamCenter( imgZiel, bs_x, bs_y );
-                    imgZiel->addMetaInfo( "BeamPosX", QString::number(bs_x) );
-                    imgZiel->addMetaInfo( "BeamPosY", QString::number(bs_y) );
-                    calc->updateParamValue( "BeamPosX", bs_x - imgZiel->myWidth()/2. );
-                    calc->updateParamValue( "BeamPosY", bs_y - imgZiel->myHeight()/2. );
-                    if ( flog )
-                        flog->write(qPrintable(QString("AutoBeamstop: in data (%1 / %2), in calc (%3 / %4)").arg(bs_x).arg(bs_y)
-                                                  .arg(bs_x - imgZiel->myWidth()/2.).arg(bs_y - imgZiel->myHeight()/2.)+EOL));
+                        globLog->write(qPrintable("Logfile "+flog->fileName()+EOL));
+*/
+                    if ( iskws )
+                    {
+                        SC_ReadData::findBeamCenter( imgZiel, bs_x, bs_y );
+                        imgZiel->addMetaInfo( "BeamPosX", QString::number(bs_x) );
+                        imgZiel->addMetaInfo( "BeamPosY", QString::number(bs_y) );
+                        calc->updateParamValue( "BeamPosX", bs_x - imgZiel->myWidth()/2. );
+                        calc->updateParamValue( "BeamPosY", bs_y - imgZiel->myHeight()/2. );
+                        if ( globLog )
+                            globLog->write(qPrintable(QString("AutoBeamstop: in data (%1 / %2), in calc (%3 / %4)").arg(bs_x).arg(bs_y)
+                                                       .arg(bs_x - imgZiel->myWidth()/2.).arg(bs_y - imgZiel->myHeight()/2.)+EOL));
+                    }
                     if ( ftex )
                     {
                         QString tmpfn = basePath + QFileInfo(usedImages.first()).baseName() + "_org.png";
@@ -1888,16 +2098,31 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
                               << ", Y=" << imgZiel->ymin() << " .. " << imgZiel->ymax()
                               << ", BS=" << imgZiel->getFileInfos()->centerX << " / " << imgZiel->getFileInfos()->centerY
                               << std::endl;
+                    if ( globLog ) globLog->flush();
                 } // if usedImages > 0
 
                 for ( int maxloop=0; maxloop<20; maxloop++ ) // keine Endlosschleife...
                 {
+                    if ( flog ) flog->close();
+                    flog = new QFile(basePath + kenn + QString("%1").arg(maxloop+1,2,10,QChar('0')) + "_calc.log");
+                    if ( ! flog->open(QIODevice::WriteOnly) )
+                    {
+                        if ( globLog ) globLog->write(qPrintable("unable to open logfile ("+flog->fileName()+"). This run is without logfile." EOL));
+                        flog->deleteLater();
+                        flog = nullptr;
+                    }
+                    else if ( globLog )
+                    {
+                        globLog->write(qPrintable("Logfile "+flog->fileName()+EOL));
+                        globLog->flush();
+                    }
+
                     double timeForOne;      // Summen über alle Repetitions/Iterations
                     int    loopsForOne;
                     int    imgGenForOne;
                     double fitMeanChangePercent = doFitStart( calc, imgZiel, nthreads,
                                                               stp, tol, rep, iter,
-                                                              0, -1/* for mask*/,
+                                                              fitBorder, fitBeamstop,
                                                               timeForOne, loopsForOne, imgGenForOne );
                     timeForAll += timeForOne;
                     loopsForAll += loopsForOne;
@@ -1913,6 +2138,9 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
                     if ( fitMeanChangePercent < 0 )
                     {   // Errormessage
                         finp.close();
+                        if ( globLog ) globLog->write("Autofit MeanChangePercent < 0" EOL);
+                        if ( flog ) flog->close();
+                        flog = globLog;
                         if ( ftex ) ftex->close();
                         return;
                     }
@@ -2136,6 +2364,8 @@ void performTimeTest( QString par, QString cfg, QString out )
                 // ***** Loop 4 ***** NewSwitch
                 if ( nswitch/*Soll*/ == swBoth )
                     nswcurr = swOld;
+                else
+                    nswcurr = nswitch;
                 for ( int sw=0; sw<2; sw++ )
                 {   // Es können maximal 2 Durchläufe sein...
 
@@ -2237,6 +2467,8 @@ void waitForChatbot(SC_CalcCons *calc, QString cbfile, QString param, int nthrea
 
                 if ( ! sl[0].startsWith("val_") ) continue; // Falsche Syntax
 
+                sl[1].replace("\"", "");
+
                 if ( keep )
                     std::cerr << "READ '" << qPrintable(sl[0]) << "' = '" << qPrintable(sl[1]) << "'" << std::endl;
 
@@ -2257,7 +2489,10 @@ void waitForChatbot(SC_CalcCons *calc, QString cbfile, QString param, int nthrea
                     {
                         fnpng.replace( "[path]", QFileInfo(cbfile).baseName()+".png" );
                     }
-
+                    if ( fnpng.startsWith("/home/user/") )
+                    {
+                        fnpng = basepath + "/" + QFileInfo(cbfile).baseName() + ".png";
+                    }
                     std::cerr << "OUTfile: (" << QFileInfo(fnpng).isRelative() << ") "
                               << qPrintable(QFileInfo(fnpng).absolutePath()) << std::endl;
                     if ( QFileInfo(fnpng).isRelative() )
@@ -2328,7 +2563,6 @@ void waitForChatbot(SC_CalcCons *calc, QString cbfile, QString param, int nthrea
         // Berechnen
         calc->prepareCalculation( false );
         calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
-        std::cerr << "IMG: " << qPrintable(fnpng) << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << "ms" << std::endl;
         if ( flog )
         {
             flog->open(QIODevice::Append);
@@ -2347,6 +2581,16 @@ void waitForChatbot(SC_CalcCons *calc, QString cbfile, QString param, int nthrea
             {
                 flog->open(QIODevice::Append);
                 flog->write(qPrintable(QString("Error saving image: ")+dbgsave+EOL));
+                flog->close();
+            }
+        }
+        else
+        {
+            std::cerr << "IMG: " << qPrintable(fnpng) << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << "ms" << std::endl;
+            if ( flog )
+            {
+                flog->open(QIODevice::Append);
+                flog->write(qPrintable(QString("Save image: ")+dbgsave+EOL));
                 flog->close();
             }
         }

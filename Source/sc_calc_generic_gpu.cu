@@ -183,11 +183,12 @@ void SasCalc_GENERIC_calculation::calcCPU_selection( const SasCalc_GENERIC_calcu
     if ( !CALC.bIgnoreNewSwitch )
     {
         done = true;
-        // ComboBoxParticle mit 11 Varianten
-        // ComboBoxPeak mit 8 Varianten (shp) nicht verwendet bei LatticeType=12
-        // LatticeType mit 25 Varianten
-        // Ordis-Parameter mit 14 Varianten
-        // Eine 4-Byte-Zahl berechnen und dann nur ein Switch. Ist übersichtlicher im Code.
+        // 0xPP?????? ComboBoxParticle mit 11 Varianten
+        // 0x??SS???? ComboBoxPeak mit 8 Varianten (shp), nicht verwendet bei LatticeType=12
+        // 0x????LL?? LatticeType mit 25 Varianten
+        // 0x??????OO Ordis-Parameter mit 14 Varianten
+        // Eine 4-Byte-Zahl berechnen und dann nur ein Switch. Ist übersichtlicher im Code und wahrscheinlich auch
+        //  etwas effizienter im Code als viele geschachtelte switch.
         switch ( (CALC.ComboBoxParticle << 24) | (ltype==12?0:(CALC.shp << 16)) | (ltype << 8) | params.ordis )
         {
         case 0x00000C07:  // cbpartSphere(0), shp(X), ltype(None=12), ordis_Isotropic(7)
@@ -212,109 +213,6 @@ void SasCalc_GENERIC_calculation::calcCPU_selection( const SasCalc_GENERIC_calcu
             done = false;
             break;
         } // switch (code)
-
-#ifdef undef
-        switch ( CALC.ComboBoxParticle )
-        {
-        case cbpartSphere:
-            if ( ltype == 12 /*None*/ )
-            {
-                switch ( params.ordis )
-                {
-                case ordis_Isotropic:
-                    pixval = CALC.calc_partSphere_lattNone_ordisIsotropic( CALC, qx, qy, qz );
-                    done = true;
-                    break;
-                default:
-                    break;
-                } // switch ordis
-                break;
-            }
-            switch ( CALC.shp )
-            {
-            case cbpeakGaussian:
-                switch ( CALC.ltype ) // siehe prepareCalculation()
-                {
-                case  5:    // FCC
-                    switch ( CALC.params.ordis )
-                    {
-                    case ordis_Gaussian:
-                        pixval = CALC.calc_partSphere_peakGauss_lattFCC_ordisGauss( CALC, qx, qy, qz );
-                        done = true;
-                        break;
-                    default:
-                        break;
-                    } // switch ordis
-                    break;
-                default:
-                    break;
-                } // switch ltype
-                break;
-            default:
-                break;
-            } // switch shp
-            break;
-        case cbpartCylinder:
-            if ( ltype == 12 /*None*/ )
-            {
-                switch ( params.ordis )
-                {
-                case ordis_Gaussian:
-                    pixval = CALC.calc_partCylinder_lattNone_ordisGauss( CALC, qx, qy, qz );
-                    done = true;
-                    break;
-                case ordis_ZDir:
-                    pixval = CALC.calc_partCylinder_lattNone_ordisZDir( CALC, qx, qy, qz );
-                    done = true;
-                    break;
-                default:
-                    break;
-                } // switch ordis
-                break;
-            }
-            switch ( CALC.shp )
-            {
-            case cbpeakGaussian:
-                switch ( CALC.ltype ) // siehe prepareCalculation()
-                {
-                case  8:    // BCT
-                    switch ( CALC.params.ordis )
-                    {
-                    case ordis_ZDir:
-                        pixval = CALC.calc_partCylinder_peakGauss_lattBCT_ordisZDir( CALC, qx, qy, qz );
-                        done = true;
-                        break;
-                    default:
-                        break;
-                    } // switch ordis
-                    break;
-                default:
-                    break;
-                } // switch ltype
-                break;
-            default:
-                break;
-            } // switch shp
-            break;
-        case cbpartCube:
-            if ( ltype == 12 /*None*/ )
-            {
-                switch ( params.ordis )
-                {
-                case ordis_Isotropic:
-                    pixval = CALC.calc_partCube_lattNone_ordisIsotropic( CALC, qx, qy, qz );
-                    done = true;
-                    break;
-                default:
-                    break;
-                } // switch ordis
-                break;
-            }
-            break;
-        default:
-            break;
-        } // switch ComboBoxParticle
-#endif
     } // if ( !CALC.bIgnoreNewSwitch )
     if ( ! done )
     {

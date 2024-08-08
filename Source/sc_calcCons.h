@@ -9,7 +9,8 @@
 // Diese Struktur sollte auch alle Daten ohne GUI enthalten können
 typedef struct
 {
-    enum { number, select, toggle } type;
+    //enum { number, select, toggle } type;
+    enum { /*undef,*/ numdbl, numint, select, toggle, outdbl } type;
     QString key;    // Name des Parameters
     bool fitparam;
     struct
