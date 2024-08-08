@@ -1342,7 +1342,11 @@ static _param2fitval p2f;  // Merker für alle zu fittenden Variablen
 void updateLogList( QString msg )
 {
     if ( msg.startsWith("@REP=") ) return;
-    if ( flog ) flog->write(qPrintable(msg+EOL));
+    if ( flog )
+    {
+        flog->write(qPrintable(msg+EOL));
+        if ( msg.startsWith("iter=") ) flog->flush();
+    }
     if ( fcsv!=nullptr && msg.startsWith("----- rtol=") )
     {   // ----- rtol=1.12315 <= ftol=1e-015
         QString tmp = msg.mid(11);
@@ -2097,7 +2101,7 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
                     std::cerr << "ImageInfos: X=" << imgZiel->xmin() << " .. " << imgZiel->xmax()
                               << ", Y=" << imgZiel->ymin() << " .. " << imgZiel->ymax()
                               << ", BS=" << imgZiel->getFileInfos()->centerX << " / " << imgZiel->getFileInfos()->centerY
-                              << std::endl;
+                              << ", iskws=" << iskws << std::endl;
                     if ( globLog ) globLog->flush();
                 } // if usedImages > 0
 

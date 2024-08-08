@@ -613,7 +613,7 @@ private:
     double *arrFitData;
     double *arrFitFqs;
     int    _fitWidth,
-        _fitHeight;
+           _fitHeight;
     size_t _arrFitSize;
     bool   _fitEnabled;
     size_t arrFitDSize, arrFitFSize;

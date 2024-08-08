@@ -15,7 +15,7 @@
 #define MYVERSION "2.1.1  (Jun 2024)"
 
 
-#define FITDATA_IN_GPU  // Neu im Juli 2022
+#define FITDATA_IN_GPU  // Neu im Juli 2022 - ACHTUNG unten
 // Wenn definiert, wird das anzufittende Bild beim Start in einen Speicher in der GPU kopiert
 // und dort wird die FQS berechnet. Dabei kann das anzufittende Bild eine andere Größe haben,
 // der Algorithmus geht pixelweise durch und mittels der Werte in _latticeForFit (in sc_libs.h)
@@ -23,6 +23,9 @@
 // dann sofort mit dem Datenpixel verarbeitet werden kann. Die jeweiligen FQS-Werte werden
 // in einem weiteren Array gespeichert und später von der CPU addiert. Das ist einfacher, als
 // bei jedem Zugriff das Locking zu machen. (Vielleicht wird es später mal anders probiert)
+// ACHTUNG: wenn dieses Symbol deaktiviert wird, ist das Programm nicht mehr compilierbar,
+//   da einige Programmstücke im Laufe der Zeit entwickelt wurden und diese Definition dabei
+//   nicht mehr bedacht wurde.
 
 
 // Vergleich verschiedener Berechnungen für die FQS:

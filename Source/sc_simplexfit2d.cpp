@@ -1,5 +1,8 @@
 #include "sc_simplexfit2d.h"
 #include <QDebug>
+#ifdef CONSOLENPROG
+#include <iostream>
+#endif
 
 // Code von Herrn Prof. Förster
 // Erklärungen auch unter https://de.wikipedia.org/wiki/Downhill-Simplex-Verfahren
@@ -63,6 +66,8 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
         return summe;
     }
 #endif
+    // Der folgende Code wird i.d.R. nicht mehr ablaufen (siehe #define FITDATA_IN_GPU in sc_globalConfig.h)
+    // Außer es konnte kein Speicher für die Fit-Daten angelegt werden. Aber dann haben wir auch andere Probleme.
     calc->doCalculation(numThreads,false);
     numImgCalc++;
     // TODO qApp->processEvents();
@@ -297,13 +302,9 @@ void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit,
     }
     //qDebug() << "Fit: indVec=" << indVec << "mmax,numFit:" << mmax << numFit;
 
-#ifndef CONSOLENPROG
-#ifdef FITDATA_IN_GPU  // init fit (no Console)
+#ifdef FITDATA_IN_GPU  // init fit
     useGpuFit = calc->setFitData( _xmax - _xmin, _ymax - _ymin, intensityForFit );
     //qDebug() << "Fit: useGpu =" << useGpuFit;
-#endif
-#else
-    useGpuFit = false;  // Wenn CONSOLENPROG
 #endif
 
     QString info;   // For informations from fehlerquadratsumme()

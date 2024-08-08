@@ -397,9 +397,18 @@ void SC_CalcCons::saveParameter( QString fn )
     sets.beginGroup( calcGeneric->methodName() );
     sets.remove(""); // Remove all previous keys in this group to save only the current settings
     QHash<QString,paramConsHelper*>::iterator ip = params.begin();
+    //std::cerr << "saveParameter: " << qPrintable(params.keys().join(", ")) << std::endl;
     while ( ip != params.end() )
     {
         paramConsHelper *par = ip.value();
+        if ( par == nullptr )
+        {
+            //saveParameter: EditRelDis empty
+            //saveParameter: EditDist empty
+            //std::cerr << "saveParameter: " << qPrintable(ip.key()) << " empty" << std::endl;
+            ++ip;
+            continue;
+        }
         switch ( par->type )
         {
         case paramConsHelper::numdbl:
