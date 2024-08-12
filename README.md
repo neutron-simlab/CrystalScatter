@@ -29,7 +29,10 @@ This software is developed under Open Source License.
 
 # Used libraries
 The given version numbers are used during the development and are working.
-Other library versions may work too.
+Other library versions may work too. To configure the used path of the
+external libraries edit the two .pro files in the source directory. The
+path informations are on top of each file. Please edit always both files
+(sas_scatter2.pro and sas_scatter2Cons.pro).
 
 ### mandatory
 - Qt 5.14.x (no Qt6)

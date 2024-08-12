@@ -1,10 +1,41 @@
-QT       += core gui xml
+# +++++ Settings of all path variables used for the specialized libraries:
 
+unix:{
+    CUDA_DIR = /usr/local/cuda-12.2   # Path to cuda sdk/toolkit install
+    CUDA_EXE = $$CUDA_DIR/bin/nvcc
+
+    FFTW3_PATH = /usr/local/include
+    FFTW3_LIBS = /usr/local/lib
+
+    HDF5_BASE = /usr/local/hdf5
+}
+
+win32:{
+    CUDA_DIR = "C:/SimLab/CUDA/v12.2"  # link to "C:/Program\ Files/NVIDIA\ GPU\ Computing\ Toolkit/CUDA/v12.2"
+    CUDA_EXE = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.2/bin/nvcc.exeX"  # append X to disable ist
+
+    FFTW3_PATH = ../fftw-3.3.5-dll64    # not used in static configuration
+    FFTW3_LIBS = ../fftw-3.3.5-dll64
+
+    HDF5_BASE = ../../CMake-hdf5-1.12.1
+    HDF5_SRC  = $$HDF5_BASE/hdf5-1.12.1
+    CONFIG(static) {
+        HDF5_GEN  = $$HDF5_BASE/build-hdf5-1.12.1-Desktop_Qt_5_14_2_MinGW_64_bit-MinSizeRel
+    }
+    else {
+        HDF5_GEN  = $$HDF5_BASE/build-hdf5-1.12.1-Desktop_Qt_5_14_2_MinGW_64_bit-Debug
+    }
+    # ZLIB_DIR must be set
+}
+
+# ----- User configuration ends here.
+
+
+QT       += core gui xml
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET = sas_scatter2
 TEMPLATE = app
-
 
 #DEFINES += IMG_ONE_WINDOW
 # Test für ein anderes Layout, damit unter Android die Images im Hauptfenster bleiben
@@ -85,27 +116,13 @@ else: unix:!android: target.path = /opt/sas_scatter2/bin
 !isEmpty(target.path): INSTALLS += target
 
 
-# OpenCL definitions
+# OpenCL definitions - not used, only for future tests
 #win32:{
 #    DEFINES += CL_HPP_TARGET_OPENCL_VERSION=300
 #    OCL_DIR = "../../OpenCL-SDK/install"
 #}
 
 
-# CUDA definitions
-unix:{
-    CUDA_DIR = /usr/local/cuda-12.2   # Path to cuda sdk/toolkit install
-    CUDA_EXE = $$CUDA_DIR/bin/nvcc
-}
-win32:{
-    #CUDA_DIR = "C:/Program\ Files/NVIDIA\ GPU\ Computing\ Toolkit/CUDA/v12.2"
-    # -> nvcc fatal   : A single input file is required for a non-link phase when an outputfile is specified
-    #                   -> nvcc has problems with spaces in filenames...
-    CUDA_DIR = "C:/SimLab/CUDA/v12.2"  # link to above dir
-
-    # 'X' hinten zum Ausblenden dieser Funktion.
-    CUDA_EXE = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.2/bin/nvcc.exeX"
-}
 # nvcc can work with multiple input files but then they must be linked with a special cuda linker
 #  and this is not so easy to include in this Qt-Project. So only a single input is used and the
 #  other .cu files are included there.
@@ -145,7 +162,7 @@ CUDA_SOURCES += sc_calc_generic_gpu.cu
         # c++  cpp  g++  gcc  x86_64-w64-mingw32-c++  x86_64-w64-mingw32-g++  x86_64-w64-mingw32-gcc
         NVCC_OPTIONS += --dont-use-profile \
             --allow-unsupported-compiler --use-local-env \
-            -ccbin=C:/Qt/Tools/mingw810_64/bin/x86_64-w64-mingw32-c++.exe \
+            -ccbin=C:/Qt/Tools/mingw810_64/bin/x86_64-w64-mingw32-c++.exe \ # not working on my Laptop (Win10) :(
             --forward-unknown-to-host-compiler \
             --forward-unknown-to-host-linker \
             --verbose --drive-prefix="/"
@@ -191,9 +208,8 @@ win32: {
     }
     else {
         # FFTW3 Library (Laptop)
-        FFTW3_PATH = ../fftw-3.3.5-dll64
         exists($$FFTW3_PATH/fftw3.h) {
-            LIBS += -L$$FFTW3_PATH -lfftw3-3
+            LIBS += -L$$FFTW3_LIBS -lfftw3-3
             INCLUDEPATH += $$FFTW3_PATH
             HEADERS += $$FFTW3_PATH/fftw3.h
             message("Use FFTW-Lib in " $$FFTW3_PATH)
@@ -205,19 +221,14 @@ win32: {
     }
 
     # HDF5 Library
-    HDF5_BASE = ..\..\CMake-hdf5-1.12.1
-    HDF5_SRC  = $$HDF5_BASE/hdf5-1.12.1
     CONFIG(static) {
         # C:\SimLab\CMake-hdf5-1.12.1\build-ZLib-Desktop_Qt_5_14_2_MinGW_64_bit-Debug\bin\libzlib_D.a
         # C:\Windows\System32>echo %ZLIB_DIR%
         # C:\SimLab\CMake-hdf5-1.12.1\build-ZLib-Desktop_Qt_5_14_2_MinGW_64_bit-Debug
-
-        HDF5_GEN  = $$HDF5_BASE/build-hdf5-1.12.1-Desktop_Qt_5_14_2_MinGW_64_bit-MinSizeRel
         HDF5_LIBS = -L$$HDF5_GEN/bin -lhdf5_cpp -lhdf5_hl_cpp -lhdf5 -lhdf5_hl \
                     -L$$(ZLIB_DIR)/bin -lzlib_D
     }
     else {
-        HDF5_GEN  = $$HDF5_BASE/build-hdf5-1.12.1-Desktop_Qt_5_14_2_MinGW_64_bit-Debug
         HDF5_LIBS = -L$$HDF5_GEN/bin -lhdf5_cpp_D -lhdf5_hl_cpp_D -lhdf5_D -lhdf5_hl_D
     }
     exists($$HDF5_GEN/bin) {
@@ -235,11 +246,10 @@ win32: {
 unix: {     # no static !
 
     # FFTW3 Library
-    FFTW3_PATH = /usr/local/include
     exists($$FFTW3_PATH/fftw3.h) {
-        LIBS += -L/usr/local/lib -lfftw3
-        INCLUDEPATH += /usr/local/include
-        HEADERS += /usr/local/include/fftw3.h
+        LIBS += -L$$FFTW3_LIBS -lfftw3
+        INCLUDEPATH += $$FFTW3_PATH
+        HEADERS += $$FFTW3_PATH/fftw3.h
         message("Use FFTW-Lib in " $$FFTW3_PATH)
     }
     else {
@@ -248,7 +258,6 @@ unix: {     # no static !
     }
 
     # HDF5 Library
-    HDF5_BASE = /usr/local/hdf5
     exists($$HDF5_BASE/bin) {
         INCLUDEPATH += $$HDF5_BASE/include
         LIBS += -L$$HDF5_BASE/lib -lhdf5_cpp -lhdf5_hl_cpp -lhdf5 -lhdf5_hl
@@ -262,19 +271,22 @@ unix: {     # no static !
 
 }
 
-DISTFILES += \
-    "../Pascal-Sourcecodes/20230420 - crystal3d1.pas" \
-    "../Pascal-Sourcecodes/20220730 - Upq1.pas" \
-    "../Pascal-Sourcecodes/20240301 - crystal3d1.pas"
+win32:{
+    # Macht den Zugriff im QtCreator einfacher
+    DISTFILES += \
+        "../Pascal-Sourcecodes/20230420 - crystal3d1.pas" \
+        "../Pascal-Sourcecodes/20220730 - Upq1.pas" \
+        "../Pascal-Sourcecodes/20240301 - crystal3d1.pas"
 
-    #"../Pascal-Sourcecodes/20221004 - crystal3d1.pas" \
-    #"../20210616 - Neue Routinen/FHKL_routine_full.txt" \
-    #"../20210616 - Neue Routinen/HKL_routine_basic.txt" \
-    #"../20210616 - Neue Routinen/coordinate_rotation_routine_full.txt" \
-    #"../20210616 - Neue Routinen/formfactor_coefficient_routine_full.txt" \
-    #"../20210616 - Neue Routinen/generic_routine_basic.txt" \
-    #"../20210616 - Neue Routinen/generic_routine_full.txt" \
-    #"../20210616 - Neue Routinen/main_routine_basic.txt" \
-    #"../20210616 - Neue Routinen/main_routine_full.txt" \
-    #"../20210616 - Neue Routinen/numerical_integration_routines_full.txt" \
-    #"../20210616 - Neue Routinen/cpu_gpu_lattice.txt" \
+        #"../Pascal-Sourcecodes/20221004 - crystal3d1.pas" \
+        #"../20210616 - Neue Routinen/FHKL_routine_full.txt" \
+        #"../20210616 - Neue Routinen/HKL_routine_basic.txt" \
+        #"../20210616 - Neue Routinen/coordinate_rotation_routine_full.txt" \
+        #"../20210616 - Neue Routinen/formfactor_coefficient_routine_full.txt" \
+        #"../20210616 - Neue Routinen/generic_routine_basic.txt" \
+        #"../20210616 - Neue Routinen/generic_routine_full.txt" \
+        #"../20210616 - Neue Routinen/main_routine_basic.txt" \
+        #"../20210616 - Neue Routinen/main_routine_full.txt" \
+        #"../20210616 - Neue Routinen/numerical_integration_routines_full.txt" \
+        #"../20210616 - Neue Routinen/cpu_gpu_lattice.txt" \
+}

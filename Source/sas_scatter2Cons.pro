@@ -1,3 +1,36 @@
+# +++++ Settings of all path variables used for the specialized libraries:
+
+unix:{
+    CUDA_DIR = /usr/local/cuda-12.2   # Path to cuda sdk/toolkit install
+    CUDA_EXE = $$CUDA_DIR/bin/nvcc
+
+    FFTW3_PATH = /usr/local/include
+    FFTW3_LIBS = /usr/local/lib
+
+    HDF5_BASE = /usr/local/hdf5
+}
+
+win32:{
+    CUDA_DIR = "C:/SimLab/CUDA/v12.2"  # link to "C:/Program\ Files/NVIDIA\ GPU\ Computing\ Toolkit/CUDA/v12.2"
+    CUDA_EXE = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.2/bin/nvcc.exeX"  # append X to disable ist
+
+    FFTW3_PATH = ../fftw-3.3.5-dll64    # not used in static configuration
+    FFTW3_LIBS = ../fftw-3.3.5-dll64
+
+    HDF5_BASE = ../../CMake-hdf5-1.12.1
+    HDF5_SRC  = $$HDF5_BASE/hdf5-1.12.1
+    CONFIG(static) {
+        HDF5_GEN  = $$HDF5_BASE/build-hdf5-1.12.1-Desktop_Qt_5_14_2_MinGW_64_bit-MinSizeRel
+    }
+    else {
+        HDF5_GEN  = $$HDF5_BASE/build-hdf5-1.12.1-Desktop_Qt_5_14_2_MinGW_64_bit-Debug
+    }
+    # ZLIB_DIR must be set
+}
+
+# ----- User configuration ends here.
+
+
 QT       += core
 #QT       -= gui
 
@@ -65,20 +98,6 @@ else: unix:!android: target.path = /opt/sas_scatter2/bin
 !isEmpty(target.path): INSTALLS += target
 
 
-# CUDA definitions
-unix:{
-    CUDA_DIR = /usr/local/cuda-12.2   # Path to cuda sdk/toolkit install
-    CUDA_EXE = $$CUDA_DIR/bin/nvcc
-}
-win32:{
-    #CUDA_DIR = "C:/Program\ Files/NVIDIA\ GPU\ Computing\ Toolkit/CUDA/v12.2"
-    # -> nvcc fatal   : A single input file is required for a non-link phase when an outputfile is specified
-    #                   -> nvcc has problems with spaces in filenames...
-    CUDA_DIR = "C:/SimLab/CUDA/v12.2"  # link to above dir
-
-    # 'X' hinten zum Ausblenden dieser Funktion.
-    CUDA_EXE = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.2/bin/nvcc.exeX"
-}
 # nvcc can work with multiple input files but then they must be linked with a special cuda linker
 #  and this is not so easy to include in this Qt-Project. So only a single input is used and the
 #  other .cu files are included there.
@@ -164,9 +183,8 @@ win32: {
     }
     else {
         # FFTW3 Library (Laptop)
-        FFTW3_PATH = ../fftw-3.3.5-dll64
         exists($$FFTW3_PATH/fftw3.h) {
-            LIBS += -L$$FFTW3_PATH -lfftw3-3
+            LIBS += -L$$FFTW3_LIBS -lfftw3-3
             INCLUDEPATH += $$FFTW3_PATH
             HEADERS += $$FFTW3_PATH/fftw3.h
         }
@@ -176,19 +194,14 @@ win32: {
     }
 
     # HDF5 Library
-    HDF5_BASE = ..\..\CMake-hdf5-1.12.1
-    HDF5_SRC  = $$HDF5_BASE/hdf5-1.12.1
     CONFIG(static) {
         # C:\SimLab\CMake-hdf5-1.12.1\build-ZLib-Desktop_Qt_5_14_2_MinGW_64_bit-Debug\bin\libzlib_D.a
         # C:\Windows\System32>echo %ZLIB_DIR%
         # C:\SimLab\CMake-hdf5-1.12.1\build-ZLib-Desktop_Qt_5_14_2_MinGW_64_bit-Debug
-
-        HDF5_GEN  = $$HDF5_BASE/build-hdf5-1.12.1-Desktop_Qt_5_14_2_MinGW_64_bit-MinSizeRel
         HDF5_LIBS = -L$$HDF5_GEN/bin -lhdf5_cpp -lhdf5_hl_cpp -lhdf5 -lhdf5_hl \
                     -L$$(ZLIB_DIR)/bin -lzlib_D
     }
     else {
-        HDF5_GEN  = $$HDF5_BASE/build-hdf5-1.12.1-Desktop_Qt_5_14_2_MinGW_64_bit-Debug
         HDF5_LIBS = -L$$HDF5_GEN/bin -lhdf5_cpp_D -lhdf5_hl_cpp_D -lhdf5_D -lhdf5_hl_D
     }
     exists($$HDF5_GEN/bin) {
@@ -200,14 +213,21 @@ win32: {
         message("No HDF5 found in " $$HDF5_GEN)
     }
 }
-unix: { # exists(../fftw-3.3.9) {
-    # FFTW3 Library (Büro-PC)
-    LIBS += -L/usr/local/lib -lfftw3
-    INCLUDEPATH += /usr/local/include
-    HEADERS += /usr/local/include/fftw3.h
+unix: {     # no static !
+
+    # FFTW3 Library
+    exists($$FFTW3_PATH/fftw3.h) {
+        LIBS += -L$$FFTW3_LIBS -lfftw3
+        INCLUDEPATH += $$FFTW3_PATH
+        HEADERS += $$FFTW3_PATH/fftw3.h
+        message("Use FFTW-Lib in " $$FFTW3_PATH)
+    }
+    else {
+        DEFINES += USE_COMPLEX_WEB
+        message("No FFTW-Lib (not found) " $$FFTW3_PATH)
+    }
 
     # HDF5 Library
-    HDF5_BASE = /usr/local/hdf5
     exists($$HDF5_BASE/bin) {
         INCLUDEPATH += $$HDF5_BASE/include
         LIBS += -L$$HDF5_BASE/lib -lhdf5_cpp -lhdf5_hl_cpp -lhdf5 -lhdf5_hl
