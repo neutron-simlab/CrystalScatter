@@ -25,24 +25,25 @@ Scientific Report (https://www.nature.com/articles/s41598-023-27558-8).
 
 # License
 This software is developed under Open Source License.
-© (2023) Forschungszentrum Jülich GmbH, JCNS-1.
+© (2023-2025) Forschungszentrum Jülich GmbH, JCNS-1.
 
 # Used libraries
 The given version numbers are used during the development and are working.
 Other library versions may work too. To configure the used path of the
-external libraries edit the two .pro files in the source directory. The
-path informations are on top of each file. Please edit always both files
-(sas_scatter2.pro and sas_scatter2Cons.pro).
+external libraries edit the sas_scatter2.pri file in the source directory.
 
 ### mandatory
-- Qt 5.14.x (no Qt6)
+- Qt 5.14.x (first development)
+- Qt 6.7.2 (current version)
 
 ### optional / Windows
+- Qwt-6.3.0
 - fftw-3.3.5-dll64
 - hdf5-1.12.1 (CMake build)
 
 ### optional / Linux
 - cuda-rhel8-11-0-local
+- qwt-qt5-devel.x86_64 (6.1.5-5.el8)
 - fftw-devel.x86_64 (3.3.5-11.el8)
 - fftw-libs.x86_64 (3.3.5-11.el8)
 - hdf-devel.x86_64 (4.2.14-5.el8)
