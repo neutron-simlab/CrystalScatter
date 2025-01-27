@@ -40,9 +40,6 @@ private slots:
     void on_togHKL4_toggled(bool) { onTogToggled(); }
     void on_togHKL5_toggled(bool) { onTogToggled(); }
     void on_grpQuadrants_toggled(bool) { onTogToggled(); }
-    void on_togQ1_toggled(bool) { onTogToggled(); }
-    void on_togQ2_toggled(bool) { onTogToggled(); }
-    void on_togQ4_toggled(bool) { onTogToggled(); }
     void on_radSwitchBoth_toggled(bool) { onTogToggled(); }
     void on_radSwitchOld_toggled(bool) { onTogToggled(); }
     void on_radSwitchNew_toggled(bool) { onTogToggled(); }
@@ -52,6 +49,11 @@ private slots:
     void on_butSaveFilename_clicked();
 
     void on_butSaveTests_clicked();
+
+    void on_togQ1_toggled(bool) { onTogToggled(); }
+    void on_togQ2_toggled(bool) { onTogToggled(); }
+    void on_togQ4_toggled(bool) { onTogToggled(); }
+    void on_tog1d_toggled(bool) { onTogToggled(); }
 
 private:
     Ui::dlgTimeTests *ui;

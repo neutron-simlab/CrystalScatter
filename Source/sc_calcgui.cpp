@@ -131,6 +131,113 @@ void SC_CalcGUI::saveParameter( QString fn )
 }
 
 
+
+void SC_CalcGUI::loadParamLogmessage( QSettings &sets, QString key, QString msg )
+{
+    QString line;
+    if ( key.isEmpty() )
+        line = "LogLoad: " + msg;
+    else
+    {
+        line = "LogLoad:  ["+sets.group()+"] "+key;
+        if ( msg.isEmpty() )
+        {
+            if ( sets.value(key).toString().isEmpty() )
+                line += " = ''";
+            else
+                line += " = " + sets.value(key).toString();
+        }
+        else
+            line += ": "+msg;
+    }
+    // Die Datei bleibt während des Einlese-Vorgangs immer offen
+    static QFile f;
+    if ( msg.startsWith("START") )
+    {   // Die erste Meldung, das File neu erstellen
+        f.setFileName(sets.fileName()+".log");
+        if ( !f.open(QIODevice::WriteOnly) )
+        {
+            qDebug() << f.fileName() << f.errorString();
+            return;
+        }
+    }
+    if ( f.isOpen() )
+    {
+        f.write( qPrintable(line) );
+        f.write( "\n" );
+        if ( msg.startsWith("FIN") )
+        {   // Die letzte Meldung, Datei schließen
+            f.close();
+        }
+    }
+}
+
+bool SC_CalcGUI::loadparamWithLog(QSettings &sets, QString key, bool def, bool dolog , bool oldkey)
+{
+    if ( dolog )
+    {
+        if ( sets.contains(key) )
+            loadParamLogmessage( sets, key, "" );
+            //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "=" << sets.value(key).toBool();
+        else if ( oldkey )
+            loadParamLogmessage( sets, key, "not longer supported." );
+            //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "not longer supported.";
+        else
+            loadParamLogmessage( sets, key, "not found, use default "+QString(def?"true":"false") );
+            //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "not found, use default" << def;
+    }
+    return sets.value(key,def).toBool();
+}
+int SC_CalcGUI::loadparamWithLog(QSettings &sets, QString key, int def, bool dolog , bool oldkey)
+{
+    if ( dolog )
+    {
+        if ( sets.contains(key) )
+            loadParamLogmessage( sets, key, "" );
+            //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "=" << sets.value(key).toInt();
+        else if ( oldkey )
+            loadParamLogmessage( sets, key, "not longer supported." );
+            //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "not longer supported.";
+        else
+            loadParamLogmessage( sets, key, "not found, use default "+QString::number(def) );
+            //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "not found, use default" << def;
+    }
+    return sets.value(key,def).toInt();
+}
+double SC_CalcGUI::loadparamWithLog(QSettings &sets, QString key, double def, bool dolog , bool oldkey)
+{
+    if ( dolog )
+    {
+        if ( sets.contains(key) )
+            loadParamLogmessage( sets, key, "" );
+            //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "=" << sets.value(key).toDouble();
+        else if ( oldkey )
+            loadParamLogmessage( sets, key, "not longer supported." );
+            //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "not longer supported.";
+        else
+            loadParamLogmessage( sets, key, "not found, use default "+QString::number(def) );
+            //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "not found, use default" << def;
+    }
+    return sets.value(key,def).toDouble();
+}
+QString SC_CalcGUI::loadparamWithLog(QSettings &sets, QString key, QString def, bool dolog , bool oldkey)
+{
+    if ( dolog )
+    {
+        if ( sets.contains(key) )
+            loadParamLogmessage( sets, key, "" );
+            //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "=" << sets.value(key).toString();
+        else if ( oldkey )
+            loadParamLogmessage( sets, key, "not longer supported." );
+            //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "not longer supported.";
+        else
+            loadParamLogmessage( sets, key, "not found, use default "+def );
+            //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "not found, use default" << def;
+    }
+    return sets.value(key,def).toString();
+}
+
+
 /**
  * @brief SC_CalcGUI::loadParameter
  * @param fn         - filename (ini)
@@ -138,14 +245,13 @@ void SC_CalcGUI::saveParameter( QString fn )
  * This will load from the given file all parameters:
  *   - of all known methods (onlyMethod=="")
  *   - for one specific known method (onlyMethod!="")
- *   - from a specific method in the file to the current method (onlyMetod="@...").
+ *   - from a specific method in the file to the current method (onlyMethod="@...").
  * There are no default values if a key is not found.
  * If in GUI mode, the input fields are updated.
  */
-QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, bool &grid)
+QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, bool &grid, bool logload)
 {
     DT( qDebug() << "loadParameter()" << fn );
-    QString rv="";
     hkl  = false;
     grid = false;
     QSettings infile( fn, QSettings::IniFormat );
@@ -157,6 +263,7 @@ QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, boo
     //qDebug() << "LOAD PARAM anf" << slKeysFile;
     if ( slKeysFile.isEmpty() )
     {
+        if ( logload ) qDebug() << "LogLoad: old fileformat error, no values in group" << infile.group();
         return "Error: old fileformat" EOL;
     }
     QHash<QString,paramHelper*>::iterator ip = params.begin();
@@ -192,7 +299,7 @@ QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, boo
         switch ( par->type )
         {
         case paramHelper::numdbl:
-            par->value.number = infile.value( par->key, par->value.number ).toDouble();
+            par->value.number = loadparamWithLog( infile, par->key, par->value.number, logload );
             if ( par->key == "EditPixelX" || par->key == "EditPixelY" )
             {   // In den "alten" Datensätzen waren diese Werte in Metern angegeben (also 0.0001m für 1mm)
                 // daher sollten diese Werte jetzt angepasst werden, da hier Millimeter verwendet werden
@@ -204,14 +311,14 @@ QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, boo
             break;
         case paramHelper::numint:
             // Damit bei unbekannten Schlüsseln die Daten nicht auf 0 gesetzt werden
-            par->value.number = infile.value( par->key, par->value.number ).toDouble();
+            par->value.number = loadparamWithLog( infile, par->key, par->value.number, logload );
             if ( par->gui.w )
                 par->gui.numi->setValue( par->value.number );
             //if ( par->key.contains("HKLmex",Qt::CaseInsensitive) ) hkl=true;      TODO
             //if ( par->key.contains("GridPoints",Qt::CaseInsensitive) ) grid=true;
             break;
         case paramHelper::select:
-            par->value.number = infile.value( par->key, par->value.number ).toDouble();
+            par->value.number = loadparamWithLog( infile, par->key, par->value.number, logload );
             if ( par->value.number == 30 && par->key.contains("LType",Qt::CaseInsensitive) )
             {
                 //qDebug() << par->key << par->value.number;
@@ -221,7 +328,7 @@ QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, boo
                 par->gui.cbs->setCurrentIndex( par->value.number );
             break;
         case paramHelper::toggle:
-            par->value.flag = infile.value( par->key, par->value.flag ).toBool();
+            par->value.flag = loadparamWithLog( infile, par->key, par->value.flag, logload );
             //qDebug() << "*** LOAD toggle" << par->key << par->gui.w << par->value.flag;
             if ( par->gui.w )
             {
@@ -247,19 +354,25 @@ QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, boo
             break;
         }
         if ( par->gui.w != nullptr && par->gpFit != nullptr )
-        {
-            QString s = infile.value( "FITFLAG_"+par->key, "?" ).toString();
-            // Wenn kein Wert im INI-File vorhanden ist, dann bleibt der Status des Fit-
-            //  Toggles in der GUI erhalten.
-            if ( s[0] == '?' )
-                s = par->gpFit->isFitUsed() ? "11" : "00";
-            par->gpFit->setFitCheck(s[0]!='0');
-            //par->fitparam = s[1]!='0';
+        {   // Jetzt sind wir in der GUI-Umgebung und der Parameter ist theoretisch fittable
+            if ( par->gpFit->fit() != nullptr )
+            {   // Jetzt ist wirklich ein Fit-Toggle in der GUI vorhanden
+                QString s = loadparamWithLog( infile, "FITFLAG_"+par->key, QString("?"), logload );
+                // Wenn kein Wert im INI-File vorhanden ist, dann bleibt der Status des Fit-
+                //  Toggles in der GUI erhalten.
+                if ( s[0] == '?' )
+                    s = par->gpFit->isFitUsed() ? "11" : "00";
+                par->gpFit->setFitCheck(s[0]!='0');
+                //par->fitparam = s[1]!='0';
+            }
+            // Lösche alle Fitflags, auch wenn kein Fit-Toggle in der GUI vorhandne ist
             slKeysFile.removeOne( "FITFLAG_"+par->key );
             slKeysPar.removeOne( "FITFLAG_"+par->key );
         }
         ++ip;
-    }
+    } // while ( ip != params.end() )
+
+    QString rv="";
     slKeysFile.removeOne("FITFLAG_EditDist");       // Output-Parameter
     slKeysFile.removeOne("FITFLAG_EditRelDis");     // Output-Parameter
     slKeysFile.removeOne("FITFLAG_EditQmaxPreset"); // Macht eh keinen Sinn
@@ -267,10 +380,12 @@ QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, boo
     if ( slKeysFile.size() > 0 )
     {   // Diese Schlüssel sind veraltet und werden nicht mehr verwendet
         slKeysFile.sort();
+        if ( logload ) qDebug() << "LogLoad:  old keys in parameterfile found:";
         for ( int i=0; i<slKeysFile.size(); i++ )
         {
-            slKeysFile[i] += "=" + infile.value(slKeysFile[i],"?").toString();
+            slKeysFile[i] += "=" + loadparamWithLog( infile, slKeysFile[i], "?", logload );
         }
+        if ( logload ) qDebug() << "LogLoad:  old keys END";
         rv += EOL "Old keys in file (ignored):" EOL + slKeysFile.join(", ")+EOL;
         //Old keys in file (ignored): CheckBoxf2q=false, EditAnglexy=0, EditStretch=1, EditWAXSangle=0,
         //                            Editx=0, Edity=0, MaxIter=2, RadioButtonCHS=false, RadioButtonCS=false,
@@ -279,6 +394,8 @@ QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, boo
     }
     slKeysPar.removeOne("EditDist");    // Output-Parameter
     slKeysPar.removeOne("EditRelDis");  // Output-Parameter
+    slKeysPar.removeOne("EditQmin");    // Neue Funktion für 1D, muss aber nicht gesetzt werden
+    slKeysPar.removeOne("EditQsteps");  // Neue Funktion für 1D, muss aber nicht gesetzt werden
     if ( slKeysPar.size() > 0 )
     {
         slKeysPar.sort();
@@ -307,7 +424,7 @@ void SC_CalcGUI::saveFitFlags( QSettings &sets )
     while ( ip != params.end() )
     {
         paramHelper *par = ip.value();
-        if ( par->gui.w != nullptr && par->gpFit != nullptr )
+        if ( par->gui.w != nullptr && par->gpFit != nullptr && par->gpFit->fit() != nullptr )
         {
             QString s = "00";
             if ( par->gpFit->isFitUsed() )
@@ -325,25 +442,25 @@ void SC_CalcGUI::saveFitFlags( QSettings &sets )
 void SC_CalcGUI::loadFitFlags( QSettings &sets )
 {
     DT( qDebug() << "loadFitFlags()" );
-        sets.beginGroup( calcGeneric->methodName() );
-        QHash<QString,paramHelper*>::iterator ip = params.begin();
-        while ( ip != params.end() )
-        {
-            paramHelper *par = ip.value();
-            if ( par->key.startsWith("FITFLAG_") )
-            {   // Das Flag zum Fitten wird hier auch gespeichert...
-                ++ip;
-                continue;
-            }
-            if ( par->gui.w != nullptr && par->gpFit != nullptr )
-            {
-                QString s = sets.value( "FITFLAG_"+par->key, "00" ).toString();
-                par->gpFit->setFitCheck(s[0]!='0');
-                //par->fitparam = s[1]!='0';
-            }
+    sets.beginGroup( calcGeneric->methodName() );
+    QHash<QString,paramHelper*>::iterator ip = params.begin();
+    while ( ip != params.end() )
+    {
+        paramHelper *par = ip.value();
+        if ( par->key.startsWith("FITFLAG_") )
+        {   // Das Flag zum Fitten wird hier auch gespeichert...
             ++ip;
+            continue;
         }
-        sets.endGroup();
+        if ( par->gui.w != nullptr && par->gpFit != nullptr && par->gpFit->fit() != nullptr )
+        {
+            QString s = sets.value( "FITFLAG_"+par->key, "00" ).toString();
+            par->gpFit->setFitCheck(s[0]!='0');
+            //par->fitparam = s[1]!='0';
+        }
+        ++ip;
+    }
+    sets.endGroup();
 }
 
 
@@ -755,6 +872,8 @@ bool SC_CalcGUI::updateParamValueColor(QString p, QColor col )
     if ( par->gui.w != nullptr && col != Qt::black )
     {
         SETCOL( par->gui.w, col );
+        //myGuiParam *gp = myGuiParam::getGuiParam(p);
+        //if ( gp->cbs() != nullptr && gp->lbl() != nullptr ) SETCOL( gp->lbl(), col );
         return true;
     }
     return false;
@@ -918,14 +1037,15 @@ bool SC_CalcGUI::isCurrentParameterValid(QString p, bool forfit )
  * @param fromFit - if true called from the 2d-fit (use other dataGetter)
  * @param getData - if true call the method specific prepare function
  */
-void SC_CalcGUI::prepareCalculation(bool fromFit)
+void SC_CalcGUI::prepareCalculation(bool fromFit, bool only1d)
 {
+    //qDebug() << "prepareCalculation: 1D" << only1d;
     if ( fromFit )
     {   // Special call during 2D-Fit to update the parameters
-        calcGeneric->prepareData( &dataGetterForFit );
+        calcGeneric->prepareData( &dataGetterForFit, only1d );
         return;
     }
-    calcGeneric->prepareData( &dataGetter );
+    calcGeneric->prepareData( &dataGetter, only1d );
 }
 
 void SC_CalcGUI::updateOutputData()
@@ -1210,4 +1330,32 @@ paramHelper *SC_CalcGUI::getParamPtr( QString p )
 {
     DT( qDebug() << "getParamPtr()" << p );
     return params.value(p,nullptr);
+}
+
+
+
+
+void setColHelper::setcol(QWidget *w, QColor c)
+{
+    QPalette pal=w->palette();
+    if ( w->objectName().startsWith("cbs") )
+    {
+        if ( c == SETCOLMARK_CLEARED )
+            pal.setBrush(QPalette::Text,Qt::black);
+        else
+        {
+            pal.setBrush(QPalette::Text,c.darker(150));
+            //pal.setBrush(QPalette::Base,c);  Hintergrund in der DropDown-Liste
+        }
+    }
+    else if ( w->objectName().startsWith("tog") )
+    {
+        if ( c == SETCOLMARK_CLEARED )
+            pal.setBrush(QPalette::Button,Qt::white); // QColor(240,240,240)); // aus Designer als Default gelesen
+        else
+            pal.setBrush(QPalette::Button,c);
+    }
+    else // inp
+        pal.setBrush(QPalette::Base,c);
+    w->setPalette(pal);
 }

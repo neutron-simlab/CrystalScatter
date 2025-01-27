@@ -45,7 +45,7 @@ public:
     void loadParameter( QString fn );
     void saveParameter( QString fn );
 
-    void prepareCalculation(bool fromFit );
+    void prepareCalculation(bool fromFit, bool use1d);
     // Globale Inputs für die Berechnungen
     static QHash<QString,Double3> inpVectors;
     static QHash<QString,double>  inpValues;

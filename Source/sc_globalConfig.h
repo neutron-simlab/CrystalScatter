@@ -12,7 +12,7 @@
 
 
 // This version information is displayed in the top right corner in the GUI and with -v in the console
-#define MYVERSION "2.1.1  (Jun 2024)"
+#define MYVERSION "2.1.3  (Jan 2025)"
 
 
 #define FITDATA_IN_GPU  // Neu im Juli 2022 - ACHTUNG unten
@@ -32,6 +32,23 @@
 #define FQSVERGL(A,B) sqr( log(A)/log(10.) - log(B)/log(10.) )  // log(x) is e-based logarithm
 //--#define FQSVERGL(A,B) sqr( log(A) - log(B) )
 //--#define FQSVERGL(A,B) sqr( log10(A) - log10(B) )
+
+
+
+//#define NOCBSCALLBACK
+// If defined, no ComboBox Callbacks are performed and all labels show the parameter names
+// and not some special informations. Helpful for screenshots for the documentation.
+
+
+
+//#define ChatbotDisabled
+// If defined, the complete Chatbot function will not be visible to the user and no functions
+// will be active in the background.
+
+//#define ChatbotIgnoreImages  // Not yet implemented
+// If defined, the generated images from the Chatbot function will not be shown automatically.
+// This function only generates PNG files and not normal datafiles with meta informations.
+// Only valid if ChatbotDisabled is not defined.
 
 
 
@@ -63,13 +80,23 @@
 
 // Syntaxänderungen bei neueren Qt-Versionen
 #if (QT_VERSION <= QT_VERSION_CHECK(5, 12, 11))
+    // Qt 5.12.11 oder früher
 #define SPLIT_SKIP_EMPTY_PARTS QString::SkipEmptyParts
 #define SPLIT_KEEP_EMPTY_PARTS QString::KeepEmptyParts
 #define FONTMETRIC_WIDTH(s) width(s)
 #else
+    // Qt 5.12.12 oder neuer
 #define SPLIT_SKIP_EMPTY_PARTS Qt::SkipEmptyParts
 #define SPLIT_KEEP_EMPTY_PARTS Qt::KeepEmptyParts
 #define FONTMETRIC_WIDTH(s) horizontalAdvance(s)
+#endif
+
+#if (QT_VERSION <= QT_VERSION_CHECK(6,0,0))
+    // Qt 5 und früher
+#define XMLCOMP(x,s) ((x) == s)
+#else
+    // Qt 6 und neuer
+#define XMLCOMP(x,s) ((x).compare(s) == 0)
 #endif
 
 #endif // CUDACC

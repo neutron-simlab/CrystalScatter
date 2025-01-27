@@ -31,7 +31,7 @@ public:
 
     QStringList guiLayoutNeu();
 
-    void prepareData( _dataGetter );
+    void prepareData( _dataGetter, bool );
     void updateOutputData( _dataSetter );
 
     void doCalculation( int numThreads, bool bIgnoreNewSwitch )

@@ -5,6 +5,8 @@
 #define TT(x) //x // Untersuchungen zum ToolTip ...
 #define FF(x) //x // Untersuchungen bzgl. Fit-Toggle
 
+//#define SHOW_NO_TOOLTIPS
+
 
 
 /*static*/ QVector<myGuiParam*> myGuiParam::allParams;
@@ -191,7 +193,7 @@ void myGuiParam::setLocInputDbl(QWidget *w, QString on, double min, double max, 
 #endif
         if ( spinBoxMinH < 0 )
         {
-            spinBoxMinH = _inp->minimumSizeHint().height();
+            spinBoxMinH = _inp->minimumSizeHint().height() - 2;
             //qDebug() << "spinBoxMinH" << spinBoxMinH;
         }
         else
@@ -218,7 +220,7 @@ void myGuiParam::setLocInputDbl(QWidget *w, QString on, double min, double max, 
 #endif
         if ( spinBoxMinH < 0 )
         {
-             spinBoxMinH = _inp2->minimumSizeHint().height();
+             spinBoxMinH = _inp2->minimumSizeHint().height() - 2;
              //qDebug() << "spinBoxMinH" << spinBoxMinH;
         }
         else
@@ -243,7 +245,7 @@ void myGuiParam::setLocInputDbl(QWidget *w, QString on, double min, double max, 
 #endif
         if ( spinBoxMinH < 0 )
         {
-             spinBoxMinH = _inp3->minimumSizeHint().height();
+             spinBoxMinH = _inp3->minimumSizeHint().height() - 2;
              //qDebug() << "spinBoxMinH" << spinBoxMinH;
         }
         else
@@ -445,40 +447,234 @@ void myGuiParam::value3Dbl( double &v1, double &v2, double &v3 )
 }
 
 
-QString myGuiParam::debug()
+QString myGuiParam::debug(bool nurvis)
 {
     QString str = "";
     if ( _lbl != nullptr )
+    {
+        if ( nurvis && !_lbl->isVisible() ) return "";
         str += _lbl->text();
+    }
+    QWidget *w=nullptr;
     if ( _cbs != nullptr )
-        str += QString(" Select{%1:%2} (%3)").arg(_cbs->count()).arg(_cbs->currentText(),_keyName);
+    {
+        str += QString(" Select{max=%1, cur=%2}").arg(_cbs->count()).arg(_cbs->currentText());
+        w = _cbs;
+    }
     if ( _intinp != nullptr )
-        str += " IntInp ("+_keyName+")";
+    {
+        if ( nurvis && !_intinp->isVisible() ) return "";
+        str += " IntInp ("+_keyName+")="+QString::number(_intinp->value());
+        w = _intinp;
+    }
     if ( _inp != nullptr )
-        str += " Input ("+_keyName+")";
+    {
+        if ( nurvis && !_inp->isVisible() ) return "";
+        str += " Input ("+_keyName+")="+QString::number(_inp->value());
+        w = _inp;
+    }
     if ( _inp2 != nullptr )
-        str += " Input2 ("+_keyName2+")";
+        str += " Input2 ("+_keyName2+")="+QString::number(_inp2->value());
     if ( _inp3 != nullptr )
-        str += " Input3 ("+_keyName3+")";
+        str += " Input3 ("+_keyName3+")="+QString::number(_inp3->value());
+    if ( _out != nullptr )
+    {
+        str += " Output ("+_keyName+")="+_out->text();
+        w = _out;
+    }
     if ( _tog != nullptr )
-        str += " Toggle ("+_keyName+")";
+    {
+        str += " Toggle ("+_keyName+")="+(_tog->isChecked()?"True":"False");
+        w = _tog;
+    }
     if ( _fit != nullptr )
-        str += " FitEnabled";
+        str += " FitEnabled="+QString(_fit->isChecked()?"True":"False");
+    if ( w != nullptr )
+    {
+        QString tt = w->toolTip();
+        if ( tt.isEmpty() )
+            tt = "**NONE**";
+        else if ( tt.contains("Fitrange") && !tt.contains("\n") )
+            tt = "**NONE**, " + tt;
+        tt.replace("\n",", ");
+        str += " Tooltip="+tt;
+    }
     return str;
 }
 
 
-/*static*/ void myGuiParam::debugGuiParams()
+/*static*/ void myGuiParam::debugGuiParams(bool nurvis, QString fn)
 {
     if ( allParams.size() == 0 ) return;
-    qDebug() << "myGuiParam::debugGuiParams() - Start";
-    qDebug() << "Anzahl:" << allParams.size();
+
+    QStringList zeilen;
     foreach ( myGuiParam *p, allParams )
     {
-        qDebug() << p->debug();
+        QString s = p->debug(nurvis);
+        if ( s.isEmpty() ) continue;
+        zeilen << s;
     }
-    qDebug() << "myGuiParam::debugGuiParams() - Finished";
+    zeilen.sort();
+
+    if ( fn.isEmpty() )
+    {
+        qDebug() << "myGuiParam::debugGuiParams() - Start";
+        qDebug() << "Anzahl:" << allParams.size();
+        foreach ( QString s, zeilen )
+            qDebug() << s;
+        qDebug() << "myGuiParam::debugGuiParams() - Finished";
+    }
+    else
+    {
+        QFile fout(fn);
+        if ( !fout.open(QIODevice::WriteOnly) )
+        {
+            qDebug() << "myGuiParam::debugGuiParams" << fn << fout.errorString();
+            return;
+        }
+        foreach ( QString s, zeilen )
+            fout.write(qPrintable(s+"\n"));
+        fout.close();
+    }
 }
+
+
+void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCBParticle, QStringList &testOrdis, QStringList &testCBInterior, QStringList &testCBPeak,
+                      int lt, int pa, int o, int i, int pe )
+{
+    QString line;
+    line  = testLType.at(lt) + QString(" {%1};").arg(lt);
+    line += testCBParticle.at(pa) + QString(" {%1};").arg(pa);
+    line += testOrdis.at(o) + QString(" {%1};").arg(o);
+    if ( i < 0 )
+        line += "?;";
+    else
+        line += testCBInterior.at(i) + QString(" {%1};").arg(i);
+    if ( pe < 0 )
+        line += "?\n";
+    else
+        line += testCBPeak.at(pe) + QString(" {%1}\n").arg(pe);
+    ftest.write( qPrintable(line) );
+}
+
+
+
+/*static*/ void myGuiParam::generateTestFile()
+{
+    QStringList meta = SC_MainGUI::getInst()->getCalcGui()->getCalcPtr()->guiLayoutNeu();
+    QStringList testLType, testCBParticle, testOrdis, testCBInterior, testCBPeak;
+    foreach ( QString mm, meta )
+    {
+        QStringList sl = mm.split(";");
+        if ( sl[1] == "LType" ) testLType = sl[2].split("|");
+        if ( sl[1] == "ComboBoxParticle" ) testCBParticle = sl[2].split("|");
+        if ( sl[1] == "Ordis" ) testOrdis = sl[2].split("|");
+        if ( sl[1] == "ComboBoxInterior" ) testCBInterior = sl[2].split("|");
+        if ( sl[1] == "ComboBoxPeak" ) testCBPeak = sl[2].split("|");
+    }
+    qDebug() << "TEST LType" << testLType.size();
+    qDebug() << "TEST Part " << testCBParticle.size();
+    qDebug() << "TEST Ordis" << testOrdis.size();
+    qDebug() << "TEST Inter" << testCBInterior.size();
+    qDebug() << "TEST Peak " << testCBPeak.size();
+    QFile ftest("allcb.csv");
+    if ( ftest.open(QIODevice::WriteOnly) )
+    {
+        int cnt=0, c1=0, c2=0, c3=0, c4=0;
+        ftest.write( "LType;CBParticle;Ordis;CBInterior;CBPeak\n" );
+        for ( int lt=0; lt<testLType.size(); lt++ )
+        {
+            bool cbpeakEna;
+            int  cbpartFixed=-1, cbpeakFixed=-1;
+            switch ( lt )
+            {
+            case  0: cbpeakEna=true;  cbpartFixed=2; break;
+            case  1: cbpeakEna=true;  cbpartFixed=1; break;
+            case  2: cbpeakEna=true;  cbpartFixed=1; break;
+            case  3: cbpeakEna=true;  cbpartFixed=1; break;
+            case  4: cbpeakEna=true;  cbpartFixed=0; break;
+            case  5: cbpeakEna=true;  cbpartFixed=0; break;
+            case  6: cbpeakEna=true;  cbpartFixed=0; break;
+            case  7: cbpeakEna=true;  cbpartFixed=0; break;
+            case  8: cbpeakEna=true;  cbpartFixed=0; break;
+            case 17: cbpeakEna=true;  cbpartFixed=0; break;
+            case  9: cbpeakEna=true;  cbpartFixed=3; break;
+            case 10: cbpeakEna=true;  cbpartFixed=3; break;
+            case 11: cbpeakEna=true;  cbpartFixed=3; break;
+            case 12: cbpeakEna=false; cbpartFixed=0; break;
+            case 13: cbpeakEna=true;  cbpartFixed=0; cbpeakFixed=7; break;
+            case 14: cbpeakEna=true;  cbpartFixed=0; break;
+            case 15: cbpeakEna=true;  cbpartFixed=0; break;
+            case 16: cbpeakEna=true;  cbpartFixed=2; break;
+            case 18: cbpeakEna=true;  cbpartFixed=0; break;
+            case 19: cbpeakEna=true;  cbpartFixed=0; cbpeakFixed=7; break;
+            } // switch lt
+
+            for ( int pa=0; pa<testCBParticle.size(); pa++ )
+            {
+                if ( cbpartFixed != -1 && pa != cbpartFixed ) continue;
+                bool cbintEna;
+                switch ( pa )
+                {
+                case  0: cbintEna=true;  break;
+                case  1: cbintEna=true;  break;
+                case  2: cbintEna=true;  break;
+                case  3: cbintEna=false; break;
+                case  4: cbintEna=false; break;
+                case  5: cbintEna=true;  break;
+                case  6: cbintEna=true;  break;
+                case  7: cbintEna=true;  break;
+                case  8: cbintEna=true;  break;
+                case  9: cbintEna=true;  break;
+                case 10: cbintEna=true;  break;
+                } // switch pa
+
+                for ( int o=0; o<testOrdis.size(); o++ )
+                {
+                    if ( cbintEna )
+                    {
+                        for ( int i=0; i<testCBInterior.size(); i++ )
+                        {
+                            if ( cbpeakEna )
+                            {
+                                for ( int pe=0; pe<testCBPeak.size(); pe++ )
+                                {
+                                    if ( cbpeakFixed != -1 && pe != cbpeakFixed ) continue;
+                                    genTestFileWrite( ftest, testLType, testCBParticle, testOrdis, testCBInterior, testCBPeak, lt, pa, o, i, pe );
+                                    cnt++; c1++;
+                                } // for pe
+                            }
+                            else
+                            {
+                                genTestFileWrite( ftest, testLType, testCBParticle, testOrdis, testCBInterior, testCBPeak, lt, pa, o, i, -1 );
+                                cnt++; c2++;
+                            }
+                        } // for i
+                    }
+                    else
+                    {
+                        if ( cbpeakEna )
+                        {
+                            for ( int pe=0; pe<testCBPeak.size(); pe++ )
+                            {
+                                if ( cbpeakFixed != -1 && pe != cbpeakFixed ) continue;
+                                genTestFileWrite( ftest, testLType, testCBParticle, testOrdis, testCBInterior, testCBPeak, lt, pa, o, -1, pe );
+                                cnt++; c3++;
+                            } // for pe
+                        }
+                        else
+                        {
+                            genTestFileWrite( ftest, testLType, testCBParticle, testOrdis, testCBInterior, testCBPeak, lt, pa, o, -1, -1 );
+                            cnt++; c4++;
+                        }
+                    }
+                } // for o
+            } // for pa
+        } // for lt
+        ftest.close();
+        qDebug() << "TEST" << cnt << c1 << c2 << c3 << c4;
+    }
+} /* generateTestFile() */
 
 
 /*static*/ void myGuiParam::setAllGuiParams(QWidget *wtab)
@@ -505,6 +701,9 @@ QString myGuiParam::debug()
 
     //  /*name=QString()*/, Qt::FindChildOptions options = Qt::FindChildrenRecursively) const
     QList<QWidget*> wid = wtab->findChildren<QWidget*>();
+#ifdef SHOW_NO_TOOLTIPS
+    QStringList slNoToolTips;
+#endif
     for ( int us=0; us<2; us++ )
     {
         foreach ( QWidget *w, wid )
@@ -548,7 +747,12 @@ QString myGuiParam::debug()
 
             if ( ! sl[3].trimmed().isEmpty() )
                 w->setToolTip(sl[3]);
-
+#ifdef SHOW_NO_TOOLTIPS
+            else
+            {
+                if ( !slNoToolTips.contains(on) ) slNoToolTips << on;
+            }
+#endif
             QStringList typval = sl[2].split("|",SPLIT_SKIP_EMPTY_PARTS);
 
             paramHelper *par = SC_MainGUI::getInst()->getCalcGui()->params.value(on,nullptr);
@@ -622,6 +826,12 @@ QString myGuiParam::debug()
                 qDebug() << "???" << w->objectName() << on;
         }
     }
+
+#ifdef SHOW_NO_TOOLTIPS
+    slNoToolTips.sort();
+    qDebug() << "No ToolTips in" << slNoToolTips;
+#endif
+
     // Da es sein kann, dass der Fit-Toggle erst nach dem passenden Input gefunden und eingetragen wird,
     // muss hier ein zweiter Durchlauf gemacht weren, wobei nur bei den Inputs der Fit-Toggle gesucht wird.
     foreach ( QWidget *w, wid )
@@ -644,6 +854,9 @@ QString myGuiParam::debug()
             setFitToggleHelper(hlpPar->inp3());
         }
     }
+
+    //generateTestFile();
+
 }
 
 
@@ -745,7 +958,7 @@ QString myGuiParam::debug()
     return "?";
 }
 
-/*static*/ myGuiParam *myGuiParam::setEnabled(QString key, bool ena, QString lbl)
+/*static*/ myGuiParam *myGuiParam::setEnabled(QString key, bool ena, QString lbl, QString tt)
 {
     myGuiParam *gp = getGuiParam(key);
     if ( gp == nullptr )
@@ -777,7 +990,10 @@ QString myGuiParam::debug()
         gp->_par->enabled = ena;
     }
     else
+    {
         qDebug() << "setEnabled(" << key << ") _par unbekannt";
+        return nullptr;
+    }
     if ( hideValues )
     {   // Jetzt sollen alle Werte versteckt werden (visible)
         if ( gp->cbs()    != nullptr ) { gp->cbs()->setVisible(ena);    gp->cbs()->setEnabled(ena); }
@@ -803,9 +1019,31 @@ QString myGuiParam::debug()
     if ( !lbl.isEmpty() )
     {
         if ( lbl[0] == '@' && gp->cbs() != nullptr )
-            gp->cbs()->setCurrentIndex( lbl.midRef(1).toInt() );
+            gp->cbs()->setCurrentIndex( lbl.mid(1).toInt() );
         else if ( gp->lbl() != nullptr )
             gp->lbl()->setText(lbl);
+    }
+    if ( !tt.isEmpty() )
+    {   // Anpassen des Tooltips
+        if ( tt == "*" )
+        {   // Zurückstellen auf den Default
+            tt = gp->_par->tooltip;
+        }
+        QString tmp = gp->_par->gui.w->toolTip();
+        int p = tmp.indexOf("Fitrange");
+        if ( p > 1 ) tmp = tmp.mid(p);
+        if ( !tt.isEmpty() )
+            tt = tt + "\n" + tmp;
+        else
+            tt = tmp;
+        if ( gp->cbs()    != nullptr ) gp->cbs()->setToolTip(tt);
+        if ( gp->intinp() != nullptr ) gp->intinp()->setToolTip(tt);
+        if ( gp->inp()    != nullptr ) gp->inp()->setToolTip(tt);
+        if ( gp->inp2()   != nullptr ) gp->inp2()->setToolTip(tt);
+        if ( gp->inp3()   != nullptr ) gp->inp3()->setToolTip(tt);
+        if ( gp->tog()    != nullptr ) gp->tog()->setToolTip(tt);
+        if ( gp->fit()    != nullptr ) gp->fit()->setToolTip(tt);
+        if ( gp->lbl()    != nullptr ) gp->lbl()->setToolTip(tt);
     }
     return gp;
 }

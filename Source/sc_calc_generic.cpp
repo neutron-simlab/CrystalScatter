@@ -40,18 +40,18 @@ QStringList SC_Calc_GENERIC::guiLayoutNeu()
                 "|BCC (lm3m)|FCC (Fm3m)|HCP (P6/mmc)|SC (Pm3m)|BCT (l4/mm)|Gyroid (Ia3d)|OBDD (Pn3m)|Plumbers Nightmare (Im3m)|None|CP-Layers"
                 "|2DHex (GISAXS)|2DSquare (GISAXS)|1DLam (GISAXS)|Fd3m|Orthorombic|LDQ12;Lattice type selection;None",
                 //20240301 - weg: "|Percus-Yevick|Teubner-Strey|Pm3n (A15)|P42/mnm (sigma)|Fddd-network"
-            "NF;uca;2|0.01|1000| nm;Unit cell dimension a [nm];30",
-            "NF;ucb;2|0.01|1000| nm;Unit cell dimension b [nm];30",
-            "NF;ucc;2|0.01|1000| nm;Unit cell dimension c [nm];30",
-            "NF;ucalpha;3|0|360|°;Unit cell rotation alpha [°];90",  // Default auf 90°
-            "NF;ucbeta;3|0|360|°;Unit cell rotation beta [°];90",    //
-            "NF;ucgamma;3|0|360|°;Unit cell rotation gamma [°];90",  //
-            "NF;EditCeff;4|0|1;;1",  //TwRatio
+            "NF;uca;2|0.01|1000| nm;Unit cell dimension a;30",
+            "NF;ucb;2|0.01|1000| nm;Unit cell dimension b;30",
+            "NF;ucc;2|0.01|1000| nm;Unit cell dimension c;30",
+            "NF;ucalpha;3|0|360|°;Unit cell rotation alpha;90",  // Default auf 90°
+            "NF;ucbeta;3|0|360|°;Unit cell rotation beta;90",    //
+            "NF;ucgamma;3|0|360|°;Unit cell rotation gamma;90",  //
+            "NF;EditCeff;4|0|1;Effective volume fraction;1",
             "T-;CheckBoxTwinned;;;0",  //??
             "NF;EditCeffcyl;4|0|999;;0",  //??
-            "NF;reff;;;0", //??
-            "NF;acpl;;;0", //?? Editastack
-            "NF;bcpl;;;0", //?? Editbstack
+            "NF;reff;;Effective radius;0",
+            "NF;acpl;5|0|1;Stacking probability A(s);0",
+            "NF;bcpl;5|0|1;Stacking probability B(s);0",
             "NF;ifluc;4|0|1000;;0",  //??
             "NF;rfluc;4|0|1000;;0",  //??
             "O-;EditRelDis;;;",
@@ -59,26 +59,26 @@ QStringList SC_Calc_GENERIC::guiLayoutNeu()
 
             // Particle group
             "C-;ComboBoxParticle;sphere|cylinder|disk|vesicle|cube|ellipsoid|triaxial ellipsoid|super ellipsoid, barrel"
-                "|superball|excluded volume chain|Kratky Porod chain;Particle type selection;Sphere",
+                "|superball|excluded volume chain|Kratky Porod chain;Particle shape selection;Sphere",
             "C-;Ordis;Gaussian|Exponential|Onsager|Maier-Saupe|Cut-off|Laguerre|z-dir|isotropic|mirrored Gaussian"
-                "|mirrored Exponential|mirrored Onsager|mirrored Maier-Saupe|mirrored Cut-off|fiber pattern;;isotropic",
-            "C-;ComboBoxInterior;homogeneous|core + homogeneous sh|core + inhomogeneous sh|multi-shell|myelin;;homogeneous",
-            "NF;EditRadius;;Inner radius;1",
-            "NF;EditRadiusi;;Outer radius;0",  //??
-            "NF;EditSigma;4;;0.07",
-            "NF;EditDbeta;4|0|360|°;;0.4",
-            "NF;Length;4|0|1000;;1",
-            "NF;SigmaL;4;;0.06",
+                "|mirrored Exponential|mirrored Onsager|mirrored Maier-Saupe|mirrored Cut-off|fiber pattern;Orientational distribution functions;isotropic",
+            "C-;ComboBoxInterior;homogeneous|core + homogeneous sh|core + inhomogeneous sh|multi-shell|myelin;Particle nature;homogeneous",
+            "NF;EditRadius;4|0|1000|nm;Inner radius;1.0",
+            "NF;EditRadiusi;4|0|1000|nm;Outer radius;0.5",  //??
+            "NF;EditSigma;4;Relative standard deviation;0.07",
+            "NF;EditDbeta;4|0|360|°;Average angle;0.4",
+            "NF;Length;4|0|1000;Structure length;1",
+            "NF;SigmaL;4;Relative standard deviation of the length;0.06",
             "NF;Alpha;;Internal 'alphash';0",  //??
             "NF;EditRho;;;0",  //??
             "NF;RotAlpha;;Internal 'alpha';0",  //??
 
             // Peak Shape group
-            "C-;ComboBoxPeak;Lorentzian|Gaussian|mod. 1 Lorentzian|mod. 2 Lorentzian|Pseudo-Voigt|Pearson VII|Gamma|Anisotropic Gaussian;;Gaussian",
-            "NF;EditPeakPar;;;0",  //??
-            "NF;EditDebyeWaller;3|0|100| nm;Also called Displacement [nm];2",
+            "C-;ComboBoxPeak;Lorentzian|Gaussian|mod. 1 Lorentzian|mod. 2 Lorentzian|Pseudo-Voigt|Pearson VII|Gamma|Anisotropic Gaussian;Select the peak shape;Gaussian",
+            "NF;EditPeakPar;4|0|1e6;Peak shape parameter;0",
+            "NF;EditDebyeWaller;3|0|100| nm;Average displacement from ideal lattice point;2",
             "NF;EditAzi;;;180",
-            "NF;EditDomainSize;2|0|5000| nm;Radial domain size [nm];400",
+            "NF;EditDomainSize;2|0|5000| nm;Radial domain size;400",
             "T-;RadButDebyeScherrer;;;0",  //??
             "T-;RadioButtonPara;;;0",  //??
             "N-;VAx1;3|-1000|1000;Ax1;1",  //??
@@ -90,9 +90,9 @@ QStringList SC_Calc_GENERIC::guiLayoutNeu()
             "N-;Az1;3|-1000|1000;Az1;0",
             "N-;Az2;3|-1000|1000;Az2;0",
             "N-;Az3;3|-1000|1000;Az3;1",
-            "NF;SigX;3|0.01|9999;editdom1;40",  //??
-            "NF;SigY;3|0.01|9999;editdom2;40",
-            "NF;SigZ;3|0.01|9999;editdom3;40",
+            "NF;SigX;3|0.01|9999;Average domain size X;40",  //?? editdom1,2,3
+            "NF;SigY;3|0.01|9999;Average domain size Y;40",
+            "NF;SigZ;3|0.01|9999;Average domain size Z;40",
 
             // Orientation group
             "NF;ucpsi;3|0|360|°;;0",
@@ -106,23 +106,25 @@ QStringList SC_Calc_GENERIC::guiLayoutNeu()
 
             // Calculation group
             "I-;GridPoints;16|2049;Half of the size of each image dimension;64",  //?? - werden nicht auf 20 runtergesetzt
-            "I-;HKLmax;1|20;Number of iterations in the h,k,l-loops;5",
-            "N-;EditQmax;4|0.001|100| nm-1;Qmax preset from user [nm-1];1",                   // Das genutzte QMax wird über die
-            "N-;CalcQmax;4|0.001|100| nm-1;Qmax calculated from data header above [nm-1];",   // Radiobuttons darunter ausgewählt
+            "I-;HKLmax;1|20;Number of iterations in the h,k,l-loops (Miller indices);5",
+            "N-;EditQmax;4|0.001|100| nm-1;Qmax preset from user;1",                   // Das genutzte QMax wird über die
+            "N-;CalcQmax;4|0.001|100| nm-1;Qmax calculated from data header above;",   // Radiobuttons darunter ausgewählt
             "T-;EditQmaxData;;Use the Qmax from the data;",   // auch wenn das Radiobuttons sind
             "T-;EditQmaxPreset;;Use the Qmax provided here;", // -"-
+            "N-;EditQmin;4|0.0|100| nm-1;Qmin default for 1d graphs;0",
+            "I-;EditQsteps;10|10000;Number of steps from Qmin to Qmax for 1d graphs;200",
 
             // Experiment group
             "NF;EditPixelNoX;1|16|10000;Number of horizontal detector pixel;2048",
             "NF;EditPixelNoY;1|16|10000;Number of vertical detector pixel;2048",
-            "NF;EditPixelX;5|0.1|50| mm;Width of one detector pixel [mm];1",
-            "NF;EditPixelY;5|0.1|50| mm;Height of one detector pixel [mm];1",
-            "NF;EditDet;4|0.001|100| m;Distance Sample - Detector [m];1",
-            "NF;EditWavelength;5|0.001|200| nm;Wavelength [nm];0.09499",
-            "NF;BeamPosX;3|-1000|1000;Horitontal center of the beam in pixel coordinates;0",
+            "NF;EditPixelX;5|0.1|50| mm;Width of one detector pixel;1",
+            "NF;EditPixelY;5|0.1|50| mm;Height of one detector pixel;1",
+            "NF;EditDet;4|0.001|100| m;Distance Sample - Detector;1",
+            "NF;EditWavelength;5|0.001|200| nm;Wavelength;0.09499",
+            "NF;BeamPosX;3|-1000|1000;Horizontal center of the beam in pixel coordinates;0",
             "NF;BeamPosY;3|-1000|1000;Vertical center of the beam in pixel coordinates;0",
             "T-;CenterBeam;;Use beam position;",          // Radiobutton für die Beamposition
-            "T-;CenterMidpoint;;Use center point;",      // Radiobutton für den Mittelpunkt (andere qx,qy,qz Berechnungen)
+            "T-;CenterMidpoint;;Use center point;",       // Radiobutton für den Mittelpunkt (andere qx,qy,qz Berechnungen)
 
             // Controls group
             "N-;EditBFactor;3|0.01|999;;1",  //??
@@ -130,16 +132,16 @@ QStringList SC_Calc_GENERIC::guiLayoutNeu()
             "N-;P1;;;0",       //?? wird in formpq verwendet
 
             // Pixel Manipulation group
-            "NF;iso;5|0|1000;;0",    // Multiplikator für radintensity (generic)
-            "NF;I0;5|0|100000;;10000",
-            "NF;Base;5|-10000|10000;;0",  // Eigentlich 1e-10
+            "NF;iso;5|0|1000;Offset for the radial intensity;0",
+            "NF;I0;5|0|100000;Multiplier for the radial intensity;10000",
+            "NF;Base;5|-10000|10000;Constant background added to the calculated pixel value;0",  // Eigentlich 1e-10
         };
     return slGUI;
 }
 
-void SC_Calc_GENERIC::prepareData( _dataGetter dg )
+void SC_Calc_GENERIC::prepareData(_dataGetter dg, bool use1d)
 {
-    DT( qDebug() << "prepareData()" );
+    DT( qDebug() << "prepareData()" << use1d );
     _valueTypes val, val1;
 
     // Lattice group
@@ -197,13 +199,21 @@ void SC_Calc_GENERIC::prepareData( _dataGetter dg )
     (*dg)( "rotPhi", val );              calc->setRotPhi( val.value );
 
     // Calculation group
-    (*dg)( "GridPoints", val );          calc->setGridPoints( val.value );
     (*dg)( "HKLmax", val );              calc->setHKLmax( val.value );
     (*dg)( "EditQmax", val );            calc->setQMax( val.value );
-    (*dg)( "RadioButtonQ1", val );       calc->setRadQ1( val.value > 0 );   // Weil über InputValues<>
-    (*dg)( "RadioButtonQ2", val );       calc->setRadQ2( val.value > 0 );
-    (*dg)( "RadioButtonQ4", val );       calc->setRadQ4( val.value > 0 );
-    (*dg)( "ExpandImage", val );         calc->setExpandImage( val.value > 0 );
+    if ( use1d )
+    {
+        (*dg)( "EditQsteps", val );      calc->setGridPoints( val.value, true );
+        (*dg)( "EditQmin", val );        calc->setQMin( val.value );
+    }
+    else
+    {
+        (*dg)( "GridPoints", val );      calc->setGridPoints( val.value, false );
+        (*dg)( "RadioButtonQ1", val );   calc->setRadQ1( val.value > 0 );   // Weil über InputValues<>
+        (*dg)( "RadioButtonQ2", val );   calc->setRadQ2( val.value > 0 );
+        (*dg)( "RadioButtonQ4", val );   calc->setRadQ4( val.value > 0 );
+        (*dg)( "ExpandImage", val );     calc->setExpandImage( val.value > 0 );
+    }
 
     // Experiment group
     (*dg)( "EditPixelNoX", val );        calc->setpixnox( val.value );

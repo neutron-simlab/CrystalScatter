@@ -100,6 +100,8 @@ public:
 
     void updateLogList( QString msg );
 
+    bool is1Dused() { return _is1Dused; }
+
 protected:
     void closeEvent(QCloseEvent *event);
 
@@ -235,6 +237,7 @@ private slots:
 
     void on_actionStart_autoprocessing_file_triggered();
 
+#ifndef ChatbotDisabled
     void on_butChatbotSearch_clicked();
     void on_butChatbotStart_clicked();
     void on_butChatbotStop_clicked();
@@ -246,8 +249,15 @@ private slots:
     void on_butChatbotSaveConfig_clicked();
     void on_butChatbotReadClipboard_clicked();
     void chatbotClipboardChanged(QClipboard::Mode);
+#endif
 
     void on_togUseAdaptiveStep_toggled(bool checked);
+    void on_tab1D2D_currentChanged(int index);
+
+    void on_actionSave_current_values_as_text_triggered();
+    void on_actionShow_Parameter_w_o_Tooltip_triggered();
+
+    void on_actionGenerate_all_combinations_of_CBs_triggered();    
 
 private:
     Ui::SC_MainGUI *ui;
@@ -260,6 +270,8 @@ private:
     QString fnTempParamFile;
 
     QFile *autoProcessingFile;
+    void openAutoProcessingFile( QString fn );
+    void closeAutoProcessingFile( QString reason );
 
     void fillDataFromInputs();
     void prepareCalculation( bool progbar );
@@ -284,6 +296,7 @@ private:
     widImage *curFitImage;          // das anzufittende Bild
     widImage *lastSelectedImage;    // das letzte selektierte Bild in der Liste der Bilder
     int noFitCurRect;
+    bool _is1Dused;         // set when Calculate starts (visibility of 1D tab)
 
     _param2fitval *fitparams;
     SasCalc_SimplexFit2D *fitClass;
@@ -342,6 +355,10 @@ private:
     // Tab "AI"
     typedef QMap<QString/*Variable*/, double/*value*/> _loopVariables;
     typedef QMultiMap<QString/*CLASS*/, _loopVariables > _loopDefinition;
+    //typedef QHash<QString/*Variable*/, double/*value*/> _loopVariable;
+    //typedef QMultiHash<QString/*CLASS*/, _loopVariables > _loopDefinition;
+    //typedef QHash<QString/*Variable*/, double/*value*/> _loopVariable;
+    //typedef QMultiHash<QString/*CLASS*/, _loopVariables > _loopDefinition;
     _loopDefinition getLoopDefinition();
     _loopDefinition getTPVLoopDefinition();
     bool globFlagTPV;
@@ -361,7 +378,7 @@ private:
     void setCurrentNoFitRect();
 
     QString local_Load_all_Parameters(QString fn);
-    double loadParameter_checkOldFormat( double cur, QString key, QString &rv );
+    double loadParameter_checkOldFormat(QSettings &sets, QString oldkey, QString newkey, QString &rv, bool logLoad);
     bool local_OpenMeasFile( QString fn, widImage **imgout );
     void copyMetaToLatticeTable( widImage *img );
     bool copyParamsToFitTable();
@@ -389,11 +406,17 @@ private:
 
     void showColorMarker( QColor c );
 
+    bool localCheckToolTip(QWidget *w, bool &used);
+
+    bool genIniFile_CombinationOfCBs(QFile *flog, QString outpath, bool genimg);
+
+#ifndef ChatbotDisabled
     // Tab "ChatBot"
     QString chatbotConsProg;
     QProcess *chatbotBackProg;
     void chatbotBackProgAddLog(QString msg);
     void chatbotSaveConfigHelper(QFile &fTrain, QString key, bool showena, bool isena);
+#endif
 
 };
 

@@ -1,6 +1,10 @@
 #include "sc_readdata.h"
+#include "sc_globalConfig.h"
 #include <QDebug>
 #include <QFile>
+#if (QT_VERSION >= QT_VERSION_CHECK(6,0,0))
+#include <QRegularExpression>
+#endif
 //#include <QDomDocument>
 #include <QXmlStreamReader>
 
@@ -1506,38 +1510,38 @@ widImage *SC_ReadData::readImage2dSans( myAddImage add, QString fn )
                 // EndElement. The convenience function readElementText() can be called to
                 // concatenate all content until the corresponding EndElement. Attributes
                 // are reported in attributes(), namespace declarations in namespaceDeclarations().
-                if ( xml.name() == "SASdata" )
+                if ( XMLCOMP(xml.name(), "SASdata") )
                 {
                     NbRows++;
                     if ( NbRows > 1 ) firstrow = false;
                 }
-                else if ( xml.name() == "Idata" && firstrow )
+                else if ( XMLCOMP(xml.name(),"Idata") && firstrow )
                 {
                     NbCols++;
                 }
-                else if ( xml.name() == "I" )
+                else if ( XMLCOMP(xml.name(),"I") )
                 {
                     QString val = xml.readElementText();
                     daten.append( val.toDouble() );
                 }
-                else if ( xml.name() == "Q" ||
-                          xml.name() == "Idev" ||
-                          xml.name() == "Qdev" )
+                else if ( XMLCOMP(xml.name(),"Q") ||
+                          XMLCOMP(xml.name(),"Idev") ||
+                          XMLCOMP(xml.name(),"Qdev") )
                 {
                 }
-                else if ( xml.name() == "ID" ||
-                          xml.name() == "name" ||
-                          xml.name() == "radiation" ||
-                          xml.name() == "date" )
+                else if ( XMLCOMP(xml.name(),"ID") ||
+                          XMLCOMP(xml.name(),"name") ||
+                          XMLCOMP(xml.name(),"radiation") ||
+                          XMLCOMP(xml.name(),"date") )
                 {
                     tmp = xml.readElementText();
                     //qDebug() << path << xml.name() << tmp;
                     if ( ! tmp.isEmpty() )
-                        metadata.insert( path.join("/")+"/"+xml.name(), tmp );
+                        metadata.insert( path.join("/")+"/"+xml.name().toString(), tmp );
                 }
-                else if ( xml.name() != "Idata" &&
-                          xml.name() != "SASroot" &&
-                          xml.name() != "SASentry" )
+                else if ( !XMLCOMP(xml.name(),"Idata") &&
+                          !XMLCOMP(xml.name(),"SASroot") &&
+                          !XMLCOMP(xml.name(),"SASentry") )
                 {
                     path.append( xml.name().toString() );
                     //qDebug() << "  Start" << xml.name();
@@ -1704,7 +1708,11 @@ widImage *SC_ReadData::readImage2dSans( myAddImage add, QString fn )
             }
             else
             {   // Daten
+#if (QT_VERSION <= QT_VERSION_CHECK(6,0,0))
                 sl = line.split( QRegExp("[\t ]"), Qt::SkipEmptyParts );
+#else
+                sl = line.split( QRegularExpression("[\t ]"), Qt::SkipEmptyParts );
+#endif
                 //qDebug() << line << sl;
                 //break;
                 if ( index >= sl.size() ) continue; // Zu wenige Daten in der Zeile, ignorieren (TODO)

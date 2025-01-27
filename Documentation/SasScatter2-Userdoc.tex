@@ -84,21 +84,23 @@
 \tableofcontents % toc anzeigen
 
 \clearpage
-\begin{figure}  % [b] % die History Tabelle am unteren[b] Seitenrand der ersten Seite anzeigen...
+\begin{figure}  % [t] % die History Tabelle am unteren[b] Seitenrand der ersten Seite anzeigen...
 % Da das Inhaltsverzeichnis größer geworden ist, wird diese jetzt auf der zweiten Seite platziert.
-\begin{longtable}{|p{2.7cm}|p{2.6cm}|p{10.3cm}|}
+\begin{longtable}{|p{3cm}|p{12cm}|}
 \caption{Document revision history} \\
-\hline\rowcolor{rowcolor}{\bf Date} & {\bf Author} & {\bf Short description} \\
+\hline
+\rowcolor{rowcolor}{\bf Date} & {\bf Short description} \\
 \endfirsthead
 \hline
-03. Dec 2021 & M.Wagener & Start with a copy of a former version. \\ \hline
-%18. Jan 2022 & M.Wagener & Continue writing and insert screenshots. \\ \hline
-%04. Feb 2022 & M.Wagener & Finish chapter 2 and start with chapter 3. \\ \hline
-04. Mar 2022 & M.Wagener & Add directory infos of the git and work on the AI part. \\ \hline
-08. Dec 2022 & M.Wagener & Upload to github (under the name CrystalScatter). \\ \hline
-12. Jun 2023 & M.Wagener & Start writing about the GUI-Redesign. \\ \hline
-22. Jun 2023 & M.Wagener & Finish the first version after GUI-Redesign. \\ \hline
-27. Jun 2024 & M.Wagener & Update screenshots and some descriptions, add Chatbot. \\ \hline
+03. Dec 2021 & Start with a copy of a former version. \\ \hline
+%18. Jan 2022 & Continue writing and insert screenshots. \\ \hline
+%04. Feb 2022 & Finish chapter 2 and start with chapter 3. \\ \hline
+04. Mar 2022 & Add directory infos of the git and work on the AI part. \\ \hline
+08. Dec 2022 & Upload to github (under the name CrystalScatter). \\ \hline
+12. Jun 2023 & Start writing about the GUI-Redesign. \\ \hline
+22. Jun 2023 & Finish the first version after GUI-Redesign. \\ \hline
+27. Jun 2024 & Update screenshots and some descriptions, add Chatbot. \\ \hline
+21. Jan 2025 & Update screenshots, add 1D informations. \\ \hline
 \end{longtable}
 
 \centerline{All sources saved at https://iffgit.fz-juelich.de/wagener/sas-crystal (only private access)}
@@ -133,15 +135,15 @@ The program can be used under different systems:
 	{\bf MacOS} (from source) \\
 	you can get access to the git system, where the source is available. Then you have to install the Qt development environment and some other libraries\footnote{{\bf FFTW3} for FFTs, if installed this replaces a simple internal code. {\bf HDF5} to read this datatype} if you need the functionality. Then you can compile this program and use it.
 \item {\bf Android} (Tablet) \\
-	it is possible to compile the program for Android and run it on a tablet computer. This makes only sense if the tablet has more than 4 cores and the cpu is fast.
+	I've made a test run on a Galaxy Tab S7 FE. It has 8 cores and the running time is in the same range as on my development laptop. But the GUI has to be reworked because of the multiple windows of the image displays.
 \item {\bf IOS} (Tablet) \\
-	at the moment I'm not able to compile for the IOS system.
+	at the moment I'm not able to compile for the IOS system. This is a license issue.
 \end{itemize}
 
 \clearpage
 \section{GUI}
 
-After the start of the program you get this screen. In the upper right corner is the current version number and the release date.
+After the start of the program you get this screen. In the upper right corner is the current version number and the release date. In newer versions the used Qt version is displayed too. These screenshots are made on a Windows 11 system, so the look differs from the older screenshots.
 
 \begin{figure}[H]
  \centering
@@ -177,9 +179,11 @@ This system menu contains only the {\it Exit} function. But the Window-Closebutt
  %\label{fig:menusys}
 \end{wrapfigure}
 With this parameter menu the user can load and save the current calculation parameters. The save asks allways for a filename. Just before a calculation starts, all parameters are saved into a special file and this file can be loaded with the {\it Load last calculation parameters}.
+Due to some problems during loading, it is possible to log all loaded parameters when the menu topic {\it Log loading} is checked. This File has the same name and path as the input file with ``.log'' appended.
 
 The menu topic {\it Hide unused values} can be toggled. If it is set, all parameters not used in the current calculation are hidden completly. If this is not set, then all unused parameters are shown with a disabled label and fit-checkbox, but the values are changable.
-\\
+
+The menu topic {\it Show Parameter w/o Tooltip} colores all parameters without a descriptive text normally displayed in the tool tip of the input fields. This is for development purposes and might be removed later.
 
 \subsubsection{Tools}
 
@@ -197,6 +201,8 @@ There are some tools implemented, mostly as an answer to development questions a
 \item {\it Compare current parameters with file} - this will compare all current parameters with the informations read from a parameter file. All different parameters are highlighted with a green background and the value from the file is put in the tooltip text for this parameter.
 \item {\it Find parameters changing image} - all parameters (except the size informations) will be checked if they are changing the binary image. For this the current image is calculated and saved in memory, then each parameter ist changed +10\% and -10\% and each time the calculated image is compared with the starting image. Each parameter with a change will be highlighted with a cyan background.
 \item {\it Start autoprocessing file} - this will select a file with some commands and process them. Then this file can be used to be automatically processed at program start if given as a command line parameter.
+\item {\it Save current parameter as text} - writes all visible parameters with explanations and limits into a file.
+\item {\it Generate all combinations of CBOX} - opens a new dialog and let the user decide, which combination will be calculated. See below for more informations.
 \end{itemize}
 If one colored background is set, an explanation for the colors is displayed in the Usage group box.
 
@@ -252,14 +258,26 @@ All data inputs are logically grouped. On the right of most input fields there i
 \item Group {\it Particle} - set the used particle type and the calculation parameters. The two values at the lower part of this group are output values calculated during the run.
 \item Group {\it Peak Shape} - here you can define the peak shape parameters. The lower 3 by 3 values define the peak shape directions and the last three values are the domain size values for each axis.
 \item Group {\it Orientation} - these are the orientation and rotation of the sample.
-\item Group {\it Calculation}
+\item Group {\it Calculation} \\
+	here you can switch between 1d and 2d calculations and displays.
+
+\begin{minipage}{0.68\textwidth}
 	\begin{itemize}\itemsep0pt
-	\item Grid points: number of pixel of one quadrant of the generated image. The 128 in the screenshot results in an image of 256*256 pixel.
+	\item Grid points {\it (2d)}: number of pixel of one quadrant of the generated image. The 128 in the screenshot results in an image of 256*256 pixel.
+	\item Quadrants {\it (2d)}: here you can select, if only one quadrant(1) or the half(2) of the image or the full image(4) are calculated. If the checkbox {\it Expand to full image} is checked, the rest of the image is mirrored over the center to generate allways a full image. This is only usefull if the beam center ist set to zero.
+	\item Qmin {\it (1d)}: this sets the minimum dimension in the Q-range.
+	\item number of steps (q) {\it (1d)}: defines the number of steps between Qmin and Qmax to calculate and display.
 	\item HKLmax: defines the number of calculation iterations and has a significant effect on the calculation time.
 	\item Qmax: this sets the image dimension in Q-range and can be changed between the value calculated from the data file or the value entered by the user.
-	\item Quadrants: here you can select, if only one quadrant(1) or the half(2) of the image or the full image(4) are calculated. If the checkbox {\it Expand to full image} is checked, the rest of the image is mirrored over the center to generate allways a full image. This is only usefull if the beam center ist set to zero.
 	\item Calculation destination: here you can select if the calculated image will be shown in a new window or to overwrite the last image window. This is the same information as in the Configuration tab.
 	\end{itemize}
+\end{minipage}
+\begin{minipage}{0.30\textwidth}
+	\includegraphics[width=\textwidth]{gui-calculations-2d.png} \\
+	
+	\includegraphics[width=\textwidth]{gui-calculations-1d.png}
+\end{minipage}
+
 \item Group {\it Usage} - if the recalculate checkbox is checked, every value change in the other fields starts a calculation. If the calculation is longer than 2 seconds, this box is unchecked. Below this the current loaded parameter file is shown and you can load / save the parameters in the same way as from the menu bar. If some input fields are marked with a colored background a short explanation will be displayed here too.
 \item Group {\it Experiment} - the pixel dimensions and the size of the detector, the distance from sample to detector, the used wavelength and the x and y pixel position in the grid (one quarter of the result image) of the beam center. The comment field text is displayed in the image window.
 \item Group {\it Controls} - some control factors for the calculation.
@@ -368,11 +386,13 @@ The options in the middle are:
   \end{center}
   \caption{Automatic fit configuration}
 \end{wrapfigure}
-In this automatic fit configuration dialog you can select the input file for the automatic fit and set some ouptions for the generated output. All informations are saved if the start button is clicked. This will start the automatic fit operation.
+In this automatic fit configuration dialog you can select the input file for the automatic fit and set some options for the generated output. All informations are only saved if the start button is clicked. This will start the automatic fit operation.
 
 The most detailed option part is for the \LaTeX\  output file generated. Even if the images are not included in the file, the image files are generated. The Trend table contains all used parameters with all values after each fit run. The input commands can be included in the \LaTeX\  output. It is possible that some characters in the commentlines of the input file can confuse the \LaTeX\ converter, so you can exclude the comments for the output file.
 
 During the fit operations all informations can be saved in special files if the {\it Save logfiles} is checked. One global logfile is generated if the command is included in the command file. The {\it Delete all files} checkbox can be used to delete all files except the input file before the fit run starts. With the {\it Show only essential output in list} you can reduce the amount of output in the list to speed up if logged in via network. If you want to show the result immediately after the run, you can check the {\it Display the fit result and the masked image}.
+
+To get a default input file with all commands explained, you can use the button {\it Create new file from current settings}. This file contains all informations from the current settings in the left list, the last opened data file and the last opened parameter file. All commands have some explanations, so you can understand what they do.
 
 
 \clearpage
@@ -406,7 +426,7 @@ The group {\it Other settings} let you modify the image after the calculation:
 
 The group {\it Output path} contains the base path for the output files. Below this path new subdirectories are created: \path{scat} for the normal scattering images, \path{rphi} if the (r,phi) generation is used, \path{fft} if the fft calculation is used and \path{scat_org} if the unmodified images are saved. If the generation of png files is activated, all path are created a second time with \path{_png} appended.
 
-Below this the output of the background calculation process is displayed.
+Below the path input the output of the background calculation process is displayed.
 
 The buttons {\it save options} and {\it load options} will save or load all parameters of this window and all calculation parameters too. So this file (*.sas\_tpv) contains a little more information than the normal parameter file (*.ini). But this file can be used with the console version to generate many images (see below).
 The button {\it Start} will start the generation of the images according to the settings here. This is done with the console version in a background process.
@@ -460,10 +480,13 @@ The parts of this tab are:
 \item {\it Generate training files} - this generate a training file from the current calculation parameters. The file will be appended each time the {\it Save config} button will be pressed. This file will be use to train the chatbot to learn the parameters.
 \item The buttons {\it Start} and {\it Stop} manipulates the background process.
 \item {\it Read clipboard} - this makes it easier to copy the relevant informations from the chatbot interface to be used by this program. Normally you have to save the chatbot output to a special file (see above). With this you copy the text into the clipboard and click on this button to perform the calculation.
+\item {\it Show image} - if this is checked, the image will be displayed after calculation
 \end{itemize}
-The background process is the console version of this program described later with some special parameters.
+The background process is the console version of this program described later with some special parameters. All settings in this dialog are given at the start to the background process.
 
+In the future the web interface for the chatbot might be integrated into this program. This will make the communication from the chatbot into this program easier.
 
+\clearpage
 
 \subsubsection{Configuration}
 \begin{figure}[H]
@@ -581,6 +604,23 @@ Threads & HKLmax & Quadrants & Min/ Mean/ Max (Prep) in ms
 \end{figure}
 
 
+\subsection{Generation all combinations of ComboBoxes}
+
+\begin{figure}[H]
+ \centering
+ \includegraphics[width=\textwidth]{combinationsCBS.png}
+ \caption{Selection of combobox posibilities}
+\end{figure}
+Here you can see all values of all comboboxes. Each one can be checked or unchecked. All possible combinations of the checked values are generated and the configuration files (*.ini) stored in the given directory. The filename is composed of: \\
+\centerline{Comb\_lt10\_pa03\_or06\_inxx\_pe06.ini  or  .png}
+with {\bf Comb} is fixed, {\bf lt} is for the {\it LType}, {\bf pa} is for the {\it Particle}, {\bf or} is for the {\it Ordis}, {\bf in} is for the {\it Interior} and {\bf pe} is for the {\it Peak}. The numbers are the index of the value (the row in the dialog). If the numer is {\bf xx} then this combobox is not used in this calculation.
+
+During generation a logfile {\bf generate.log} in the output directory is written. This contais all generated filenames appended with some informations espacially for the calculation (time or errors).
+
+If the checkbox {\it Calculate images directly} is checked, the images are calculated and stored as *.png in the same directory. To avoid extensive running time, set the run time limit in the configuration tab before. If the calculation is aborted, it will be noted in the logfile.
+
+Some settings of the comboboxes force other comboxes to be set to a special value. If the checkbox {\it Calculate all selected possibilities....} is not checked, then only this value is used. If the checkbox is checked, then all selected values of this combobox are used. But then it is possible that the generated images are invalid.
+
 
 %------------------------
 \clearpage
@@ -653,19 +693,13 @@ The possible commands (at the beginning of each line) for this automatic mode in
 \item[] {\it The following commands are interpreted at every file scan.}
 \item {\bf Info:} {\it informational text} \\
 	This text will be shown in the GUI, more than 20 chars can disturb the GUI layout.
+\item {\bf Threads:} {\it number} \\
+	Number of threads to use for the calculation. {\bf 0} means the GPU if it is available, if not use the maximum of threads possible.
 \item {\bf Use:} {\it $<$Param1$>$, $<$Param2$>$, ... } \\
 	List of parameternames used during the next fit step.
-\item {\bf Fit:} {\it Stp=3.0; Iter=20; Tol=0.0010; Diff$<$5} \\
-	Perform one fit operation. The values of Stp (Step size), Iter (Maximum iterations), Tol (Tolerance) are the same as in the GUI used for this fit run. After each fit run the percentual change of each parameter is summed up and if this sum is less than the Diff value the fit step is finished. If not, this fit run is repeated up to 20 times to avoid endless loops.
+\item {\bf Fit:} {\it Stp=3.0; Iter=20; Tol=0.0010; Diff$<$5; Kenn=...} \\
+	Perform one fit operation. The values of {\it Stp} (Step size), {\it Iter} (Maximum iterations), {\it Tol} (Tolerance) are the same as in the GUI used for this fit run. After each fit run the percentual change of each parameter is summed up and if this sum is less than the {\it Diff} value the fit step is finished. If not, this fit run is repeated up to 20 times to avoid endless loops. The {\it Kenn} can be used to name the logfiles for each fit run. Use @D to set the current date and @F to set the current fitted data filename. Every other character is used as given. Avoid charatcers not allowed for the filesystem. A running number (01 to 20) is appended automatically.
 \end{itemize}
-
-
-%\clearpage
-%\subsection{Generate AI files}
-%
-%I've played around with some neural networks to find some parameters automatically. For this I used a docker image with a preinstalled tensorflow system. The goal was to train this network with as many images as possible to get a good result.
-%
-%\subsubsection{Example to use the AI files}
 
 
 
@@ -683,16 +717,16 @@ To perform the calculation work in a batch job, the console version of the progr
 \hline\rowcolor{rowcolor}{\bf Short} & {\bf Long} & {\bf Parameter} & {\bf Description} \\
 \endhead
 \hline
--h & -{}-help & & Displays help on commandline options. \\ \hline
- & -{}-help-all & & Displays help including Qt specific options. \\ \hline
--v & -{}-version & & Displays version information. \\ \hline
+-h & -{}-help & & Displays help on commandline options and exits. \\ \hline
+ & -{}-help-all & & Displays help including Qt specific options and exits. \\ \hline
+-v & -{}-version & & Displays version information and exits. \\ \hline
 -p & -{}-paramfile & {\it paramfile} & Filepath loaded as the parameter set for all calculations (*.ini). \\ \hline
 -c & -{}-seqfile & {\it aifile} & Filepath loaded as the AI definition sequence (*.sas\_airun). \\ \hline
 -i & -{}-img & {\it imgfile} & Filepath and name to save the image (*.png). Or the image to load for automatic fit (*.dat). \\ \hline
 -t & -{}-threads & {\it threads} & Number of threads used (default=max cores), set to {\bf 0} to use GPU if available. \\ \hline
 -l & -{}-logfile & {\it logfile} & Filepath and name of the logfile for informations of the process (*.log). \\ \hline
  & -{}-csv & {\it csvfile} & Filepath and name of the csvfile for some statistic outputs during 2D-Fit (*.csv). \\ \hline
--f & -{}-autofit & {\it autofit} & Filepath and name for the automatic fit routine (*.txt). If this is given, the AI-File is ignored and the imagefile is an input dataset. \\ \hline
+-f & -{}-autofit & {\it autofit} & Filepath and name for the automatic fit routine. The parameterfile and the dataset are taken from this fit file. Or use the -p for the parameterfile and the -i for the dataset. Use -l for the global logfile. \\ \hline
 -o & -{}-output & {\it output} & Filepath and name of the single output image of the automatic fit routine or the path to save the  multifile outputs. \\ \hline
  & -{}-nofft & & If set, the FFT calculation during AI generation is skipped. \\ \hline
  & -{}-noconsole & & If set, no output is printed to the console during auto fit (except statistic info). \\ \hline
@@ -703,7 +737,7 @@ To perform the calculation work in a batch job, the console version of the progr
  & -{}-tpv & {\it file} & Inputfile (*.sas\_tpv) for the train parameter variation section to generate a number of random modified datasets (incl. r,phi and fft images). This parameter can be given more than once. If this is the last parameter, a wildcard for the filename can be used too. \\ \hline
  & -{}-tpvimg & {\it number} & Number of images to generate, will overwrite the factor value in the *.sas\_tpv files. \\ \hline
  & -{}-timetest & {\it filename} & Start timing test. No output image is generated. Use -o to set the generated output file with the statistics and -p for the parametr file for the calculation. The given config file can be generated with the GUI and contains the test definitions. \\ \hline
- & -{}-chatbot & {\it filename} & The program waits for the given input file (generated from a chatbot), calculates and saves the image and removes the input file. \\ \hline
+ & -{}-chatbot & {\it filename} & The program waits for the given input file (generated from a chatbot), calculates and saves the image, then removes the input file. \\ \hline
  & -{}-cbkeep & & If set, the inputfile is kept and the program ends after one calculation. This is useful during debugging, not needed in normal operations. \\ \hline
 \end{longtable}
 

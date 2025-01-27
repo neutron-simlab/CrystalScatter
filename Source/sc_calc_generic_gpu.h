@@ -252,17 +252,19 @@ public:
     }
 
     // PARAMETER: Calculation group
-    void setGridPoints( int val ) { zmax = val; }
+    void setGridPoints( int val, bool d1 ) { zmax=val;  use1d=d1; }
     void setHKLmax( int val ) { params.hklmax = hmax = kmax = lmax = val; }
     void setQMax( double val ) { qmax = val; }
+    void setQMin( double val ) { qmin = val; } // valid for 1D
     void setRadQ1( bool f ) { if ( f ) calcQuadrants = radQ1; }
     void setRadQ2( bool f ) { if ( f ) calcQuadrants = radQ2; }
     void setRadQ4( bool f ) { if ( f ) calcQuadrants = radQ4; }
     void setExpandImage( bool f ) { bExpandImage = f && calcQuadrants != radQ4; }
     void setCalculationParams(int gridp, int hklmax, double qmax, bool radq1,
-                              bool radq2, bool radq4, bool expand)
+                              bool radq2, bool radq4, bool expand, bool d1)
     {
         zmax = gridp;
+        use1d = d1;
         params.hklmax = hmax = kmax = lmax = hklmax;
         this->qmax = qmax;
         if ( radq1 ) calcQuadrants = radQ1;
@@ -512,8 +514,10 @@ private:
     bool bIgnoreNewSwitch;
     bool CheckBoxTwinned;
     bool CheckBoxWAXS;
-    int zmax;
+    int    zmax;
     double dwfactor, qmax, displacement, bfactor;
+    double qmin; // for 1D
+    bool   use1d;
 
     //??? bool twin;  // wird bei LType=4 oder 5 gesetzt und bei corotations verwendet
 
@@ -659,7 +663,7 @@ private:
     int *thread_args;
     int numberOfThreads;
 
-    bool _endThread;
+    /*static*/ bool _endThread;
 
     void calcCPU_selection(const SasCalc_GENERIC_calculation& CALC, bool dofit, int ihex_x, int i_y);
     void kernel_selection( int Nx, int Ny, bool dofit );

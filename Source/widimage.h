@@ -7,6 +7,7 @@
 #include <QWidget>
 #include <QCloseEvent>
 #include <QLineEdit>
+#include <QPolygonF>
 #ifdef IMG_ONE_WINDOW
 #include <QMdiSubWindow>
 #endif // IMG_ONE_WINDOW
@@ -19,6 +20,11 @@
 #include <QImage>
 #include <QThread>
 #include "sc_math.h"
+#ifndef NOQWT
+#include <QwtPlot>
+#include <QwtPlotCurve>
+#include <QwtPlotGrid>
+#endif
 
 
 #define XY2IDX(X0,X1,Y0,Y1,x,y) ((-X0 + (x)) + (X1-X0)*(-Y0 + (y)))
@@ -31,10 +37,12 @@
 
 
 // Qt-Versionen:
-//  Büro   qmake     5.9.7  (Anaconda)
-//         QtCreator 5.15.2 (/usr/bin/qmake-qt5)
-//  Laptop qmake     <nicht im Pfad>
-//         QtCreator 5.14.2
+//  Büro(Linux) qmake     5.9.7  (Anaconda)
+//              QtCreator 5.15.2 (/usr/bin/qmake-qt5)
+//  Laptop(W10) qmake     <nicht im Pfad>
+//              QtCreator 5.14.2
+//  Laptop(W11) qmake     6.7.2 (C:\Qt\Tools\mingw1120_64\bin;C:\Qt\6.7.2\mingw_64\bin)
+//              QtCreator 6.7.2
 
 //#if (QT_VERSION <= QT_VERSION_CHECK(5, 12, 11))
 //  ...
@@ -110,6 +118,7 @@ public:
     void setLogScaling( bool on );
 
     int setData(int x0, int x1, int y0, int y1, /*_metaData &md,*/ double *d);
+    int setData1D(int x1, double q0, double q1, double *d);
     const double *dataPtr() { return data.constData(); }
     double xmin() { return minX; }
     double xmax() { return maxX; }
@@ -167,7 +176,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent *event);
 
 private slots:
-    void on_cbsColorTbl_activated(const QString &arg1);
+    void on_cbsColorTbl_textActivated(const QString &arg1);
     void on_butUpdate_clicked();
     void on_butSave_clicked();
     void on_butMetaData_toggled(bool checked);
@@ -185,7 +194,7 @@ private:
     double xy2q(int x, int y, double &qx, double &qy, double &qz);
 #else
 private:
-    void on_cbsColorTbl_activated(const QString &arg1); // wird für die Farbtabelle gebraucht
+    void on_cbsColorTbl_textActivated(const QString &arg1); // wird für die Farbtabelle gebraucht
     inline void on_butUpdate_clicked() { imgNormal = generateImage(); }
     QString lastColorName;
 #endif
@@ -196,6 +205,12 @@ private:
     QImage imgNormal;
 
     QImage generateImage();
+#ifndef CONSOLENPROG
+#ifndef NOQWT
+    void plot1dCurve(double vmin, double vmax, bool isLog);
+#endif
+    void switchGuiFor1d();
+#endif
 
     static QString lastSavedFilePath;
     static int lastColorTbl;
@@ -211,7 +226,7 @@ private:
     int minX, maxX, minY, maxY;
     QVector<double> data;
     int tmpidx;
-    double qmax, calcQmax, editQmax;
+    double qmax, calcQmax, editQmax, qmin_1d;
     bool   qmaxset, qmaxcalc, qmaxedit;
 
     static QStringList _slColornames;
@@ -228,6 +243,18 @@ private:
 
     calcHistorgramm *histoThread;
     bool histogramValid;
+
+#ifndef NOQWT
+    bool data1D;    // true wenn nur eine Kurve gezeichnet wird
+    // Dann sind die img* sinnlos, die save*() Funktionen speichern dann einen Screenshot, (TODO)
+    // das Histogramm wird ausgeblendet.
+    QwtPlot *plot1d;
+    QwtPlotCurve *curve1d;
+    QVector<QPointF> points1d;
+    QwtPlotGrid *grid1d;
+#else
+#define data1D false
+#endif
 
     bool firstView; // zum Sperren weiterer adjustSize() bei setData(...)
     // TODO: Wenn sich Bildgröße oder Zoom geändert hat, dann einmal adjustSize() wieder freigeben.

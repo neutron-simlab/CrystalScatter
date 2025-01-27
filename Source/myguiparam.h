@@ -67,7 +67,7 @@ public:
     static QCheckBox      *getToggle(QString key);
 
     static myGuiParam *getGuiParam(QString key);
-    static myGuiParam *setEnabled(QString key, bool ena, QString lbl="");
+    static myGuiParam *setEnabled(QString key, bool ena, QString lbl="", QString tt="");
     static void        setEnabled(QWidget *w, bool ena);
     static void        setLabel(QString key, QString txt);
     static bool        isEnabled(QString key);
@@ -103,8 +103,8 @@ public:
     void    value2Dbl( double &v1, double &v2 );
     void    value3Dbl( double &v1, double &v2, double &v3 );
 
-    QString debug();
-    static void debugGuiParams();
+    QString debug(bool nurvis=false);
+    static void debugGuiParams(bool nurvis=false, QString fn="");
 
     QString keyName()  { return _keyName;  }
     QString keyName2() { return _keyName2; }
@@ -146,6 +146,8 @@ private:
     static QVector<myGuiParam*> allParams;
     static bool hideValues, oldHideFlag;
     static int  spinBoxMinH;
+
+    static void generateTestFile();
 };
 
 #endif // MYGUIPARAM_H

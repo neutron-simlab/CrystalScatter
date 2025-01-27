@@ -88,14 +88,15 @@
 \tableofcontents % toc anzeigen
 
 \begin{figure}[b] % die History Tabelle am unteren Seitenrand der ersten Seite anzeigen...
-\begin{longtable}{|p{2.7cm}|p{2.6cm}|p{10.3cm}|}
+\begin{longtable}{|p{3cm}|p{12cm}|}
 \caption{Document revision history} \\
-\hline\rowcolor{rowcolor}{\bf Date} & {\bf Author} & {\bf Short description} \\
+\hline\rowcolor{rowcolor}{\bf Date} & {\bf Short description} \\
 \endfirsthead
 \hline
-April 2023 & M.Wagener & First edit phase. \\ \hline
-June 2023 & M.Wagener & Updates. \\ \hline
-July 2024 & M.Wagener & Update the new file structure. \\ \hline
+April 2023 & First edit phase. \\ \hline
+June 2023 & Updates. \\ \hline
+August 2023 & Some updates and insert Python code \\ \hline
+July 2024 & Update the new file structure. \\ \hline
 \end{longtable}
 
 \centerline{All sources saved at https://github.com/neutron-simlab/CrystalScatter}
@@ -136,7 +137,6 @@ dlg*.cpp / .h / .ui & {\small GUI} & Dialog functions for some gui features. \\ 
 myguiparam.cpp / .h & {\small GUI} & Helperclass for the parameters. \\ \hline
 debughandler.h & {\small GUI} & Helperfunction for debugging \\ \hline
 \end{longtable}
-%{\it Note: as a first attempt, I wrote different calculation models in different classes. To have no source duplicates I put all same routines in a library (sc\_libs\_gpu.cu). But it was a problem to compile multiple modules for the gpu with the Qt qmake. So I decide to include the files into the main gpu program. In the meantime this file is splitted into several files, each specialized for one calculation method.}
 
 The comments in the form ``//Z=number'' are the linenumbers of the corresponding line in the pascal source file. The date of this source file varied.
 
@@ -295,7 +295,8 @@ In this screenshot all possible parameters are shown. The parameters with grey l
  \caption{Calculation parameter grouping with no hidden values.}
 \end{figure}
 
-\subsection{Variable settings}
+%\subsection{Variable settings}
+\subsection{Variable settings - individual calls for each variable}
 
 There is one call to each variable. Some variables are converted directly to the correct internal range. There is no range checking done. This must be provided by the gui or the caller.
 \begin{itemize}\itemsep0pt
@@ -386,7 +387,8 @@ There is one call to each variable. Some variables are converted directly to the
 \end{itemize}
 
 
-\subsection{Group settings}
+%\subsection{Group settings}
+\subsection{Group settings - combined calls for each group of variables}
 
 There are calls for almost every group of parameters: Lattice, Particle, Peak Shape with the matrix, Orientation, Calculation with Qmax and Quadrants, Experiment, Controls, Pixel manipulation. The parameter names are the same as above.
 
@@ -419,11 +421,13 @@ There are calls for almost every group of parameters: Lattice, Particle, Peak Sh
 \end{itemize}
 
 
-\subsection{Model settings}
+%\subsection{Model settings}
+\subsection{Model settings - examples of usage}
 
 This part is still under development. If you want to extract sone code pieces to write your own implementation, please ask for the correct statements.
 
-\subsubsection{Spheres}
+%\subsubsection{Spheres}
+\subsubsection{Spheres - C++ calls}
 
 If you want a simple sphere model for the sample, you can extract some code and implement your own routines (see below) or you can call some of the above routines and get the resultant image from this package. Here is a list of routines to be called with some parameter settings for the result. Bold parameter names denotes the values you have to specify, here are the values for the image shown below.
 \begin{itemize}
@@ -572,7 +576,222 @@ pixelval = base + izero*pq;
 \end{lstlisting}
 {\it Output:} Pixelvalue at the given (radius,sigma,q) position.
 
+\item Around these calculations you have to program a two dimensional loop. This is done in sc\_calc\_generic\_gpu.cu in the routine SasCalc\_GENERIC\_calculation::doCalculation() together with the preparation, optimized for GPU or multithreading. This is the first loop dimension calling another routine for the second loop dimension. This is done for the threads. From this last loop dimension the qx,qy,qz values are calculated and then the real calculation routine is called.
+{\it Inputs:} all values from the gui
+\begin{lstlisting}[frame=single]
+zzmin = radq4 ? -gridp : 0;
+zzmax = gridp;
+iimin = radq1 ? 0 : -gridp;
+iimax = gridp;
+for ( int ihex=zzmin; ihex<zzmax; ihex++ )
+{
+    //doIntCalc_GENERIC( ihex++ );
+    for ( int i=iimin; i<iimax; i++ )
+    {
+        //doIntCalc_GENERIC_F( *this, ihex, i );
+        double qx, qy, qz;
+        if ( CALC.useBeamStop )
+        {   // Use the beam stop values
+            double mdet = ihex*CALC.pixnoy/(2.0*CALC.zmax);
+            double ndet = i   *CALC.pixnox/(2.0*CALC.zmax);
+            double xdet = CALC.pixx_m * (ndet - CALC.beamX0);
+            double ydet = CALC.pixy_m * (mdet - CALC.beamY0);
+            double rdet = sqrt(xdet*xdet+ydet*ydet);
+            double phidet = atan2(ydet,xdet);
+            double thetadet = atan2(rdet,CALC.det);
+            qx = 2*M_PI*cos(phidet)*sin(thetadet)/CALC.wave;
+            qy = 2*M_PI*sin(phidet)*sin(thetadet)/CALC.wave;
+            qz = 2*M_PI*(1-cos(thetadet))/CALC.wave;
+        }
+        else
+        {   // Use midpoint
+            qx = CALC.qmax * i    / (double)(CALC.zmax);
+            qy = CALC.qmax * ihex / (double)(CALC.zmax);
+            qz = 1e-20;
+        }
+        double pixval = doIntCalc_GENERIC_q_xyz(CALC, qx, qy, qz);
+        CALC.setXYIntensity( ihex, i, pixval ); // set image pixel
+    } // for i
+} // for ihex
+\end{lstlisting}
+
 \end{itemize}
+
+
+
+\subsubsection{Spheres - Python code example}
+
+The following code shows the same calculations in Python. There is no multithreading optimization done.
+
+\begin{itemize}
+\item Include all used libraries. The platform is used to make some changes under windows because of the shorter exponent (see below).
+\begin{lstlisting}[frame=single]
+import math
+import numpy as np
+import platform
+import time
+import matplotlib.pyplot as plt
+\end{lstlisting}
+
+\item Definition of all input parameter and image dimensions.
+\begin{lstlisting}[frame=single]
+# Global input parameters
+radius = 16.7 # nm
+sigma  = 0.0639
+part   = 0 # Sphere (Particle combobox)
+dim    = 3 # Sphere (selected from the part value)
+cs     = 0 # homogeneous
+qmax   = 2 # maximum Q value
+base   = 0 # pixelvalue offset
+izero  = 1 # pixelvalue factor
+
+# Dimensions of the result image
+gridpoints = 100
+iimin = -gridpoints
+iimax = +gridpoints
+zzmin = -gridpoints
+zzmax = +gridpoints
+image = np.zeros( (gridpoints*2, gridpoints*2), dtype=np.longdouble )
+
+# Other values
+nmax   = 120   # maximum array length
+carr4p = []    # intermediate array
+min4   = 1E-40 # min for the calculation to find the limit
+iswin  = False # flag set if the program runs under windows
+\end{lstlisting}
+
+\item This routine calculates the coefficients and runs only once for each image. The {\it if dim==3:} and {\it if cs==0:} are optional in this case but needed if other coefficient calculations will be used. The numpy logdouble data type is used to have more precision and a larger exponent. But: {\it x86 machines provide hardware floating-point with 80-bit precision, and while most C compilers provide this as their long double type, MSVC (standard for Windows builds) makes long double identical to double (64 bits).}\footnote{Taken from https://numpy.org/doc/stable/user/basics.types.html\#extended-precision}
+\begin{lstlisting}[frame=single]
+def coefficients():
+    global limq4, carr4p, n4
+    z    = np.longdouble( (1.-(sigma*sigma))/(sigma*sigma) )
+    xrz  = np.longdouble( radius/(2.0*(z+1.)) )
+    xr2z = np.longdouble( xrz*xrz )
+    xrn  = np.longdouble(1)
+    z12v = np.longdouble(1)
+    fkv  = np.longdouble(1)
+    gam3 = np.longdouble( math.sqrt(math.pi)/2.0 )
+    n4   = nmax  # nmax=120, the Dimension of carr4p[]
+    carr4p = [ 1. ]
+    #/* ** isotropic case for spheres ** */
+    #if dim==3: needed if other calculations are implemented
+    #    if cs==0:
+    spi9 = np.longdouble( 9. * math.sqrt(math.pi) )
+    n=0
+    for n in range(1, nmax+1):
+        z12v = z12v * (z-1. + 2.*n) * (z + 2.*n)
+        #  RuntimeWarning: overflow encountered in scalar multiply
+        if np.isinf(z12v) or np.isnan(z12v):
+            if n < n4:
+                n4 = n-1
+            break
+            # On Windows the exponent can only be +-308,
+            # On Linux the exponent can be up to +-4000
+            # Both with the numpy.longdouble() !!
+        fkv  = fkv*n
+        gam3 = gam3*(2.*n+1)/2.0
+        xrn  = -xrn*xr2z
+        carr4p.append( spi9 * np.power(4.0,n,dtype=np.longdouble) *
+                      (z12v*xrn) / (2. * (n+3.) * (n+2.) * (n+3./2.) *
+                       gam3 * fkv) )
+        if iswin and (z12v >= 1e307):
+            # This will prevent the runtime warning shown above on Windows
+            if n < n4:
+                n4 = n
+            break
+        if math.fabs(carr4p[n])<min4:
+            if n<n4:
+                n4 = n
+    limq4 = math.pow(math.fabs(carr4p[n4]),-1./(2.0*n4))
+    return
+    # if cs==0
+    # if dim==3
+\end{lstlisting}
+
+\item In the formpq routine the formfactor will be calculated. The {\it if part==0:} and {\it if cs==0:} are optional in this case but needed if other formfactor calculations will be used.
+\begin{lstlisting}[frame=single]
+def formpq(i,ihex):
+    global limq4, carr4p, n4
+    # Here only use the midpoint
+    qx = qmax * i    / gridpoints
+    qy = qmax * ihex / gridpoints
+    qz = 1e-20;
+    q  = math.sqrt(qx*qx + qy*qy + qz*qz) + 1e-9
+
+    zr = np.longdouble( (1.-(sigma*sigma))/(sigma*sigma) )
+    #if part==0: needed if other formfactors are implemented
+    #    if cs==0:
+    if q < 0.4*limq4:
+        pqsum = 1.
+        oldpqsum = 0.
+        qq2 = 1.
+        for nser in range(1,n4):
+            qq2 = qq2*q*q;
+            pqsum = pqsum+carr4p[nser]*qq2;
+            delser = math.fabs((pqsum-oldpqsum)/pqsum);
+            if delser<0.0001:
+                break;
+            oldpqsum = pqsum;
+        return pqsum;
+    else:
+        argq = q*radius/(zr+1)
+        pqr = (1./(2.*zr*(zr-1)*(zr-2)*(zr-3)))*math.pow(argq,-4)
+        pq1 = pqr*(1+math.cos((zr-3)*math.atan(2.*argq))/
+              math.pow(1.+4*argq*argq,(zr-3)/2.))
+        pq2 = (pqr/((zr-4)*argq))*math.sin((zr-4)*math.atan(2.*argq))/
+              math.pow(1.+4*argq*argq,(zr-4)/2.)
+        pq3 = (pqr/((zr-4)*(zr-5)*argq*argq))*(1-math.cos((zr-5)*
+            math.atan(2.*argq))/math.pow(1.+4*argq*argq,zr-5)/2.)
+        return 9.*(pq1-2*pq2+pq3)
+    # if cs==0
+    # if part==0
+\end{lstlisting}
+
+\item This main program will calculate the coefficients, then loop over the image pixel indices, calculates the formfactor and the pixelvalue, then scale the image to the whole range of used values. The image is displayed with a logarithmic value scaling. There are some prints which can be removed. For both calculation part, the runtime will be measured with the simple time function. At the end the image will be displayed with matplotlib.
+\begin{lstlisting}[frame=single]
+if __name__ == '__main__':
+    if platform.system() == 'Windows':
+        iswin = True
+
+    print("Start coef")
+    canf = time.time()
+    coefficients()
+    cend = time.time()
+
+    print("Start loop")
+    lanf = time.time()
+    imgmin = 10000
+    imgmax = 0
+    for i in range(iimin,iimax):
+        for ihex in range(zzmin,zzmax):
+            pq = formpq(ihex,i)
+            pix = math.log10(base + izero*pq)
+            if pix < imgmin:
+                imgmin = pix
+            if pix > imgmax:
+                imgmax = pix
+            image[i-iimin,ihex-zzmin] = pix
+    for i in range(iimin,iimax):
+        for ihex in range(zzmin,zzmax):
+            image[i-iimin,ihex-zzmin] = (image[i-iimin,ihex-zzmin] -
+                                         imgmin) / (imgmax - imgmin)
+    lend = time.time()
+    
+    print("times: coeff ", cend-canf)
+    print("        loop ", lend-lanf)
+    
+    plt.imshow(image, cmap='gray', vmin=0, vmax=1)
+    plt.show()
+\end{lstlisting}
+
+\end{itemize}
+
+The above code generates this image (left) compared to the image from the C++ (middle). In the right the gui with all parameters is shown.
+\begin{figure}[H]
+ \centering
+ \includegraphics[width=\textwidth]{Python2C.png}
+% \caption{Example sphere image.}
+\end{figure}
 
 
 

@@ -1,33 +1,5 @@
 # +++++ Settings of all path variables used for the specialized libraries:
-
-unix:{
-    CUDA_DIR = /usr/local/cuda-12.2   # Path to cuda sdk/toolkit install
-    CUDA_EXE = $$CUDA_DIR/bin/nvcc
-
-    FFTW3_PATH = /usr/local/include
-    FFTW3_LIBS = /usr/local/lib
-
-    HDF5_BASE = /usr/local/hdf5
-}
-
-win32:{
-    CUDA_DIR = "C:/SimLab/CUDA/v12.2"  # link to "C:/Program\ Files/NVIDIA\ GPU\ Computing\ Toolkit/CUDA/v12.2"
-    CUDA_EXE = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.2/bin/nvcc.exeX"  # append X to disable ist
-
-    FFTW3_PATH = ../fftw-3.3.5-dll64    # not used in static configuration
-    FFTW3_LIBS = ../fftw-3.3.5-dll64
-
-    HDF5_BASE = ../../CMake-hdf5-1.12.1
-    HDF5_SRC  = $$HDF5_BASE/hdf5-1.12.1
-    CONFIG(static) {
-        HDF5_GEN  = $$HDF5_BASE/build-hdf5-1.12.1-Desktop_Qt_5_14_2_MinGW_64_bit-MinSizeRel
-    }
-    else {
-        HDF5_GEN  = $$HDF5_BASE/build-hdf5-1.12.1-Desktop_Qt_5_14_2_MinGW_64_bit-Debug
-    }
-    # ZLIB_DIR must be set
-}
-
+include(sas_scatter2.pri)
 # ----- User configuration ends here.
 
 
@@ -52,10 +24,19 @@ DEFINES += QT_DEPRECATED_WARNINGS
 # You can also select to disable deprecated APIs only up to a certain version of Qt.
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
-CONFIG += c++11
+greaterThan(QT_MAJOR_VERSION, 5) {
+    CONFIG += c++17
+    QMAKE_CFLAGS += -x c++ -std=gnu++17
+    #message("C++17")
+} else {
+    CONFIG += c++11
+    QMAKE_CFLAGS += -x c++ -std=gnu++11
+    #message("C++11")
+}
 
 SOURCES += \
     dlgconfigautofit.cpp \
+    dlggeneratecombinations.cpp \
     dlgtimetests.cpp \
     myguiparam.cpp \
     sc_calc_generic.cpp \
@@ -71,6 +52,7 @@ SOURCES += \
 HEADERS += \
     debughandler.h \
     dlgconfigautofit.h \
+    dlggeneratecombinations.h \
     dlgtimetests.h \
     myguiparam.h \
     sc_calc_generic.h \
@@ -105,6 +87,7 @@ HEADERS += \
 
 FORMS += \
     dlgconfigautofit.ui \
+    dlggeneratecombinations.ui \
     dlgtimetests.ui \
     sc_maingui.ui \
     widimage.ui
@@ -116,12 +99,6 @@ else: unix:!android: target.path = /opt/sas_scatter2/bin
 !isEmpty(target.path): INSTALLS += target
 
 
-# OpenCL definitions - not used, only for future tests
-#win32:{
-#    DEFINES += CL_HPP_TARGET_OPENCL_VERSION=300
-#    OCL_DIR = "../../OpenCL-SDK/install"
-#}
-
 
 # nvcc can work with multiple input files but then they must be linked with a special cuda linker
 #  and this is not so easy to include in this Qt-Project. So only a single input is used and the
@@ -131,7 +108,7 @@ CUDA_SOURCES += sc_calc_generic_gpu.cu
 !exists($$CUDA_EXE) {
     # if no cuda support is installed, treat this as a normal c++ file
     SOURCES += $$CUDA_SOURCES
-    QMAKE_CFLAGS += -x c++ -std=gnu++11
+    CONFIG += -nocudalib
 
     #exists($$OCL_DIR) {
     #    # OpenCL usage
@@ -143,8 +120,7 @@ CUDA_SOURCES += sc_calc_generic_gpu.cu
     #}
 } else {
     # CUDA settings <-- may change depending on your system
-    SYSTEM_NAME = Win64         # Depending on your system either 'Win32', 'x64', or 'Win64'
-    CUDA_ARCH = sm_75  # native #  compute_52      # Type of CUDA architecture, for example 'compute_10', 'compute_11', 'sm_10'
+    #SYSTEM_NAME = Win64         # Depending on your system either 'Win32', 'x64', or 'Win64'
     NVCC_OPTIONS = --use_fast_math -std=c++11 # --verbose --keep
     #NVCC_OPTIONS += --ptxas-options=--verbose  # Specify options directly to ptxas, the PTX optimizing assembler.
     NVCC_OPTIONS += -diag-suppress 550         # variable "xx" set but never used
@@ -201,13 +177,14 @@ CUDA_SOURCES += sc_calc_generic_gpu.cu
     }
 }
 
+
 win32: {
+    # ----- FFTW3 Library
     CONFIG(static) {
         message("No FFTW-Lib (static)")
         DEFINES += USE_COMPLEX_WEB
     }
     else {
-        # FFTW3 Library (Laptop)
         exists($$FFTW3_PATH/fftw3.h) {
             LIBS += -L$$FFTW3_LIBS -lfftw3-3
             INCLUDEPATH += $$FFTW3_PATH
@@ -216,36 +193,64 @@ win32: {
         }
         else {
             DEFINES += USE_COMPLEX_WEB
-            message("No FFTW-Lib (not found) " $$FFTW3_PATH)
+            message("No FFTW-Lib found in " $$FFTW3_PATH)
         }
     }
 
-    # HDF5 Library
+    # ----- HDF5 Library
+    QTVERSSTR = $${QT_MAJOR_VERSION}_$${QT_MINOR_VERSION}_$${QT_PATCH_VERSION}  # = 6_7_2
+    # message(Qt version: $$[QT_VERSION])                                         = 6.7.2
+
+    for(vers, HDF5_VERSIONS) {
+        tmp = ../../CMake-$${vers}
+        exists($$tmp/$${vers}/src) {
+            HDF5_VERS = $$vers
+            HDF5_BASE = $$tmp
+            #message("Test for HDF5: found " $$HDF5_VERS)
+        }
+    }
+
+    # Beim HDF5-Projekt die folgenden CPP-Module aktivieren:
+    # -DH5EX_BUILD_CPP_LIB:BOOL=ON
+    # -DHDF5_BUILD_CPP_LIB:BOOL=ON
+    HDF5_SRC  = $$HDF5_BASE/$${HDF5_VERS}
     CONFIG(static) {
-        # C:\SimLab\CMake-hdf5-1.12.1\build-ZLib-Desktop_Qt_5_14_2_MinGW_64_bit-Debug\bin\libzlib_D.a
-        # C:\Windows\System32>echo %ZLIB_DIR%
-        # C:\SimLab\CMake-hdf5-1.12.1\build-ZLib-Desktop_Qt_5_14_2_MinGW_64_bit-Debug
-        HDF5_LIBS = -L$$HDF5_GEN/bin -lhdf5_cpp -lhdf5_hl_cpp -lhdf5 -lhdf5_hl \
-                    -L$$(ZLIB_DIR)/bin -lzlib_D
+        HDF5_GEN  = $$HDF5_BASE/build-$${HDF5_VERS}-Desktop_Qt_$${QTVERSSTR}_MinGW_64_bit-MinSizeRel
+        HDF5_LIBS = -L$$HDF5_GEN/bin -lhdf5_cpp -lhdf5_hl_cpp -lhdf5 -lhdf5_hl -L$$(ZLIB_DIR)/bin -lzlib
     }
     else {
-        HDF5_LIBS = -L$$HDF5_GEN/bin -lhdf5_cpp_D -lhdf5_hl_cpp_D -lhdf5_D -lhdf5_hl_D
+        HDF5_GEN  = $$HDF5_BASE/build-$${HDF5_VERS}-Desktop_Qt_$${QTVERSSTR}_MinGW_64_bit-Debug
+        HDF5_LIBS = -L$$HDF5_GEN/bin -lhdf5_cpp_D -lhdf5_hl_cpp_D -lhdf5_D -lhdf5_hl_D -L$$(ZLIB_DIR)/bin -lzlib_D
     }
+
     exists($$HDF5_GEN/bin) {
-        INCLUDEPATH += $$HDF5_SRC/src $$HDF5_SRC/c++/src $$HDF5_GEN $$HDF5_GEN/src
+        INCLUDEPATH += $$HDF5_SRC/src $$HDF5_SRC/src/H5FDsubfiling $$HDF5_SRC/c++/src $$HDF5_GEN $$HDF5_GEN/src
         LIBS += $$HDF5_LIBS
         SOURCES += dlghdfselection.cpp
         HEADERS += dlghdfselection.h
+        message("Use HDF5 in " $$HDF5_GEN)
     }
     else {
         DEFINES += NOHDF5
         message("No HDF5 found in " $$HDF5_GEN)
     }
-}
+
+    # ----- QWT Library
+    exists($$QWT_BASE/lib/libqwt.a) {
+        LIBS += -L$$QWT_BASE/lib -lqwt
+        INCLUDEPATH += $$QWT_BASE/include
+        #include ( $$QWT_BASE/features/qwt.prf )
+        message("Use QWT in " $$QWT_BASE)
+    } else {
+        DEFINES += NOQWT
+        message("No QWT found in " $$QWT_BASE)
+    }
+} # win32
+
 
 unix: {     # no static !
 
-    # FFTW3 Library
+    # ----- FFTW3 Library
     exists($$FFTW3_PATH/fftw3.h) {
         LIBS += -L$$FFTW3_LIBS -lfftw3
         INCLUDEPATH += $$FFTW3_PATH
@@ -254,22 +259,34 @@ unix: {     # no static !
     }
     else {
         DEFINES += USE_COMPLEX_WEB
-        message("No FFTW-Lib (not found) " $$FFTW3_PATH)
+        message("No FFTW-Lib found in " $$FFTW3_PATH)
     }
 
-    # HDF5 Library
+    # ----- HDF5 Library
     exists($$HDF5_BASE/bin) {
         INCLUDEPATH += $$HDF5_BASE/include
         LIBS += -L$$HDF5_BASE/lib -lhdf5_cpp -lhdf5_hl_cpp -lhdf5 -lhdf5_hl
         SOURCES += dlghdfselection.cpp
         HEADERS += dlghdfselection.h
+        message("Use HDF5 in " $$HDF5_BASE)
     }
     else {
         DEFINES += NOHDF5
         message("No HDF5 found in " $$HDF5_BASE)
     }
 
-}
+    # ----- QWT Library
+    exists($$QWT_BASE/lib/libqwt.a) {
+        LIBS += -L$$QWT_BASE/lib -lqwt
+        INCLUDEPATH += $$QWT_BASE/include
+        #include ( $$QWT_BASE/features/qwt.prf )
+        message("Use QWT in " $$QWT_BASE)
+    } else {
+        DEFINES += NOQWT
+        message("No QWT found in " $$QWT_BASE)
+    }
+} # unix
+
 
 win32:{
     # Macht den Zugriff im QtCreator einfacher

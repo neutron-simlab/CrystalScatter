@@ -2,6 +2,9 @@
 #define SC_LIB_FORMPQ_partSphere_H
 
 
+#include "sc_math.h"
+
+
 #ifdef __CUDACC__
 __host__ __device__
 #endif
@@ -9,7 +12,7 @@ double SasCalc_GENERIC_calculation::formpq_partSphere(double q) const   /*Z=1491
 {/*1*/  //Z=15188
 
     const double z  /*zl*/ = (1-sqr(params.sigmal))/sqr(params.sigmal);  //Z=15231
-    const double zr = (1-sqr(params.sigma))/(sqr(params.sigma));  //Z=15232
+    /*const*/ double zr = (1-sqr(params.sigma))/(sqr(params.sigma));  //Z=15232
     const double radiusm = params.radius/params.p1;   /*  outer radius of core/shell particle  */  //Z=15233
 
     // Bei sigma=0.5 wird zr=3 und somit das Ergebnis hier zum Großteil inf ...
@@ -33,7 +36,7 @@ double SasCalc_GENERIC_calculation::formpq_partSphere(double q) const   /*Z=1491
         {/*3*/  //Z=15245
             //if ( q > 2.2 ) qDebug() << "  formpq" << 0.4*params.limq4 << q << "r"<<params.radius;
             //[15386]        //if (q<1.5*limq4) then begin    (* for monodisperse sphere test *)
-            if ( q<0.4*params.limq4 )   // alt: 1.5, neu:0.4
+            if ( q<0.4*params.limq4 /* || (params.sigma>=0.4 && params.sigma<=0.5)*/ )   // alt: 1.5, neu:0.4
             {/*4*/  //Z=15246
                 double pqsum = 1.0;  //Z=15247
                 double oldpqsum = 0.0;  //Z=15248
@@ -57,15 +60,17 @@ double SasCalc_GENERIC_calculation::formpq_partSphere(double q) const   /*Z=1491
                 const double argq = q*params.radius/(zr+1);  //Z=15264
                 double pqr;
                 if ( zr*(zr-1)*(zr-2)*(zr-3)*(zr-4)*(zr-5) == 0 )
-                    pqr = 0.1;
-                else
+                    zr += eps3; // pqr = 0.1;
+                //else
                     pqr = (1/(2.0*zr*(zr-1)*(zr-2)*(zr-3)))*pow(argq,-4);  //Z=15265
                 const double pq1 = pqr*(1+cos((zr-3)*atan(2.0*argq))/pow(1.0+4*argq*argq,(zr-3)/2.0));  //Z=15266
                 const double pq2 = (pqr/((zr-4)*argq))*sin((zr-4)*atan(2.0*argq))/pow(1.0+4*argq*argq,(zr-4)/2.0);  //Z=15267
                 const double pq3 = (pqr/((zr-4)*(zr-5)*argq*argq))*(1-cos((zr-5)*atan(2.0*argq))/pow(1.0+4*argq*argq,zr-5)/2.0);  //Z=15268
                 // qDebug() << argq << pqr << pq1 << pq2 << pq3 << "zr" << zr;
                 // Debug: 1.74127 inf inf inf inf zr 3  <<== bei sigma=0.5, Ergebnis = inf bei vielen q am Rand (OHNE DAS IF OBEN)
-                /*formpq:=*/ return 9.0*(pq1-2.0*pq2+pq3);  //Z=15269
+                /*formpq:=*/ const double retval = 9.0*(pq1-2.0*pq2+pq3);  //Z=15269
+                //if ( retval < 0 ) qDebug() << argq << pqr << pq1 << pq2 << pq3 << "zr" << zr << "=" << retval;
+                return retval;
             }/*4*/  //Z=15270
         }/*3*/ /*  of homogeneous sphere */  //Z=15271
 

@@ -25,20 +25,18 @@ inline double SasCalc_GENERIC_calculation::calc_partSphere_lattNone_ordisIsotrop
 
 #define limql 1.0
     double pq = CALC.formpq_partSphere( q );  //Z=25276
-#define pqiso pq
+//#define pqiso pq
 
     //}/*6*/  /*  of part=0  */  //Z=25299
 
     if ( CALC._endThread ) return 0;  // Falls Anwender abgebrochen hat
 
-#define szq 1.0
-#define szqiso 1.0
+//#define szq 1.0
+//#define szqiso 1.0
 
     // Abschlussberechnungen (izero,base) machen nur hier Sinn. Im Pascalprogramm wurde dies nach den kompletten Schleifen gemacht
-    double retval = CALC.base + CALC.izero*(szq*pq + CALC.iso*szqiso*pqiso) + CALC.ifluc/(1+q*q*CALC.rfluc*CALC.rfluc);
-    //Z=26207: szq*pq + CALC.iso*szqiso*pqiso
-    //Z=30277: xyintensity^[ihex+zmax][i+zmax] = base+izero*xyintensity^[ihex+zmax][i+zmax]+ifluc/(1.0+q*q*rfluc*rfluc);  //Z=30277
-    // retval ist der Pixelwert bei [ihex+zmax][i+zmax]
+    //double retval = CALC.base + CALC.izero*(szq*pq + CALC.iso*szqiso*pqiso) + CALC.ifluc/(1+q*q*CALC.rfluc*CALC.rfluc);
+    double retval = CALC.base + CALC.izero*(pq + CALC.iso*pq) + CALC.ifluc/(1+q*q*CALC.rfluc*CALC.rfluc);
 
     //if ( q > 2.0 )
     //    qDebug() << "pSph_lNon_oIso" << qx << qy << qz << "cs=" << CALC.params.cs << "0.4*limq4=" << (0.4*CALC.params.limq4)

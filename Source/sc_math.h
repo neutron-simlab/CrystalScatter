@@ -26,7 +26,8 @@ typedef bool (*progressLogging)(char*);  //!< Callback function type to put info
 // Welcher Quadrant wird berechnet? Wird nur bei der Bestimmung von zzmin und iimin verwendet.
 typedef enum { radQ1,       //!< only the first quadrant is used (x,y >= 0)
                radQ2,       //!< two quadrants are used (y >= 0)
-               radQ4        //!< all four quadrants are used
+               radQ4,       //!< all four quadrants are used
+               rad1D        //!< mark 1D data only
              } _radQX;      //!< Type definition of the used quadrants
 
 

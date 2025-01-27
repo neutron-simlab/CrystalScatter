@@ -95,8 +95,10 @@
 
 
 
-SasCalc_GENERIC_calculation *SasCalc_GENERIC_calculation::inst;              //!< class instance pointer for the threads
-pthread_t *SasCalc_GENERIC_calculation::threads;
+SasCalc_GENERIC_calculation *SasCalc_GENERIC_calculation::inst = nullptr;
+pthread_t *SasCalc_GENERIC_calculation::threads = nullptr;
+//bool SasCalc_GENERIC_calculation::_endThread = false;
+
 
 
 SasCalc_GENERIC_calculation::SasCalc_GENERIC_calculation()
@@ -167,19 +169,29 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
         lat2d = true;  //Z=20104
         lat3d = false;  //Z=20105
     }
-    if ( ltype==14/*2DHex (GISAXS)*/ )
-    {   /*  GiSAXS-pattern  */  //ZN=21813
-        calcQuadrants = radQ4;  //ZN=21818
-    }   //ZN=21819
-    if ( ltype==15/*2DSquare (GISAXS)*/ )
-    {   /*  GiSAXS-pattern  */  //ZN=21820
-        calcQuadrants = radQ4;  //ZN=21825
-    }   //ZN=21826
 
-    zzmin = calcQuadrants == radQ4 ? -zmax : 0;     /* im Batch-Loop */
-    zzmax = zmax;
-    iimin = calcQuadrants == radQ1 ? 0 : -zmax;
-    iimax = zmax;
+    if ( use1d )
+    {
+        zzmin = 0;
+        zzmax = zmax;
+        iimin = 0;
+        iimax = 1;
+        calcQuadrants = rad1D;
+        bExpandImage  = false;
+        //qDebug() << "prepCalc: zz" << zzmin << zzmax << "ii" << iimin << iimax;
+    }
+    else
+    {
+        if ( ltype==14/*2DHex (GISAXS)*/ || ltype==15/*2DSquare (GISAXS)*/ )
+        {   /*  GiSAXS-pattern  */
+            calcQuadrants = radQ4;
+        }
+
+        zzmin = calcQuadrants == radQ4 ? -zmax : 0;     /* im Batch-Loop */
+        zzmax = zmax;
+        iimin = calcQuadrants == radQ1 ? 0 : -zmax;
+        iimax = zmax;
+    }
 
     ax1n_sigx = params.ax1.length() * params.sig.x();
     ax2n_sigy = params.ax2.length() * params.sig.y();
@@ -404,10 +416,6 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
     twin = CheckBoxTwinned;  // von außen gesteuert
 
     if ( ltype==12/*None*/ ) lattice = false;  //Z=20583
-
-    if ( ltype == 14 /*2D-Hex, GiSAXS*/ ) calcQuadrants = radQ4;  /*Z=21005*/
-    if ( ltype == 15 /*2D-quare, GiSAXS*/ ) calcQuadrants = radQ4;
-    // RadioButtonSlice wird hier ignoriert
 
     //? if ( RadioButtonDebyeScherrer.Checked==true ) debyescherrer = true;  //Z=20585
     //? if ( RadioButtonPara.Checked==true ) paracrystal = true;  //Z=20586
@@ -746,9 +754,9 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
                 D8( if ( peakct2 == 1 ) qDebug() << "prepCalc cbpeakAnisotropicGaussian" );
                 break;
             }
-#ifndef __CUDACC__
-            if ( peaknorm1 == 0 ) qDebug() << "prepareCalc:" << peakct2 << shp << x2phihkl;
-#endif
+//#ifndef __CUDACC__
+//            if ( peaknorm1 == 0 ) qDebug() << "prepareCalc:" << peakct2 << "cbpeakAnisotropicGaussian" << x2phihkl;
+//#endif
             setLatpar3(peakct2,10, g3);  //Z=21205
             setLatpar3(peakct2,11, peaknorm1);  //Z=21207
             setLatpar3(peakct2,12, peaknorm2);  //Z=21209
@@ -797,11 +805,12 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
 
 void SasCalc_GENERIC_calculation::cleanup()
 {
-    if ( params.CR != nullptr )
+    if ( params.CR != nullptr && (params.CR->latparMaxCheckCount[0] > 0 || params.CR->latparMaxCheckCount[1] > 0
+                                 || params.CR->latparMaxCheckCount[2] > 0) )
         std::cerr << "latpar Max Check: " << params.CR->latparMaxCheckCount[0] << ", "
                   << params.CR->latparMaxCheckCount[1] << ", " << params.CR->latparMaxCheckCount[2] << std::endl;
 
-    std::cerr << "GENERIC::cleanup:";
+    std::cerr << "memcleanup:";
 #ifdef FITDATA_IN_GPU  // cleanup
     if ( arrFitFqs != nullptr )
     {
@@ -991,7 +1000,6 @@ void SasCalc_GENERIC_calculation::doCalculation( int numThreads, bool bIgnNewSwi
                     calcCPU_selection( *this, false, ihex, i );
                     if ( _endThread ) break;
                 }
-                //doIntCalc_GENERIC( ihex++ );
             } // for ihex
         } // numThreads <= 1
 
@@ -1042,10 +1050,7 @@ void SasCalc_GENERIC_calculation::doCalculation( int numThreads, bool bIgnNewSwi
         } // numThreads > 1
     } // if ( ! noGPUavailable ) else {
 
-    //performImageExpansion();
-    //inline void performImageExpansion()
-    //{
-    if ( bExpandImage && calcQuadrants != radQ4 )
+    if ( bExpandImage && calcQuadrants != radQ4 && calcQuadrants != rad1D )
     {   // Punktsymetrie ausnutzen
         //zzmin = calcQuadrants == radQ4 ? -zmax : 0;     //{NV}-10771/11952 im Batch-Loop
         //zzmax = zmax;
@@ -1069,7 +1074,6 @@ void SasCalc_GENERIC_calculation::doCalculation( int numThreads, bool bIgnNewSwi
                     setXYIntensity( -ihex, -i, xyIntensity(ihex,i) );
         }
     }
-    //}
 
     // Use a high resolution clock to get the calculation time of the GPUs
     auto end2 = std::chrono::high_resolution_clock::now();
@@ -1125,6 +1129,7 @@ void SasCalc_GENERIC_calculation::endThread()
                     std::cerr << "not running" << std::endl << std::flush;
             } // for i
         } // if threads != 0
+    std::cerr << "endThread() Canceling Done." << std::endl;
 } /* endThread() */
 
 
@@ -1248,14 +1253,14 @@ double SasCalc_GENERIC_calculation::doFitCalculation(int numThreads, int bstop, 
 
 /**
  * @brief SasCalc_gpu::doThreadCalculation
- * @param arg - parameter for the calculation function
+ * @param arg - parameter ihex for the calculation function
  * @return allways nullptr
- * This is a static function for the threads used to calculate.
  */
 void *SasCalc_GENERIC_calculation::doThreadCalculation(void *arg)
 {
     pthread_setcancelstate( PTHREAD_CANCEL_ENABLE, nullptr );
-    pthread_setcanceltype( PTHREAD_CANCEL_ASYNCHRONOUS, nullptr );
+    //pthread_setcanceltype( PTHREAD_CANCEL_ASYNCHRONOUS, nullptr );    -- hiermit chrashen die Thrads oft
+    pthread_setcanceltype( PTHREAD_CANCEL_DEFERRED, nullptr );          // hiermit habe ich noch keinen Crash erlebt...
     int ihex = *(static_cast<int*>(arg));
     for ( int i=inst->iimin; i<inst->iimax; i++ )
     {
@@ -3073,82 +3078,6 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
     }/*2*/  /*  of dim=5, ellipsoids  */  //Z=10435
 
 
-#ifdef doppelteAbfrage
-    /*  perfect orientation case for ellipsoids  */  //Z=10437
-    if ( (params.ordis==6) && (dim==5) )
-    {/*2*/    /*  ellipsoids  */  //Z=10438
-        params.norm = 1;  //Z=10439
-        order = 1;  //Z=10440
-        /*  homogeneous  */  //Z=10441
-        if ( params.cs==0 )
-        {/*3*/  //Z=10442
-            //i = 2;  //Z=10443
-            double z12v[nnmax+1];   // local
-            z12v[0] = 1.0;
-            for ( int n=1; n<=2*nmax+1; n++ )
-            {/*4*/  //Z=10444
-                //z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10445
-                //z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=10446
-                //fkv[n] = fkv[n-1]*n;  //Z=10447
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10448  gam3[SIZE
-                //xrn[n] = -xrn[n-1]*xr2z;  //Z=10450
-                //xln[n] = -xln[n-1]*xl2z;  //Z=10451
-            }
-            GAM3S_INIT(max1,"ordis=6, cs=0: ms+ns")
-            GAM3S_INIT(max2,"ordis=6, cs=0: m-ms+n-ns")
-            for ( int n=1; n<=nmax; n++ )
-            {/*4*/  //Z=10444
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10445
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=10446
-                fkv[n] = fkv[n-1]*n;  //Z=10447
-                xrn[n] = -xrn[n-1]*xr2z;  //Z=10450
-                xln[n] = -xln[n-1]*xl2z;  //Z=10451
-                for ( int m=0; m<=n; m++ )
-                {/*5*/  //Z=10452
-                    double sump = 0.0;  //Z=10453
-                    for ( int ns=0; ns<=n; ns++ )
-                    {/*6*/  //Z=10454
-                        double sump1 = 0.0;  //Z=10455
-                        for ( int ms=0; ms<=m; ms++ )
-                        {
-                            GAM3S_CHECK(max1,ms+ns)
-                            GAM3S_CHECK(max2,m-ms+n-ns)
-                            sump1 += 1.0/(fkv[ms]*fkv[m-ms]*(ms+ns+3/2.0)*gam3[ms+ns]*(m-ms+n-ns+3/2.0)*gam3[m-ms+n-ns]);  //Z=10456
-                        }
-                        sump += sump1*fsum[n-m]/(fkv[ns]*fkv[n-ns]);  //Z=10457
-                    }/*6*/  //Z=10458
-                    params.CR->carr11pm[n][m] = (9/16.0)*z12vl[n]*z12v[m]*xln[n]*xrn[m]*sump;  //Z=10459
-                }/*5*/  //Z=10460
-                /*  P(q)-coefficient  */  //Z=10461
-                /* for m:=0 to n do begin  //Z=10462 */
-                /* carr1pm[i]:=(pi/4)*power(4,n)*z12v[n-m]*z12v[m]*xrn[n]/(gam3[n-m]*gam3[m]*(n-m+1)*fkv[n-m]*(m+1)*fkv[m]);  //Z=10463 */
-                /* carr1fm[i]:=carr1pm[i];  //Z=10464 */
-                /* i:=i+1;  //Z=10465 */
-                /* end;  //Z=10466 */
-                params.CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*xrn[n]/(16.0*gam3[n]);  //Z=10467
-                /*  F(q)-coefficient  */  //Z=10468
-                params.CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128.0*gam3[n]);  //Z=10469
-                if ( fabs(params.CR->carr4p[n])<min )
-                {/*5*/  //Z=10470
-                    if ( n<n4 ) n4 = n;  //Z=10471
-                }/*5*/  //Z=10472
-                if ( fabs(params.CR->carr4f[n])<min )
-                {/*5*/  //Z=10473
-                    if ( n<n4f ) n4f = n;  //Z=10474
-                }/*5*/  //Z=10475
-            }/*4*/  //Z=10476
-            GAM3S_PRINT(max1)
-            GAM3S_PRINT(max2)
-            goto Label99;  //Z=10477
-        }/*3*/   /*  of homogeneous  */  //Z=10478
-
-        /*  core/shell  */          /*  not yet ready  */  //Z=10480
-        /* if cs=1 then begin  //Z=10481
-             goto 99;  //Z=10510
-           end;   (* of core/shell *)   */  //Z=10511
-    }/*2*/  /*  of dim=6, triellipsoid  */  //Z=10512
-#endif
-
     /*  isotropic case for super ellipsoids, barrel  */  //Z=10515
     if ( (params.ordis==7) && (dim==7) )
     {/*2*/    /*  super ellipsoids  */  //Z=10516
@@ -3284,67 +3213,6 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
     }/*2*/  /*  of dim=5, ellipsoids  */  //Z=10645
 
 
-#ifdef doppelteAbfrage
-    /*  perfect orientation case for ellipsoids  */  //Z=10647
-    if ( (params.ordis==6) && (dim==5) )
-    {/*2*/    /*  ellipsoids  */  //Z=10648
-        params.norm = 1;  //Z=10649
-        order = 1;  //Z=10650
-        /*  homogeneous  */  //Z=10651
-        if ( params.cs==0 )
-        {/*3*/  //Z=10652
-            //i = 2;  //Z=10653
-            double z12v[nnmax+1];   // local
-            z12v[0] = 1.0;
-            for ( int n=1; n<=nmax; n++ )
-            {/*4*/  //Z=10654
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10655
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=10656
-                fkv[n] = fkv[n-1]*n;  //Z=10657
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10658
-                //e1[n] = e1[n-1]*(epsi*epsi-1);  //Z=10659
-                xrn[n] = -xrn[n-1]*xr2z;  //Z=10660
-                xln[n] = -xln[n-1]*xl2z;  //Z=10661
-                for ( int m=0; m<=n; m++ )
-                {/*5*/  //Z=10662
-                    double sump = 0.0;  //Z=10663
-                    for ( int ns=0; ns<=n; ns++ )
-                    {/*6*/  //Z=10664
-                        double sump1 = 0.0;  //Z=10665
-                        for ( int ms=0; ms<=m; ms++ )
-                            sump1 += 1.0/(fkv[ms]*fkv[m-ms]*(ms+ns+3/2.0)*gam3[ms+ns]*(m-ms+n-ns+3/2.0)*gam3[m-ms+n-ns]);  //Z=10666
-                        sump += sump1*fsum[n-m]/(fkv[ns]*fkv[n-ns]);  //Z=10667
-                    }/*6*/  //Z=10668
-                    params.CR->carr11pm[n][m] = (9/16.0)*z12vl[n]*z12v[m]*xln[n]*xrn[m]*sump;  //Z=10669
-                }/*5*/  //Z=10670
-                /*  P(q)-coefficient  */  //Z=10671
-                /* for m:=0 to n do begin  //Z=10672 */
-                /* carr1pm[i]:=(pi/4)*power(4,n)*z12v[n-m]*z12v[m]*xrn[n]/(gam3[n-m]*gam3[m]*(n-m+1)*fkv[n-m]*(m+1)*fkv[m]);  //Z=10673 */
-                /* carr1fm[i]:=carr1pm[i];  //Z=10674 */
-                /* i:=i+1;  //Z=10675 */
-                /* end;  //Z=10676 */
-                params.CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*xrn[n]/(16.0*gam3[n]);  //Z=10677
-                /*  F(q)-coefficient  */  //Z=10678
-                params.CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128.0*gam3[n]);  //Z=10679
-                if ( fabs(params.CR->carr4p[n])<min )
-                {/*5*/  //Z=10680
-                    if ( n<n4 ) n4 = n;  //Z=10681
-                }/*5*/  //Z=10682
-                if ( fabs(params.CR->carr4f[n])<min )
-                {/*5*/  //Z=10683
-                    if ( n<n4f ) n4f = n;  //Z=10684
-                }/*5*/  //Z=10685
-            }/*4*/  //Z=10686
-            goto Label99;  //Z=10687
-        }/*3*/   /*  of homogeneous  */  //Z=10688
-
-        /*  core/shell  */          /*  not yet ready  */  //Z=10690
-        /* if cs=1 then begin  //Z=10691
-             goto 99;  //Z=10720
-           end;   (* of core/shell *)   */  //Z=10721
-    }/*2*/  /*  of dim=7, super ellipsoid  */  //Z=10722
-#endif
-
     /*  isotropic case for superballs  */  //Z=10726
     if ( (params.ordis==7) && (dim==8) )
     {/*2*/    /*  superball  */  //Z=10727
@@ -3476,75 +3344,6 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
         //dispose(carr111pm);  //Z=10863
     }/*2*/  /*  of dim=5, ellipsoids  */  //Z=10864
 
-
-#ifdef doppelteAbfrage
-    /*  perfect orientation case for ellipsoids  */  //Z=10866
-    if ( (params.ordis==6) && (dim==5) )
-    {/*2*/    /*  ellipsoids  */  //Z=10867
-        params.norm = 1;  //Z=10868
-        order = 1;  //Z=10869
-        /*  homogeneous  */  //Z=10870
-        if ( params.cs==0 )
-        {/*3*/  //Z=10871
-            //i = 2;  //Z=10872
-            double z12v[nnmax+1];   // local
-            z12v[0] = 1.0;
-            GAM3S_INIT(max1,"ordis=6, cs=0: ms+ns")
-            GAM3S_INIT(max2,"ordis=6, cs=0: m-ms+n-ns")
-            for ( int n=1; n<=nmax; n++ )
-            {/*4*/  //Z=10873
-                z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10874
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=10875
-                fkv[n] = fkv[n-1]*n;  //Z=10876
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10877     gam3[SIZE
-                //e1[n] = e1[n-1]*(epsi*epsi-1);  //Z=10878
-                xrn[n] = -xrn[n-1]*xr2z;  //Z=10879
-                xln[n] = -xln[n-1]*xl2z;  //Z=10880
-                for ( int m=0; m<=n; m++ )
-                {/*5*/  //Z=10881
-                    double sump = 0.0;  //Z=10882
-                    for ( ns=0; ns<=n; ns++ )
-                    {/*6*/  //Z=10883
-                        double sump1 = 0.0;  //Z=10884
-                        for ( int ms=0; ms<=m; ms++ )
-                        {
-                            GAM3S_CHECK(max1,ms+ns)
-                            GAM3S_CHECK(max2,m-ms+n-ns)
-                            sump1 += 1./(fkv[ms]*fkv[m-ms]*(ms+ns+3/2.0)*gam3[ms+ns]*(m-ms+n-ns+3/2.0)*gam3[m-ms+n-ns]);  //Z=10885
-                        }
-                        sump = sump+sump1*fsum[n-m]/(fkv[ns]*fkv[n-ns]);  //Z=10886
-                    }/*6*/  //Z=10887
-                    params.CR->carr11pm[n][m] = (9/16.0)*z12vl[n]*z12v[m]*xln[n]*xrn[m]*sump;  //Z=10888
-                }/*5*/  //Z=10889
-                /*  P(q)-coefficient  */  //Z=10890
-                /* for m:=0 to n do begin  //Z=10891 */
-                /* carr1pm[i]:=(pi/4)*power(4,n)*z12v[n-m]*z12v[m]*xrn[n]/(gam3[n-m]*gam3[m]*(n-m+1)*fkv[n-m]*(m+1)*fkv[m]);  //Z=10892 */
-                /* carr1fm[i]:=carr1pm[i];  //Z=10893 */
-                /* i:=i+1;  //Z=10894 */
-                /* end;  //Z=10895 */
-                params.CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*xrn[n]/(16.0*gam3[n]);  //Z=10896
-                /*  F(q)-coefficient  */  //Z=10897
-                params.CR->carr4f[n] = M_PI*M_PI*xrn[n]/(128.0*gam3[n]);  //Z=10898
-                if ( fabs(params.CR->carr4p[n])<min )
-                {/*5*/  //Z=10899
-                    if ( n<n4 ) n4 = n;  //Z=10900
-                }/*5*/  //Z=10901
-                if ( fabs(params.CR->carr4f[n])<min )
-                {/*5*/  //Z=10902
-                    if ( n<n4f ) n4f = n;  //Z=10903
-                }/*5*/  //Z=10904
-            }/*4*/  //Z=10905
-            GAM3S_PRINT(max1)
-            GAM3S_PRINT(max2)
-            goto Label99;  //Z=10906
-        }/*3*/   /*  of homogeneous  */  //Z=10907
-
-        /*  core/shell  */          /*  not yet ready  */  //Z=10909
-        /* if cs=1 then begin  //Z=10910
-             goto 99;  //Z=10939
-           end;   (* of core/shell *)   */  //Z=10940
-    }/*2*/  /*  of dim=8, superball  */  //Z=10941
-#endif
 
     /* ** isotropic case for cylinders and disks ** */  //Z=10945
     if ( (params.ordis==7) && (dim!=3) )

@@ -93,28 +93,32 @@
      <property name="title">
       <string>Quadrants</string>
      </property>
-     <property name="checkable">
-      <bool>true</bool>
-     </property>
      <layout class="QVBoxLayout" name="verticalLayout_3">
       <item>
        <widget class="QCheckBox" name="togQ1">
         <property name="text">
-         <string>1</string>
+         <string>1 (2d)</string>
         </property>
        </widget>
       </item>
       <item>
        <widget class="QCheckBox" name="togQ2">
         <property name="text">
-         <string>2</string>
+         <string>2 (2d)</string>
         </property>
        </widget>
       </item>
       <item>
        <widget class="QCheckBox" name="togQ4">
         <property name="text">
-         <string>4</string>
+         <string>4 (2d)</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="tog1d">
+        <property name="text">
+         <string>only 1D</string>
         </property>
        </widget>
       </item>

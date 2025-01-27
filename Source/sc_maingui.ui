@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1330</width>
-    <height>1133</height>
+    <width>1302</width>
+    <height>1131</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -30,7 +30,7 @@
          <number>0</number>
         </property>
         <property name="alignment">
-         <set>Qt::AlignCenter</set>
+         <set>Qt::AlignmentFlag::AlignCenter</set>
         </property>
        </widget>
       </item>
@@ -49,10 +49,10 @@
     <item row="0" column="0">
      <widget class="QTabWidget" name="tabMain">
       <property name="tabShape">
-       <enum>QTabWidget::Triangular</enum>
+       <enum>QTabWidget::TabShape::Triangular</enum>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>6</number>
       </property>
       <widget class="QWidget" name="tabCalc">
        <attribute name="title">
@@ -77,7 +77,7 @@
              <item row="1" column="0" colspan="2">
               <widget class="QTableWidget" name="tblHeaderData">
                <property name="selectionMode">
-                <enum>QAbstractItemView::NoSelection</enum>
+                <enum>QAbstractItemView::SelectionMode::NoSelection</enum>
                </property>
                <property name="cornerButtonEnabled">
                 <bool>false</bool>
@@ -109,6 +109,9 @@
              <string>Lattice</string>
             </property>
             <layout class="QGridLayout" name="gridLayout_31">
+             <property name="verticalSpacing">
+              <number>5</number>
+             </property>
              <item row="12" column="1">
               <widget class="QDoubleSpinBox" name="inpreff"/>
              </item>
@@ -139,7 +142,7 @@
                 <string>ifluc:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -169,7 +172,7 @@
                 <string>bcpl:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -193,7 +196,7 @@
                 <string>LType:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -213,7 +216,7 @@
                 <string>ucb:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -246,7 +249,7 @@
                 <string>Twinned:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -263,7 +266,7 @@
                 <string>acpl:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -279,7 +282,7 @@
                 <string>uca:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -292,7 +295,7 @@
                 <string>reff:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -308,7 +311,7 @@
                 <string>ucbeta:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -335,7 +338,7 @@
                 <string>ucc:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -345,14 +348,14 @@
                 <string>ucgamma:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
              <item row="17" column="0">
               <spacer name="verticalSpacer_3">
                <property name="orientation">
-                <enum>Qt::Vertical</enum>
+                <enum>Qt::Orientation::Vertical</enum>
                </property>
                <property name="sizeHint" stdset="0">
                 <size>
@@ -368,7 +371,7 @@
                 <string>rfluc:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -385,7 +388,7 @@
                 <string>ucalpha:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -398,7 +401,7 @@
                 <string>TwRatio:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -411,7 +414,7 @@
                 <string>Ceffcyl:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -440,7 +443,7 @@
                 <string>SigmaL:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -450,7 +453,7 @@
                 <string>Dist:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -464,7 +467,7 @@
              <item row="15" column="0">
               <spacer name="verticalSpacer">
                <property name="orientation">
-                <enum>Qt::Vertical</enum>
+                <enum>Qt::Orientation::Vertical</enum>
                </property>
                <property name="sizeHint" stdset="0">
                 <size>
@@ -480,7 +483,7 @@
                 <string>Ordis:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -497,7 +500,7 @@
                 <string>ComboBoxInterior:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -510,7 +513,7 @@
                 <string>ComboBoxParticle:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -520,7 +523,7 @@
                 <string>EditRadiusi:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -567,7 +570,11 @@
               </widget>
              </item>
              <item row="1" column="1" colspan="2">
-              <widget class="QComboBox" name="cbsOrdis"/>
+              <widget class="QComboBox" name="cbsOrdis">
+               <property name="autoFillBackground">
+                <bool>true</bool>
+               </property>
+              </widget>
              </item>
              <item row="5" column="0">
               <widget class="QLabel" name="lblEditSigma">
@@ -575,7 +582,7 @@
                 <string>EditSigma:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -585,7 +592,7 @@
                 <string>EditDBeta:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -602,7 +609,7 @@
                 <string>EditRadius:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -616,7 +623,7 @@
              <item row="12" column="0" colspan="3">
               <widget class="Line" name="line_4">
                <property name="orientation">
-                <enum>Qt::Horizontal</enum>
+                <enum>Qt::Orientation::Horizontal</enum>
                </property>
               </widget>
              </item>
@@ -636,7 +643,7 @@
                 <string>RelDis:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -646,7 +653,7 @@
                 <string>Alpha:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -656,7 +663,7 @@
                 <string>Length:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -669,7 +676,7 @@
                 <string>EditRho:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -695,7 +702,7 @@
                 <string>RotAlpha:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -724,7 +731,7 @@
                 <string>DebyeScherrer:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -741,7 +748,7 @@
                 <string>EditDomainSize:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -757,7 +764,7 @@
                 <string>ComboBoxPeak:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -770,7 +777,7 @@
                 <string>EditDebyeWaller:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -783,7 +790,7 @@
                 <string>Paracrystal:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -800,7 +807,7 @@
                 <string>EditAzi:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -852,7 +859,7 @@
                    <string>y:</string>
                   </property>
                   <property name="alignment">
-                   <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                   <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                   </property>
                  </widget>
                 </item>
@@ -871,7 +878,7 @@
                 <item row="4" column="0" colspan="5">
                  <widget class="Line" name="line_5">
                   <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
+                   <enum>Qt::Orientation::Horizontal</enum>
                   </property>
                  </widget>
                 </item>
@@ -881,7 +888,7 @@
                    <string>z:</string>
                   </property>
                   <property name="alignment">
-                   <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                   <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                   </property>
                  </widget>
                 </item>
@@ -910,7 +917,7 @@
                    <string>x:</string>
                   </property>
                   <property name="alignment">
-                   <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                   <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                   </property>
                  </widget>
                 </item>
@@ -930,7 +937,7 @@
                    <string>Sig:</string>
                   </property>
                   <property name="alignment">
-                   <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                   <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                   </property>
                  </widget>
                 </item>
@@ -946,7 +953,7 @@
                 <string>EditPeakPar:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -960,10 +967,10 @@
              <item row="8" column="0">
               <spacer name="verticalSpacer_11">
                <property name="orientation">
-                <enum>Qt::Vertical</enum>
+                <enum>Qt::Orientation::Vertical</enum>
                </property>
                <property name="sizeType">
-                <enum>QSizePolicy::MinimumExpanding</enum>
+                <enum>QSizePolicy::Policy::MinimumExpanding</enum>
                </property>
                <property name="sizeHint" stdset="0">
                 <size>
@@ -998,7 +1005,7 @@
                 <string>ucn3:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -1031,7 +1038,7 @@
                 <string>rotPhi:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -1058,7 +1065,7 @@
                 <string>rotTheta:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -1099,7 +1106,7 @@
                 <string>theta:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -1115,7 +1122,7 @@
                 <string>ucn2:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -1125,7 +1132,7 @@
                 <string>ucn1:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -1135,7 +1142,7 @@
                 <string>phi:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -1145,7 +1152,7 @@
                 <string>ucpsi:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -1155,7 +1162,7 @@
              <item row="8" column="1">
               <spacer name="verticalSpacer_12">
                <property name="orientation">
-                <enum>Qt::Vertical</enum>
+                <enum>Qt::Orientation::Vertical</enum>
                </property>
                <property name="sizeHint" stdset="0">
                 <size>
@@ -1173,7 +1180,7 @@
         <item>
          <widget class="Line" name="line_3">
           <property name="orientation">
-           <enum>Qt::Horizontal</enum>
+           <enum>Qt::Orientation::Horizontal</enum>
           </property>
          </widget>
         </item>
@@ -1182,10 +1189,10 @@
           <item row="0" column="4">
            <spacer name="horizontalSpacer_5">
             <property name="orientation">
-             <enum>Qt::Horizontal</enum>
+             <enum>Qt::Orientation::Horizontal</enum>
             </property>
             <property name="sizeType">
-             <enum>QSizePolicy::MinimumExpanding</enum>
+             <enum>QSizePolicy::Policy::MinimumExpanding</enum>
             </property>
             <property name="sizeHint" stdset="0">
              <size>
@@ -1211,7 +1218,7 @@
              <item row="6" column="1">
               <spacer name="verticalSpacer_15">
                <property name="orientation">
-                <enum>Qt::Vertical</enum>
+                <enum>Qt::Orientation::Vertical</enum>
                </property>
                <property name="sizeHint" stdset="0">
                 <size>
@@ -1240,7 +1247,7 @@
                 <string>?</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+                <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
                </property>
                <property name="wordWrap">
                 <bool>true</bool>
@@ -1259,7 +1266,7 @@
                 <string>Loaded parameter file:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignBottom|Qt::AlignLeading|Qt::AlignLeft</set>
+                <set>Qt::AlignmentFlag::AlignBottom|Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft</set>
                </property>
               </widget>
              </item>
@@ -1294,29 +1301,13 @@
                 <property name="spacing">
                  <number>3</number>
                 </property>
-                <item row="4" column="2">
-                 <spacer name="horizontalSpacer_7">
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
-                  </property>
-                  <property name="sizeType">
-                   <enum>QSizePolicy::Minimum</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>0</width>
-                    <height>0</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-                <item row="4" column="0">
+                <item row="5" column="0">
                  <spacer name="horizontalSpacer_6">
                   <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
+                   <enum>Qt::Orientation::Horizontal</enum>
                   </property>
                   <property name="sizeType">
-                   <enum>QSizePolicy::Minimum</enum>
+                   <enum>QSizePolicy::Policy::Minimum</enum>
                   </property>
                   <property name="sizeHint" stdset="0">
                    <size>
@@ -1325,33 +1316,6 @@
                    </size>
                   </property>
                  </spacer>
-                </item>
-                <item row="2" column="0" colspan="3">
-                 <widget class="QLabel" name="lblColMarkChgImg">
-                  <property name="autoFillBackground">
-                   <bool>true</bool>
-                  </property>
-                  <property name="text">
-                   <string>These values changes the current image</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="0" column="0" colspan="3">
-                 <widget class="QLabel" name="lblColMarkTrainTbl">
-                  <property name="autoFillBackground">
-                   <bool>true</bool>
-                  </property>
-                  <property name="text">
-                   <string>Values read from Training image table</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="4" column="1">
-                 <widget class="QPushButton" name="butResetColorMarker">
-                  <property name="text">
-                   <string>Reset color marker</string>
-                  </property>
-                 </widget>
                 </item>
                 <item row="1" column="0" colspan="3">
                  <widget class="QLabel" name="lblColMarkParDiff">
@@ -1373,6 +1337,59 @@
                   </property>
                  </widget>
                 </item>
+                <item row="5" column="2">
+                 <spacer name="horizontalSpacer_7">
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="sizeType">
+                   <enum>QSizePolicy::Policy::Minimum</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>0</width>
+                    <height>0</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+                <item row="2" column="0" colspan="3">
+                 <widget class="QLabel" name="lblColMarkChgImg">
+                  <property name="autoFillBackground">
+                   <bool>true</bool>
+                  </property>
+                  <property name="text">
+                   <string>These values changes the current image</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="5" column="1">
+                 <widget class="QPushButton" name="butResetColorMarker">
+                  <property name="text">
+                   <string>Reset color marker</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="0" column="0" colspan="3">
+                 <widget class="QLabel" name="lblColMarkTrainTbl">
+                  <property name="autoFillBackground">
+                   <bool>true</bool>
+                  </property>
+                  <property name="text">
+                   <string>Values read from Training image table</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="4" column="0" colspan="3">
+                 <widget class="QLabel" name="lblColMarkNoToolTip">
+                  <property name="autoFillBackground">
+                   <bool>true</bool>
+                  </property>
+                  <property name="text">
+                   <string>Values without tool tips</string>
+                  </property>
+                 </widget>
+                </item>
                </layout>
               </widget>
              </item>
@@ -1388,7 +1405,7 @@
              <item row="3" column="1">
               <spacer name="verticalSpacer_14">
                <property name="orientation">
-                <enum>Qt::Vertical</enum>
+                <enum>Qt::Orientation::Vertical</enum>
                </property>
                <property name="sizeHint" stdset="0">
                 <size>
@@ -1404,7 +1421,7 @@
                 <string>EditBFactor:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -1417,7 +1434,7 @@
                 <string>P1:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -1434,7 +1451,7 @@
                 <string>WAXS:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -1453,7 +1470,7 @@
              <item row="3" column="1">
               <spacer name="verticalSpacer_16">
                <property name="orientation">
-                <enum>Qt::Vertical</enum>
+                <enum>Qt::Orientation::Vertical</enum>
                </property>
                <property name="sizeHint" stdset="0">
                 <size>
@@ -1469,7 +1486,7 @@
                 <string>iso:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -1479,7 +1496,7 @@
                 <string>I0:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -1492,7 +1509,7 @@
                 <string>Base:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -1535,23 +1552,13 @@
              <property name="verticalSpacing">
               <number>5</number>
              </property>
-             <item row="0" column="1">
-              <widget class="QSpinBox" name="intGridPoints">
+             <item row="1" column="1">
+              <widget class="QSpinBox" name="intHKLmax">
                <property name="minimum">
-                <number>16</number>
+                <number>1</number>
                </property>
                <property name="maximum">
-                <number>2048</number>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="0">
-              <widget class="QLabel" name="lblHKLmax">
-               <property name="text">
-                <string>HKLmax:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <number>9</number>
                </property>
               </widget>
              </item>
@@ -1596,14 +1603,164 @@
                </layout>
               </widget>
              </item>
-             <item row="1" column="1">
-              <widget class="QSpinBox" name="intHKLmax">
-               <property name="minimum">
-                <number>1</number>
+             <item row="1" column="0">
+              <widget class="QLabel" name="lblHKLmax">
+               <property name="text">
+                <string>HKLmax:</string>
                </property>
-               <property name="maximum">
-                <number>9</number>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
+              </widget>
+             </item>
+             <item row="0" column="0" colspan="2">
+              <widget class="QTabWidget" name="tab1D2D">
+               <property name="tabShape">
+                <enum>QTabWidget::TabShape::Triangular</enum>
+               </property>
+               <property name="currentIndex">
+                <number>0</number>
+               </property>
+               <widget class="QWidget" name="tab1D">
+                <attribute name="title">
+                 <string>1D</string>
+                </attribute>
+                <layout class="QGridLayout" name="gridLayout_50">
+                 <item row="3" column="0">
+                  <spacer name="verticalSpacer_7">
+                   <property name="orientation">
+                    <enum>Qt::Orientation::Vertical</enum>
+                   </property>
+                   <property name="sizeHint" stdset="0">
+                    <size>
+                     <width>20</width>
+                     <height>40</height>
+                    </size>
+                   </property>
+                  </spacer>
+                 </item>
+                 <item row="0" column="0">
+                  <widget class="QLabel" name="label_64">
+                   <property name="text">
+                    <string>Qmin:</string>
+                   </property>
+                   <property name="alignment">
+                    <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="2" column="0" colspan="2">
+                  <widget class="QLabel" name="label_65">
+                   <property name="font">
+                    <font>
+                     <italic>true</italic>
+                    </font>
+                   </property>
+                   <property name="text">
+                    <string>If this is visible and the Calculate button is clicked, only a 1D vector and no matrix is calculated.</string>
+                   </property>
+                   <property name="wordWrap">
+                    <bool>true</bool>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="1">
+                  <widget class="QDoubleSpinBox" name="inpEditQmin"/>
+                 </item>
+                 <item row="1" column="1">
+                  <widget class="QSpinBox" name="intEditQsteps"/>
+                 </item>
+                 <item row="1" column="0">
+                  <widget class="QLabel" name="label_66">
+                   <property name="text">
+                    <string>number of steps (q):</string>
+                   </property>
+                   <property name="alignment">
+                    <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </widget>
+               <widget class="QWidget" name="tab2D">
+                <attribute name="title">
+                 <string>2D</string>
+                </attribute>
+                <layout class="QGridLayout" name="gridLayout_49">
+                 <item row="0" column="1">
+                  <widget class="QSpinBox" name="intGridPoints">
+                   <property name="minimum">
+                    <number>16</number>
+                   </property>
+                   <property name="maximum">
+                    <number>2048</number>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="0">
+                  <widget class="QLabel" name="lblGridPoints">
+                   <property name="text">
+                    <string>Grid points:</string>
+                   </property>
+                   <property name="alignment">
+                    <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="1" column="0" colspan="2">
+                  <widget class="QGroupBox" name="grpQuadrants">
+                   <property name="title">
+                    <string>Quadrants</string>
+                   </property>
+                   <layout class="QGridLayout" name="gridLayout_35">
+                    <property name="topMargin">
+                     <number>5</number>
+                    </property>
+                    <property name="bottomMargin">
+                     <number>5</number>
+                    </property>
+                    <property name="verticalSpacing">
+                     <number>3</number>
+                    </property>
+                    <item row="0" column="1">
+                     <widget class="QRadioButton" name="radQ2">
+                      <property name="text">
+                       <string>2</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="0" column="2">
+                     <widget class="QRadioButton" name="radQ4">
+                      <property name="text">
+                       <string>4</string>
+                      </property>
+                      <property name="checked">
+                       <bool>true</bool>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="0" column="0">
+                     <widget class="QRadioButton" name="radQ1">
+                      <property name="text">
+                       <string>1</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item row="1" column="0" colspan="3">
+                     <widget class="QCheckBox" name="togExpandImage">
+                      <property name="toolTip">
+                       <string>use point symetry</string>
+                      </property>
+                      <property name="text">
+                       <string>Expand to full image</string>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </widget>
+                 </item>
+                </layout>
+               </widget>
               </widget>
              </item>
              <item row="2" column="0" colspan="2">
@@ -1644,7 +1801,7 @@
                    <bool>true</bool>
                   </property>
                   <property name="buttonSymbols">
-                   <enum>QAbstractSpinBox::NoButtons</enum>
+                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                   </property>
                   <property name="decimals">
                    <number>4</number>
@@ -1652,68 +1809,6 @@
                  </widget>
                 </item>
                </layout>
-              </widget>
-             </item>
-             <item row="4" column="0" colspan="2">
-              <widget class="QGroupBox" name="grpQuadrants">
-               <property name="title">
-                <string>Quadrants</string>
-               </property>
-               <layout class="QGridLayout" name="gridLayout_35">
-                <property name="topMargin">
-                 <number>5</number>
-                </property>
-                <property name="bottomMargin">
-                 <number>5</number>
-                </property>
-                <property name="verticalSpacing">
-                 <number>3</number>
-                </property>
-                <item row="0" column="1">
-                 <widget class="QRadioButton" name="radQ2">
-                  <property name="text">
-                   <string>2</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="0" column="2">
-                 <widget class="QRadioButton" name="radQ4">
-                  <property name="text">
-                   <string>4</string>
-                  </property>
-                  <property name="checked">
-                   <bool>true</bool>
-                  </property>
-                 </widget>
-                </item>
-                <item row="0" column="0">
-                 <widget class="QRadioButton" name="radQ1">
-                  <property name="text">
-                   <string>1</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="1" column="0" colspan="3">
-                 <widget class="QCheckBox" name="togExpandImage">
-                  <property name="toolTip">
-                   <string>use point symetry</string>
-                  </property>
-                  <property name="text">
-                   <string>Expand to full image</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </widget>
-             </item>
-             <item row="0" column="0">
-              <widget class="QLabel" name="lblGridPoints">
-               <property name="text">
-                <string>Grid points:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
               </widget>
              </item>
             </layout>
@@ -1741,7 +1836,7 @@
                 <string>EditDet:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -1758,14 +1853,14 @@
                 <string>Comment:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
              <item row="11" column="0">
               <spacer name="verticalSpacer_13">
                <property name="orientation">
-                <enum>Qt::Vertical</enum>
+                <enum>Qt::Orientation::Vertical</enum>
                </property>
                <property name="sizeHint" stdset="0">
                 <size>
@@ -1795,7 +1890,7 @@
                 <string>PixelSize:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -1819,7 +1914,7 @@
                 <string>PixelNo.:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -1847,7 +1942,7 @@
              <item row="8" column="0" colspan="4">
               <widget class="Line" name="line_6">
                <property name="orientation">
-                <enum>Qt::Horizontal</enum>
+                <enum>Qt::Orientation::Horizontal</enum>
                </property>
               </widget>
              </item>
@@ -1867,7 +1962,7 @@
                 <string>Wavelength:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -1986,7 +2081,7 @@
                 <string>Center point:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -2036,7 +2131,7 @@
                 <string>New Grid points:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -2046,7 +2141,7 @@
                 <string>Scale factor:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -2127,7 +2222,7 @@
                 <string>The current selected row can be modified with the mouse. Empty rows are ignored.</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignHCenter|Qt::AlignTop</set>
+                <set>Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignTop</set>
                </property>
                <property name="wordWrap">
                 <bool>true</bool>
@@ -2183,7 +2278,7 @@
           <item>
            <spacer name="verticalSpacer_4">
             <property name="orientation">
-             <enum>Qt::Vertical</enum>
+             <enum>Qt::Orientation::Vertical</enum>
             </property>
             <property name="sizeHint" stdset="0">
              <size>
@@ -2198,7 +2293,7 @@
         <item row="0" column="2">
          <spacer name="horizontalSpacer">
           <property name="orientation">
-           <enum>Qt::Horizontal</enum>
+           <enum>Qt::Orientation::Horizontal</enum>
           </property>
           <property name="sizeHint" stdset="0">
            <size>
@@ -2310,7 +2405,7 @@
               <string>The output image was cutted out around the center of the FFT output.</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignCenter</set>
+              <set>Qt::AlignmentFlag::AlignCenter</set>
              </property>
              <property name="wordWrap">
               <bool>true</bool>
@@ -2415,7 +2510,7 @@
         <item row="3" column="1">
          <spacer name="verticalSpacer_5">
           <property name="orientation">
-           <enum>Qt::Vertical</enum>
+           <enum>Qt::Orientation::Vertical</enum>
           </property>
           <property name="sizeHint" stdset="0">
            <size>
@@ -2440,7 +2535,7 @@
               <string>Dimension of output image</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
@@ -2561,7 +2656,7 @@
               <string>Imagewindow to use:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
@@ -2652,13 +2747,13 @@
           <item row="1" column="0">
            <widget class="QTableWidget" name="tblFitValues">
             <property name="editTriggers">
-             <set>QAbstractItemView::AnyKeyPressed|QAbstractItemView::DoubleClicked|QAbstractItemView::EditKeyPressed|QAbstractItemView::SelectedClicked</set>
+             <set>QAbstractItemView::EditTrigger::AnyKeyPressed|QAbstractItemView::EditTrigger::DoubleClicked|QAbstractItemView::EditTrigger::EditKeyPressed|QAbstractItemView::EditTrigger::SelectedClicked</set>
             </property>
             <property name="alternatingRowColors">
              <bool>true</bool>
             </property>
             <property name="selectionMode">
-             <enum>QAbstractItemView::SingleSelection</enum>
+             <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
             </property>
             <attribute name="verticalHeaderDefaultSectionSize">
              <number>30</number>
@@ -2751,7 +2846,7 @@
                 <string>Current iteration:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -2761,7 +2856,7 @@
                 <string>Beamstop half-size:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -2771,7 +2866,7 @@
                 <string>Maximum iterations:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -2784,7 +2879,7 @@
                 <string>Step size:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -2797,7 +2892,7 @@
                 <string>Border size:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -2807,7 +2902,7 @@
                 <string>Imagewindow to fit:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -2817,14 +2912,14 @@
                 <string>Number of repetitions:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
              <item row="9" column="0" colspan="2">
               <widget class="QCheckBox" name="togFitUseMask">
                <property name="layoutDirection">
-                <enum>Qt::RightToLeft</enum>
+                <enum>Qt::LayoutDirection::RightToLeft</enum>
                </property>
                <property name="text">
                 <string>Ignore pixel less equal corner pixel</string>
@@ -2837,7 +2932,7 @@
                 <string>Tolerance:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -2852,7 +2947,7 @@
                 <string>Current repetition:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -2908,7 +3003,7 @@
           <item>
            <spacer name="verticalSpacer_2">
             <property name="orientation">
-             <enum>Qt::Vertical</enum>
+             <enum>Qt::Orientation::Vertical</enum>
             </property>
             <property name="sizeHint" stdset="0">
              <size>
@@ -2958,7 +3053,7 @@
                 <string>Residuen-Plot:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -3002,10 +3097,10 @@
                 </palette>
                </property>
                <property name="frameShadow">
-                <enum>QFrame::Plain</enum>
+                <enum>QFrame::Shadow::Plain</enum>
                </property>
                <property name="orientation">
-                <enum>Qt::Horizontal</enum>
+                <enum>Qt::Orientation::Horizontal</enum>
                </property>
               </widget>
              </item>
@@ -3022,7 +3117,7 @@
                 <string>History</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -3032,7 +3127,7 @@
                 <string>Current fit settings:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
                <property name="wordWrap">
                 <bool>true</bool>
@@ -3079,10 +3174,10 @@
                 </palette>
                </property>
                <property name="frameShadow">
-                <enum>QFrame::Plain</enum>
+                <enum>QFrame::Shadow::Plain</enum>
                </property>
                <property name="orientation">
-                <enum>Qt::Horizontal</enum>
+                <enum>Qt::Orientation::Horizontal</enum>
                </property>
               </widget>
              </item>
@@ -3129,7 +3224,7 @@
                 <string>Fit Result:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -3173,10 +3268,10 @@
                 </palette>
                </property>
                <property name="frameShadow">
-                <enum>QFrame::Plain</enum>
+                <enum>QFrame::Shadow::Plain</enum>
                </property>
                <property name="orientation">
-                <enum>Qt::Horizontal</enum>
+                <enum>Qt::Orientation::Horizontal</enum>
                </property>
               </widget>
              </item>
@@ -3186,7 +3281,7 @@
           <item>
            <spacer name="verticalSpacer_10">
             <property name="orientation">
-             <enum>Qt::Vertical</enum>
+             <enum>Qt::Orientation::Vertical</enum>
             </property>
             <property name="sizeHint" stdset="0">
              <size>
@@ -3227,7 +3322,7 @@
 with file definitions</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
                <property name="wordWrap">
                 <bool>true</bool>
@@ -3265,7 +3360,7 @@ with file definitions</string>
                 <string>x</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -3279,10 +3374,10 @@ with file definitions</string>
           <item row="1" column="0">
            <spacer name="horizontalSpacer_2">
             <property name="orientation">
-             <enum>Qt::Horizontal</enum>
+             <enum>Qt::Orientation::Horizontal</enum>
             </property>
             <property name="sizeType">
-             <enum>QSizePolicy::MinimumExpanding</enum>
+             <enum>QSizePolicy::Policy::MinimumExpanding</enum>
             </property>
             <property name="sizeHint" stdset="0">
              <size>
@@ -3384,7 +3479,7 @@ with file definitions</string>
               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Below this path the subdirectories &lt;span style=&quot; font-weight:600;&quot;&gt;scat&lt;/span&gt;, &lt;span style=&quot; font-weight:600;&quot;&gt;rphi&lt;/span&gt;, &lt;span style=&quot; font-weight:600;&quot;&gt;fft&lt;/span&gt; are created.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignCenter</set>
+              <set>Qt::AlignmentFlag::AlignCenter</set>
              </property>
             </widget>
            </item>
@@ -3451,7 +3546,7 @@ with file definitions</string>
               <string>width of the lines:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
@@ -3559,7 +3654,7 @@ with file definitions</string>
         <item row="10" column="0">
          <spacer name="verticalSpacer_8">
           <property name="orientation">
-           <enum>Qt::Vertical</enum>
+           <enum>Qt::Orientation::Vertical</enum>
           </property>
           <property name="sizeHint" stdset="0">
            <size>
@@ -3585,7 +3680,7 @@ with file definitions</string>
            <item row="4" column="2">
             <widget class="QDoubleSpinBox" name="inpTPVlength">
              <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
              </property>
              <property name="maximum">
               <double>1.000000000000000</double>
@@ -3632,14 +3727,14 @@ with file definitions</string>
               <string>a:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
            <item row="0" column="2">
             <widget class="QDoubleSpinBox" name="inpTPVio">
              <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
              </property>
              <property name="maximum">
               <double>1.000000000000000</double>
@@ -3655,7 +3750,7 @@ with file definitions</string>
               <string>Length:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
@@ -3669,7 +3764,7 @@ with file definitions</string>
            <item row="3" column="2">
             <widget class="QDoubleSpinBox" name="inpTPVsigmar">
              <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
              </property>
              <property name="maximum">
               <double>1.000000000000000</double>
@@ -3682,7 +3777,7 @@ with file definitions</string>
            <item row="0" column="3" rowspan="8">
             <widget class="Line" name="line">
              <property name="orientation">
-              <enum>Qt::Vertical</enum>
+              <enum>Qt::Orientation::Vertical</enum>
              </property>
             </widget>
            </item>
@@ -3706,7 +3801,7 @@ with file definitions</string>
               <string>phiwidth:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
@@ -3716,7 +3811,7 @@ with file definitions</string>
               <string>Radius:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
@@ -3733,7 +3828,7 @@ with file definitions</string>
               <string>psi:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
@@ -3743,7 +3838,7 @@ with file definitions</string>
               <string>Sigma(L):</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
@@ -3753,14 +3848,14 @@ with file definitions</string>
               <string>Sigma(R):</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
            <item row="0" column="9">
             <widget class="QDoubleSpinBox" name="inpTPVbeamx0">
              <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
              </property>
              <property name="maximum">
               <double>1.000000000000000</double>
@@ -3776,14 +3871,14 @@ with file definitions</string>
               <string>beam x0:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
            <item row="6" column="6">
             <widget class="QDoubleSpinBox" name="inpTPVphiwidth">
              <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
              </property>
              <property name="maximum">
               <double>1.000000000000000</double>
@@ -3796,7 +3891,7 @@ with file definitions</string>
            <item row="4" column="6">
             <widget class="QDoubleSpinBox" name="inpTPVpsi">
              <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
              </property>
              <property name="maximum">
               <double>1.000000000000000</double>
@@ -3812,14 +3907,14 @@ with file definitions</string>
               <string>I0:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
            <item row="7" column="6">
             <widget class="QDoubleSpinBox" name="inpTPVdisplacement">
              <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
              </property>
              <property name="maximum">
               <double>1.000000000000000</double>
@@ -3846,7 +3941,7 @@ with file definitions</string>
            <item row="5" column="2">
             <widget class="QDoubleSpinBox" name="inpTPVsigmal">
              <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
              </property>
              <property name="maximum">
               <double>1.000000000000000</double>
@@ -3866,7 +3961,7 @@ with file definitions</string>
            <item row="5" column="6">
             <widget class="QDoubleSpinBox" name="inpTPVwidth">
              <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
              </property>
              <property name="maximum">
               <double>1.000000000000000</double>
@@ -3882,7 +3977,7 @@ with file definitions</string>
               <string>phi:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
@@ -3892,21 +3987,21 @@ with file definitions</string>
               <string>displacement:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
            <item row="0" column="7" rowspan="8">
             <widget class="Line" name="line_2">
              <property name="orientation">
-              <enum>Qt::Vertical</enum>
+              <enum>Qt::Orientation::Vertical</enum>
              </property>
             </widget>
            </item>
            <item row="0" column="6">
             <widget class="QDoubleSpinBox" name="inpTPVa">
              <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
              </property>
              <property name="maximum">
               <double>1.000000000000000</double>
@@ -3919,7 +4014,7 @@ with file definitions</string>
            <item row="2" column="2">
             <widget class="QDoubleSpinBox" name="inpTPVradius">
              <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
              </property>
              <property name="maximum">
               <double>1.000000000000000</double>
@@ -3942,7 +4037,7 @@ with file definitions</string>
               <string>width:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
@@ -3959,14 +4054,14 @@ with file definitions</string>
               <string>Base:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
            <item row="1" column="2">
             <widget class="QDoubleSpinBox" name="inpTPVbase">
              <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
              </property>
              <property name="maximum">
               <double>1.000000000000000</double>
@@ -3989,14 +4084,14 @@ with file definitions</string>
               <string>b:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
            <item row="1" column="6">
             <widget class="QDoubleSpinBox" name="inpTPVb">
              <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
              </property>
              <property name="maximum">
               <double>1.000000000000000</double>
@@ -4019,14 +4114,14 @@ with file definitions</string>
               <string>c:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
            <item row="2" column="6">
             <widget class="QDoubleSpinBox" name="inpTPVc">
              <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
              </property>
              <property name="maximum">
               <double>1.000000000000000</double>
@@ -4049,14 +4144,14 @@ with file definitions</string>
               <string>Rho:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
            <item row="3" column="6">
             <widget class="QDoubleSpinBox" name="inpTPVrho">
              <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
              </property>
              <property name="maximum">
               <double>1.000000000000000</double>
@@ -4079,14 +4174,14 @@ with file definitions</string>
               <string>DBeta:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
            <item row="7" column="2">
             <widget class="QDoubleSpinBox" name="inpTPVdbeta">
              <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
              </property>
              <property name="maximum">
               <double>1.000000000000000</double>
@@ -4102,14 +4197,14 @@ with file definitions</string>
               <string>beam y0:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
            <item row="1" column="9">
             <widget class="QDoubleSpinBox" name="inpTPVbeamy0">
              <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
              </property>
              <property name="maximum">
               <double>1.000000000000000</double>
@@ -4125,14 +4220,14 @@ with file definitions</string>
               <string>n beam:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
            <item row="2" column="9">
             <widget class="QDoubleSpinBox" name="inpTPVnbeam">
              <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
              </property>
              <property name="maximum">
               <double>1.000000000000000</double>
@@ -4148,14 +4243,14 @@ with file definitions</string>
               <string>m beam:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
            <item row="3" column="9">
             <widget class="QDoubleSpinBox" name="inpTPVmbeam">
              <property name="buttonSymbols">
-              <enum>QAbstractSpinBox::NoButtons</enum>
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
              </property>
              <property name="maximum">
               <double>1.000000000000000</double>
@@ -4209,14 +4304,14 @@ with file definitions</string>
                 <string>Variables known:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
              <item row="4" column="3">
               <spacer name="verticalSpacer_6">
                <property name="orientation">
-                <enum>Qt::Vertical</enum>
+                <enum>Qt::Orientation::Vertical</enum>
                </property>
                <property name="sizeHint" stdset="0">
                 <size>
@@ -4245,7 +4340,7 @@ with file definitions</string>
                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Step-Column:&lt;br/&gt;&lt;/span&gt;&amp;quot;n&amp;quot; = numerical step size&lt;br/&gt;&amp;quot;Rn&amp;quot; = generate &amp;lt;n&amp;gt; random values&lt;br/&gt;&amp;quot;=&amp;lt;var&amp;gt; [+-*/] &amp;lt;num&amp;gt;&amp;quot; calculate value from variable&lt;br/&gt;&amp;quot;/n&amp;quot; calculates n steps from start to end with fixed size&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+                <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
                </property>
                <property name="wordWrap">
                 <bool>true</bool>
@@ -4293,7 +4388,7 @@ with file definitions</string>
                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;End-Column:&lt;/span&gt;&lt;br/&gt;&amp;quot;n&amp;quot; = end of range&lt;br/&gt;&amp;quot;Vn&amp;quot; = Variation (0..1)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+                <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
                </property>
               </widget>
              </item>
@@ -4317,7 +4412,7 @@ with file definitions</string>
              <item row="6" column="3">
               <spacer name="verticalSpacer_9">
                <property name="orientation">
-                <enum>Qt::Vertical</enum>
+                <enum>Qt::Orientation::Vertical</enum>
                </property>
                <property name="sizeHint" stdset="0">
                 <size>
@@ -4333,7 +4428,7 @@ with file definitions</string>
                 <string>List of variables to iterate over:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -4402,7 +4497,7 @@ with file definitions</string>
                 <string>Output format:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -4442,7 +4537,7 @@ with file definitions</string>
             <item>
              <spacer name="horizontalSpacer_8">
               <property name="orientation">
-               <enum>Qt::Horizontal</enum>
+               <enum>Qt::Orientation::Horizontal</enum>
               </property>
               <property name="sizeHint" stdset="0">
                <size>
@@ -4462,7 +4557,7 @@ with file definitions</string>
             <item>
              <spacer name="horizontalSpacer_9">
               <property name="orientation">
-               <enum>Qt::Horizontal</enum>
+               <enum>Qt::Orientation::Horizontal</enum>
               </property>
               <property name="sizeHint" stdset="0">
                <size>
@@ -4487,7 +4582,7 @@ with file definitions</string>
          </layout>
         </item>
         <item row="0" column="1">
-         <layout class="QVBoxLayout" name="verticalLayout_5">
+         <layout class="QVBoxLayout" name="verticalLayout_5" stretch="0,0,0,0,1">
           <item>
            <widget class="QGroupBox" name="grpFileInput">
             <property name="title">
@@ -4506,7 +4601,7 @@ with file definitions</string>
                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Each file *.inp is read for one image set.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+                <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
                </property>
                <property name="wordWrap">
                 <bool>true</bool>
@@ -4571,7 +4666,7 @@ with file definitions</string>
                 <string>Use {...} for Values, {.../n} to divide the value (integer arithmetic)</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignCenter</set>
+                <set>Qt::AlignmentFlag::AlignCenter</set>
                </property>
                <property name="wordWrap">
                 <bool>true</bool>
@@ -4660,8 +4755,12 @@ with file definitions</string>
            <string>Generate training files from current calculation configuration</string>
           </property>
           <layout class="QGridLayout" name="gridLayout_47">
-           <item row="0" column="1">
-            <widget class="QLineEdit" name="inpChatbotTrainfile"/>
+           <item row="0" column="0">
+            <widget class="QPushButton" name="butChatbotSaveConfig">
+             <property name="text">
+              <string>Save config</string>
+             </property>
+            </widget>
            </item>
            <item row="0" column="2">
             <widget class="QPushButton" name="butChatbotTrainfileSearch">
@@ -4676,10 +4775,16 @@ with file definitions</string>
              </property>
             </widget>
            </item>
-           <item row="0" column="0">
-            <widget class="QPushButton" name="butChatbotSaveConfig">
+           <item row="0" column="1">
+            <widget class="QLineEdit" name="inpChatbotTrainfile"/>
+           </item>
+           <item row="0" column="3">
+            <widget class="QLabel" name="lblChatbotOpenConfig">
              <property name="text">
-              <string>Save config</string>
+              <string>TextLabel</string>
+             </property>
+             <property name="openExternalLinks">
+              <bool>true</bool>
              </property>
             </widget>
            </item>
@@ -4722,7 +4827,7 @@ with file definitions</string>
               <string>Rotation:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
@@ -4732,7 +4837,7 @@ with file definitions</string>
               <string>Mirroring:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
@@ -4766,7 +4871,7 @@ with file definitions</string>
               <string>Colortable:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
@@ -4807,14 +4912,14 @@ with file definitions</string>
               <string>Zoom:</string>
              </property>
              <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
              </property>
             </widget>
            </item>
            <item row="0" column="3">
             <widget class="Line" name="line_10">
              <property name="orientation">
-              <enum>Qt::Vertical</enum>
+              <enum>Qt::Orientation::Vertical</enum>
              </property>
             </widget>
            </item>
@@ -4840,14 +4945,14 @@ with file definitions</string>
            <item row="0" column="7">
             <widget class="Line" name="line_11">
              <property name="orientation">
-              <enum>Qt::Vertical</enum>
+              <enum>Qt::Orientation::Vertical</enum>
              </property>
             </widget>
            </item>
            <item row="0" column="10">
             <widget class="Line" name="line_12">
              <property name="orientation">
-              <enum>Qt::Vertical</enum>
+              <enum>Qt::Orientation::Vertical</enum>
              </property>
             </widget>
            </item>
@@ -4860,6 +4965,40 @@ with file definitions</string>
            <string>Filename with input from the chatbot</string>
           </property>
           <layout class="QGridLayout" name="gridLayout_41">
+           <item row="0" column="0" colspan="3">
+            <widget class="QLineEdit" name="inpChatbotFile">
+             <property name="minimumSize">
+              <size>
+               <width>300</width>
+               <height>0</height>
+              </size>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="2" colspan="2">
+            <widget class="QLabel" name="label_62">
+             <property name="text">
+              <string>and the background process terminates after calculation</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTop|Qt::AlignmentFlag::AlignTrailing</set>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_53">
+             <property name="text">
+              <string>If this file exists, the program generates an image (filename given in file) and deletes this file. This is done in an endless loop.</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1" rowspan="2">
+            <widget class="Line" name="line_13">
+             <property name="orientation">
+              <enum>Qt::Orientation::Vertical</enum>
+             </property>
+            </widget>
+           </item>
            <item row="0" column="3">
             <widget class="QPushButton" name="butChatbotSearch">
              <property name="maximumSize">
@@ -4873,16 +5012,6 @@ with file definitions</string>
              </property>
             </widget>
            </item>
-           <item row="0" column="0" colspan="3">
-            <widget class="QLineEdit" name="inpChatbotFile">
-             <property name="minimumSize">
-              <size>
-               <width>300</width>
-               <height>0</height>
-              </size>
-             </property>
-            </widget>
-           </item>
            <item row="2" column="0">
             <widget class="QLabel" name="label_24">
              <property name="font">
@@ -4893,32 +5022,11 @@ with file definitions</string>
              <property name="text">
               <string>All parameters not set in the given file are taken from the current calculation tab at the point of starting the background process.</string>
              </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
+             </property>
              <property name="wordWrap">
               <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item row="2" column="1">
-            <widget class="QLabel" name="label_61">
-             <property name="text">
-              <string/>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="0">
-            <widget class="QLabel" name="label_53">
-             <property name="text">
-              <string>If this file exists, the program generates an image (filename given in file) and deletes this file. This is done in an endless loop.</string>
-             </property>
-            </widget>
-           </item>
-           <item row="2" column="2" colspan="2">
-            <widget class="QLabel" name="label_62">
-             <property name="text">
-              <string>and the background process terminates after calculation</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
              </property>
             </widget>
            </item>
@@ -4964,6 +5072,16 @@ with file definitions</string>
              </property>
             </widget>
            </item>
+           <item row="0" column="3">
+            <widget class="QLabel" name="lblChatbotOpenLogfile">
+             <property name="text">
+              <string>TextLabel</string>
+             </property>
+             <property name="openExternalLinks">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
           </layout>
          </widget>
         </item>
@@ -5002,7 +5120,7 @@ with file definitions</string>
           <item row="0" column="3">
            <spacer name="horizontalSpacer_3">
             <property name="orientation">
-             <enum>Qt::Horizontal</enum>
+             <enum>Qt::Orientation::Horizontal</enum>
             </property>
             <property name="sizeHint" stdset="0">
              <size>
@@ -5111,7 +5229,7 @@ with file definitions</string>
              <item>
               <widget class="QPlainTextEdit" name="editAutoFit">
                <property name="lineWrapMode">
-                <enum>QPlainTextEdit::NoWrap</enum>
+                <enum>QPlainTextEdit::LineWrapMode::NoWrap</enum>
                </property>
                <property name="readOnly">
                 <bool>true</bool>
@@ -5154,7 +5272,7 @@ with file definitions</string>
                 <string>Number of used cores / threads:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -5164,7 +5282,7 @@ with file definitions</string>
                 <string>Time of last calculation:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -5266,9 +5384,31 @@ with file definitions</string>
            </widget>
           </item>
           <item>
+           <spacer name="spacerValChg">
+            <property name="orientation">
+             <enum>Qt::Orientation::Vertical</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Policy::MinimumExpanding</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
            <widget class="QGroupBox" name="grpValChg">
             <property name="enabled">
              <bool>false</bool>
+            </property>
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
             </property>
             <property name="title">
              <string>Logging of all value changes at each calculation</string>
@@ -5392,10 +5532,10 @@ with file definitions</string>
              <item row="7" column="0" colspan="2">
               <widget class="QListWidget" name="lisParamSearchResult">
                <property name="editTriggers">
-                <set>QAbstractItemView::NoEditTriggers</set>
+                <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
                </property>
                <property name="selectionMode">
-                <enum>QAbstractItemView::ExtendedSelection</enum>
+                <enum>QAbstractItemView::SelectionMode::ExtendedSelection</enum>
                </property>
               </widget>
              </item>
@@ -5408,7 +5548,7 @@ with file definitions</string>
                 <string>Found files:</string>
                </property>
                <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -5470,10 +5610,10 @@ with file definitions</string>
         <item>
          <widget class="QMdiArea" name="mdiArea">
           <property name="verticalScrollBarPolicy">
-           <enum>Qt::ScrollBarAlwaysOn</enum>
+           <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOn</enum>
           </property>
           <property name="horizontalScrollBarPolicy">
-           <enum>Qt::ScrollBarAlwaysOn</enum>
+           <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOn</enum>
           </property>
          </widget>
         </item>
@@ -5488,7 +5628,7 @@ with file definitions</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1330</width>
+     <width>1302</width>
      <height>26</height>
     </rect>
    </property>
@@ -5506,8 +5646,10 @@ with file definitions</string>
     <addaction name="separator"/>
     <addaction name="actionLoad_all_Parameters"/>
     <addaction name="actionLoad_last_calculaition_parameters"/>
+    <addaction name="actionLog_loading"/>
     <addaction name="separator"/>
     <addaction name="actionHide_unused_values"/>
+    <addaction name="actionShow_Parameter_w_o_Tooltip"/>
    </widget>
    <widget class="QMenu" name="menuTools">
     <property name="title">
@@ -5520,6 +5662,9 @@ with file definitions</string>
     <addaction name="actionFind_parameters_changing_image"/>
     <addaction name="separator"/>
     <addaction name="actionStart_autoprocessing_file"/>
+    <addaction name="actionSave_current_values_as_text"/>
+    <addaction name="separator"/>
+    <addaction name="actionGenerate_all_combinations_of_CBs"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -5603,9 +5748,27 @@ with file definitions</string>
     <string>Start autoprocessing file</string>
    </property>
   </action>
-  <action name="actionChatbot_input_file_calculation">
+  <action name="actionLog_loading">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
    <property name="text">
-    <string>Chatbot input file calculation</string>
+    <string>Log loading</string>
+   </property>
+  </action>
+  <action name="actionSave_current_values_as_text">
+   <property name="text">
+    <string>Save current values as text</string>
+   </property>
+  </action>
+  <action name="actionShow_Parameter_w_o_Tooltip">
+   <property name="text">
+    <string>Show Parameter w/o Tooltip</string>
+   </property>
+  </action>
+  <action name="actionGenerate_all_combinations_of_CBs">
+   <property name="text">
+    <string>Generate all combinations of CBOX</string>
    </property>
   </action>
  </widget>

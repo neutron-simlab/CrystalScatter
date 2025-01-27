@@ -1,43 +1,14 @@
 # +++++ Settings of all path variables used for the specialized libraries:
-
-unix:{
-    CUDA_DIR = /usr/local/cuda-12.2   # Path to cuda sdk/toolkit install
-    CUDA_EXE = $$CUDA_DIR/bin/nvcc
-
-    FFTW3_PATH = /usr/local/include
-    FFTW3_LIBS = /usr/local/lib
-
-    HDF5_BASE = /usr/local/hdf5
-}
-
-win32:{
-    CUDA_DIR = "C:/SimLab/CUDA/v12.2"  # link to "C:/Program\ Files/NVIDIA\ GPU\ Computing\ Toolkit/CUDA/v12.2"
-    CUDA_EXE = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.2/bin/nvcc.exeX"  # append X to disable ist
-
-    FFTW3_PATH = ../fftw-3.3.5-dll64    # not used in static configuration
-    FFTW3_LIBS = ../fftw-3.3.5-dll64
-
-    HDF5_BASE = ../../CMake-hdf5-1.12.1
-    HDF5_SRC  = $$HDF5_BASE/hdf5-1.12.1
-    CONFIG(static) {
-        HDF5_GEN  = $$HDF5_BASE/build-hdf5-1.12.1-Desktop_Qt_5_14_2_MinGW_64_bit-MinSizeRel
-    }
-    else {
-        HDF5_GEN  = $$HDF5_BASE/build-hdf5-1.12.1-Desktop_Qt_5_14_2_MinGW_64_bit-Debug
-    }
-    # ZLIB_DIR must be set
-}
-
+include(sas_scatter2.pri)
 # ----- User configuration ends here.
 
 
 QT       += core
-#QT       -= gui
+#QT       -= gui  wird für QImage und QColor gebraucht um die Images zu erzeugen
 
 TARGET = sas_scatter2Cons
 TEMPLATE = app
 
-CONFIG += c++11
 
 # The following define makes your compiler emit warnings if you use
 # any feature of Qt which has been marked as deprecated (the exact warnings
@@ -50,7 +21,18 @@ DEFINES += QT_DEPRECATED_WARNINGS
 # You can also select to disable deprecated APIs only up to a certain version of Qt.
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
+greaterThan(QT_MAJOR_VERSION, 5) {
+    CONFIG += c++17
+    QMAKE_CFLAGS += -x c++ -std=gnu++17
+    #message("C++17")
+} else {
+    CONFIG += c++11
+    QMAKE_CFLAGS += -x c++ -std=gnu++11
+    #message("C++11")
+}
+
 DEFINES += CONSOLENPROG
+DEFINES += NOQWT
 
 SOURCES += \
     sc_mainCons.cpp \
@@ -106,7 +88,7 @@ CUDA_SOURCES += sc_calc_generic_gpu.cu
 !exists($$CUDA_EXE) {
     # if no cuda support is installed, treat this as a normal c++ file
     SOURCES += $$CUDA_SOURCES
-    QMAKE_CFLAGS += -x c++ -std=gnu++11
+    CONFIG += -nocudalib
 
     #exists($$OCL_DIR) {
     #    # OpenCL usage
@@ -118,8 +100,7 @@ CUDA_SOURCES += sc_calc_generic_gpu.cu
     #}
 } else {
     # CUDA settings <-- may change depending on your system
-    SYSTEM_NAME = Win64         # Depending on your system either 'Win32', 'x64', or 'Win64'
-    CUDA_ARCH = sm_75  # native #  compute_52      # Type of CUDA architecture, for example 'compute_10', 'compute_11', 'sm_10'
+    #SYSTEM_NAME = Win64         # Depending on your system either 'Win32', 'x64', or 'Win64'
     NVCC_OPTIONS = --use_fast_math -std=c++11 # --verbose --keep
     #NVCC_OPTIONS += --ptxas-options=--verbose  # Specify options directly to ptxas, the PTX optimizing assembler.
     NVCC_OPTIONS += -diag-suppress 550         # variable "xx" set but never used

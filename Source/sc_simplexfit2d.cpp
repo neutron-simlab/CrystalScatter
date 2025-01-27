@@ -51,7 +51,7 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
                                 );
 #endif
     }
-    calc->prepareCalculation( true );     // to transfer parameter values into the calculation class
+    calc->prepareCalculation( true, false/*TODO only1d*/ );     // to transfer parameter values into the calculation class
 
     // Berechne das Image...
 #ifdef FITDATA_IN_GPU  // fqs

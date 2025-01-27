@@ -1,7 +1,6 @@
 #include "sc_calcCons.h"
 #include <QCoreApplication>
 #include <QCommandLineParser>
-#include <QPixmap>
 #include <QFile>
 #include <QDir>
 #include <QDateTime>
@@ -468,7 +467,7 @@ int main(int argc, char *argv[])
 
     if ( ! chatbot.isEmpty() )
     {
-        void waitForChatbot( SC_CalcCons *calc, QString cbfile, QString param, int nthreads, bool keep );
+        void waitForChatbot( SC_CalcCons *calc, QString cbfile, /*QString param,*/ int nthreads, bool keep );
         if ( flog )
         {
             flog->write("*****************************************" EOL);
@@ -478,7 +477,7 @@ int main(int argc, char *argv[])
             flog->close(); // Wird bei jedem Eintrag unten wieder geöffnet
         }
         if ( fcsv ) fcsv->close();
-        waitForChatbot( calc, chatbot, paramfile, nthreads, cbkeepfile );
+        waitForChatbot( calc, chatbot, /*paramfile,*/ nthreads, cbkeepfile );
         // Endlos-Schleife. Wird nur durch ein Terminate unterbrochen!
         return 0;
     }
@@ -1009,7 +1008,7 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
         }
 
         // Berechnen
-        calc->prepareCalculation( false );
+        calc->prepareCalculation( false/*fromfit*/, false/*use1d*/ );
         if ( useTPV )
         {
             if ( (factorInLine && factorInLineCount > 1) || !factorInLine )
@@ -1322,7 +1321,7 @@ void generateSingleImage( SC_CalcCons *calc, QString fnpng, int nthreads )
     iCurCalcArt = 0;
 
     // Berechnen
-    calc->prepareCalculation( false );
+    calc->prepareCalculation( false/*fromfit*/, false/*use1d*/ );
     calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
     std::cerr << qPrintable(fnpng) << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
     if ( flog )
@@ -1440,7 +1439,7 @@ double doFitStart( SC_CalcCons *calc, widImage *img, int nthreads,
                             img->getFileInfos()->centerX, img->getFileInfos()->centerY,
                             img->dataPtr() );
 
-    calc->prepareCalculation( true );
+    calc->prepareCalculation( true/*fromfit*/, false/*use1d*/ );
 
     QHash<QString,_fitLimits*>::const_iterator it;
 
@@ -2178,7 +2177,7 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
              usedImages.size() > 0 )
         {
             QString tmpfn = basePath + QFileInfo(usedImages.first()).baseName() + "_out";
-            calc->prepareCalculation( true );
+            calc->prepareCalculation( true/*fromfit*/, false/*use1d*/ );
             calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
             widImage *img = new widImage();
             img->setConfig(imgColorTbl, imgSwapH, imgSwapV, imgRot, imgZoom, false);
@@ -2261,7 +2260,7 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
 
     if ( ! imgfile.isEmpty() )
     {   // Einzelfile, also jetzt erst das generierte Bild speichern
-        calc->prepareCalculation( true );
+        calc->prepareCalculation( true/*fromfit*/, false/*use1d*/ );
         calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
         std::cerr << qPrintable(fnpng) << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
         if ( flog )
@@ -2303,7 +2302,12 @@ void performTimeTest( QString par, QString cfg, QString out )
             std::cerr << "Error open file " << qPrintable(out+": "+fout.errorString()) << std::endl;
             return;
         }
-    fout.write( qPrintable("% Generated with sas_scatter2Cons "+QDateTime::currentDateTime().toString("dd.MMM.yyyy hh:mm:ss")+EOL) );
+#ifdef Q_OS_WIN
+    QString hname = qEnvironmentVariable("COMPUTERNAME");
+#else
+    QString hname = qEnvironmentVariable("HOSTNAME");
+#endif
+    fout.write( qPrintable("% Generated with sas_scatter2Cons "+QDateTime::currentDateTime().toString("dd.MMM.yyyy hh:mm:ss")+" on "+hname+EOL) );
     fout.write( qPrintable("%       Parameterfile: "+par+EOL) );
     fout.write( qPrintable("% TimeTest configfile: "+cfg+EOL) );
     fout.write( "Threads & HKLmax & Quadrants & Switch & Min/ Mean/ Max (Prep) in ms" EOL );
@@ -2345,6 +2349,12 @@ void performTimeTest( QString par, QString cfg, QString out )
     SC_CalcCons *calc = new SC_CalcCons;
     calc->loadParameter( par );
 
+    if ( calc->currentParamValue("HKLmax") == 1 )
+    {   // Kennung, dass der Wert hier nicht verwendet wird
+        hklmax.clear();
+        hklmax << 1;
+    }
+
     // ***** Loop 1 ***** Quadrants
     foreach ( int quadr, quadrants )
     {
@@ -2385,7 +2395,7 @@ void performTimeTest( QString par, QString cfg, QString out )
                     for ( int i=0; i<numLoops; i++ )
                     {
                         // Berechnen
-                        calc->prepareCalculation( false );
+                        calc->prepareCalculation( false/*fromfit*/, false/*use1d*/ );
                         calc->doCalculation( threads[t], nswcurr == swOld );
 
                         double c = calc->higResTimerElapsed(SC_CalcCons::htimCalc);
@@ -2427,7 +2437,7 @@ void performTimeTest( QString par, QString cfg, QString out )
 } /* performTimeTest() */
 
 
-void waitForChatbot(SC_CalcCons *calc, QString cbfile, QString param, int nthreads, bool keep)
+void waitForChatbot(SC_CalcCons *calc, QString cbfile, /*QString param,*/ int nthreads, bool keep)
 {
     iCurCalcArt = 0;
     QString basepath = QFileInfo(cbfile).absolutePath();
@@ -2439,8 +2449,8 @@ void waitForChatbot(SC_CalcCons *calc, QString cbfile, QString param, int nthrea
             QThread::sleep( 2 /*sec*/ );
             continue;
         }
-        // default-Parameter laden
-        if ( !param.isEmpty() ) calc->loadParameter( param );
+        // default-Parameter laden - wurde schon vor dem Aufruf gemacht.
+        //if ( !param.isEmpty() ) calc->loadParameter( param );
         // cbfile einlesen ...
         QString fnpng="";
         QFile fcb(cbfile);
@@ -2565,7 +2575,7 @@ void waitForChatbot(SC_CalcCons *calc, QString cbfile, QString param, int nthrea
             break; // Jetzt nicht mehr weiter machen
         }
         // Berechnen
-        calc->prepareCalculation( false );
+        calc->prepareCalculation( false/*fromfit*/, false/*use1d*/ );
         calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
         if ( flog )
         {

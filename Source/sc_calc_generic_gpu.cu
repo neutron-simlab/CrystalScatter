@@ -180,6 +180,10 @@ void SasCalc_GENERIC_calculation::calcCPU_selection( const SasCalc_GENERIC_calcu
     // Call q(x,y,z) Routine (also from 2dFit)
     double pixval;
     bool done=false;
+
+    // Crashtest wegen 60sec Zeitüberschreitung (TODO) mit
+    // "C:\SimLab\sas-crystal\20241206 - CombinationTests\Comb_lt00_pa02_or00_in00_pe07.ini"
+
     if ( !CALC.bIgnoreNewSwitch )
     {
         done = true;
@@ -245,7 +249,14 @@ __host__ __device__
 /*static*/ void SasCalc_GENERIC_calculation::convert_idx2q( const SasCalc_GENERIC_calculation& CALC,
                                                         int ihex, int i, double &qx, double &qy, double &qz )
 {
-    if ( CALC.useBeamStop )
+    if ( CALC.use1d )
+    {
+        qx = (CALC.qmax - CALC.qmin) / (double)(CALC.zmax) * (double)ihex;
+        qy = 1e-20;
+        qz = 1e-20;
+        //qDebug() << "(1d) ihex/i" << ihex << i << "zmax" << CALC.zmax << "qx" << qx;
+    }
+    else if ( CALC.useBeamStop )
     {   // Einrechnen des Beamstops (d.h. Verschiebung des Zentrums)
         // Hier wird die Pixelsize aber nicht der qmax Wert beachtet.
         double mdet = (ihex/*+CALC.zmax+1*/)*CALC.pixnoy/(2.0*CALC.zmax);      /* mth pixel */

@@ -32,7 +32,7 @@ dlgTimeTests::dlgTimeTests( QString path, bool gpu, int maxt, QWidget *parent ) 
     ui->togQ1->setChecked(sets.value("useq1",false).toBool());
     ui->togQ2->setChecked(sets.value("useq2",false).toBool());
     ui->togQ4->setChecked(sets.value("useq4",true ).toBool());
-    ui->grpQuadrants->setChecked(sets.value("usequadrants",true).toBool());
+    ui->tog1d->setChecked(sets.value("use1d",false).toBool());
     ui->radSwitchBoth->setChecked(sets.value("newswitch",swBoth).toInt() == swBoth);
     ui->radSwitchNew->setChecked(sets.value("newswitch",swBoth).toInt() == swNew);
     ui->radSwitchOld->setChecked(sets.value("newswitch",swBoth).toInt() == swOld);
@@ -71,16 +71,13 @@ void dlgTimeTests::onTogToggled()
     }
     else
         cntHKL = 1;
-    if ( ui->grpQuadrants->isChecked() )
-    {
-        if ( ui->togQ1->isChecked() ) cntQ++;
-        if ( ui->togQ2->isChecked() ) cntQ++;
-        if ( ui->togQ4->isChecked() ) cntQ++;
-    }
-    else
-        cntQ = 1;
+    if ( ui->tog1d->isChecked() ) cntQ++;
+    if ( ui->togQ1->isChecked() ) cntQ++;
+    if ( ui->togQ2->isChecked() ) cntQ++;
+    if ( ui->togQ4->isChecked() ) cntQ++;
     if ( ui->radSwitchBoth->isChecked() ) cntThreads *= 2;
     ui->lblNumCalc->setNum( cntThreads * cntHKL * cntQ );
+    ui->butStart->setEnabled( cntThreads * cntHKL * cntQ > 0 );
 }
 
 void dlgTimeTests::on_butStart_clicked()
@@ -101,7 +98,7 @@ void dlgTimeTests::on_butStart_clicked()
     sets.setValue("useq1",ui->togQ1->isChecked());
     sets.setValue("useq2",ui->togQ2->isChecked());
     sets.setValue("useq4",ui->togQ4->isChecked());
-    sets.setValue("usequadrants",ui->grpQuadrants->isChecked());
+    sets.setValue("use1d",ui->tog1d->isChecked());
     sets.setValue("enaupdates",ui->togEnaUpdates->isChecked());
     sets.setValue("saveimages",ui->togSaveImages->isChecked());
     sets.setValue("savefile",ui->togSaveFile->isChecked());
@@ -154,14 +151,10 @@ QVector<int> dlgTimeTests::getHKLmax()
 QVector<int> dlgTimeTests::getQuadrants()
 {
     QVector<int> rv;
-    if ( ui->grpQuadrants->isChecked() )
-    {
-        if ( ui->togQ1->isChecked() ) rv.append( 1 );
-        if ( ui->togQ2->isChecked() ) rv.append( 2 );
-        if ( ui->togQ4->isChecked() ) rv.append( 4 );
-    }
-    else
-        rv.append( 0 ); // Kennung für keine Änderung
+    if ( ui->tog1d->isChecked() ) rv.append( 0 );  // Kennung für 1D
+    if ( ui->togQ1->isChecked() ) rv.append( 1 );
+    if ( ui->togQ2->isChecked() ) rv.append( 2 );
+    if ( ui->togQ4->isChecked() ) rv.append( 4 );
     return rv;
 }
 
@@ -261,7 +254,7 @@ void dlgTimeTests::on_butSaveTests_clicked()
     set2.setValue("useq1",ui->togQ1->isChecked());
     set2.setValue("useq2",ui->togQ2->isChecked());
     set2.setValue("useq4",ui->togQ4->isChecked());
-    set2.setValue("usequadrants",ui->grpQuadrants->isChecked());
+    set2.setValue("use1d",ui->tog1d->isChecked());
     set2.setValue("enaupdates",ui->togEnaUpdates->isChecked());
     set2.setValue("saveimages",ui->togSaveImages->isChecked());
     set2.setValue("savefile",ui->togSaveFile->isChecked());
@@ -274,3 +267,46 @@ void dlgTimeTests::on_butSaveTests_clicked()
     set2.setValue("switchmodfn",ui->togSwitchModFN->isChecked());
     set2.sync();
 }
+
+#ifdef undef
+void dlgTimeTests::on_togQ1_toggled(bool checked)
+{
+    if ( checked )
+    {
+        ui->tog1d->blockSignals(true); ui->tog1d->setChecked(false); ui->tog1d->blockSignals(false);
+    }
+    ui->tog1d->setDisabled(checked);
+    onTogToggled(); // Update counter
+}
+void dlgTimeTests::on_togQ2_toggled(bool checked)
+{
+    if ( checked )
+    {
+        ui->tog1d->blockSignals(true); ui->tog1d->setChecked(false); ui->tog1d->blockSignals(false);
+    }
+    ui->tog1d->setDisabled(checked);
+    onTogToggled(); // Update counter
+}
+void dlgTimeTests::on_togQ4_toggled(bool checked)
+{
+    if ( checked )
+    {
+        ui->tog1d->blockSignals(true); ui->tog1d->setChecked(false); ui->tog1d->blockSignals(false);
+    }
+    ui->tog1d->setDisabled(checked);
+    onTogToggled(); // Update counter
+}
+void dlgTimeTests::on_tog1d_toggled(bool checked)
+{
+    if ( checked )
+    {
+        ui->togQ1->blockSignals(true); ui->togQ1->setChecked(false); ui->togQ1->blockSignals(false);
+        ui->togQ2->blockSignals(true); ui->togQ2->setChecked(false); ui->togQ2->blockSignals(false);
+        ui->togQ4->blockSignals(true); ui->togQ4->setChecked(false); ui->togQ4->blockSignals(false);
+    }
+    ui->togQ1->setDisabled(checked);
+    ui->togQ2->setDisabled(checked);
+    ui->togQ4->setDisabled(checked);
+    onTogToggled(); // Update counter
+}
+#endif

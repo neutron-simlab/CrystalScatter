@@ -27,6 +27,7 @@
 #define SETCOLMARK_PARDIFF   Qt::green          // compareParameter()
 #define SETCOLMARK_CHGIMG    Qt::cyan           // on_actionFind_parameters_changing_image_triggered
 #define SETCOLMARK_OLDPARAM  QColor(150,220,255)// mark parameters not set by reading old parameter files
+#define SETCOLMARK_NOTOOLTIP QColor(250,150,100)// mark parameters without tool tips
 #define SETCOLMARK_IGNORED   Qt::black          // updateParamValue(?) ignored
 #define SETCOLMARK_CLEARED   Qt::white          // clear color mark
 
@@ -34,29 +35,7 @@ class setColHelper
 {
 public:
     setColHelper() {}
-
-    static void setcol(QWidget *w, QColor c)
-    {
-        QPalette pal=w->palette();
-        if ( w->objectName().startsWith("cbs") )
-        {
-            if ( c == SETCOLMARK_CLEARED )
-                pal.setBrush(QPalette::Text,Qt::black);
-            else
-                pal.setBrush(QPalette::Text,c.darker(150));
-        }
-        else if ( w->objectName().startsWith("tog") )
-        {
-            //qDebug() << w->objectName() << c;
-            if ( c == SETCOLMARK_CLEARED )
-                pal.setBrush(QPalette::Button,Qt::white); // QColor(240,240,240)); // aus Designer als Default gelesen
-            else
-                pal.setBrush(QPalette::Button,c);
-        }
-        else // inp
-            pal.setBrush(QPalette::Base,c);
-        w->setPalette(pal);
-    }
+    static void setcol(QWidget *w, QColor c);
 };
 
 // Daten zum Vergleich der aktuellen Parameter mit einem File
@@ -107,13 +86,22 @@ public:
     }
 
     void saveParameter( QString fn );
-    QString loadParameter(QString fn, QString onlyMethod, bool &hkl, bool &grid);
+    QString loadParameter(QString fn, QString onlyMethod, bool &hkl, bool &grid, bool logload);
     void compareParameter( QSettings &sets, QHash<QString,_CompValues*> &compWerte, QStringList tbign );
+    bool    loadparamWithLog( QSettings &sets, QString key, bool def,    bool dolog, bool oldkey=false );
+    int     loadparamWithLog( QSettings &sets, QString key, int def,     bool dolog, bool oldkey=false );
+    double  loadparamWithLog( QSettings &sets, QString key, double def,  bool dolog, bool oldkey=false );
+    QString loadparamWithLog( QSettings &sets, QString key, QString def, bool dolog, bool oldkey=false );
+
+    QString loadparamWithLog( QSettings &sets, QString key, const char *def, bool dolog, bool oldkey=false )
+    { return loadparamWithLog(sets,key,QString(def),dolog,oldkey); }
+
+    void loadParamLogmessage(QSettings &sets, QString key, QString msg );
 
     void saveFitFlags( QSettings &sets );
     void loadFitFlags( QSettings &sets );
 
-    void prepareCalculation( bool fromFit );
+    void prepareCalculation( bool fromFit, bool only1d );
     // Globale Inputs für die Berechnungen
     static QHash<QString,Double3> inpVectors;
     static QHash<QString,double>  inpValues;

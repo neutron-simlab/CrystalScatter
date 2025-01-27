@@ -341,6 +341,7 @@ void SC_CalcCons::loadParameter( QString fn )
     case 12:  /*  none  */  //Z=37162
         updateParamValue( "CheckBoxTwinned", false );
         updateParamValue( "ComboboxParticle", 0 );
+        updateParamValue( "HKLmax", 1 );
         break;
 
     case 13:  /*  cpl  */  //Z=37206
@@ -617,14 +618,14 @@ bool SC_CalcCons::isCurrentParameterValid( QString p )
  * @brief SC_CalcCons::prepareCalculation
  * @param getData - if true call the method specific prepare function (not in fit)
  */
-void SC_CalcCons::prepareCalculation( bool fromFit )
+void SC_CalcCons::prepareCalculation( bool fromFit, bool use1d )
 {
     if ( fromFit )
     {   // Special call during 2D-Fit to update the parameters
-        calcGeneric->prepareData( &dataGetter );
+        calcGeneric->prepareData( &dataGetter, use1d );    // Cons noch ohne 1D
         return;
     }
-    calcGeneric->prepareData( &dataGetter );
+    calcGeneric->prepareData( &dataGetter, use1d );
 }
 
 

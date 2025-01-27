@@ -13,15 +13,24 @@
 
 int main(int argc, char *argv[])
 {
-/*
-#ifdef Q_OS_LINUX
     //QStringList styl = QStyleFactory::keys();
-    // ("Adwaita-Dark", "Adwaita", "Windows", "Fusion")
-    //   ^ Dunkel,       ^ Default unter Linux
-    //                                         ^ GroupBox mit Hintergrund u.a.
-    QApplication::setStyle(QStyleFactory::create("Windows"));
+    //qDebug() << styl;
+    // Qt6.7.2@Win11: QList("windows11", "windowsvista", "Windows", "Fusion")
+    //                       ^ Crash      ^ Screenshot    ^ Screenshot
+    //                                                               ^ noch am ehesten wie Win10 aber dafür sehr hoch...
+
+    // Qt5.15.2@Linux: QList("Adwaita-Dark", "Adwaita", "Windows", "Fusion")
+    //                        ^ Dunkel,       ^ Default unter Linux
+    //                                                    ^ Used    ^ GroupBox mit Hintergrund u.a.
+#ifdef WIN32
+#if (QT_VERSION >= QT_VERSION_CHECK(6,0,0))
+    QApplication::setStyle(QStyleFactory::create("windowsvista"));
 #endif
-*/
+#endif
+// #ifdef Q_OS_LINUX
+//    QApplication::setStyle(QStyleFactory::create("Windows"));
+// #endif
+
     QApplication a(argc, argv);
 
 #ifdef WIN32
