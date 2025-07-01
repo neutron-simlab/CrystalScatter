@@ -109,10 +109,210 @@ SasCalc_GENERIC_calculation::SasCalc_GENERIC_calculation()
     latpar2ptr = nullptr;
     latpar3ptr = nullptr;
     //latpar4ptr = nullptr;
-    threads = nullptr;
+    //threads = nullptr;
     initMemory();
     params.width_zuf = 1; // für die domainsize / width TPV Berechnung (old value)
     _endThread = false;
+}
+
+
+std::string SasCalc_GENERIC_calculation::isCbsValid( int lt, int pa, int od, int in, int pk )
+{
+    // ltype = aus CBS
+    // --- typedef enum { lattLamellae, lattHexPacCyl, lattSquPacCyl, lattRecCenCyl, lattBCC, lattFCC, lattHCP, lattSC, lattBCT, lattGyroid,
+    //                    lattOBDD, lattPlumNight, lattNone=12, lattCPLayers, latt2DHex, latt2DSquare, latt1DLam, lattFd3m, lattOrtho,
+    //                    lattLDQ12 } _latticeType;
+    if ( (lt < MinLType) || (lt > MaxLType) ) return "INVALID ltype value";
+    // ComboBoxParticle = aus CBS
+    // --- typedef enum { cbpartSphere, cbpartCylinder, cbpartDisk, cbpartVesicle, cbpartCube, cbpartEllipsoide,
+    //                    cbpartTriaxEllips, cbpartSuperEllips, cbpartSuperball, cbpartChain, cbpartkpchain } _cbParticle;
+    if ( (pa < MinParticle) || (pa > MaxParticle) ) return "INVALID Particle value";
+    // params.ordis = aus CBS
+    // --- typedef enum { ordis_Gaussian, ordis_Exponential, ordis_Onsager, ordis_Maier_Saupe, ordis_CutOff, ordis_Laguerre,
+    //                    ordis_ZDir, ordis_Isotropic, ordis_mirrored_Gaussian, ordis_mirrored_Exponential, ordis_mirrored_Onsager,
+    //                    ordis_mirrored_Maier_Saupe, ordis_mirrored_CutOff, ordis_FiberPattern } _ordistype;
+    if ( (od < MinOrdis) || (od > MaxOrdis) ) return "INVALID Ordis value";
+    // ComboBoxInterior = aus CBS
+    // --- typedef enum { cbintHomogeneous, cbintCoreShell, cbintCoreInShell, cbintMultiShell, cbintMyelin } _cbInterior;
+    if ( (in < MinInterior) || (in > MaxInterior) ) return "INVALID Interior value";
+    // shp = aus CBS + 1
+    // --- typedef enum { cbpeakLorentzian=1, cbpeakGaussian, cbpeakMod1Lorentzian, cbpeakMod2Lorentzian,
+    //                    cbpeakPseudoVoigt, cbpeakPearsonVII, cbpeakGamma, cbpeakAnisotropicGaussian } _cbPeak;
+    if ( (pk < MinPeak) || (pk > MaxPeak) ) return "INVALID Peak value";
+
+    int  cbpartFixed=-1, cbpeakFixed=-1;
+    switch ( ltype )
+    {
+    case  0: cbpartFixed=cbpartDisk;     break;
+    case  1: cbpartFixed=cbpartCylinder; break;
+    case  2: cbpartFixed=cbpartCylinder; break;
+    case  3: cbpartFixed=cbpartCylinder; break;
+    case  4: cbpartFixed=cbpartSphere;   break;
+    case  5: cbpartFixed=cbpartSphere;   break;
+    case  6: cbpartFixed=cbpartSphere;   break;
+    case  7: cbpartFixed=cbpartSphere;   break;
+    case  8: cbpartFixed=cbpartSphere;   break;
+    case 17: cbpartFixed=cbpartSphere;   break;
+    case  9: cbpartFixed=cbpartVesicle;  break;
+    case 10: cbpartFixed=cbpartVesicle;  break;
+    case 11: cbpartFixed=cbpartVesicle;  break;
+    case 12: /*cbpartFixed=cbpartSphere;*/   break;
+    case 13: cbpartFixed=cbpartSphere; cbpeakFixed=cbpeakGamma/*7*/; break;
+    case 14: cbpartFixed=cbpartSphere;   break;
+    case 15: cbpartFixed=cbpartSphere;   break;
+    case 16: cbpartFixed=cbpartDisk;     break;
+    case 18: cbpartFixed=cbpartSphere;   break;
+    case 19: cbpartFixed=cbpartSphere; cbpeakFixed=cbpeakGamma/*7*/; break;
+    } // switch ltype
+    if ( cbpartFixed != -1 && ComboBoxParticle != cbpartFixed ) return "INVALID CBParticle due to LatticeType";
+
+    //bool cbintEna = (ComboBoxParticle<cbpartVesicle) || (ComboBoxParticle>cbpartCube);
+    /*switch ( ComboBoxParticle )
+    {
+    case  0: cbintEna=true;  break;
+    case  1: cbintEna=true;  break;
+    case  2: cbintEna=true;  break;
+    case  3: cbintEna=false; break;
+    case  4: cbintEna=false; break;
+    case  5: cbintEna=true;  break;
+    case  6: cbintEna=true;  break;
+    case  7: cbintEna=true;  break;
+    case  8: cbintEna=true;  break;
+    case  9: cbintEna=true;  break;
+    case 10: cbintEna=true;  break;
+    } // switch ComboBoxParticle
+    */
+
+    if ( lt != lattNone /*cbpeakEna*/ )
+    {
+        if ( cbpeakFixed != -1 && shp != cbpeakFixed ) return "INVALID CBPeak due to LatticeType";
+    }
+    return "";
+}
+
+/**
+ * @brief SasCalc_GENERIC_calculation::checkAllParameters
+ * @return empty string: all parameters are valid
+ *         else: one or some parameter(s) are not in a valid range, the string gives a hint to the error
+ */
+std::string SasCalc_GENERIC_calculation::checkAllParameters(bool ignCbs)
+{
+    // ********************************
+    // Prüfung einzelner Parameterwerte
+    // ********************************
+    // --- PARAMETER: Lattice group
+    // ltype = aus CBS
+    if ( params.uca <= 0.01 ) return "uca<=0.01";
+    if ( params.ucb <= 0.01 ) return "ucb<=0.01";
+    if ( params.ucc <= 0.01 ) return "ucb<=0.01";
+//    void setUCalpha( double v ) { params.ucalpha_deg = v; }
+//    void setUCbeta( double v ) { params.ucbeta_deg = v; }
+//    void setUCgamma( double v ) { params.ucgamma_deg = v; }
+//    void setCeffF( double val ) { params.ceff = val; }      //ZN=20305, EditTwRatio
+    // CheckBoxTwinned = Toggle
+//    void setCeffCyl( double val ) { epsilon=val; }  //StrToFloat(EditCeffcyl.Text);, ='conc' wird aber nicht verwendet
+//    void setReff( double v ) { params.reff=v; }
+//    void setAcpl( double v ) { acpl=v; }
+//    void setBcpl( double v ) { bcpl=v; }
+//    void setIFluc( double v ) { ifluc=v; }
+//    void setRFluc( double v ) { rfluc=v; }
+    // --- PARAMETER: Particle group
+    // ComboBoxParticle = aus CBS
+    // params.ordis = aus CBS
+    // ComboBoxInterior = aus CBS
+//    void setRadiusF( double val ) { params.radius = val; }  /*TPV*/
+//    void setRadiusI( double val ) { params.radiusi = val; }
+//    void setSigmaF( double val ) { params.sigma = val; }
+//    void setDBetaF( double db ) { params.dbeta = db /* * M_PI / 180.*/ ; }
+//    void setLength( double v ) { params.length=v; }     /*TPV*/
+//    void setSigmaL( double v ) { params.sigmal=v; } // Wird in polyliposome() von reff überschrieben!
+//    void setAlpha( double v ) { params.alphash1=v; }
+//    void setRho( double val ) { params.rho = val; } // neu
+//    void setRotAlpha( double v ) { params.alpha=v; }
+//    double getRelDis() { return reldis; }
+//    double getDist() { return dist; }
+    // --- PARAMETER: Peak Shape group
+    // shp = aus CBS + 1
+//    void setPeakPar( double p ) { /*shf=p;*/ eta=p/100.; beta=p; /*bnu=p;*/ } // TODO - unklar
+//    void setDisplacement( double val ) { displacement=val; dwfactor=val*val/3.0; }
+//    void setAzi( double v ) { aziwidth=v; }
+//    void setDomainsize( double val ) { params.domainsize = val; }
+    // RadioButtonDebyeScherrer = Toggle
+    // RadioButtonPara = Toggle
+//    void setAx1( Double3 par ) { params.ax1=par; }
+//    void setAx2( Double3 par ) { params.ax2=par; }
+//    void setAx3( Double3 par ) { params.ax3=par; }
+//    void setSigXYZ( Double3 par ) { params.sig = 4.0 / par; }
+    // --- PARAMETER: Orientation group
+//    void setUCpsi( double v ) { ucpsi = v; }
+//    void setUCn1( double v ) { ucn1 = v; }
+//    void setUCn2( double v ) { ucn2 = v; }
+//    void setUCn3( double v ) { ucn3 = v; }
+//    void setPolTheta( double v ) { params.polTheta = v; }
+//    void setPolPhi( double v ) { params.polPhi = v; }    /*TPV*/
+//    void setRotTheta( double v ) { rotaxTheta = v; }
+//    void setRotPhi( double v ) { rotaxPhi = v; }  /*TPV?*/
+    // --- PARAMETER: Calculation group
+//    void setGridPoints( int val, bool d1 ) { zmax=val;  use1d=d1; }
+//    void setHKLmax( int val ) { params.hklmax = hmax = kmax = lmax = val; }
+//    void setQMax( double val ) { qmax = val; }
+//    void setQMin( double val ) { qmin = val; } // valid for 1D
+//    void setRadQ1( bool f ) { if ( f ) calcQuadrants = radQ1; }
+//    void setRadQ2( bool f ) { if ( f ) calcQuadrants = radQ2; }
+//    void setRadQ4( bool f ) { if ( f ) calcQuadrants = radQ4; }
+//    void setExpandImage( bool f ) { bExpandImage = f && calcQuadrants != radQ4; }
+    // --- PARAMETER: Experiment group
+//    void setpixnox( double v ) { pixnox=v; }
+//    void setpixnoy( double v ) { pixnoy=v; }
+//    void setpixx( double v_mm ) { pixx_m=v_mm/1000.; } // Übergabe aus Eingabefeld in Millimeter, intern weiter in Meter
+//    void setpixy( double v_mm ) { pixy_m=v_mm/1000.; } // -"-
+//    void setdet( double val ) { det = val; }
+//    void setwave( double val ) { params.wavelength=val;  wave=val; /*wave kann geändert werden*/ }
+//    void setBeamStop( double x, double y ) { beamX0=x; beamY0=y; }
+//    void setUseBeamStop( bool f ) { useBeamStop=f; }
+    // --- PARAMETER: Controls group
+//    void setBFactorF( double val ) { bfactor = val; }
+//    void setCheckBoxWAXS( bool v ) { CheckBoxWAXS = v; }
+//    void setP1( double v ) { params.p1=v; }
+    // --- PARAMETER: Pixel Manipulation group
+//    void setIso( double v ) { iso=v; }
+//    void setIZero( double v ) { izero=v; }  /*TPV*/
+//    void setBase( double v ) { base=v; }    /*TPV*/
+
+    // **********************************
+    // Prüfung von ComboBox-Kombinationen
+    // **********************************
+    if ( !ignCbs )
+    {   // Es gibt die Möglichkeit, beim Gang durch alle CBS-Kombinationen, alle Werte zu nutzen
+        // und nicht nur die vorgegebenen. Daher muss dieser Test abschaltbar sein.
+        std::string rv = isCbsValid( ltype, ComboBoxParticle, params.ordis, ComboBoxInterior, shp );
+        if ( rv.length() > 0 ) return rv;
+    }
+
+    // Comb_lt00_pa02_or00_in00_pe06.png - PrepTime=37.844 ms, CalcTime=  2065.576 ms ==> Schwarzbild, keine Chance auf Änderung.
+    if ( ltype==lattLamellae && ComboBoxParticle==cbpartDisk && params.ordis==ordis_Gaussian && ComboBoxInterior==cbintHomogeneous &&
+         shp==cbpeakGamma )
+        return "INVALID"; // "lt00_pa02_or00_in00_pe06";
+
+    // Comb_lt00_pa02_or00_in03_pe00.ini - PrepTime= 0.824 ms, CalcTime=  6788.451 ms, 16384 NaN / 16384 px ==> EditRadiusi < 0.5
+    // Comb_lt00_pa02_or00_in03_pe01.ini - PrepTime= 0.726 ms, CalcTime=  6446.461 ms, 16384 NaN / 16384 px ==> EditRadiusi < 0.5
+    // Comb_lt00_pa02_or00_in03_pe07.png - PrepTime= 0.843 ms, CalcTime= 10123.322 ms, 16384 NaN / 16384 px ==> EditRadiusi < 0.5 (133314 ms)
+    if ( ltype==lattLamellae && ComboBoxParticle==cbpartDisk && params.ordis==ordis_Gaussian && ComboBoxInterior==cbintMultiShell &&
+         (shp==cbpeakLorentzian || shp==cbpeakGaussian || shp==cbpeakAnisotropicGaussian) &&
+         params.radiusi>=0.5 )
+        return "EditRadiusi>=0.5";
+
+    // Comb_lt00_pa02_or01_in00_pe00.png - PrepTime= 0.867 ms, CalcTime=   115.164 ms, 16256 NaN / 16384 px
+
+    return "";
+}
+
+
+std::string SasCalc_GENERIC_calculation::getEditSG_Text()
+{
+    if ( ltype!=12/*None*/ )
+        return ButtonHKLClick( ltype, true );
+    return "none";
 }
 
 
@@ -369,17 +569,6 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
     hmax = params.hklmax;  //Z=20330
     kmax = params.hklmax;  //Z=20331
     lmax = params.hklmax;  //Z=20332
-    //? zmax = StrToInt(EditGridPoints.Text);  //Z=20333  sonst zzmax...
-    /*  Color Maps  */  //Z=20334
-    //? ColMap  =  ComboBoxMap.ItemIndex + 1;  //Z=20335
-    /* 1: Color, 2: Color Wheel, 3: Temperature, 4: Geo, 5: DESY, 6: grey, */  //Z=20336
-    /* 7: inverse grey, 8: jet */  //Z=20337
-
-    /* ******************************** */  //Z=20343
-    /*  training parameters and update  */  //Z=20344
-    /* ******************************** */  //Z=20345
-    // --> werden an anderer Stelle gesetzt, daher hier weglassen
-    // --> if ( CheckBoxTraining.checked==true )  wird auch ausgelassen
 
     /* *************************** */  //Z=20517
     /* ** peak shape parameters ** */  //Z=20518
@@ -584,7 +773,7 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
 
     if ( (cdim!=9) && (cdim!=10) )
     {   //Z=21015
-        coefficients( cdim, 120, order );   //Z=21016
+        if ( ! coefficients() ) return false;  // Wenn keine Faktoren berechnet wurden, macht der Rest keinen Sinn
     }   //Z=21020
 
     zz = (1-sqr(params.sigma))/(sqr(params.sigma));  //Z=21028
@@ -597,22 +786,18 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
     {/*3*/  //Z=21042
 
         /* ** this generates reflection tables latpar1, latpar2, latpar1a,latpar2a ** */  //Z=21044
-        ButtonHKLClick( ltype );  //Z=21045,  ltype=0..11 und nicht mehr ....
+        ButtonHKLClick( ltype, false );  //Z=21045,  ltype=0..11,17,18,22 und nicht alle
         peakmax1 = latpar1(1,0);  //Z=21046
         peakmax2 = latpar2(1,0);  //Z=21047
 
         if ( peakmax1 >= latparlen )
         {
-#ifndef __CUDACC__
-            qDebug() << "PrepareCalculation ERROR peakmax1" << peakmax1 << " (max" << latparlen << ")";
-#endif
+            _lastErrorMessage = "PrepareCalculation ERROR peakmax1 " + std::to_string(peakmax1) + " (max " + std::to_string(latparlen) + ")";
             peakmax1 = 0;
         }
         if ( peakmax2 >= latparlen )
         {
-#ifndef __CUDACC__
-            qDebug() << "PrepareCalculation ERROR peakmax2" << peakmax2 << " (max" << latparlen << ")";
-#endif
+            _lastErrorMessage = "PrepareCalculation ERROR peakmax2 " + std::to_string(peakmax2) + " (max " + std::to_string(latparlen) + ")";
             peakmax2 = 0;
         }
 
@@ -782,7 +967,7 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
     if ( shp==8 && lattice )
     {
         D8( qDebug() << "prepCalc start qrombdeltac, theta phi:" << params.polTheta << params.polPhi );
-        qrombdeltac( params.p1, params.sigma, params.alpha, params.polTheta, params.polPhi, 1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,3,
+        qrombdeltac( params.p1, params.sigma, params.alpha, params.polTheta, params.polPhi, 1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,3,*/
                      2, 0, 0, 0, 0, params.CR->carr1p, params.norm );  //Z=25221
         D8( qDebug() << "prepCalc qrombdeltac fertig" );
     }
@@ -963,10 +1148,18 @@ std::string SasCalc_GENERIC_calculation::tpvPerformRandom(std::list<std::string>
  * @param numThreads - number of threads to use
  * All other parameters must be stored in global variables before calling this procedure.
  */
-void SasCalc_GENERIC_calculation::doCalculation( int numThreads, bool bIgnNewSwitch )
+void SasCalc_GENERIC_calculation::doCalculation( int numThreads, bool bIgnNewSwitch, bool bIgnoreCbs )
 {
     numberOfThreads = numThreads;
     bIgnoreNewSwitch = bIgnNewSwitch;
+
+    _lastErrorMessage = checkAllParameters(bIgnoreCbs);
+    if ( _lastErrorMessage.length() > 0 )
+    {   // used for the Chatbot, testing here.
+        std::cerr << "checkAllParameters: " << _lastErrorMessage << std::endl;
+        _xmin = _xmax = _ymin = _ymax = 0;      // Damit beim widImage nichts angezeigt wird
+        return;
+    }
 
     auto start1 = std::chrono::high_resolution_clock::now();
     if ( !prepareCalculation() ) return;
@@ -1288,6 +1481,7 @@ void *SasCalc_GENERIC_calculation::doThreadFitCalculation(void *arg)
     }
     return nullptr;
 }
+
 
 
 
@@ -1897,25 +2091,31 @@ void SasCalc_GENERIC_calculation::corotations(double a, double b, double c, doub
 }
 
 
-void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/, double &order/*order*/)
+/**
+ * @brief SasCalc_GENERIC_calculation::coefficients
+ * Berechne die Faktoren, damit die Pixel-Berechnungen schneller werden
+ * @return true wenn eine Berechnung stattgefunden hat
+ *         false wenn auf Grund der Eingabeparameter keine Berechnung gemacht wurde
+ */
+bool SasCalc_GENERIC_calculation::coefficients()
 {/*1*/  //Z=9363
     // aus dem File 20240301 - crystal3d1.pas mit den dortigen Zeilennummern !!!
 
-    const int nnmax = 120; // 500;  //Z=9367
+#define nnmax 120  //Z=9367 (nicht mehr const int )
     const double min =  1E-30;  //Z=9368  old=1E-40
 
     int  n1, n2, n3, n4, n5, n6, n7, n8, n9, n1f, n2f, n3f, n4f, n5f, n6f, n7f, n8f, n9f;  //Z=9372
     double z, zz, zl, zzl;  //Z=9374
     double intl, p, vvm, eps, vol;  //Z=9375
     double radv, aell, bell, cell;  //Z=9376
-    double carr2i[coeffarray_len], fsum[nnmax+1];  //Z=9377
-    double lqm[10], qqm[10], phim[3*nnmax+1], llm[3*nnmax+1], rrm[3*nnmax+1], ppm[3*nnmax+1], a1m[3*nnmax+1], u1ell[nnmax+1],
-           u2ell[nnmax+1], v1ell[3*nnmax+2], v2ell[3*nnmax+2], v3ell[3*nnmax+2], gell[3*nnmax+2], g3ell[3*nnmax+2];  //Z=9378
+    //double fsum[nnmax+1];  //Z=9377
+    double lqm[10], qqm[10]; //, phim[3*nnmax+1], llm[3*nnmax+1], rrm[3*nnmax+1], ppm[3*nnmax+1], a1m[3*nnmax+1], u1ell[nnmax+1],
+           //u2ell[nnmax+1], v1ell[3*nnmax+2], v2ell[3*nnmax+2], v3ell[3*nnmax+2], gell[3*nnmax+2], g3ell[3*nnmax+2];  //Z=9378
     bool search1, /*search2,*/ search3, search4, search5, search6; //, search7, search8, search9;  //Z=9380
     float x1zm, x12zm=1.0;  //Z=9382
 
     // Arrays von oben mit erhöhter Genauigkeit
-    long double gam3[2*nnmax+2], fkv[2*nnmax+2], fk2v[nnmax+1], pn[nnmax+1], z12vl[nnmax+1];
+    //long double gam3[2*nnmax+2], fkv[2*nnmax+2], fk2v[nnmax+1], pn[nnmax+1], z12vl[nnmax+1];
 
     // Das Array gam3[] scheint größer sein zu müssen. Im Pascal-Code ist es bis 500 deklariert (nmax=nnmax=120)
     typedef struct { int max; QString dbg; } gam3s_struct;
@@ -1924,16 +2124,29 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
 #define GAM3S_PRINT(m)   if ( m.max > 0 ) qDebug() << "coeeficients() gam3[" << m.dbg << "]" << m.max << "nmax" << nmax;
 
     // TODO: Vielleicht sollten einige Arrays nur lokal angelegt werden, sobald diese auch verwendet werden.
+    typedef struct {
+        double fsum[nnmax+1];  //Z=9377
+        double phim[3*nnmax+1], llm[3*nnmax+1], rrm[3*nnmax+1], ppm[3*nnmax+1], a1m[3*nnmax+1], u1ell[nnmax+1],
+               u2ell[nnmax+1], v1ell[3*nnmax+2], v2ell[3*nnmax+2], v3ell[3*nnmax+2], gell[3*nnmax+2], g3ell[3*nnmax+2];  //Z=9378
+        long double gam3[2*nnmax+2], fkv[2*nnmax+2], fk2v[nnmax+1], pn[nnmax+1], z12vl[nnmax+1];
+    } _coeffMem;
+    //qDebug() << "sizeof(_coeffMem)" << sizeof(_coeffMem); // 45376
+    _coeffMem *CM;
 
-    // Sicherheitsabfrage: nmax (Parameter) wird für Schleifen genutzt (i.d.R. 120),
-    //                     nnmax (const hier) wird für die Arrays genutzt (z.Zt. 120)
-    if ( nnmax+1 < nmax )
+    if ( coeffarray_len < nnmax )
     {
-#ifndef __CUDACC__
-        qDebug() << "coefficients() FATAL error: nmax" << nmax << "> nnmax" << nnmax;
-#endif
-        exit(255);
+        qDebug() << "coefficients: coeffarray_len < nnmax";
+        return false;
     }
+
+    CM = new _coeffMem;
+    if ( CM == nullptr )
+    {
+        qDebug() << "coefficients: no memory for CM" << sizeof(_coeffMem);
+        return false;
+    }
+
+    int nmax = nnmax; // War früher Parameter und wird unten u.U. auf 40 geändert...
 
     /*begin*/  //Z=9385
     z = (1.0-sqr(params.sigma))/sqr(params.sigma);  //Z=9386
@@ -1961,19 +2174,19 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
     //xln[0] = 1;  //Z=9408
     //xrn[0] = 1;  //Z=9409
     //xrmn[0] = 1;  //Z=9410
-    pn[0] = 1;  //Z=9411
+    CM->pn[0] = 1;  //Z=9411
     //z12v[0] = 1;  //Z=9412
-    z12vl[0] = 1;  //Z=9413
-    fsum[0] = 1;  //Z=9414
+    CM->z12vl[0] = 1;  //Z=9413
+    CM->fsum[0] = 1;  //Z=9414
 
     /*  start values for recursive parameters  */  //Z=9423
     //b1sv[0] = 1;  //Z=9424
-    fkv[0] = 1;  //Z=9425
-    fk2v[0] = 1;  //Z=9426
+    CM->fkv[0] = 1;  //Z=9425
+    CM->fk2v[0] = 1;  //Z=9426
     //e1[0] = 1;  //Z=9427
     //gam1[0] = sqrt(M_PI);  //Z=9428
     //gam2[0] = 1.0;  //Z=9429
-    gam3[0] = sqrt(M_PI)/2.0;  //Z=9430
+    CM->gam3[0] = sqrt(M_PI)/2.0;  //Z=9430
 
     /*  initialize  */  //Z=9432
     /* for n:=0 to 10000 do begin  //Z=9433 */
@@ -1991,16 +2204,16 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
         params.CR->carr7p[n] = 1;      params.CR->carr7f[n] = 1;  //Z=9444
         params.CR->carr8p[n] = 1;      params.CR->carr8f[n] = 1;  //Z=9445
         params.CR->carr9p[n] = 1;      params.CR->carr9f[n] = 1;  //Z=9446
-        carr2i[n] = 1;  //Z=9447
     }   //Z=9448
     for ( int n=0; n<imax2d_len; n++ )
     {   //Z=9449
         for ( int m=0; m<imax2d_len; m++ )
         {   //Z=9450
             params.CR->carr11pm[n][m] = 1;  //Z=9451
-            params.CR->carr11pm[n][m] = 1;  //Z=9452
+            params.CR->carr22pm[n][m] = 1;  //Z=9452
         }   //Z=9453
     }   //Z=9454
+
 
     /*  multi-shell or liposome structure parameters  */  //Z=9456
     if ( params.cs==3 )
@@ -2021,27 +2234,27 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
 
         for ( int i=1; i<=2; i++ ) qqm[i] = lqm[i]/len;  //Z=9472
 
-        phim[1] = philiph;       /*  vesicle interior  */  //Z=9474
-        llm[1] = 0.0;  //Z=9475
-        rrm[1] = rad+llm[1];  //Z=9476
-        ppm[1] = 1.0;  //Z=9477
+        CM->phim[1] = philiph;       /*  vesicle interior  */  //Z=9474
+        CM->llm[1] = 0.0;  //Z=9475
+        CM->rrm[1] = rad+CM->llm[1];  //Z=9476
+        CM->ppm[1] = 1.0;  //Z=9477
 
-        radv = rrm[1];        /*  vesicle radius  */  //Z=9479
+        radv = CM->rrm[1];        /*  vesicle radius  */  //Z=9479
         int cnt = 1;  //Z=9480
         for ( int i=1; i<=ncell; i++ )
         {/*3*/  //Z=9481
-            phim[cnt+1] = philipt;         /*  bilayer  */  //Z=9482
-            phim[cnt+2] = philiph;         /*  water  */  //Z=9483
-            llm[cnt+1] = (i-1+qqm[1])*len;  //Z=9484
-            llm[cnt+2] = (i-1+qqm[2])*len;  //Z=9485
-            rrm[cnt+1] = radv+llm[cnt+1];  //Z=9486
-            rrm[cnt+2] = radv+llm[cnt+2];  //Z=9487
-            ppm[cnt+1] = rrm[cnt+1]/rad;  //Z=9488
-            ppm[cnt+2] = rrm[cnt+2]/rad;  //Z=9489
+            CM->phim[cnt+1] = philipt;         /*  bilayer  */  //Z=9482
+            CM->phim[cnt+2] = philiph;         /*  water  */  //Z=9483
+            CM->llm[cnt+1] = (i-1+qqm[1])*len;  //Z=9484
+            CM->llm[cnt+2] = (i-1+qqm[2])*len;  //Z=9485
+            CM->rrm[cnt+1] = radv+CM->llm[cnt+1];  //Z=9486
+            CM->rrm[cnt+2] = radv+CM->llm[cnt+2];  //Z=9487
+            CM->ppm[cnt+1] = CM->rrm[cnt+1]/rad;  //Z=9488
+            CM->ppm[cnt+2] = CM->rrm[cnt+2]/rad;  //Z=9489
             cnt = cnt+2;  //Z=9490
         }/*3*/  //Z=9491
         int inmax = cnt;  //Z=9492
-        phim[cnt+1] = 0.0;  //Z=9493
+        CM->phim[cnt+1] = 0.0;  //Z=9493
 
         //xradm = rad;  //Z=9495
         //xrzm = xradm/(z+1);  //Z=9496
@@ -2051,12 +2264,12 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
 
         for ( int i=1; i<=inmax; i++ )
         {/*3*/  //Z=9501
-            if ( params.part==0 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],3); /*  spheres  */  //Z=9502
-            if ( params.part==1 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],2); /*  cylinders  */  //Z=9503
-            if ( params.part==2 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],1); /*  disks  */  //Z=9504
-            params.CR->carr7p[i] = ppm[i];  //Z=9505
-            params.CR->carr3p[i] = llm[i];  //Z=9506
-            params.CR->carr5p[i] = a1m[i];  //Z=9507
+            if ( params.part==0 ) CM->a1m[i] = (CM->phim[i]-CM->phim[i+1])*pow(CM->rrm[i],3); /*  spheres  */  //Z=9502
+            if ( params.part==1 ) CM->a1m[i] = (CM->phim[i]-CM->phim[i+1])*pow(CM->rrm[i],2); /*  cylinders  */  //Z=9503
+            if ( params.part==2 ) CM->a1m[i] = (CM->phim[i]-CM->phim[i+1])*pow(CM->rrm[i],1); /*  disks  */  //Z=9504
+            params.CR->carr7p[i] = CM->ppm[i];  //Z=9505
+            params.CR->carr3p[i] = CM->llm[i];  //Z=9506
+            params.CR->carr5p[i] = CM->a1m[i];  //Z=9507
         }/*3*/  //Z=9508
 
         long double fkvm_n = 1;  //Z=9510
@@ -2095,7 +2308,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
         vvm = 0;  //Z=9529
         for ( int i=1; i<=inmax; i++ )
         {   //Z=9530
-            for ( int j=1; j<=inmax; j++ ) vvm += a1m[i]*a1m[j];  //Z=9531
+            for ( int j=1; j<=inmax; j++ ) vvm += CM->a1m[i]*CM->a1m[j];  //Z=9531
         }   //Z=9532
 
         params.CR->myarray[14] = inmax;  //Z=9534
@@ -2134,63 +2347,63 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
 
         for ( int i=1; i<=8; i++ ) qqm[i] = lqm[i]/len;  //Z=9567
 
-        phim[1] = phiax;       /*  vesicle interior  */  //Z=9569
-        llm[1] = 0.0;  //Z=9570
-        rrm[1] = rad+llm[1];  //Z=9571
-        ppm[1] = 1.0;  //Z=9572
-        phim[2] = philiph;     /*  vesicle bilayer: head group  */  //Z=9573
-        llm[2] = lliph;  //Z=9574
-        rrm[2] = rad+llm[2];  //Z=9575
-        ppm[2] = rrm[2]/rad;  //Z=9576
-        phim[3] = philipt;     /*  vesicle bilayer: tail group  */  //Z=9577
-        llm[3] = llm[2]+llipt;  //Z=9578
-        rrm[3] = rad+llm[3];  //Z=9579
-        ppm[3] = rrm[3]/rad;  //Z=9580
-        phim[4] = philiph;     /*  vesicle bilayer: head group  */  //Z=9581
-        llm[4] = llm[3]+lliph;  //Z=9582
-        rrm[4] = rad+llm[4];  //Z=9583
-        ppm[4] = rrm[4]/rad;  //Z=9584
+        CM->phim[1] = phiax;       /*  vesicle interior  */  //Z=9569
+        CM->llm[1] = 0.0;  //Z=9570
+        CM->rrm[1] = rad+CM->llm[1];  //Z=9571
+        CM->ppm[1] = 1.0;  //Z=9572
+        CM->phim[2] = philiph;     /*  vesicle bilayer: head group  */  //Z=9573
+        CM->llm[2] = lliph;  //Z=9574
+        CM->rrm[2] = rad+CM->llm[2];  //Z=9575
+        CM->ppm[2] = CM->rrm[2]/rad;  //Z=9576
+        CM->phim[3] = philipt;     /*  vesicle bilayer: tail group  */  //Z=9577
+        CM->llm[3] = CM->llm[2]+llipt;  //Z=9578
+        CM->rrm[3] = rad+CM->llm[3];  //Z=9579
+        CM->ppm[3] = CM->rrm[3]/rad;  //Z=9580
+        CM->phim[4] = philiph;     /*  vesicle bilayer: head group  */  //Z=9581
+        CM->llm[4] = CM->llm[3]+lliph;  //Z=9582
+        CM->rrm[4] = rad+CM->llm[4];  //Z=9583
+        CM->ppm[4] = CM->rrm[4]/rad;  //Z=9584
 
-        radv = rrm[4];        /*  vesicle radius + bilayer  */  //Z=9586
+        radv = CM->rrm[4];        /*  vesicle radius + bilayer  */  //Z=9586
         int cnt = 4;  //Z=9587
         for ( int i=1; i<=ncell; i++ )
         {/*3*/  //Z=9588
-            phim[cnt+1] = phiout;          /*  extra cell  */  //Z=9589
-            phim[cnt+2] = philiph;         /*  head group  */  //Z=9590
-            phim[cnt+3] = philipt;         /*  tail group  */  //Z=9591
-            phim[cnt+4] = philiph;         /*  head group  */  //Z=9592
-            phim[cnt+5] = phiin;           /*  intra cell  */  //Z=9593
-            phim[cnt+6] = philiph;         /*  head group  */  //Z=9594
-            phim[cnt+7] = philipt;         /*  tail group  */  //Z=9595
-            phim[cnt+8] = philiph;         /*  head group  */  //Z=9596
-            llm[cnt+1] = (i-1+qqm[1])*len;  //Z=9597
-            llm[cnt+2] = (i-1+qqm[2])*len;  //Z=9598
-            llm[cnt+3] = (i-1+qqm[3])*len;  //Z=9599
-            llm[cnt+4] = (i-1+qqm[4])*len;  //Z=9600
-            llm[cnt+5] = (i-1+qqm[5])*len;  //Z=9601
-            llm[cnt+6] = (i-1+qqm[6])*len;  //Z=9602
-            llm[cnt+7] = (i-1+qqm[7])*len;  //Z=9603
-            llm[cnt+8] = (i-1+qqm[8])*len;  //Z=9604
-            rrm[cnt+1] = radv+llm[cnt+1];  //Z=9605
-            rrm[cnt+2] = radv+llm[cnt+2];  //Z=9606
-            rrm[cnt+3] = radv+llm[cnt+3];  //Z=9607
-            rrm[cnt+4] = radv+llm[cnt+4];  //Z=9608
-            rrm[cnt+5] = radv+llm[cnt+5];  //Z=9609
-            rrm[cnt+6] = radv+llm[cnt+6];  //Z=9610
-            rrm[cnt+7] = radv+llm[cnt+7];  //Z=9611
-            rrm[cnt+8] = radv+llm[cnt+8];  //Z=9612
-            ppm[cnt+1] = rrm[cnt+1]/rad;  //Z=9613
-            ppm[cnt+2] = rrm[cnt+2]/rad;  //Z=9614
-            ppm[cnt+3] = rrm[cnt+3]/rad;  //Z=9615
-            ppm[cnt+4] = rrm[cnt+4]/rad;  //Z=9616
-            ppm[cnt+5] = rrm[cnt+5]/rad;  //Z=9617
-            ppm[cnt+6] = rrm[cnt+6]/rad;  //Z=9618
-            ppm[cnt+7] = rrm[cnt+7]/rad;  //Z=9619
-            ppm[cnt+8] = rrm[cnt+8]/rad;  //Z=9620
+            CM->phim[cnt+1] = phiout;          /*  extra cell  */  //Z=9589
+            CM->phim[cnt+2] = philiph;         /*  head group  */  //Z=9590
+            CM->phim[cnt+3] = philipt;         /*  tail group  */  //Z=9591
+            CM->phim[cnt+4] = philiph;         /*  head group  */  //Z=9592
+            CM->phim[cnt+5] = phiin;           /*  intra cell  */  //Z=9593
+            CM->phim[cnt+6] = philiph;         /*  head group  */  //Z=9594
+            CM->phim[cnt+7] = philipt;         /*  tail group  */  //Z=9595
+            CM->phim[cnt+8] = philiph;         /*  head group  */  //Z=9596
+            CM->llm[cnt+1] = (i-1+qqm[1])*len;  //Z=9597
+            CM->llm[cnt+2] = (i-1+qqm[2])*len;  //Z=9598
+            CM->llm[cnt+3] = (i-1+qqm[3])*len;  //Z=9599
+            CM->llm[cnt+4] = (i-1+qqm[4])*len;  //Z=9600
+            CM->llm[cnt+5] = (i-1+qqm[5])*len;  //Z=9601
+            CM->llm[cnt+6] = (i-1+qqm[6])*len;  //Z=9602
+            CM->llm[cnt+7] = (i-1+qqm[7])*len;  //Z=9603
+            CM->llm[cnt+8] = (i-1+qqm[8])*len;  //Z=9604
+            CM->rrm[cnt+1] = radv+CM->llm[cnt+1];  //Z=9605
+            CM->rrm[cnt+2] = radv+CM->llm[cnt+2];  //Z=9606
+            CM->rrm[cnt+3] = radv+CM->llm[cnt+3];  //Z=9607
+            CM->rrm[cnt+4] = radv+CM->llm[cnt+4];  //Z=9608
+            CM->rrm[cnt+5] = radv+CM->llm[cnt+5];  //Z=9609
+            CM->rrm[cnt+6] = radv+CM->llm[cnt+6];  //Z=9610
+            CM->rrm[cnt+7] = radv+CM->llm[cnt+7];  //Z=9611
+            CM->rrm[cnt+8] = radv+CM->llm[cnt+8];  //Z=9612
+            CM->ppm[cnt+1] = CM->rrm[cnt+1]/rad;  //Z=9613
+            CM->ppm[cnt+2] = CM->rrm[cnt+2]/rad;  //Z=9614
+            CM->ppm[cnt+3] = CM->rrm[cnt+3]/rad;  //Z=9615
+            CM->ppm[cnt+4] = CM->rrm[cnt+4]/rad;  //Z=9616
+            CM->ppm[cnt+5] = CM->rrm[cnt+5]/rad;  //Z=9617
+            CM->ppm[cnt+6] = CM->rrm[cnt+6]/rad;  //Z=9618
+            CM->ppm[cnt+7] = CM->rrm[cnt+7]/rad;  //Z=9619
+            CM->ppm[cnt+8] = CM->rrm[cnt+8]/rad;  //Z=9620
             cnt += 8;  //Z=9621
         }/*3*/  //Z=9622
         int inmax = cnt;  //Z=9623
-        phim[cnt+1] = 0.0;  //Z=9624
+        CM->phim[cnt+1] = 0.0;  //Z=9624
 
         //xradm = rad;  //Z=9626
         //xrzm = xradm/(z+1);  //Z=9627
@@ -2200,12 +2413,12 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
 
         for ( int i=1; i<=inmax; i++ )
         {/*3*/  //Z=9632
-            if ( params.part==0 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],3); /*  spheres  */  //Z=9633
-            if ( params.part==1 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],2); /*  cylinders  */  //Z=9634
-            if ( params.part==2 ) a1m[i] = (phim[i]-phim[i+1])*pow(rrm[i],1); /*  disks  */  //Z=9635
-            params.CR->carr7p[i] = ppm[i];  //Z=9636
-            params.CR->carr3p[i] = llm[i];  //Z=9637
-            params.CR->carr5p[i] = a1m[i];  //Z=9638
+            if ( params.part==0 ) CM->a1m[i] = (CM->phim[i]-CM->phim[i+1])*pow(CM->rrm[i],3); /*  spheres  */  //Z=9633
+            if ( params.part==1 ) CM->a1m[i] = (CM->phim[i]-CM->phim[i+1])*pow(CM->rrm[i],2); /*  cylinders  */  //Z=9634
+            if ( params.part==2 ) CM->a1m[i] = (CM->phim[i]-CM->phim[i+1])*pow(CM->rrm[i],1); /*  disks  */  //Z=9635
+            params.CR->carr7p[i] = CM->ppm[i];  //Z=9636
+            params.CR->carr3p[i] = CM->llm[i];  //Z=9637
+            params.CR->carr5p[i] = CM->a1m[i];  //Z=9638
         }/*3*/  //Z=9639
 
         long double fkvm_n = 1;  //Z=9641
@@ -2244,7 +2457,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
         vvm = 0;  //Z=9660
         for ( int i=1; i<=inmax; i++ )
         {   //Z=9661
-            for ( int j=1; j<=inmax; j++ ) vvm = vvm+a1m[i]*a1m[j];  //Z=9662
+            for ( int j=1; j<=inmax; j++ ) vvm = vvm+CM->a1m[i]*CM->a1m[j];  //Z=9662
         }   //Z=9663
 
         params.CR->myarray[14] = inmax;  //Z=9665
@@ -2279,9 +2492,22 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
     if ( (params.polPhi== 0) && (params.polTheta== 0) ) params.orcase = orcZaxis;   /*  z-axis  */  //Z=9696
     if ( (params.polPhi==90) && (params.polTheta== 0) ) params.orcase = orcZaxis;   /*  z-axis  */  //Z=9697
 
+    //--------------------------------------------------------------------------
+    //qDebug() << "coefficients: ++++++++++++++++++++++++++++++++++++++++++++++++++++";
+    //qDebug() << "coefficients: cs=" << params.cs << "cdim=" << cdim << "ordis=" << params.ordis
+    //         << "orcase=" << params.orcase;
+    //qDebug() << "coefficients: ++++++++++++++++++++++++++++++++++++++++++++++++++++";
+    //--------------------------------------------------------------------------
+    // Default:  coefficients: cs= 0 cdim= 3 ordis= 7 orcase= 1
+
+
+    bool calcdone_label99 = false;
+    // Damit erkannt werden kann, bei welchen Datenzusammenstellungen keine Berechnung stattfindet.
+    // Diese Kombinationen sollten dann auch für den ChatBot rausgefiltert werden.
+
 
     /* ** isotropic case for spheres ** */  //Z=9700
-    if ( dim==3 )
+    if ( cdim==3 )
     {/*2*/  //Z=9701
         params.norm = 1;  //Z=9702
         order = 0;  //Z=9703
@@ -2294,16 +2520,16 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             for ( int n=1; n<=nmax; n++ )
             {/*4*/  //Z=9706
                 z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=9707
-                fkv[n] = fkv[n-1]*n;  //Z=9708
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=9709
+                CM->fkv[n] = CM->fkv[n-1]*n;  //Z=9708
+                CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=9709
                 /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=9710 */
                 xrn_n = -xrn_n*xr2z;  //Z=9711
                 /*  P(q)-coefficient  */  //Z=9712
-                params.CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn_n/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=9713
+                params.CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn_n/(2.0*(n+3)*(n+2)*(n+3/2.0)*CM->gam3[n]*CM->fkv[n]);  //Z=9713
                 /*  F(q)-coefficient  */  //Z=9714
                 double binsum = 0.0;  //Z=9715
                 for ( int m=0; m<=n; m++ )
-                    binsum += z12v[m]*z12v[n-m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=9716
+                    binsum += z12v[m]*z12v[n-m]/((m+3/2.0)*CM->gam3[m]*(n-m+3/2.0)*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=9716
                 params.CR->carr4f[n] = 9*M_PI*xrn_n*binsum/16.0;  //Z=9717
                 if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=9718
@@ -2314,11 +2540,11 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     if ( n<n4f ) n4f = n;  //Z=9722
                 }/*5*/  //Z=9723
             }/*4*/  //Z=9724
-            goto Label99;  //Z=9725
+            calcdone_label99 = true; //goto Label99;  //Z=9725
         }/*3*/   /*  of homogeneous  */  //Z=9726
 
         /*  core/shell  */  //Z=9728
-        if ( params.cs==1 )
+        else if ( params.cs==1 )
         {/*3*/  //Z=9729
             long double xrn_n = 1.0;
             long double xrmn_n = 1.0;
@@ -2327,35 +2553,35 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             for ( int n=1; n<=nmax; n++ )
             {/*4*/  //Z=9730
                 z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=9731
-                fkv[n] = fkv[n-1]*n;  //Z=9732
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=9733
+                CM->fkv[n] = CM->fkv[n-1]*n;  //Z=9732
+                CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=9733
                 /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=9734 */
                 xrn_n = -xrn_n*xr2z;  //Z=9735
                 xrmn_n = -xrmn_n*xrm2z;  //Z=9736
-                pn[n] = pn[n-1]*p*p;  //Z=9737
+                CM->pn[n] = CM->pn[n-1]*p*p;  //Z=9737
                 /*  P(q)-coefficients  */  //Z=9738
                 long double sump = 0.0;  //Z=9739
                 for ( int m=0; m<=n; m++ )
                 {   //Z=9740
-                    sump += pn[m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=9741
+                    sump += CM->pn[m]/((m+3/2.0)*CM->gam3[m]*(n-m+3/2.0)*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=9741
                 }   //Z=9742
-                params.CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn_n/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=9743
+                params.CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn_n/(2.0*(n+3)*(n+2)*(n+3/2.0)*CM->gam3[n]*CM->fkv[n]);  //Z=9743
                 params.CR->carr5p[n] = (9*M_PI/16.0)*z12v[n]*xrmn_n*sump;  //Z=9744
-                params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=9745
+                params.CR->carr6p[n] = params.CR->carr4p[n]/CM->pn[n];  //Z=9745
                 /*  F(q)-coefficients  */  //Z=9746
                 sump = 0.0;  //Z=9747
                 for ( int m=0; m<=n; m++ )
                 {   //Z=9748
-                    sump += z12v[m]*z12v[n-m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=9749
+                    sump += z12v[m]*z12v[n-m]/((m+3/2.0)*CM->gam3[m]*(n-m+3/2.0)*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=9749
                 }   //Z=9750
                 params.CR->carr4f[n] = (9*M_PI/16.0)*xrn_n*sump;  //Z=9751
                 sump = 0.0;  //Z=9752
                 for ( int m=0; m<=n; m++ )
                 {   //Z=9753
-                    sump += pn[m]*z12v[m]*z12v[n-m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=9754
+                    sump += CM->pn[m]*z12v[m]*z12v[n-m]/((m+3/2.0)*CM->gam3[m]*(n-m+3/2.0)*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=9754
                 }   //Z=9755
                 params.CR->carr5f[n] = (9*M_PI/16.0)*xrmn_n*sump;  //Z=9756
-                params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=9757
+                params.CR->carr6f[n] = params.CR->carr4f[n]/CM->pn[n];  //Z=9757
                 if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=9758
                     if ( n<n4 ) n4 = n;  //Z=9759
@@ -2381,11 +2607,11 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     if ( n<n6f ) n6f = n;  //Z=9774
                 }/*5*/  //Z=9775
             }/*4*/  //Z=9776
-            goto Label99;  //Z=9777
+            calcdone_label99 = true; //goto Label99;  //Z=9777
         }/*3*/   /*  of core/shell  */  //Z=9778
 
         /*  inhomogeneous core/shell  */  //Z=9780
-        if ( params.cs==2 )
+        else if ( params.cs==2 )
         {/*3*/  //Z=9781
             long double xrmn_n = 1.0;
             long double z12v_n = 1.0;
@@ -2393,20 +2619,20 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             for ( int n=1; n<=nmax; n++ )
             {/*4*/  //Z=9782
                 z12v_n = z12v_n*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=9783
-                fkv[n] = fkv[n-1]*n;  //Z=9784
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=9785
+                CM->fkv[n] = CM->fkv[n-1]*n;  //Z=9784
+                CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=9785
                 /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=9786 */
                 xrn_n = -xrn_n*xr2z;  //Z=9787
                 xrmn_n = -xrmn_n*xrm2z;  //Z=9788
-                pn[n] = pn[n-1]*p*p;  //Z=9789
+                CM->pn[n] = CM->pn[n-1]*p*p;  //Z=9789
                 /*  P(q)-coefficients  */  //Z=9790
-                params.CR->carr1p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v_n*xrn_n/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=9791
+                params.CR->carr1p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v_n*xrn_n/(2.0*(n+3)*(n+2)*(n+3/2.0)*CM->gam3[n]*CM->fkv[n]);  //Z=9791
                 long double sump = 0.0;  //Z=9792
                 long double sump1 = 0.0;  //Z=9793
                 for ( int m=0; m<=n; m++ )
                 {/*5*/  //Z=9794
-                    const double sumi = 1/((n-m+3/2.0)*gam3[n-m]*(m+3/2.0-params.alphash1/2.0)*gam3[m]*fkv[m]*fkv[n-m]);  //Z=9795
-                    sump += pn[n-m]*sumi;  //Z=9796
+                    const double sumi = 1/((n-m+3/2.0)*CM->gam3[n-m]*(m+3/2.0-params.alphash1/2.0)*CM->gam3[m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=9795
+                    sump += CM->pn[n-m]*sumi;  //Z=9796
                     sump1 += sumi;  //Z=9797
                 }/*5*/  //Z=9798
                 params.CR->carr2p[n] = (3*M_PI*(3-params.alphash1)/16.0)*z12v_n*xrmn_n*sump;  //Z=9799
@@ -2415,18 +2641,18 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                 sump1 = 0.0;  //Z=9802
                 for ( int m=0; m<=n; m++ )
                 {/*5*/  //Z=9803
-                    const double sumi = 1/((n-m+3/2.0-params.alphash1/2.0)*(m+3/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=9804
+                    const double sumi = 1/((n-m+3/2.0-params.alphash1/2.0)*(m+3/2.0-params.alphash1/2.0)*CM->gam3[n-m]*CM->gam3[m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=9804
                     sump += sumi;  //Z=9805
-                    sump1 += pn[n-m]*sumi;  //Z=9806
+                    sump1 += CM->pn[n-m]*sumi;  //Z=9806
                 }/*5*/  //Z=9807
                 params.CR->carr4p[n] = ((3-params.alphash1)*(3-params.alphash1)*M_PI/16.0)*z12v_n*xrmn_n*sump;  //Z=9808
                 params.CR->carr5p[n] = ((3-params.alphash1)*(3-params.alphash1)*M_PI/16.0)*z12v_n*xrmn_n*sump1;  //Z=9809
                 params.CR->carr6p[n] = ((3-params.alphash1)*(3-params.alphash1)*M_PI/16.0)*z12v_n*xrn_n*sump;  //Z=9810
 
                 /*  F(q)-coefficients  */  //Z=9812
-                params.CR->carr4f[n] = (3*sqrt(M_PI)/4.0)*z12v_n*xrn_n/((n+3/2.0)*gam3[n]*fkv[n]);  //Z=9813
-                params.CR->carr5f[n] = (sqrt(M_PI)*(3-params.alphash1)/4.0)*z12v_n*xrmn_n/((n+3/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=9814
-                params.CR->carr6f[n] = (sqrt(M_PI)*(3-params.alphash1)/4.0)*z12v_n*xrn_n/((n+3/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=9815
+                params.CR->carr4f[n] = (3*sqrt(M_PI)/4.0)*z12v_n*xrn_n/((n+3/2.0)*CM->gam3[n]*CM->fkv[n]);  //Z=9813
+                params.CR->carr5f[n] = (sqrt(M_PI)*(3-params.alphash1)/4.0)*z12v_n*xrmn_n/((n+3/2.0-params.alphash1/2.0)*CM->gam3[n]*CM->fkv[n]);  //Z=9814
+                params.CR->carr6f[n] = (sqrt(M_PI)*(3-params.alphash1)/4.0)*z12v_n*xrn_n/((n+3/2.0-params.alphash1/2.0)*CM->gam3[n]*CM->fkv[n]);  //Z=9815
                 if ( fabs(params.CR->carr1p[n])<min )
                 {/*5*/  //Z=9816
                     if ( n<n1 ) n1 = n;  //Z=9817
@@ -2464,11 +2690,11 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     if ( n<n6f ) n6f = n;  //Z=9841
                 }/*5*/  //Z=9842
             }/*4*/  //Z=9843
-            goto Label99;  //Z=9844
+            calcdone_label99 = true; //goto Label99;  //Z=9844
         }/*3*/   /*  of inhomogeneous core/shell  */  //Z=9845
 
         /*  myelin  */  //Z=9847
-        if ( (params.cs==3) || (params.cs==4) )
+        else if ( (params.cs==3) || (params.cs==4) )
         {/*3*/  //Z=9848
             //i = 2;  //Z=9849
             long double z12v[nnmax+1];   // local
@@ -2478,11 +2704,11 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             for ( int n=1; n<=nmax; n++ )
             {/*4*/  //Z=9850
                 z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=9851
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=9852
+                CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=9852
                 //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=9853
-                fkv[n] = fkv[n-1]*n;  //Z=9854
+                CM->fkv[n] = CM->fkv[n-1]*n;  //Z=9854
                 //fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=9855
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=9856
+                CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=9856
                 /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=9857 */
                 xln_n = -xln_n*xl2z;  //Z=9858
                 /* xrn[n]:=-xrn[n-1]*xr2z;  //Z=9859 */
@@ -2493,20 +2719,18 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                 {/*5*/  //Z=9863
                     /* carr1pm[i]:=1/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=9864 */
                     /* i:=i+1;  //Z=9865 */
-                    params.CR->carr11pm[n][m] = (9*M_PI/16.0)*(1/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]));  //Z=9866
+                    params.CR->carr11pm[n][m] = (9*M_PI/16.0)*(1/((m+3/2.0)*CM->gam3[m]*(n-m+3/2.0)*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]));  //Z=9866
                 }/*5*/  //Z=9867
                 params.CR->carr4p[n] = z12v[n]*xrn_n;  //Z=9868
                 /* carr4p[n]:=4*(n+1/2)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=9869 */
 
-
                 /*  F(q)  */  //Z=9872
                 double binsum = 0.0;  //Z=9873
-                for ( int m=0; m<=n; m++ ) binsum += z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=9874
+                for ( int m=0; m<=n; m++ ) binsum += CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=9874
                 params.CR->carr1f[n] = M_PI*xln_n*binsum/(4.0*(2*n+1));  //Z=9875
                 binsum = 0.0;  //Z=9876
-                for ( int m=0; m<=n; m++ ) binsum += z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=9877
+                for ( int m=0; m<=n; m++ ) binsum += z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=9877
                 params.CR->carr4f[n] = xrn_n*binsum;  //Z=9878
-
 
                 if ( fabs(params.CR->carr1p[n])<min )
                 {/*5*/  //Z=9881
@@ -2525,12 +2749,14 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     if ( n<n4f ) n4f = n;  //Z=9891
                 }/*5*/  //Z=9892
             }/*4*/  //Z=9893
+            calcdone_label99 = true;
         }/*3*/ /*  of myelin  */  //Z=9894
 
     }/*2*/  /*  of dim=3, spheres  */  //Z=9898
 
+
     /*  isotropic case for cubes  */  //Z=9900
-    if ( (params.ordis==7) && (dim==4) )
+    else if ( (params.ordis==ordis_Isotropic) && (cdim==4) )
     {/*2*/    /*  cubes  */  //Z=9901
         params.norm = 1;  //Z=9902
         order = 0;  //Z=9903
@@ -2545,29 +2771,29 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             z12v[0] = 1.0;
             long double xrn_n = 1.0;
 
-            u1ell[0] = 2;  //Z=9910
+            CM->u1ell[0] = 2;  //Z=9910
             for ( int n=1; n<=nmax; n++ )
             {/*4*/  //Z=9911
                 z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=9912
-                fkv[n] = fkv[n-1]*n;  //Z=9913
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=9914
+                CM->fkv[n] = CM->fkv[n-1]*n;  //Z=9913
+                CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=9914
                 /* u1ell[n]:=z12v[n]/((n+1/2)*(n+1)*fkv[n]);  //Z=9915 */
-                u1ell[n] = 1/((n+1/2.0)*(n+1)*fkv[n]);  //Z=9916
+                CM->u1ell[n] = 1/((n+1/2.0)*(n+1)*CM->fkv[n]);  //Z=9916
             }/*4*/  //Z=9917
 
             for ( int n=0; n<=nmax; n++ )
             {/*4*/  //Z=9919
                 double sump1 = 0.0;  //Z=9920
-                for ( int m=0; m<=n; m++ ) sump1 += u1ell[n-m]*u1ell[m];  //Z=9921
-                v1ell[n] = sump1;  //Z=9922
+                for ( int m=0; m<=n; m++ ) sump1 += CM->u1ell[n-m]*CM->u1ell[m];  //Z=9921
+                CM->v1ell[n] = sump1;  //Z=9922
             }/*4*/  //Z=9923
 
             for ( int n=1; n<=nmax; n++ )
             {/*4*/  //Z=9925
                 xrn_n = -xrn_n*xr2z;  //Z=9926
                 long double sumf = 0.0;  //Z=9927
-                for ( int m=0; m<=n; m++ ) sumf += z12v[n-m]*z12v[m]/(gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=9928
-                fsum[n] = sumf;  //Z=9929
+                for ( int m=0; m<=n; m++ ) sumf += z12v[n-m]*z12v[m]/(CM->gam3[n-m]*CM->gam3[m]*CM->fkv[n-m]*CM->fkv[m]);  //Z=9928
+                CM->fsum[n] = sumf;  //Z=9929
                 /*  P(q)-coefficient  */  //Z=9930
                 double sump = 0.0;  //Z=9931
                 /* for m:=0 to n do begin  //Z=9932
@@ -2582,20 +2808,20 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                    sump:=sump+u1ell[n-m]*sump1;  //Z=9941
                 end; */  //Z=9942
 
-                for ( int m=0; m<=n; m++ ) sump += u1ell[n-m]*v1ell[m];  //Z=9944
+                for ( int m=0; m<=n; m++ ) sump += CM->u1ell[n-m]*CM->v1ell[m];  //Z=9944
 
                 /* carr4p[n]:=sqrt(pi)*power(4,n)*xrn[n]*sump/(16*gam3[n]);  //Z=9946 */
-                params.CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn_n*sump/(16.0*gam3[n]);  //Z=9947
+                params.CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*z12v[n]*xrn_n*sump/(16.0*CM->gam3[n]);  //Z=9947
 
                 /*  F(q)-coefficient  */  //Z=9949
                 sump = 0.0;  //Z=9950
                 for ( int m=0; m<=n; m++ )
                 {/*5*/  //Z=9951
                     double sump1 = 0.0;  //Z=9952
-                    for ( int k=0; k<=m; k++ ) sump1 += fsum[m-k]*fsum[k]*gam3[m-k]*gam3[k]/((k+1/2.0)*(m-k+1/2.0));  //Z=9953
-                    sump += sump1*fsum[n-m]*gam3[n-m]/(n-m+1/2.0);  //Z=9954
+                    for ( int k=0; k<=m; k++ ) sump1 += CM->fsum[m-k]*CM->fsum[k]*CM->gam3[m-k]*CM->gam3[k]/((k+1/2.0)*(m-k+1/2.0));  //Z=9953
+                    sump += sump1*CM->fsum[n-m]*CM->gam3[n-m]/(n-m+1/2.0);  //Z=9954
                 }/*5*/  //Z=9955
-                params.CR->carr4f[n] = M_PI*M_PI*xrn_n*sump/(128.0*gam3[n]);  //Z=9956
+                params.CR->carr4f[n] = M_PI*M_PI*xrn_n*sump/(128.0*CM->gam3[n]);  //Z=9956
                 if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=9957
                     if ( n<n4 ) n4 = n;  //Z=9958
@@ -2605,11 +2831,11 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     if ( n<n4f ) n4f = n;  //Z=9961
                 }/*5*/  //Z=9962
             }/*4*/  //Z=9963
-            goto Label99;  //Z=9964
+            calcdone_label99 = true; //goto Label99;  //Z=9964
         }/*3*/   /*  of homogeneous  */  //Z=9965
 
         /*  core/shell  */          /*  not yet ready  */  //Z=9967
-        if ( params.cs==1 )
+        else if ( params.cs==1 )
         {/*3*/  //Z=9968
             long double xrmn_n = 1.0;
             long double z12v_n = 1.0;
@@ -2617,21 +2843,21 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             for ( int n=1; n<=nmax; n++ )
             {/*4*/  //Z=9969
                 z12v_n = z12v_n*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=9970
-                fkv[n] = fkv[n-1]*n;  //Z=9971
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=9972
+                CM->fkv[n] = CM->fkv[n-1]*n;  //Z=9971
+                CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=9972
                 /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=9973 */
                 xrn_n = -xrn_n*xr2z;  //Z=9974
                 xrmn_n = -xrmn_n*xrm2z;  //Z=9975
-                pn[n] = pn[n-1]*p*p;  //Z=9976
+                CM->pn[n] = CM->pn[n-1]*p*p;  //Z=9976
                 /*  P(q)-coefficient  */  //Z=9977
                 double sump = 0.0;  //Z=9978
                 for ( int m=0; m<=n; m++ )
                 {/*5*/  //Z=9979
-                    sump += pn[m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=9980
+                    sump += CM->pn[m]/((m+3/2.0)*CM->gam3[m]*(n-m+3/2.0)*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=9980
                 }/*5*/  //Z=9981
-                params.CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v_n*xrn_n/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=9982
+                params.CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v_n*xrn_n/(2.0*(n+3)*(n+2)*(n+3/2.0)*CM->gam3[n]*CM->fkv[n]);  //Z=9982
                 params.CR->carr5p[n] = (9*M_PI/16.0)*z12v_n*xrmn_n*sump;  //Z=9983
-                params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=9984
+                params.CR->carr6p[n] = params.CR->carr4p[n]/CM->pn[n];  //Z=9984
                 /*  F(q)-coefficient  */  //Z=9985
                 /* carr3[n]:=3*sqrt(pi)*z12v[n]*xrn[n]/(4*(n+3/2)*gam3[n]*fkv[n]);  //Z=9986 */
                 if ( fabs(params.CR->carr4p[n])<min )
@@ -2647,12 +2873,13 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     if ( n<n6 ) n6 = n;  //Z=9994
                 }/*5*/  //Z=9995
             }/*4*/  //Z=9996
-            goto Label99;  //Z=9997
+            calcdone_label99 = true; //goto Label99;  //Z=9997
         }/*3*/   /*  of core/shell  */  //Z=9998
     }/*2*/  /*  of dim=4, cubes  */  //Z=9999
 
+
     /*  perfect orientation case for cubes  */  //Z=10001
-    if ( (params.ordis==6) && (dim==4) )
+    else if ( (params.ordis==ordis_ZDir) && (cdim==4) )
     {/*2*/    /*  cubes  */  //Z=10002
         params.norm = 1;  //Z=10003
         order = 1;  //Z=10004
@@ -2666,8 +2893,8 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             for ( int n=1; n<=nmax; n++ )
             {/*4*/  //Z=10008
                 z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10009
-                fkv[n] = fkv[n-1]*n;  //Z=10010
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10011
+                CM->fkv[n] = CM->fkv[n-1]*n;  //Z=10010
+                CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=10011
                 /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=10012 */
                 xrn_n = -xrn_n*xr2z;  //Z=10013
                 /*  P(q)-coefficient  */  //Z=10014
@@ -2675,12 +2902,12 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                 {/*5*/  //Z=10015
                     /* carr1pm[i]:=(pi/4)*power(4,n)*z12v[n-m]*z12v[m]*xrn[n]/(gam3[n-m]*gam3[m]*(n-m+1)*fkv[n-m]*(m+1)*fkv[m]);  //Z=10016 */
                     /* carr1fm[i]:=carr1pm[i];  //Z=10017 */
-                    params.CR->carr11pm[n][m] = (M_PI/4.0)*pow(4.0,n)*z12v[n-m]*z12v[m]*xrn_n/(gam3[n-m]*gam3[m]*(n-m+1)*fkv[n-m]*(m+1)*fkv[m]);  //Z=10018
+                    params.CR->carr11pm[n][m] = (M_PI/4.0)*pow(4.0,n)*z12v[n-m]*z12v[m]*xrn_n/(CM->gam3[n-m]*CM->gam3[m]*(n-m+1)*CM->fkv[n-m]*(m+1)*CM->fkv[m]);  //Z=10018
                     //i = i+1;  //Z=10019
                 }/*5*/  //Z=10020
-                params.CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*xrn_n/(16.0*gam3[n]);  //Z=10021
+                params.CR->carr4p[n] = sqrt(M_PI)*pow(4.0,n)*xrn_n/(16.0*CM->gam3[n]);  //Z=10021
                 /*  F(q)-coefficient  */  //Z=10022
-                params.CR->carr4f[n] = M_PI*M_PI*xrn_n/(128.0*gam3[n]);  //Z=10023
+                params.CR->carr4f[n] = M_PI*M_PI*xrn_n/(128.0*CM->gam3[n]);  //Z=10023
                 if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=10024
                     if ( n<n4 ) n4 = n;  //Z=10025
@@ -2690,11 +2917,11 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     if ( n<n4f ) n4f = n;  //Z=10028
                 }/*5*/  //Z=10029
             }/*4*/  //Z=10030
-            goto Label99;  //Z=10031
+            calcdone_label99 = true; //goto Label99;  //Z=10031
         }/*3*/   /*  of homogeneous  */  //Z=10032
 
         /*  core/shell  */          /*  not yet ready  */  //Z=10034
-        if ( params.cs==1 )
+        else if ( params.cs==1 )
         {/*3*/  //Z=10035
             long double xrmn_n = 1.0;
             long double z12v_n = 1.0;
@@ -2702,21 +2929,21 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             for ( int n=1; n<=nmax; n++ )
             {/*4*/  //Z=10036
                 z12v_n = z12v_n*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10037
-                fkv[n] = fkv[n-1]*n;  //Z=10038
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10039
+                CM->fkv[n] = CM->fkv[n-1]*n;  //Z=10038
+                CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=10039
                 /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=10040 */
                 xrn_n = -xrn_n*xr2z;  //Z=10041
                 xrmn_n = -xrmn_n*xrm2z;  //Z=10042
-                pn[n] = pn[n-1]*p*p;  //Z=10043
+                CM->pn[n] = CM->pn[n-1]*p*p;  //Z=10043
                 /*  P(q)-coefficient  */  //Z=10044
                 long double sump = 0.0;  //Z=10045
                 for ( int m=0; m<=n; m++ )
                 {/*5*/  //Z=10046
-                    sump += pn[m]/((m+3/2.0)*gam3[m]*(n-m+3/2.0)*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=10047
+                    sump += CM->pn[m]/((m+3/2.0)*CM->gam3[m]*(n-m+3/2.0)*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=10047
                 }/*5*/  //Z=10048
-                params.CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v_n*xrn_n/(2.0*(n+3)*(n+2)*(n+3/2.0)*gam3[n]*fkv[n]);  //Z=10049
+                params.CR->carr4p[n] = 9*sqrt(M_PI)*pow(4.0,n)*z12v_n*xrn_n/(2.0*(n+3)*(n+2)*(n+3/2.0)*CM->gam3[n]*CM->fkv[n]);  //Z=10049
                 params.CR->carr5p[n] = (9*M_PI/16.0)*z12v_n*xrmn_n*sump;  //Z=10050
-                params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=10051
+                params.CR->carr6p[n] = params.CR->carr4p[n]/CM->pn[n];  //Z=10051
                 /*  F(q)-coefficient  */  //Z=10052
                 /* carr3[n]:=3*sqrt(pi)*z12v[n]*xrn[n]/(4*(n+3/2)*gam3[n]*fkv[n]);  //Z=10053 */
                 if ( fabs(params.CR->carr4p[n])<min )
@@ -2732,13 +2959,13 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     if ( n<n6 ) n6 = n;  //Z=10061
                 }/*5*/  //Z=10062
             }/*4*/  //Z=10063
-            goto Label99;  //Z=10064
+            calcdone_label99 = true; //goto Label99;  //Z=10064
         }/*3*/   /*  of core/shell  */  //Z=10065
     }/*2*/  /*  of dim=4, cubes  */  //Z=10066
 
 
     /*  isotropic case for ellipsoids  */  //Z=10068
-    if ( (params.ordis==7) && (dim==5) )
+    else if ( (params.ordis==ordis_Isotropic) && (cdim==5) )
     {/*2*/    /*  ellipsoids  */  //Z=10069
         params.norm = 1;  //Z=10070
         order = 0;  //Z=10071
@@ -2763,26 +2990,26 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             for ( int n=1; n<=nmax; n++ )
             {/*4*/  //Z=10080
                 z12v_n = z12v_n*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10081
-                fkv[n] = fkv[n-1]*n;  //Z=10082
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10083
+                CM->fkv[n] = CM->fkv[n-1]*n;  //Z=10082
+                CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=10083
                 e1[n] = e1[n-1]*(eps*eps-1);  //Z=10084
                 xrn_n = -xrn_n*xr2z;  //Z=10085
                 double sump = 0.0;  //Z=10086
-                for ( int m=0; m<=n; m++ ) sump += e1[n-m]/(fkv[n-m]*fkv[m]*(2*(n-m)+1));  //Z=10087
+                for ( int m=0; m<=n; m++ ) sump += e1[n-m]/(CM->fkv[n-m]*CM->fkv[m]*(2*(n-m)+1));  //Z=10087
                 /* sumf:=0.0;  //Z=10088 */
                 /* for m:=0 to n do sumf:=sumf+z12v[n-m]*z12v[m]/(gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=10089 */
                 /* fsum[n]:=sumf;  //Z=10090 */
                 /*  P(q)-coefficient  */  //Z=10091
-                params.CR->carr4p[n] = (9*sqrt(M_PI)/2.0)*pow(4.0,n)*z12v_n*xrn_n*sump/((n+3)*(n+2)*(n+3/2.0)*gam3[n]);  //Z=10092
+                params.CR->carr4p[n] = (9*sqrt(M_PI)/2.0)*pow(4.0,n)*z12v_n*xrn_n*sump/((n+3)*(n+2)*(n+3/2.0)*CM->gam3[n]);  //Z=10092
                 /*  F(q)-coefficient  */  //Z=10093
                 sump = 0.0;  //Z=10094
                 for ( int m=0; m<=n; m++ )
                 {/*5*/  //Z=10095
                     double sump1 = 0.0;  //Z=10096
-                    for ( int k=0; k<=m; k++ ) sump1 += fsum[m-k]*fsum[k]*gam3[m-k]*gam3[k]/((k+1/2.0)*(m-k+1/2.0));  //Z=10097
-                    sump += sump1*fsum[n-m]*gam3[n-m]/(n-m+1/2.0);  //Z=10098
+                    for ( int k=0; k<=m; k++ ) sump1 += CM->fsum[m-k]*CM->fsum[k]*CM->gam3[m-k]*CM->gam3[k]/((k+1/2.0)*(m-k+1/2.0));  //Z=10097
+                    sump += sump1*CM->fsum[n-m]*CM->gam3[n-m]/(n-m+1/2.0);  //Z=10098
                 }/*5*/  //Z=10099
-                params.CR->carr4f[n] = M_PI*M_PI*xrn_n*sump/(128.0*gam3[n]);  //Z=10100
+                params.CR->carr4f[n] = M_PI*M_PI*xrn_n*sump/(128.0*CM->gam3[n]);  //Z=10100
                 if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=10101
                     if ( n<n4 ) n4 = n;  //Z=10102
@@ -2792,7 +3019,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     if ( n<n4f ) n4f = n;  //Z=10105
                 }/*5*/  //Z=10106
             }/*4*/  //Z=10107
-            goto Label99;  //Z=10108
+            calcdone_label99 = true; //goto Label99;  //Z=10108
         }/*3*/   /*  of homogeneous  */  //Z=10109
 
         /*  core/shell  */          /*  not yet ready  */  //Z=10111
@@ -2803,7 +3030,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
 
 
     /*  perfect orientation case for ellipsoids  */  //Z=10145
-    if ( (params.ordis==6) && (dim==5) )
+    else if ( (params.ordis==ordis_ZDir) && (cdim==5) )
     {   /*  ellipsoids  */  //Z=10146
         params.norm = 1;  //Z=10147
         order = 1;  //Z=10148
@@ -2816,8 +3043,8 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             double xln_n = 1.0;
             for ( int n=0; n<=2*nmax+1; n++ )
             {/*4*/  //Z=10160
-                fkv[n]  = fkv[n-1]*n;  //Z=10154
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10155  gam3[SIZE
+                CM->fkv[n]  = CM->fkv[n-1]*n;  //Z=10154
+                CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=10155  gam3[SIZE
             }
             GAM3S_INIT(max1,"ordis=6, cs=0: m-ll+n-k")
             GAM3S_INIT(max2,"ordis=6, cs=0: ll+k")
@@ -2839,9 +3066,9 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         {
                             GAM3S_CHECK( max1, m-ll+n-k )
                             GAM3S_CHECK( max2, ll+k )
-                            sump2 += 1./(fkv[m-ll]*fkv[ll]*(m-ll+n-k+3./2.0)*(ll+k+3./2.0)*gam3[m-ll+n-k]*gam3[ll+k]);  //Z=10167
+                            sump2 += 1./(CM->fkv[m-ll]*CM->fkv[ll]*(m-ll+n-k+3./2.0)*(ll+k+3./2.0)*CM->gam3[m-ll+n-k]*CM->gam3[ll+k]);  //Z=10167
                         }
-                        sump1 += sump2/(fkv[n-k]*fkv[k]);  //Z=10168
+                        sump1 += sump2/(CM->fkv[n-k]*CM->fkv[k]);  //Z=10168
                     }/*6*/  //Z=10169
                     params.CR->carr11pm[n][m] = M_PI*sump1;  //Z=10170
                 }/*5*/  //Z=10171
@@ -2857,7 +3084,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                 /* end;  //Z=10181 */
 
                 /*  F(q)-coefficient  */  //Z=10183
-                params.CR->carr4f[n] = M_PI*M_PI*xrn_n/(128.0*gam3[n]);  //Z=10184
+                params.CR->carr4f[n] = M_PI*M_PI*xrn_n/(128.0*CM->gam3[n]);  //Z=10184
                 if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=10185
                     if ( n<n4 ) n4 = n;  //Z=10186
@@ -2869,7 +3096,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             }/*4*/  //Z=10191
             GAM3S_PRINT(max1)
             GAM3S_PRINT(max2)
-            goto Label99;  //Z=10192
+            calcdone_label99 = true; //goto Label99;  //Z=10192
         }   /*  of homogeneous  */  //Z=10193
 
         /*  core/shell  */          /*  not yet ready  */  //Z=10195
@@ -2880,13 +3107,13 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
 
 
     /* ** ellipsoid orientational distribution  */  //Z=10229
-    if ( (params.ordis==0) && (params.orcase==orcXaxis) && (dim==5) )
+    else if ( (params.ordis==ordis_Gaussian) && (params.orcase==orcXaxis) && (cdim==5) )
     {/*2*/  //Z=10230
 
         if ( params.cs==0 )
         {/*3*/  //Z=10232
-            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,3,2,0,0,0,0,params.CR->carr1p,params.norm);
-            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,3,3,0,0,0,0,params.CR->carr1p,order);
+            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,3,*/2,0,0,0,0,params.CR->carr1p,params.norm);
+            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,3,*/3,0,0,0,0,params.CR->carr1p,order);
             order = order/params.norm;  //Z=10235
 
             for ( int n=0; n<=2*nmax+1; n++ )
@@ -2894,7 +3121,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                 //z12vl[n] = z12vl[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10239
                 //fkv[n] = fkv[n-1]*n;  //Z=10240
                 //fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=10241
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10242
+                CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=10242
                 //xln[n] = -xln[n-1]*xl2z;  //Z=10243
             }
             long double z12v_n = 1.0;
@@ -2905,9 +3132,9 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             for ( int n=0; n<=nmax; n++ )
             {/*4*/  //Z=10247
                 z12v_n = z12v_n*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10238
-                z12vl[n] = z12vl[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10239
-                fkv[n] = fkv[n-1]*n;  //Z=10240
-                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=10241
+                CM->z12vl[n] = CM->z12vl[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10239
+                CM->fkv[n] = CM->fkv[n-1]*n;  //Z=10240
+                CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=10241
                 xln_n = -xln_n*xl2z;  //Z=10243
                 xrn_n = -xrn_n*xr2z;  //Z=10244
 
@@ -2921,18 +3148,18 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         {
                             GAM3S_CHECK(max1,m-ll+n-k)
                             GAM3S_CHECK(max2,ll+k)
-                            sump2 += 1.0/(fkv[m-ll]*fkv[ll]*(m-ll+n-k+3/2.0)*(ll+k+3.0/2.0)*gam3[m-ll+n-k]*gam3[ll+k]);  //Z=10253
+                            sump2 += 1.0/(CM->fkv[m-ll]*CM->fkv[ll]*(m-ll+n-k+3/2.0)*(ll+k+3.0/2.0)*CM->gam3[m-ll+n-k]*CM->gam3[ll+k]);  //Z=10253
                         }
-                        sump1 += sump2/(fkv[n-k]*fkv[k]);  //Z=10254
+                        sump1 += sump2/(CM->fkv[n-k]*CM->fkv[k]);  //Z=10254
                     }/*6*/  //Z=10255
                     params.CR->carr11pm[n][m] = M_PI*sump1;  //Z=10256
                 }/*5*/  //Z=10257
                 double sump1 = 0.0;  //Z=10258
                 for ( int m=0; m<=n; m++ )
                 {/*5*/  //Z=10259
-                    qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,3,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);
-                    sump1 += pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*params.norm);  //Z=10261
-                    params.CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*params.norm);  //Z=10262
+                    qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,3,*/1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);
+                    sump1 += pow(4.0,m)*intl/(CM->fk2v[m]*CM->fkv[n-m]*CM->fkv[n-m]*params.norm);  //Z=10261
+                    params.CR->carr11pm[n][m] = pow(4.0,m)*intl/(CM->fk2v[m]*CM->fkv[n-m]*CM->fkv[n-m]*params.norm);  //Z=10262
                 }/*5*/  //Z=10263
 
                 /*  all coefficients: Mok  */  //Z=10265
@@ -2942,7 +3169,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                 params.CR->carr5p[n] = z12v_n*xrn_n;  //Z=10269
                 /*  qL-part  */  //Z=10270
                 /* carr3p[n]:=sqr(3/4)*fk2v[n]*z12v[n]*xln[n]/power(4,n);  //Z=10271 */
-                params.CR->carr6p[n] = sqr(3/4.0)*fk2v[n]*z12vl[n]*xln_n;  //Z=10272
+                params.CR->carr6p[n] = sqr(3/4.0)*CM->fk2v[n]*CM->z12vl[n]*xln_n;  //Z=10272
 
                 if ( search5 )
                 {/*5*/  //Z=10289
@@ -2987,13 +3214,13 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             }/*4*/  /*  of n-loop  */  //Z=10319
             GAM3S_PRINT(max1)
             GAM3S_PRINT(max2)
-            goto Label99;  //Z=10321
+            calcdone_label99 = true; //goto Label99;  //Z=10321
         }/*3*/  /*  of cs-loop  */  //Z=10322
     }/*2*/  /*  of ordis-loop  */  //Z=10323
 
 
     /*  isotropic case for triaxial ellipsoids  */  //Z=10326
-    if ( (params.ordis==7) && (dim==6) )
+    else if ( (params.ordis==ordis_Isotropic) && (cdim==6) )
     {/*2*/    /*  triaxial ellipsoids  */  //Z=10327
         params.norm = 1;  //Z=10328
         order = 0;  //Z=10329
@@ -3008,11 +3235,11 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
         /*  homogeneous  */  //Z=10335
         if ( params.cs==0 )
         {/*3*/  //Z=10336
-            u1ell[0] = 1;  //Z=10338
-            u2ell[0] = 1;  //Z=10339
-            v1ell[0] = 1;  //Z=10340
-            v2ell[0] = 1;  //Z=10341
-            gell[0] = sqrt(M_PI);  //Z=10342
+            CM->u1ell[0] = 1;  //Z=10338
+            CM->u2ell[0] = 1;  //Z=10339
+            CM->v1ell[0] = 1;  //Z=10340
+            CM->v2ell[0] = 1;  //Z=10341
+            CM->gell[0] = sqrt(M_PI);  //Z=10342
 
             long double z12v[nnmax+1];   // local
             z12v[0] = 1.0;
@@ -3021,14 +3248,14 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             for ( int n=1; n<=nmax; n++ )
             {/*4*/  //Z=10355
                 z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10344
-                fkv[n] = fkv[n-1]*n;  //Z=10345
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10346
+                CM->fkv[n] = CM->fkv[n-1]*n;  //Z=10345
+                CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=10346
                 xrn_n = -xrn_n*xr2z;  //Z=10347
-                u1ell[n] = (aell*aell-bell*bell)*u1ell[n-1]/n;  //Z=10348
-                u2ell[n] = bell*bell*u2ell[n-1]/n;  //Z=10349
-                v1ell[n] = (bell*bell-aell*aell)*v1ell[n-1]/n;  //Z=10350
-                v2ell[n] = (cell*cell-bell*bell)*v2ell[n-1]/n;  //Z=10351
-                gell[n] = gam3[n]/((n+1/2.0)*fkv[n]);  //Z=10352
+                CM->u1ell[n] = (aell*aell-bell*bell)*CM->u1ell[n-1]/n;  //Z=10348
+                CM->u2ell[n] = bell*bell*CM->u2ell[n-1]/n;  //Z=10349
+                CM->v1ell[n] = (bell*bell-aell*aell)*CM->v1ell[n-1]/n;  //Z=10350
+                CM->v2ell[n] = (cell*cell-bell*bell)*CM->v2ell[n-1]/n;  //Z=10351
+                CM->gell[n] = CM->gam3[n]/((n+1/2.0)*CM->fkv[n]);  //Z=10352
 
                 long double sump = 0.0;  //Z=10368
                 for ( int m=0; m<=n; m++ )
@@ -3038,27 +3265,27 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     {/*6*/  //Z=10371
                         long double sump2 = 0.0;  //Z=10372
                         for ( int ll=0; ll<=n-m; ll++ )
-                            sump2 += gell[k+ll]*v1ell[ll]*v2ell[n-m-ll];  //Z=10373
-                        sump1 += u1ell[k]*u2ell[m-k]*sump2;  //Z=10374
+                            sump2 += CM->gell[k+ll]*CM->v1ell[ll]*CM->v2ell[n-m-ll];  //Z=10373
+                        sump1 += CM->u1ell[k]*CM->u2ell[m-k]*sump2;  //Z=10374
                     }/*6*/  //Z=10375
                     sump += sump1/((2.0*(n-m))+1);  //Z=10376
                 }/*5*/  //Z=10377
 
                 /* fsum[n]:=sumf;  //Z=10379 */
                 long double sumf = 0.0;  //Z=10380
-                for ( int m=0; m<=n; m++ ) sumf += z12v[n-m]*z12v[m]/(gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=10381
-                fsum[n] = sumf;  //Z=10382
+                for ( int m=0; m<=n; m++ ) sumf += z12v[n-m]*z12v[m]/(CM->gam3[n-m]*CM->gam3[m]*CM->fkv[n-m]*CM->fkv[m]);  //Z=10381
+                CM->fsum[n] = sumf;  //Z=10382
                 /*  P(q)-coefficient  */  //Z=10383
-                params.CR->carr4p[n] = (9*M_PI)*pow(4.0,n-1)*z12v[n]*pow(-1/(4.0*(z+1)*(z+1)),n)*sump/((n+3)*(n+2)*(n+3/2.0)*gam3[n]);  //Z=10384
+                params.CR->carr4p[n] = (9*M_PI)*pow(4.0,n-1)*z12v[n]*pow(-1/(4.0*(z+1)*(z+1)),n)*sump/((n+3)*(n+2)*(n+3/2.0)*CM->gam3[n]);  //Z=10384
                 /*  F(q)-coefficient  */  //Z=10385
                 sump = 0.0;  //Z=10386
                 for ( int m=0; m<=n; m++ )
                 {/*5*/  //Z=10387
                     long double sump1 = 0.0;  //Z=10388
-                    for ( int k=0; k<=m; k++ ) sump1 += fsum[m-k]*fsum[k]*gam3[m-k]*gam3[k]/((k+1/2.0)*(m-k+1/2.0));  //Z=10389
-                    sump += sump1*fsum[n-m]*gam3[n-m]/(n-m+1/2.0);  //Z=10390
+                    for ( int k=0; k<=m; k++ ) sump1 += CM->fsum[m-k]*CM->fsum[k]*CM->gam3[m-k]*CM->gam3[k]/((k+1/2.0)*(m-k+1/2.0));  //Z=10389
+                    sump += sump1*CM->fsum[n-m]*CM->gam3[n-m]/(n-m+1/2.0);  //Z=10390
                 }/*5*/  //Z=10391
-                params.CR->carr4f[n] = M_PI*M_PI*xrn_n*sump/(128.0*gam3[n]);  //Z=10392
+                params.CR->carr4f[n] = M_PI*M_PI*xrn_n*sump/(128.0*CM->gam3[n]);  //Z=10392
                 if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=10393
                     if ( n<n4 ) n4 = n;  //Z=10394
@@ -3068,7 +3295,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     if ( n<n4f ) n4f = n;  //Z=10397
                 }/*5*/  //Z=10398
             }/*4*/  //Z=10399
-            goto Label99;  //Z=10400
+            calcdone_label99 = true; //goto Label99;  //Z=10400
         }/*3*/   /*  of homogeneous  */  //Z=10401
 
         /*  core/shell  */          /*  not yet ready  */  //Z=10403
@@ -3079,7 +3306,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
 
 
     /*  isotropic case for super ellipsoids, barrel  */  //Z=10515
-    if ( (params.ordis==7) && (dim==7) )
+    else if ( (params.ordis==ordis_Isotropic) && (cdim==7) )
     {/*2*/    /*  super ellipsoids  */  //Z=10516
         params.norm = 1;  //Z=10517
         order = 0;  //Z=10518
@@ -3093,7 +3320,8 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                   //params.ax2.x(),params.ax2.y(),params.ax2.z(),
                   //params.ax3.x(),params.ax3.y(),params.ax3.z(),
                   //params.sig.x(),params.sig.y(),params.sig.z(),
-                  params.ordis,3,8,15,7,0,0,params.CR->carr1p,area);
+                  //params.ordis,3,8,
+                  15,7,0,0,params.CR->carr1p,area);
         area = 2*M_PI*area;  //Z=10520
         vol = 2*M_PI*sqr(params.radius)*params.length*gamma((2+params.alphash1)/params.alphash1)*gamma(1/params.alphash1)/(params.alphash1*gamma((3+params.alphash1)/params.alphash1));  //Z=10521
         params.por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=10522
@@ -3101,9 +3329,9 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
         /*  homogeneous  */  //Z=10524
         double u1ell_n = 1.0;             /*  for barrel  */  //Z=10525
         double u2ell_n = 1.0;             /*  for barrel  */  //Z=10526
-        v1ell[0] = gamma((2*0+1)/params.alphash1)*u1ell_n;         /*  for barrel  */  //Z=10536
-        v2ell[0] = gamma((2*0+2+params.alphash1)/params.alphash1)*u2ell_n;    /*  for barrel  */  //Z=10537
-        gell[0]  = gamma((2*0+3+params.alphash1)/params.alphash1);              /*  for barrel  */  //Z=10538
+        CM->v1ell[0] = gamma((2*0+1)/params.alphash1)*u1ell_n;         /*  for barrel  */  //Z=10536
+        CM->v2ell[0] = gamma((2*0+2+params.alphash1)/params.alphash1)*u2ell_n;    /*  for barrel  */  //Z=10537
+        CM->gell[0]  = gamma((2*0+3+params.alphash1)/params.alphash1);              /*  for barrel  */  //Z=10538
 
         long double z12v[nnmax+1];   // local
         z12v[0] = 1.0;
@@ -3113,7 +3341,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
         {/*3*/  //Z=10527
             //z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10528
             //fkv[n] = fkv[n-1]*n;  //Z=10529
-            gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10530  gam3[SIZE
+            CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=10530  gam3[SIZE
             //v1ell[n] = gamma((2*n+1)/params.alphash1)*u1ell_n;         /*  for barrel  */  //Z=10536
             //v2ell[n] = gamma((2*n+2+params.alphash1)/params.alphash1)*u2ell_n;    /*  for barrel  */  //Z=10537
             //gell[n] = gamma((2*n+3+params.alphash1)/params.alphash1);              /*  for barrel  */  //Z=10538
@@ -3127,12 +3355,12 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             for ( int n=0; n<=nmax; n++ )
             {/*4*/  //Z=10542
                 z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10528
-                fkv[n] = fkv[n-1]*n;  //Z=10529
+                CM->fkv[n] = CM->fkv[n-1]*n;  //Z=10529
                 u1ell_n = u1ell_n/((n-1/2.0)*n);   /*  for barrel  */  //Z=10531
                 u2ell_n = u2ell_n/((n+1)*n);     /*  for barrel  */  //Z=10532
-                v1ell[n] = gamma((2*n+1)/params.alphash1)*u1ell_n;         /*  for barrel  */  //Z=10536
-                v2ell[n] = gamma((2*n+2+params.alphash1)/params.alphash1)*u2ell_n;    /*  for barrel  */  //Z=10537
-                gell[n] = gamma((2*n+3+params.alphash1)/params.alphash1);              /*  for barrel  */  //Z=10538
+                CM->v1ell[n] = gamma((2*n+1)/params.alphash1)*u1ell_n;         /*  for barrel  */  //Z=10536
+                CM->v2ell[n] = gamma((2*n+2+params.alphash1)/params.alphash1)*u2ell_n;    /*  for barrel  */  //Z=10537
+                CM->gell[n] = gamma((2*n+3+params.alphash1)/params.alphash1);              /*  for barrel  */  //Z=10538
                 xrn_n = -xrn_n*xr2z;
                 if ( params.alphash1==2 )
                 {/*5*/  //Z=10556
@@ -3147,9 +3375,9 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             {
                                 GAM3S_CHECK(max1,m-ll+n-k)
                                 GAM3S_CHECK(max2,ll+k)
-                                sump2 += 1.0/(fkv[m-ll]*fkv[ll]*(m-ll+n-k+3/2.0)*(ll+k+3/2.0)*gam3[m-ll+n-k]*gam3[ll+k]);  //Z=10563
+                                sump2 += 1.0/(CM->fkv[m-ll]*CM->fkv[ll]*(m-ll+n-k+3/2.0)*(ll+k+3/2.0)*CM->gam3[m-ll+n-k]*CM->gam3[ll+k]);  //Z=10563
                             }
-                            sump1 += sump2/(fkv[n-k]*fkv[k]);  //Z=10564
+                            sump1 += sump2/(CM->fkv[n-k]*CM->fkv[k]);  //Z=10564
                         }/*7*/  //Z=10565
                         params.CR->carr11pm[n][m] = M_PI*sump1;  //Z=10566
                     }/*6*/  //Z=10567
@@ -3165,8 +3393,8 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         {/*7*/  //Z=10574
                             long double sump2 = 0.0;  //Z=10575
                             for ( int ms=0; ms<=m; ms++ )  //Z=10576
-                                sump2 = sump2+v2ell[m-ms]*v2ell[ms]/(gell[ns+ms]*gell[n-ns+m-ms]);  //Z=10577
-                            sump1 = sump1+v1ell[n-ns]*v1ell[ns]*sump2;  //Z=10578
+                                sump2 = sump2+CM->v2ell[m-ms]*CM->v2ell[ms]/(CM->gell[ns+ms]*CM->gell[n-ns+m-ms]);  //Z=10577
+                            sump1 = sump1+CM->v1ell[n-ns]*CM->v1ell[ns]*sump2;  //Z=10578
                         }/*7*/  //Z=10579
                         params.CR->carr11pm[n][m] = sump1;  //Z=10580
                     }/*6*/  //Z=10581
@@ -3174,8 +3402,8 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
 
                 /*  orientational average  */  //Z=10584
                 long double sump = 0.0;  //Z=10585
-                for ( int m=0; m<=n; m++ ) sump += gam3[n-m]*z12v[n-m]*z12v[m]*pow(sqr(params.length),n-m)*pow(sqr(params.radius),m)*fkv[m]*params.CR->carr11pm[n-m][m]/(n-m+1/2.0);  //Z=10586
-                params.CR->carr4p[n] = a1*pow(-1/(4.0*(z+1)*(z+1)),n)*sump/(2.0*gam3[n]);  //Z=10587
+                for ( int m=0; m<=n; m++ ) sump += CM->gam3[n-m]*z12v[n-m]*z12v[m]*pow(sqr(params.length),n-m)*pow(sqr(params.radius),m)*CM->fkv[m]*params.CR->carr11pm[n-m][m]/(n-m+1/2.0);  //Z=10586
+                params.CR->carr4p[n] = a1*pow(-1/(4.0*(z+1)*(z+1)),n)*sump/(2.0*CM->gam3[n]);  //Z=10587
 
 
                 /* fsum[n]:=sumf;  //Z=10590 */
@@ -3188,10 +3416,10 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                 for ( int m=0; m<=n; m++ )
                 {/*5*/  //Z=10597
                     long double sump1 = 0.0;  //Z=10598
-                    for ( int k=0; k<=m; k++ ) sump1 += fsum[m-k]*fsum[k]*gam3[m-k]*gam3[k]/((k+1/2.0)*(m-k+1/2.0));  //Z=10599
-                    sump += sump1*fsum[n-m]*gam3[n-m]/(n-m+1/2.0);  //Z=10600
+                    for ( int k=0; k<=m; k++ ) sump1 += CM->fsum[m-k]*CM->fsum[k]*CM->gam3[m-k]*CM->gam3[k]/((k+1/2.0)*(m-k+1/2.0));  //Z=10599
+                    sump += sump1*CM->fsum[n-m]*CM->gam3[n-m]/(n-m+1/2.0);  //Z=10600
                 }/*5*/  //Z=10601
-                params.CR->carr4f[n] = M_PI*M_PI*xrn_n*sump/(128.0*gam3[n]);  //Z=10602
+                params.CR->carr4f[n] = M_PI*M_PI*xrn_n*sump/(128.0*CM->gam3[n]);  //Z=10602
                 if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=10603
                     if ( n<n4 ) n4 = n;  //Z=10604
@@ -3203,7 +3431,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             }/*4*/  //Z=10609
             GAM3S_PRINT(max1)
             GAM3S_PRINT(max2)
-            goto Label99;  //Z=10610
+            calcdone_label99 = true; //goto Label99;  //Z=10610
         }/*3*/   /*  of homogeneous  */  //Z=10611
 
         /*  core/shell  */          /*  not yet ready  */  //Z=10613
@@ -3214,20 +3442,21 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
 
 
     /*  isotropic case for superballs  */  //Z=10726
-    if ( (params.ordis==7) && (dim==8) )
+    else if ( (params.ordis==ordis_Isotropic) && (cdim==8) )
     {/*2*/    /*  superball  */  //Z=10727
         //new(carr111pm);  //Z=10728
         static const int ardim = 50;  //Z=11221
-        float carr111pm[ardim+1][ardim+1][ardim+1];
+        auto carr111pm = new float[ardim+1][ardim+1][ardim+1];
 
-        nmax = 40;  //Z=10729
+        nmax = 40;  //Z=10729  if ( (params.ordis==ordis_Isotropic) && (cdim==8) )
+
         params.norm = 1;  //Z=10730
         order = 0;  //Z=10731
         /* l:=r;  //Z=10732 */
 
         /*  radius=a, rm=b, length=c  */  //Z=10734
         double area;
-        qrombdeltac(params.radiusi,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,3,8,17,0,0,0,params.CR->carr1p,area);  //Z=10735
+        qrombdeltac(params.radiusi,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,3,*/8,17,0,0,0,params.CR->carr1p,area);  //Z=10735
         area = 8*area;  //Z=10736
         vol = 8*params.radius*params.radiusi*params.length*pow(gamma(1/params.alphash1),3)/(pow(params.alphash1,3)*gamma(1+3/params.alphash1));  //Z=10737
         params.por = 2*M_PI*pow(z+1,4)*area/(z*(z-1)*(z-2)*(z-3)*vol*vol);  //Z=10738
@@ -3235,18 +3464,18 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
 
         /*  homogeneous  */  //Z=10741
         long double u3ell_n = 1.0;             /*  for superball  */  //Z=10742
-        v3ell[0] = exp(gammln((2*0+1)/params.alphash1))*u3ell_n;         /*  for superball  */  //Z=10756
-        g3ell[0] = exp(gammln(((2*0+3)/params.alphash1)+1));              /*  for superball  */  //Z=10757
-        long double z12v[3*nmax+1+1];   // local
+        CM->v3ell[0] = exp(gammln((2*0+1)/params.alphash1))*u3ell_n;         /*  for superball  */  //Z=10756
+        CM->g3ell[0] = exp(gammln(((2*0+3)/params.alphash1)+1));              /*  for superball  */  //Z=10757
+        long double z12v[3*nmax+1+1];   // local, nmax=40 gesetzt!
         z12v[0] = 1.0;
         for ( int n=1; n<=3*nmax+1; n++ )
         {/*3*/  //Z=10743
             z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10744
-            fkv[n] = fkv[n-1]*n;  //Z=10745
-            gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10746
+            CM->fkv[n] = CM->fkv[n-1]*n;  //Z=10745
+            CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=10746
             u3ell_n = u3ell_n/((n-1/2.0)*n);   /*  for superball  */  //Z=10747
-            v3ell[n] = exp(gammln((2*n+1)/params.alphash1))*u3ell_n;          /*  for superball  */  //Z=10756
-            g3ell[n] = exp(gammln(((2*n+3)/params.alphash1)+1));              /*  for superball  */  //Z=10757
+            CM->v3ell[n] = exp(gammln((2*n+1)/params.alphash1))*u3ell_n;          /*  for superball  */  //Z=10756
+            CM->g3ell[n] = exp(gammln(((2*n+3)/params.alphash1)+1));              /*  for superball  */  //Z=10757
         }/*3*/  //Z=10748
 
         if ( params.cs==0 )
@@ -3266,8 +3495,8 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         {/*7*/  //Z=10766
                             long double sump2 = 0.0;  //Z=10767
                             for ( int ll=0; ll<=m; ll++ )  //Z=10768
-                                sump2 += 1/(fkv[m-ll]*fkv[ll]*(m-ll+n-k+3/2.0)*(ll+k+3/2.0)*gam3[m-ll+n-k]*gam3[ll+k]);  //Z=10769
-                            sump1 += sump2/(fkv[n-k]*fkv[k]);  //Z=10770
+                                sump2 += 1/(CM->fkv[m-ll]*CM->fkv[ll]*(m-ll+n-k+3/2.0)*(ll+k+3/2.0)*CM->gam3[m-ll+n-k]*CM->gam3[ll+k]);  //Z=10769
+                            sump1 += sump2/(CM->fkv[n-k]*CM->fkv[k]);  //Z=10770
                         }/*7*/  //Z=10771
                         params.CR->carr11pm[n][m] = M_PI*sump1;  //Z=10772
                     }/*6*/  //Z=10773
@@ -3288,10 +3517,10 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                                 {/*9*/  //Z=10783
                                     double sump3 = 0.0;  //Z=10784
                                     for ( int ks=0; ks<=k; ks++ )  //Z=10785
-                                        sump3 += v3ell[k-ks]*v3ell[ks]/(g3ell[ns+ms+ks]*g3ell[n-ns+m-ms+k-ks]);  //Z=10786
-                                    sump2 += v3ell[m-ms]*v3ell[ms]*sump3;  //Z=10787
+                                        sump3 += CM->v3ell[k-ks]*CM->v3ell[ks]/(CM->g3ell[ns+ms+ks]*CM->g3ell[n-ns+m-ms+k-ks]);  //Z=10786
+                                    sump2 += CM->v3ell[m-ms]*CM->v3ell[ms]*sump3;  //Z=10787
                                 }/*9*/  //Z=10788
-                                sump1 += v3ell[n-ns]*v3ell[ns]*sump2;  //Z=10789
+                                sump1 += CM->v3ell[n-ns]*CM->v3ell[ns]*sump2;  //Z=10789
                             }/*8*/  //Z=10790
                             carr111pm[n][m][k] = sump1;  //Z=10791
                             carr111pm[m][n][k] = sump1;  //Z=10792
@@ -3305,10 +3534,10 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                 {/*5*/  //Z=10799
                     double sump1 = 0.0;  //Z=10800
                     for ( int k=0; k<=m; k++ )  //Z=10801
-                        sump1 += z12v[m-k]*z12v[k]*gam3[m-k]*gam3[k]*pow(params.radiusi*params.radiusi,m-k)*pow(sqr(params.length),k)*carr111pm[n-m][m-k][k]/((m-k+1/2.0)*(k+1/2.0));     /*   //Z=10802 */
-                    sump += z12v[n-m]*gam3[n-m]*pow(params.radius*params.radius,n-m)*sump1/(n-m+1/2.0);  //Z=10803
+                        sump1 += z12v[m-k]*z12v[k]*CM->gam3[m-k]*CM->gam3[k]*pow(params.radiusi*params.radiusi,m-k)*pow(sqr(params.length),k)*carr111pm[n-m][m-k][k]/((m-k+1/2.0)*(k+1/2.0));     /*   //Z=10802 */
+                    sump += z12v[n-m]*CM->gam3[n-m]*pow(params.radius*params.radius,n-m)*sump1/(n-m+1/2.0);  //Z=10803
                 }/*5*/  //Z=10804
-                params.CR->carr4p[n] = (a1/(2.0*M_PI))*pow(-1/(4.0*(z+1)*(z+1)),n)*sump/gam3[n];  //Z=10805
+                params.CR->carr4p[n] = (a1/(2.0*M_PI))*pow(-1/(4.0*(z+1)*(z+1)),n)*sump/CM->gam3[n];  //Z=10805
 
 
                 /* fsum[n]:=sumf;  //Z=10808 */
@@ -3321,10 +3550,10 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                 for ( int m=0; m<=n; m++ )
                 {/*5*/  //Z=10815
                     double sump1 = 0.0;  //Z=10816
-                    for ( int k=0; k<=m; k++ ) sump1 += fsum[m-k]*fsum[k]*gam3[m-k]*gam3[k]/((k+1/2.0)*(m-k+1/2.0));  //Z=10817
-                    sump += sump1*fsum[n-m]*gam3[n-m]/(n-m+1/2.0);  //Z=10818
+                    for ( int k=0; k<=m; k++ ) sump1 += CM->fsum[m-k]*CM->fsum[k]*CM->gam3[m-k]*CM->gam3[k]/((k+1/2.0)*(m-k+1/2.0));  //Z=10817
+                    sump += sump1*CM->fsum[n-m]*CM->gam3[n-m]/(n-m+1/2.0);  //Z=10818
                 }/*5*/  //Z=10819
-                params.CR->carr4f[n] = M_PI*M_PI*xrn_n*sump/(128.0*gam3[n]);  //Z=10820
+                params.CR->carr4f[n] = M_PI*M_PI*xrn_n*sump/(128.0*CM->gam3[n]);  //Z=10820
                 if ( fabs(params.CR->carr4p[n])<min )
                 {/*5*/  //Z=10821
                     if ( n<n4 ) n4 = n;  //Z=10822
@@ -3334,7 +3563,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     if ( n<n4f ) n4f = n;  //Z=10825
                 }/*5*/  //Z=10826
             }/*4*/  //Z=10827
-            goto Label99;  //Z=10828
+            calcdone_label99 = true; //goto Label99;  //Z=10828
         }/*3*/   /*  of homogeneous  */  //Z=10829
 
         /*  core/shell  */          /*  not yet ready  */  //Z=10831
@@ -3342,11 +3571,12 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
              goto 99;  //Z=10861
            end;   (* of core/shell *) */  //Z=10862
         //dispose(carr111pm);  //Z=10863
+        delete[] carr111pm;
     }/*2*/  /*  of dim=5, ellipsoids  */  //Z=10864
 
 
     /* ** isotropic case for cylinders and disks ** */  //Z=10945
-    if ( (params.ordis==7) && (dim!=3) )
+    else if ( (params.ordis==ordis_Isotropic) && (cdim!=3) )
     {/*2*/  //Z=10946
         params.norm = 1;  //Z=10947
         order = 0;  //Z=10948
@@ -3369,11 +3599,11 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                 for ( int n=1; n<=nmax; n++ )
                 {/*5*/  //Z=10958
                     z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10959
-                    z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=10960
+                    CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=10960
                     //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=10961
-                    fkv[n] = fkv[n-1]*n;  //Z=10962
+                    CM->fkv[n] = CM->fkv[n-1]*n;  //Z=10962
                     //fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=10963
-                    gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10964
+                    CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=10964
                     /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=10965 */
                     xln_n = -xln_n*xl2z;  //Z=10966
                     xrn[n] = -xrn_n*xr2z;  //Z=10967 muss Array bleiben!
@@ -3384,16 +3614,16 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     double binsum = 0.0;  //Z=10971
                     /* for m:=0 to n do    (* Cauchy sum *)  //Z=10972 */
                     /*       binsum:=binsum+gam3[m]*z12vl[n-m]*z12v[m]*xln[n-m]*xrn[m]/((n-m+1/2)*(n-m+1)*fkv[n-m]*(m+2)*(m+1)*fkv[m]*(m+1)*fkv[m]);  //Z=10973 */
-                    params.CR->carr11pm[n][0] = sqrt(M_PI)/gam3[n];  //Z=10974
-                    double a1 = sqrt(M_PI)/(2.0*gam3[n]);  //Z=10975
+                    params.CR->carr11pm[n][0] = sqrt(M_PI)/CM->gam3[n];  //Z=10974
+                    double a1 = sqrt(M_PI)/(2.0*CM->gam3[n]);  //Z=10975
                     for ( int m=1; m<=nmax; m++ )
                     {/*6*/    /*  double sum  */  //Z=10976
                         a1 = a1*(m+1/2.0)/(n+m+1/2.0);  //Z=10977
                         /* carr11pm[n,m]:=power(4,m+1)*gam3[m]*z12v[m]*xrn[m]/((m+2)*(m+1)*fkv[m]*(m+1)*fkv[m]*gam3[n+m]);   (* ok *)  //Z=10978 */
-                        params.CR->carr11pm[n][m] = pow(4.0,m+1)*a1*z12v[m]*xrn[m]/((m+2)*(m+1)*fkv[m]*(m+1)*fkv[m]);       /*  Mok  */  //Z=10979
+                        params.CR->carr11pm[n][m] = pow(4.0,m+1)*a1*z12v[m]*xrn[m]/((m+2)*(m+1)*CM->fkv[m]*(m+1)*CM->fkv[m]);       /*  Mok  */  //Z=10979
                     }/*6*/  //Z=10980
-                    params.CR->carr2p[n] = pow(4.0,n-1)*z12vl[n]*xln_n/((n+1/2.0)*(n+1)*fkv[n]);     /*  double sum  */  //Z=10981
-                    params.CR->carr3p[n] = pow(4.0,n)*binsum/gam3[n];      /*  Cauchy sum  */  //Z=10982
+                    params.CR->carr2p[n] = pow(4.0,n-1)*CM->z12vl[n]*xln_n/((n+1/2.0)*(n+1)*CM->fkv[n]);     /*  double sum  */  //Z=10981
+                    params.CR->carr3p[n] = pow(4.0,n)*binsum/CM->gam3[n];      /*  Cauchy sum  */  //Z=10982
                 }/*5*/  //Z=10983
 
             }/*4*/  //Z=10985
@@ -3405,41 +3635,41 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                 for ( int n=1; n<=nmax; n++ )
                 {/*5*/  //Z=10989
                     z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=10990
-                    z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=10991
+                    CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=10991
                     //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=10992
-                    fkv[n] = fkv[n-1]*n;  //Z=10993
-                    fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=10994
-                    gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=10995
+                    CM->fkv[n] = CM->fkv[n-1]*n;  //Z=10993
+                    CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=10994
+                    CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=10995
                     /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=10996 */
                     xln_n = -xln_n*xl2z;  //Z=10997
                     xrn_n = -xrn_n*xr2z;  //Z=10998
                     /*  cylinder, ok */  //Z=10999
-                    if ( dim==1 )
+                    if ( cdim==1 )
                     {/*6*/  //Z=11000
 
                         /*  P(q) factorization  */  //Z=11002
-                        params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln_n/(2.0*(2*n+1)*(n+1)*gam3[n]*fkv[n]);      /*  P||iso(q)  */  //Z=11003
-                        params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);   /*  P-(q)  */  //Z=11004
+                        params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*CM->z12vl[n]*xln_n/(2.0*(2*n+1)*(n+1)*CM->gam3[n]*CM->fkv[n]);      /*  P||iso(q)  */  //Z=11003
+                        params.CR->carr4p[n] = 4*(n+1/2.0)*CM->fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*CM->fkv[n]*CM->fkv[n]*(n+1)*CM->fkv[n]*CM->fkv[n]);   /*  P-(q)  */  //Z=11004
                         /*  F(q)  */  //Z=11005
                         double binsum = 0.0;  //Z=11006
-                        for ( int m=0; m<=n; m++ ) binsum += z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11007
+                        for ( int m=0; m<=n; m++ ) binsum += CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11007
                         params.CR->carr1f[n] = M_PI*xln_n*binsum/(4.0*(2*n+1));  //Z=11008
                         binsum = 0.0;  //Z=11009
-                        for ( int m=0; m<=n; m++ ) binsum += z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11010
+                        for ( int m=0; m<=n; m++ ) binsum += z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11010
                         params.CR->carr4f[n] = xrn_n*binsum;  //Z=11011
                     }/*6*/  //Z=11012
                     /*  disk, ok  */  //Z=11013
-                    if ( dim==2 )
+                    if ( cdim==2 )
                     {/*6*/  //Z=11014
                         /*  P(q)  */  //Z=11015
-                        params.CR->carr1p[n] = 2*pow(4.0,n)*z12vl[n]*xln_n/((n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=11016
-                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=11017
+                        params.CR->carr1p[n] = 2*pow(4.0,n)*CM->z12vl[n]*xln_n/((n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=11016
+                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=11017
                         /*  F(q)  */  //Z=11018
                         double binsum = 0.0;  //Z=11019
-                        for ( int m=0; m<=n; m++ ) binsum += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=11020
-                        params.CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln_n*binsum/(2.0*gam3[n]);  //Z=11021
+                        for ( int m=0; m<=n; m++ ) binsum += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=11020
+                        params.CR->carr1f[n] = sqrt(M_PI)*CM->fkv[n]*xln_n*binsum/(2.0*CM->gam3[n]);  //Z=11021
                         binsum = 0.0;  //Z=11022
-                        for ( int m=0; m<=n; m++ ) binsum += z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11023
+                        for ( int m=0; m<=n; m++ ) binsum += z12v[m]*z12v[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11023
                         params.CR->carr4f[n] = M_PI*xrn_n*binsum/4.0;  //Z=11024
                     }/*6*/  //Z=11025
 
@@ -3470,11 +3700,11 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                 }/*4*/  //Z=11046
 
             }   // Achtung: muss wohl verrutscht sein ...
-
+            calcdone_label99 = true;
         }/*3*/ /*  of homogeneous  */  //Z=11047
 
         /*  core/shell  */  //Z=11049
-        if ( params.cs==1 )
+        else if ( params.cs==1 )
         {/*3*/  //Z=11050
             long double xrmn_n = 1.0;
             long double xrn_n  = 1.0;
@@ -3484,97 +3714,97 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             for ( int n=1; n<=nmax; n++ )
             {/*4*/  //Z=11051
                 z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=11052
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11053
+                CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11053
                 //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=11054
-                fkv[n] = fkv[n-1]*n;  //Z=11055
-                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=11056
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=11057
+                CM->fkv[n] = CM->fkv[n-1]*n;  //Z=11055
+                CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=11056
+                CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=11057
                 /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=11058 */
                 xln_n = -xln_n*xl2z;  //Z=11059
                 xrn_n = -xrn_n*xr2z;  //Z=11060
                 xrmn_n = -xrmn_n*xrm2z;  //Z=11061
-                pn[n] = pn[n-1]*p*p;  //Z=11062
+                CM->pn[n] = CM->pn[n-1]*p*p;  //Z=11062
 
                 /* ** cylinder ** */  //Z=11063
-                if ( dim==1 )
+                if ( cdim==1 )
                 {/*5*/  //Z=11064
                     /*  longitudinal P(q)  */  //Z=11065
-                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln_n/(2.0*(2*n+1)*(n+1)*gam3[n]*fkv[n]);  //Z=11066
+                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*CM->z12vl[n]*xln_n/(2.0*(2*n+1)*(n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=11066
                     /*  cross-sectional P(q)  */  //Z=11067
                     /*  F121  */  //Z=11068
-                    params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=11069
+                    params.CR->carr4p[n] = 4*(n+1/2.0)*CM->fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*CM->fkv[n]*CM->fkv[n]*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=11069
                     /*  F122  */  //Z=11070
                     double sump = 0.0;  //Z=11071
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11072
-                        sump += pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11073
+                        sump += CM->pn[m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11073
                     }/*6*/  //Z=11074
                     params.CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=11075
                     /*  F123  */  //Z=11076
-                    params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=11077
+                    params.CR->carr6p[n] = params.CR->carr4p[n]/CM->pn[n];  //Z=11077
 
                     /*  longitudinal F(q)  */  //Z=11079
                     double binsum = 0.0;  //Z=11080
-                    for ( int m=0; m<=n; m++ ) binsum += z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11081
+                    for ( int m=0; m<=n; m++ ) binsum += CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11081
                     params.CR->carr1f[n] = M_PI*xln_n*binsum/(4.0*(2*n+1));  //Z=11082
                     /*  cross-sectional F(q)  */  //Z=11083
                     /*  F121  */  //Z=11084
                     sump = 0.0;  //Z=11085
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11086
-                        sump += z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11087
+                        sump += z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11087
                     }/*6*/  //Z=11088
                     params.CR->carr4f[n] = xrn_n*sump;  //Z=11089
                     /*  F122  */  //Z=11090
                     sump = 0.0;  //Z=11091
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11092
-                        sump += z12v[m]*z12v[n-m]*pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11093
+                        sump += z12v[m]*z12v[n-m]*CM->pn[m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11093
                     }/*6*/  //Z=11094
                     params.CR->carr5f[n] = xrmn_n*sump;  //Z=11095
                     /*  F123  */  //Z=11096
-                    params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=11097
+                    params.CR->carr6f[n] = params.CR->carr4f[n]/CM->pn[n];  //Z=11097
                 }/*5*/  //Z=11098
 
                 /* ** disk ** */  //Z=11100
-                if ( dim==2 )
+                else if ( cdim==2 )
                 {/*5*/  //Z=11101
                     /*  longitudinal  */  //Z=11102
-                    params.CR->carr1p[n] = 2*pow(4.0,n)*z12vl[n]*xln_n/((n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=11103
+                    params.CR->carr1p[n] = 2*pow(4.0,n)*CM->z12vl[n]*xln_n/((n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=11103
                     /*  cross-sectional P(q)  */  //Z=11104
                     /*  F121  */  //Z=11105
-                    params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=11106
+                    params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=11106
                     /*  F122  */  //Z=11107
                     double sump = 0.0;  //Z=11108
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11109
-                        sump += pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11110
+                        sump += CM->pn[m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11110
                     }/*6*/  //Z=11111
                     params.CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=11112
                     /*  F123  */  //Z=11113
-                    params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=11114
+                    params.CR->carr6p[n] = params.CR->carr4p[n]/CM->pn[n];  //Z=11114
 
                     /*  longitudinal F(q)  */  //Z=11116
                     double binsum = 0.0;  //Z=11117
-                    for ( int m=0; m<=n; m++ ) binsum += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=11118
-                    params.CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln_n*binsum/(2.0*gam3[n]);  //Z=11119
+                    for ( int m=0; m<=n; m++ ) binsum += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=11118
+                    params.CR->carr1f[n] = sqrt(M_PI)*CM->fkv[n]*xln_n*binsum/(2.0*CM->gam3[n]);  //Z=11119
                     /*  cross-sectional F(q)  */  //Z=11120
                     /*  F121  */  //Z=11121
                     sump = 0.0;  //Z=11122
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11123
-                        sump += z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11124
+                        sump += z12v[m]*z12v[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11124
                     }/*6*/  //Z=11125
                     params.CR->carr4f[n] = M_PI*xrn_n*sump/4.0;  //Z=11126
                     /*  F122  */  //Z=11127
                     sump = 0.0;  //Z=11128
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11129
-                        sump += pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11130
+                        sump += CM->pn[m]*z12v[m]*z12v[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11130
                     }/*6*/  //Z=11131
                     params.CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=11132
                     /*  F123  */  //Z=11133
-                    params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=11134
+                    params.CR->carr6f[n] = params.CR->carr4f[n]/CM->pn[n];  //Z=11134
                 }/*5*/  //Z=11135
 
                 if ( fabs(params.CR->carr1p[n])<min )
@@ -3614,10 +3844,11 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     if ( n<n6f ) n6f = n;  //Z=11161
                 }/*5*/  //Z=11162
             }/*4*/  //Z=11163
+            calcdone_label99 = true;
         }/*3*/ /*  of core/shell  */  //Z=11164
 
         /*  inhomogeneous core/shell  */  //Z=11166
-        if ( params.cs==2 )
+        else if ( params.cs==2 )
         {/*3*/  //Z=11167
             long double xrmn_n = 1.0;
             long double z12v_n = 1.0;
@@ -3626,30 +3857,30 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             for ( int n=1; n<=nmax; n++ )
             {/*4*/  //Z=11168
                 z12v_n = z12v_n*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=11169
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11170
+                CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11170
                 //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=11171
-                fkv[n] = fkv[n-1]*n;  //Z=11172
-                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=11173
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=11174
+                CM->fkv[n] = CM->fkv[n-1]*n;  //Z=11172
+                CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=11173
+                CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=11174
                 /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=11175 */
                 xln_n = -xln_n*xl2z;  //Z=11176
                 xrn_n  = -xrn_n*xr2z;  //Z=11177
                 xrmn_n = -xrmn_n*xrm2z;  //Z=11178
-                pn[n] = pn[n-1]*p*p;  //Z=11179
+                CM->pn[n] = CM->pn[n-1]*p*p;  //Z=11179
                 /* ** cylinder ** */  //Z=11180
-                if ( dim==1 )
+                if ( cdim==1 )
                 {/*5*/  //Z=11181
                     /*  longitudinal P(q)  */  //Z=11182
-                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln_n/(2.0*(2*n+1)*(n+1)*gam3[n]*fkv[n]);  //Z=11183
+                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*CM->z12vl[n]*xln_n/(2.0*(2*n+1)*(n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=11183
 
                     /*  cross-sectional P(q)  */  //Z=11185
-                    params.CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v_n*xrn_n/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=11186
+                    params.CR->carr4p[n] = pow(4.0,n+1)*CM->gam3[n]*z12v_n*xrn_n/(sqrt(M_PI)*(n+2)*(n+1)*CM->fkv[n]*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=11186
                     double sump = 0.0;  //Z=11187
                     double sump1 = 0.0;  //Z=11188
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11189
-                        const double sumi = 1/((m+1-params.alphash1/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=11190
-                        sump += pn[n-m]*sumi;  //Z=11191
+                        const double sumi = 1/((m+1-params.alphash1/2.0)*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]*CM->fkv[m]);  //Z=11190
+                        sump += CM->pn[n-m]*sumi;  //Z=11191
                         sump1 += sumi;  //Z=11192
                     }/*6*/  //Z=11193
                     params.CR->carr5p[n] = (1-params.uca/2.0)*z12v_n*xrmn_n*sump;  //Z=11194
@@ -3658,9 +3889,9 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     sump1 = 0.0;  //Z=11197
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11198
-                        const double sumi = 1/((n-m+1-params.alphash1/2.0)*(m+1-params.alphash1/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=11199
+                        const double sumi = 1/((n-m+1-params.alphash1/2.0)*(m+1-params.alphash1/2.0)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11199
                         sump += sumi;  //Z=11200
-                        sump1 += pn[n-m]*sumi;  //Z=11201
+                        sump1 += CM->pn[n-m]*sumi;  //Z=11201
                     }/*6*/  //Z=11202
                     params.CR->carr7p[n] = (1-params.alphash1/2.0)*(1-params.alphash1/2.0)*z12v_n*xrmn_n*sump;  //Z=11203
                     params.CR->carr8p[n] = (1-params.alphash1/2.0)*(1-params.alphash1/2.0)*z12v_n*xrmn_n*sump1;  //Z=11204
@@ -3681,29 +3912,29 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
 
                     /*  longitudinal F(q)  */  //Z=11220
                     double binsum = 0.0;  //Z=11221
-                    for ( int m=0; m<=n; m++ ) binsum += z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11222
+                    for ( int m=0; m<=n; m++ ) binsum += CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11222
                     params.CR->carr1f[n] = M_PI*xln_n*binsum/(4.0*(2*n+1));  //Z=11223
                     /*  cross-sectional F(q)  */  //Z=11224
-                    params.CR->carr4f[n] = z12v_n*xrn_n/((n+1)*fkv[n]*fkv[n]);  //Z=11225
-                    params.CR->carr5f[n] = (1-params.alphash1/2.0)*z12v_n*xrmn_n/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=11226
-                    params.CR->carr6f[n] = (1-params.alphash1/2.0)*z12v_n*xrn_n/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=11227
+                    params.CR->carr4f[n] = z12v_n*xrn_n/((n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=11225
+                    params.CR->carr5f[n] = (1-params.alphash1/2.0)*z12v_n*xrmn_n/((n+1-params.alphash1/2.0)*CM->fkv[n]*CM->fkv[n]);  //Z=11226
+                    params.CR->carr6f[n] = (1-params.alphash1/2.0)*z12v_n*xrn_n/((n+1-params.alphash1/2.0)*CM->fkv[n]*CM->fkv[n]);  //Z=11227
 
                 }/*5*/  //Z=11229
 
                 /* ** disk ** */  //Z=11231
-                if ( dim==2 )
+                if ( cdim==2 )
                 {/*5*/  //Z=11232
                     /*  longitudinal  */  //Z=11233
-                    params.CR->carr1p[n] = 2*pow(4.0,n)*z12vl[n]*xln_n/((n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=11234
+                    params.CR->carr1p[n] = 2*pow(4.0,n)*CM->z12vl[n]*xln_n/((n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=11234
 
                     /*  cross-sectional P(q)  */  //Z=11237
-                    params.CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v_n*xrn_n/((n+1)*gam3[n]*fkv[n]);  //Z=11238
+                    params.CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v_n*xrn_n/((n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=11238
                     double sump = 0.0;  //Z=11239
                     double sump1 = 0.0;  //Z=11240
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11241
-                        const double sumi = (m+1/2.0)/((m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=11242
-                        sump += pn[n-m]*sumi;  //Z=11243
+                        const double sumi = (m+1/2.0)/((m+1/2.0-params.alphash1/2.0)*CM->gam3[n-m]*CM->gam3[m]*CM->fkv[n-m]*CM->fkv[m]);  //Z=11242
+                        sump += CM->pn[n-m]*sumi;  //Z=11243
                         sump1 += sumi;  //Z=11244
                     }/*6*/  //Z=11245
                     params.CR->carr5p[n] = (M_PI/4.0)*(1-params.alphash1)*z12v_n*xrmn_n*sump;  //Z=11246
@@ -3712,9 +3943,9 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     sump1 = 0.0;  //Z=11249
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11250
-                        const double sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-params.alphash1/2.0)*(m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=11251
+                        const double sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-params.alphash1/2.0)*(m+1/2.0-params.alphash1/2.0)*CM->gam3[n-m]*CM->gam3[m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11251
                         sump += sumi;  //Z=11252
-                        sump1 += pn[n-m]*sumi;  //Z=11253
+                        sump1 += CM->pn[n-m]*sumi;  //Z=11253
                     }/*6*/  //Z=11254
                     params.CR->carr7p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v_n*xrmn_n*sump;  //Z=11255
                     params.CR->carr8p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v_n*xrmn_n*sump1;  //Z=11256
@@ -3735,12 +3966,12 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
 
                     /*  longitudinal F(q)  */  //Z=11272
                     double binsum = 0.0;  //Z=11273
-                    for ( int m=0; m<=n; m++ ) binsum += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=11274
-                    params.CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln_n*binsum/(2.0*gam3[n]);  //Z=11275
+                    for ( int m=0; m<=n; m++ ) binsum += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=11274
+                    params.CR->carr1f[n] = sqrt(M_PI)*CM->fkv[n]*xln_n*binsum/(2.0*CM->gam3[n]);  //Z=11275
                     /*  cross-sectional F(q)  */  //Z=11276
-                    params.CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v_n*xrn_n/(gam3[n]*fkv[n]);  //Z=11277
-                    params.CR->carr5f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v_n*xrmn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=11278
-                    params.CR->carr6f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v_n*xrn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=11279
+                    params.CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v_n*xrn_n/(CM->gam3[n]*CM->fkv[n]);  //Z=11277
+                    params.CR->carr5f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v_n*xrmn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*CM->gam3[n]*CM->fkv[n]);  //Z=11278
+                    params.CR->carr6f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v_n*xrn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*CM->gam3[n]*CM->fkv[n]);  //Z=11279
                 }/*5*/  //Z=11280
                 if ( fabs(params.CR->carr1p[n])<min )
                 {/*5*/  //Z=11281
@@ -3799,6 +4030,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     if ( n<n9f ) n9f = n;  //Z=11321
                 }/*5*/  //Z=11322
             }/*4*/  //Z=11323
+            calcdone_label99 = true;
         }/*3*/ /*  of inhomogeneous core/shell  */  //Z=11324
 
         /*  myelin  */  //Z=11327
@@ -3812,58 +4044,58 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             for ( int n=1; n<=nmax; n++ )
             {/*4*/  //Z=11330
                 z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=11331
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11332
+                CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11332
                 //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=11333
-                fkv[n] = fkv[n-1]*n;  //Z=11334
-                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=11335
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=11336
+                CM->fkv[n] = CM->fkv[n-1]*n;  //Z=11334
+                CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=11335
+                CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=11336
                 /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=11337 */
                 xln_n = -xln_n*xl2z;  //Z=11338
                 /* xrn[n]:=-xrn[n-1]*xr2z;  //Z=11339 */
                 xrn_n = -xrn_n*x12zm;         /*  myelin radius  */  //Z=11340
                 /*  cylinder, ok */  //Z=11341
-                if ( dim==1 )
+                if ( cdim==1 )
                 {/*5*/  //Z=11342
                     /*  P(q)  */  //Z=11343
-                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln_n/(2.0*(2*n+1)*(n+1)*gam3[n]*fkv[n]);  //Z=11344
+                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*CM->z12vl[n]*xln_n/(2.0*(2*n+1)*(n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=11344
 
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11346
                         /* carr1pm[i]:=1/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11347 */
                         /* i:=i+1;  //Z=11348 */
-                        params.CR->carr11pm[n][m] = 1/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11349
+                        params.CR->carr11pm[n][m] = 1/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11349
                     }/*6*/  //Z=11350
                     params.CR->carr4p[n] = z12v[n]*xrn_n;  //Z=11351
                     /* carr4p[n]:=4*(n+1/2)*fk2v[n]*z12v[n]*xrn[n]/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=11352 */
 
                     /*  F(q)  */  //Z=11355
                     double binsum = 0.0;  //Z=11356
-                    for ( int m=0; m<=n; m++ ) binsum += z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11357
+                    for ( int m=0; m<=n; m++ ) binsum += CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11357
                     params.CR->carr1f[n] = M_PI*xln_n*binsum/(4.0*(2*n+1));  //Z=11358
                     binsum = 0.0;  //Z=11359
-                    for ( int m=0; m<=n; m++ ) binsum += z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11360
+                    for ( int m=0; m<=n; m++ ) binsum += z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11360
                     params.CR->carr4f[n] = xrn_n*binsum;  //Z=11361
                 }/*5*/  //Z=11362
                 /*  disk, ok  */  //Z=11363
-                if ( dim==2 )
+                if ( cdim==2 )
                 {/*5*/  //Z=11364
                     /*  P(q)  */  //Z=11365
-                    params.CR->carr1p[n] = 2*pow(4.0,n)*z12vl[n]*xln_n/((n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=11366
+                    params.CR->carr1p[n] = 2*pow(4.0,n)*CM->z12vl[n]*xln_n/((n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=11366
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11367
                         /* carr1pm[i]:=1/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11368 */
                         /* i:=i+1;  //Z=11369 */
-                        params.CR->carr11pm[n][m] = (M_PI/4.0)*(1/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]));  //Z=11370
+                        params.CR->carr11pm[n][m] = (M_PI/4.0)*(1/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]));  //Z=11370
                     }/*6*/  //Z=11371
                     params.CR->carr4p[n] = z12v[n]*xrn_n;  //Z=11372
 
                     /* carr4p[n]:=power(4,n)*sqrt(pi)*z12v[n]*xrn[n]/(2*(n+1)*gam3[n]*fkv[n]);  //Z=11374 */
                     /*  F(q)  */  //Z=11375
                     double binsum = 0.0;  //Z=11376
-                    for ( int m=0; m<=n; m++ ) binsum += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=11377
-                    params.CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln_n*binsum/(2.0*gam3[n]);  //Z=11378
+                    for ( int m=0; m<=n; m++ ) binsum += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=11377
+                    params.CR->carr1f[n] = sqrt(M_PI)*CM->fkv[n]*xln_n*binsum/(2.0*CM->gam3[n]);  //Z=11378
                     binsum = 0.0;  //Z=11379
-                    for ( int m=0; m<=n; m++ ) binsum += z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11380
+                    for ( int m=0; m<=n; m++ ) binsum += z12v[m]*z12v[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11380
                     params.CR->carr4f[n] = M_PI*xrn_n*binsum/4.0;  //Z=11381
                 }/*5*/  //Z=11382
                 if ( fabs(params.CR->carr1p[n])<min )
@@ -3883,13 +4115,14 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     if ( n<n4f ) n4f = n;  //Z=11393
                 }/*5*/  //Z=11394
             }/*4*/  //Z=11395
+            calcdone_label99 = true;
         }/*3*/ /*  of myelin  */  //Z=11396
 
     }/*2*/  //Z=11398
 
 
     /* ** perfect orientation for cylinders and disks ** */  //Z=11400
-    if ( (params.ordis==6) && (dim!=3) )
+    else if ( (params.ordis==ordis_ZDir) && (cdim!=3) )
     {/*2*/  //Z=11401
         params.norm = 1;  //Z=11402
         order = 1;  //Z=11403
@@ -3903,49 +4136,49 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             for ( int n=1; n<=nmax; n++ )
             {/*4*/  //Z=11406
                 z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=11407
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11408
+                CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11408
                 //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=11409
-                fkv[n] = fkv[n-1]*n;  //Z=11410
-                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=11411
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=11412
+                CM->fkv[n] = CM->fkv[n-1]*n;  //Z=11410
+                CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=11411
+                CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=11412
                 /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=11413 */
                 xln_n = -xln_n*xl2z;  //Z=11414
                 xrn_n = -xrn_n*xr2z;  //Z=11415
-                if ( dim==1 )
+                if ( cdim==1 )
                 {/*5*/ /*  cylinder  */  //Z=11416
                     /*  P(q)-coefficients  */  //Z=11417
-                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln_n/(2.0*(n+1)*gam3[n]*fkv[n]);       /*  P||(q)  */  //Z=11418
-                    params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  /*  P-(q)  */  //Z=11419
+                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*CM->z12vl[n]*xln_n/(2.0*(n+1)*CM->gam3[n]*CM->fkv[n]);       /*  P||(q)  */  //Z=11418
+                    params.CR->carr4p[n] = 4*(n+1/2.0)*CM->fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*CM->fkv[n]*CM->fkv[n]*(n+1)*CM->fkv[n]);  /*  P-(q)  */  //Z=11419
                     /*  F(q)-coefficients  */  //Z=11420
                     double sump = 0.0;  //Z=11421
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11422
-                        sump += z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11423
+                        sump += CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11423
                     }/*6*/  //Z=11424
                     params.CR->carr1f[n] = M_PI*xln_n*sump/4.0;  //Z=11425
                     sump = 0.0;  //Z=11426
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11427
-                        sump += z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11428
+                        sump += z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11428
                     }/*6*/  //Z=11429
                     params.CR->carr4f[n] = xrn_n*sump;  //Z=11430
                 }/*5*/  //Z=11431
-                if ( dim==2 )
+                if ( cdim==2 )
                 {/*5*/ /*  disk  */  //Z=11432
                     /*  P(q)-coefficients  */  //Z=11433
-                    params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);    /*  P-(q)  */  //Z=11434
-                    params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*gam3[n]*fkv[n]);           /*  P||(q)  */  //Z=11435
+                    params.CR->carr1p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);    /*  P-(q)  */  //Z=11434
+                    params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*CM->gam3[n]*CM->fkv[n]);           /*  P||(q)  */  //Z=11435
                     /*  F(q)-coefficients  */  //Z=11436
                     double sump = 0.0;  //Z=11437
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11438
-                        sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11439
+                        sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11439
                     }/*6*/  //Z=11440
-                    params.CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln_n*sump/(2.0*gam3[n]);  //Z=11441
+                    params.CR->carr1f[n] = sqrt(M_PI)*CM->fkv[n]*xln_n*sump/(2.0*CM->gam3[n]);  //Z=11441
                     sump = 0.0;  //Z=11442
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11443
-                        sump += z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11444
+                        sump += z12v[m]*z12v[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11444
                     }/*6*/  //Z=11445
                     params.CR->carr4f[n] = M_PI*xln_n*sump/4.0;  //Z=11446
                 }/*5*/  //Z=11447
@@ -3974,50 +4207,51 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     if ( n<n4f ) n4f = n;  //Z=11464
                 }/*5*/  //Z=11465
             }/*4*/  //Z=11466
+            calcdone_label99 = true;
         }/*3*/  //Z=11467
 
         /*  core/shell  */  //Z=11469
-        if ( params.cs==1 )
+        else if ( params.cs==1 )
         {/*3*/  //Z=11470
             double xrmn_n = 1.0;
             double xrn_n = 1.0;
             for ( int n=1; n<=nmax; n++ )
             {/*4*/  //Z=11471
                 z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=11472
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11473
+                CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11473
                 //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=11474
-                fkv[n] = fkv[n-1]*n;  //Z=11475
-                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=11476
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=11477
+                CM->fkv[n] = CM->fkv[n-1]*n;  //Z=11475
+                CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=11476
+                CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=11477
                 /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=11478 */
                 xln_n = -xln_n*xl2z;  //Z=11479
                 xrn_n = -xrn_n*xr2z;  //Z=11480
                 xrmn_n = -xrmn_n*xrm2z;  //Z=11481
-                pn[n] = pn[n-1]*p*p;  //Z=11482
-                if ( dim==1 )
+                CM->pn[n] = CM->pn[n-1]*p*p;  //Z=11482
+                if ( cdim==1 )
                 {/*5*/ /*  cylinder  */  //Z=11483
                     /*  P(q)-coefficients  */  //Z=11484
                     /*  longitudinal  */  //Z=11485
-                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln_n/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=11486
+                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*CM->z12vl[n]*xln_n/(2.0*(n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=11486
                     /*  cross-sectional  */  //Z=11487
                     /*  F121  */  //Z=11488
-                    params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=11489
+                    params.CR->carr4p[n] = 4*(n+1/2.0)*CM->fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*CM->fkv[n]*CM->fkv[n]*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=11489
                     /*  F122  */  //Z=11490
                     double sump = 0.0;  //Z=11491
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11492
-                        sump += pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=11493
+                        sump += CM->pn[m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=11493
                     }/*6*/  //Z=11494
                     params.CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=11495
                     /*  F123  */  //Z=11496
-                    params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=11497
+                    params.CR->carr6p[n] = params.CR->carr4p[n]/CM->pn[n];  //Z=11497
 
                     /*  F(q)-coefficients  */  //Z=11499
                     /*  longitudinal  */  //Z=11500
                     sump = 0.0;  //Z=11501
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11502
-                        sump += z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11503
+                        sump += CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11503
                     }/*6*/  //Z=11504
                     params.CR->carr1f[n] = M_PI*xln_n*sump/4.0;  //Z=11505
                     /*  cross-sectional  */  //Z=11506
@@ -4025,28 +4259,28 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     sump = 0.0;  //Z=11508
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11509
-                        sump += z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11510
+                        sump += z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11510
                     }/*6*/  //Z=11511
                     params.CR->carr4f[n] = xrn_n*sump;  //Z=11512
                     /*  F122  */  //Z=11513
                     sump = 0.0;  //Z=11514
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11515
-                        sump += pn[m]*z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11516
+                        sump += CM->pn[m]*z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11516
                     }/*6*/  //Z=11517
                     params.CR->carr5f[n] = xrmn_n*sump;  //Z=11518
                     /*  F123  */  //Z=11519
-                    params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=11520
+                    params.CR->carr6f[n] = params.CR->carr4f[n]/CM->pn[n];  //Z=11520
                 }/*5*/  //Z=11521
 
-                if ( dim==2 )
+                if ( cdim==2 )
                 {/*5*/ /*  disk  */  //Z=11523
                     /*  P(q)-coefficients  */  //Z=11524
                     /*  longitudinal  */  //Z=11525
-                    params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=11526
+                    params.CR->carr1p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=11526
                     /*  cross-sectional  */  //Z=11527
                     /*  F121  */  //Z=11528
-                    params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=11529
+                    params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=11529
                     /*  F122  */  //Z=11530
                     /* sump:=0.0;  //Z=11531 */
                     /*    for m:=0 to n do begin  //Z=11532 */
@@ -4058,38 +4292,38 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     double sump = 0.0;  //Z=11538
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11539
-                        sump += pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11540
+                        sump += CM->pn[m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11540
                     }/*6*/  //Z=11541
                     params.CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=11542
 
 
                     /*  F123  */  //Z=11545
-                    params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=11546
+                    params.CR->carr6p[n] = params.CR->carr4p[n]/CM->pn[n];  //Z=11546
                     /*  F(q)-coefficients  */  //Z=11547
                     /*  longitudinal  */  //Z=11548
                     sump = 0.0;  //Z=11549
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11550
-                        sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11551
+                        sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11551
                     }/*6*/  //Z=11552
-                    params.CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln_n*sump/(2.0*gam3[n]);  //Z=11553
+                    params.CR->carr1f[n] = sqrt(M_PI)*CM->fkv[n]*xln_n*sump/(2.0*CM->gam3[n]);  //Z=11553
                     /*  cross-sectional  */  //Z=11554
                     /*  F121  */  //Z=11555
                     sump = 0.0;  //Z=11556
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11557
-                        sump += z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11558
+                        sump += z12v[m]*z12v[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11558
                     }/*6*/  //Z=11559
                     params.CR->carr4f[n] = M_PI*xrn_n*sump/4.0;  //Z=11560
                     /*  F122  */  //Z=11561
                     sump = 0.0;  //Z=11562
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11563
-                        sump += pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11564
+                        sump += CM->pn[m]*z12v[m]*z12v[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11564
                     }/*6*/  //Z=11565
                     params.CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=11566
                     /*  F123  */  //Z=11567
-                    params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=11568
+                    params.CR->carr6f[n] = params.CR->carr4f[n]/CM->pn[n];  //Z=11568
                 }/*5*/  //Z=11569
                 if ( fabs(params.CR->carr1p[n])<min )
                 {/*5*/  //Z=11570
@@ -4124,40 +4358,41 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     if ( n<n6f ) n6f = n;  //Z=11592
                 }/*5*/  //Z=11593
             }/*4*/  //Z=11594
+            calcdone_label99 = true;
         }/*3*/  /*  of core/shell  */  //Z=11595
 
         /*  inhomogeneous core/shell  */  //Z=11597
-        if ( params.cs==2 )
+        else if ( params.cs==2 )
         {/*3*/  //Z=11598
             double xrmn_n = 1.0;
             double xrn_n = 1.0;
             for ( int n=1; n<=nmax; n++ )
             {/*4*/  //Z=11599
                 z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=11600
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11601
+                CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11601
                 //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=11602
-                fkv[n] = fkv[n-1]*n;  //Z=11603
-                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=11604
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=11605
+                CM->fkv[n] = CM->fkv[n-1]*n;  //Z=11603
+                CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=11604
+                CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=11605
                 /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=11606 */
                 xln_n = -xln_n*xl2z;  //Z=11607
                 xrn_n = -xrn_n*xr2z;  //Z=11608
                 xrmn_n = -xrmn_n*xrm2z;  //Z=11609
-                pn[n] = pn[n-1]*p*p;  //Z=11610
-                if ( dim==1 )
+                CM->pn[n] = CM->pn[n-1]*p*p;  //Z=11610
+                if ( cdim==1 )
                 {/*5*/ /*  cylinder  */  //Z=11611
                     /*  P(q)-coefficients  */  //Z=11612
                     /*  longitudinal  */  //Z=11613
-                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln_n/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=11614
+                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*CM->z12vl[n]*xln_n/(2.0*(n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=11614
 
                     /*  cross-sectional P(q)  */  //Z=11616
-                    params.CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v[n]*xrn_n/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=11617
+                    params.CR->carr4p[n] = pow(4.0,n+1)*CM->gam3[n]*z12v[n]*xrn_n/(sqrt(M_PI)*(n+2)*(n+1)*CM->fkv[n]*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=11617
                     double sump = 0.0;  //Z=11618
                     double sump1 = 0.0;  //Z=11619
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11620
-                        const double sumi = 1/((m+1-params.alphash1/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=11621
-                        sump += pn[n-m]*sumi;  //Z=11622
+                        const double sumi = 1/((m+1-params.alphash1/2.0)*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]*CM->fkv[m]);  //Z=11621
+                        sump += CM->pn[n-m]*sumi;  //Z=11622
                         sump1 += sumi;  //Z=11623
                     }/*6*/  //Z=11624
                     params.CR->carr5p[n] = (1-params.uca/2.0)*z12v[n]*xrmn_n*sump;  //Z=11625
@@ -4166,9 +4401,9 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     sump1 = 0.0;  //Z=11628
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11629
-                        const double sumi = 1/((n-m+1-params.alphash1/2.0)*(m+1-params.alphash1/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=11630
+                        const double sumi = 1/((n-m+1-params.alphash1/2.0)*(m+1-params.alphash1/2.0)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11630
                         sump += sumi;  //Z=11631
-                        sump1 += pn[n-m]*sumi;  //Z=11632
+                        sump1 += CM->pn[n-m]*sumi;  //Z=11632
                     }/*6*/  //Z=11633
                     params.CR->carr7p[n] = (1-params.alphash1/2.0)*(1-params.alphash1/2.0)*z12v[n]*xrmn_n*sump;  //Z=11634
                     params.CR->carr8p[n] = (1-params.alphash1/2.0)*(1-params.alphash1/2.0)*z12v[n]*xrmn_n*sump1;  //Z=11635
@@ -4191,29 +4426,29 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     sump = 0.0;  //Z=11652
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11653
-                        sump += z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11654
+                        sump += CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11654
                     }/*6*/  //Z=11655
                     params.CR->carr1f[n] = M_PI*xln_n*sump/4.0;  //Z=11656
                     /*  cross-sectional  */  //Z=11657
-                    params.CR->carr4f[n] = z12v[n]*xrn_n/((n+1)*fkv[n]*fkv[n]);  //Z=11658
-                    params.CR->carr5f[n] = (1-params.alphash1/2.0)*z12v[n]*xrmn_n/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=11659
-                    params.CR->carr6f[n] = (1-params.alphash1/2.0)*z12v[n]*xrn_n/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=11660
+                    params.CR->carr4f[n] = z12v[n]*xrn_n/((n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=11658
+                    params.CR->carr5f[n] = (1-params.alphash1/2.0)*z12v[n]*xrmn_n/((n+1-params.alphash1/2.0)*CM->fkv[n]*CM->fkv[n]);  //Z=11659
+                    params.CR->carr6f[n] = (1-params.alphash1/2.0)*z12v[n]*xrn_n/((n+1-params.alphash1/2.0)*CM->fkv[n]*CM->fkv[n]);  //Z=11660
                 }/*5*/  //Z=11661
 
-                if ( dim==2 )
+                if ( cdim==2 )
                 {/*5*/ /*  disk  */  //Z=11663
                     /*  P(q)-coefficients  */  //Z=11664
                     /*  longitudinal  */  //Z=11665
-                    params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=11666
+                    params.CR->carr1p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=11666
 
                     /*  cross-sectional P(q)  */  //Z=11668
-                    params.CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn_n/((n+1)*gam3[n]*fkv[n]);  //Z=11669
+                    params.CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn_n/((n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=11669
                     double sump = 0.0;  //Z=11670
                     double sump1 = 0.0;  //Z=11671
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11672
-                        const double sumi = (m+1/2.0)/((m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=11673
-                        sump += pn[n-m]*sumi;  //Z=11674
+                        const double sumi = (m+1/2.0)/((m+1/2.0-params.alphash1/2.0)*CM->gam3[n-m]*CM->gam3[m]*CM->fkv[n-m]*CM->fkv[m]);  //Z=11673
+                        sump += CM->pn[n-m]*sumi;  //Z=11674
                         sump1 += sumi;  //Z=11675
                     }/*6*/  //Z=11676
                     params.CR->carr5p[n] = (M_PI/4.0)*(1-params.alphash1)*z12v[n]*xrmn_n*sump;  //Z=11677
@@ -4222,9 +4457,9 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     sump1 = 0.0;  //Z=11680
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11681
-                        const double sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-params.alphash1/2.0)*(m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=11682
+                        const double sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-params.alphash1/2.0)*(m+1/2.0-params.alphash1/2.0)*CM->gam3[n-m]*CM->gam3[m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11682
                         sump += sumi;  //Z=11683
-                        sump1 += pn[n-m]*sumi;  //Z=11684
+                        sump1 += CM->pn[n-m]*sumi;  //Z=11684
                     }/*6*/  //Z=11685
                     params.CR->carr7p[n] = (M_PI/4.0)*(1-params.alphash1)*(1-params.alphash1)*z12v[n]*xrmn_n*sump;  //Z=11686
                     params.CR->carr8p[n] = (M_PI/4.0)*(1-params.alphash1)*(1-params.alphash1)*z12v[n]*xrmn_n*sump1;  //Z=11687
@@ -4255,13 +4490,13 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     sump = 0.0;  //Z=11712
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11713
-                        sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11714
+                        sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11714
                     }/*6*/  //Z=11715
-                    params.CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln_n*sump/(2.0*gam3[n]);  //Z=11716
+                    params.CR->carr1f[n] = sqrt(M_PI)*CM->fkv[n]*xln_n*sump/(2.0*CM->gam3[n]);  //Z=11716
                     /*  cross-sectional  */  //Z=11717
-                    params.CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn_n/(gam3[n]*fkv[n]);  //Z=11718
-                    params.CR->carr5f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=11719
-                    params.CR->carr6f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=11720
+                    params.CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn_n/(CM->gam3[n]*CM->fkv[n]);  //Z=11718
+                    params.CR->carr5f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*CM->gam3[n]*CM->fkv[n]);  //Z=11719
+                    params.CR->carr6f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*CM->gam3[n]*CM->fkv[n]);  //Z=11720
 
                 }/*5*/  //Z=11722
                 if ( fabs(params.CR->carr1p[n])<min )
@@ -4321,27 +4556,28 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     if ( n<n9f ) n9f = n;  //Z=11763
                 }/*5*/  //Z=11764
             }/*4*/  //Z=11765
+            calcdone_label99 = true;
         }/*3*/  /*  of inhomogeneous core/shell  */  //Z=11766
 
         /*  myelin  */  //Z=11769
-        if ( (params.cs==3) || (params.cs==4) )
+        else if ( (params.cs==3) || (params.cs==4) )
         {/*3*/  //Z=11770
             double xrn_n = 1.0;
             for ( int n=1; n<=nmax; n++ )
             {/*4*/  //Z=11771
                 z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=11772
-                z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11773
+                CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11773
                 //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=11774
-                fkv[n] = fkv[n-1]*n;  //Z=11775
-                fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=11776
-                gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=11777
+                CM->fkv[n] = CM->fkv[n-1]*n;  //Z=11775
+                CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=11776
+                CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=11777
                 /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=11778 */
                 xln_n = -xln_n*xl2z;  //Z=11779
                 xrn_n = -xrn_n*x12zm;  //Z=11780
-                if ( dim==1 )
+                if ( cdim==1 )
                 {/*5*/ /*  cylinder  */  //Z=11781
                     /*  P(q)-coefficients  */  //Z=11782
-                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*z12vl[n]*xln_n/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=11783
+                    params.CR->carr1p[n] = sqrt(M_PI)*pow(4.0,n)*CM->z12vl[n]*xln_n/(2.0*(n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=11783
 
                     params.CR->carr4p[n] = z12v[n]*xrn_n;  //Z=11785
 
@@ -4349,32 +4585,32 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     double sump = 0.0;  //Z=11788
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11789
-                        sump += z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11790
+                        sump += CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11790
                     }/*6*/  //Z=11791
                     params.CR->carr1f[n] = M_PI*xln_n*sump/4.0;  //Z=11792
                     sump = 0.0;  //Z=11793
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11794
-                        sump += z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11795
+                        sump += z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11795
                     }/*6*/  //Z=11796
                     params.CR->carr4f[n] = xrn_n*sump;  //Z=11797
                 }/*5*/  //Z=11798
-                if ( dim==2 )
+                if ( cdim==2 )
                 {/*5*/ /*  disk  */  //Z=11799
                     /*  P(q)-coefficients  */  //Z=11800
-                    params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=11801
-                    params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=11802
+                    params.CR->carr1p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=11801
+                    params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=11802
                     /*  F(q)-coefficients  */  //Z=11803
                     double sump = 0.0;  //Z=11804
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11805
-                        sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11806
+                        sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11806
                     }/*6*/  //Z=11807
-                    params.CR->carr1f[n] = sqrt(M_PI)*fkv[n]*xln_n*sump/(2.0*gam3[n]);  //Z=11808
+                    params.CR->carr1f[n] = sqrt(M_PI)*CM->fkv[n]*xln_n*sump/(2.0*CM->gam3[n]);  //Z=11808
                     sump = 0.0;  //Z=11809
                     for ( int m=0; m<=n; m++ )
                     {/*6*/  //Z=11810
-                        sump += z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11811
+                        sump += z12v[m]*z12v[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11811
                     }/*6*/  //Z=11812
                     params.CR->carr4f[n] = M_PI*xln_n*sump/4.0;  //Z=11813
                 }/*5*/  //Z=11814
@@ -4403,16 +4639,17 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     if ( n<n4f ) n4f = n;  //Z=11831
                 }/*5*/  //Z=11832
             }/*4*/  //Z=11833
+            calcdone_label99 = true;
         }/*3*/  /*  of myelin  */  //Z=11834
 
     }/*2*/  //Z=11838
 
 
     /* ** orientational distribution for cylinders and disks ** */  //Z=11840
-    if ( (params.ordis==0) && (dim!=3) )
+    else if ( (params.ordis==ordis_Gaussian) && (cdim!=3) )
     {/*2*/  //Z=11841
-        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,2,0,0,0,0,params.CR->carr1p,params.norm);  //Z=11842
-        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,3,0,0,0,0,params.CR->carr1p,order);  //Z=11843
+        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/2,0,0,0,0,params.CR->carr1p,params.norm);  //Z=11842
+        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/3,0,0,0,0,params.CR->carr1p,order);  //Z=11843
         order = order/params.norm;  //Z=11844
 
         /*  use phi=0 and rotate qx/qy-axis  */  //Z=11846
@@ -4435,7 +4672,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             {/*4*/  //Z=11859
                 for ( int m=0; m<=nmax; m++ )
                 {/*5*/  //Z=11860
-                    qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,0,0,2*n,2*m,params.CR->carr1p,intl);  //Z=11861
+                    qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,0,0,2*n,2*m,params.CR->carr1p,intl);  //Z=11861
                     intlar[n][m] = intl;  //Z=11862
                 }/*5*/  //Z=11863
             }/*4*/  //Z=11864
@@ -4450,7 +4687,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
              end;  */  //Z=11873
 
             /*  cylinder form factor coefficients  */  //Z=11875
-            if ( dim==1 )
+            if ( cdim==1 )
             {/*4*/  //Z=11876
                 /*  homogeneous  */  //Z=11877
                 if ( params.cs==0 )
@@ -4463,11 +4700,11 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=11880
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=11881
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11882
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11882
                         //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=11883
-                        fkv[n] = fkv[n-1]*n;  //Z=11884
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=11885
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=11886
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=11884
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=11885
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=11886
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=11887 */
                         xln_n = -xln_n*xl2z;  //Z=11888
                         xrn_n = -xrn_n*xr2z;  //Z=11889
@@ -4476,24 +4713,24 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         {/*7*/  //Z=11891
                             double sump = 0.0;  //Z=11892
                             for ( int ll=0; ll<=m; ll++ )  //Z=11893
-                                sump += pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[m-ll][n-m+ll]/(pow(4.0,ll)*fk2v[m-ll]*fkv[n-m+ll]*fkv[ll]*params.norm);  //Z=11894
+                                sump += pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[m-ll][n-m+ll]/(pow(4.0,ll)*CM->fk2v[m-ll]*CM->fkv[n-m+ll]*CM->fkv[ll]*params.norm);  //Z=11894
                             /* carr1pm[i]:=power(4,m)*power(p21*p21,n-m)*sump/(fkv[n-m]);  //Z=11895 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=11896 */
                             /* i:=i+1;  //Z=11897 */
-                            params.CR->carr11pm[n][m] = pow(4.0,m)*pow(sqr(params.p21),n-m)*sump/(fkv[n-m]);  //Z=11898
+                            params.CR->carr11pm[n][m] = pow(4.0,m)*pow(sqr(params.p21),n-m)*sump/(CM->fkv[n-m]);  //Z=11898
                         }/*7*/  //Z=11899
                         /*  P(q)-coefficients  */  //Z=11900
-                        params.CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=11901
-                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=11902
+                        params.CR->carr1p[n] = pow(4.0,n)*CM->z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=11901
+                        params.CR->carr2p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=11902
                         /*  F(q)-coefficients  */  //Z=11903
                         double sump = 0.0;  //Z=11904
-                        for ( int m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11905
-                        params.CR->carr1f[n] = fk2v[n]*xln_n*sump/(pow(4.0,n));  //Z=11906
+                        for ( int m=0; m<=n; m++ ) sump = sump+CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11905
+                        params.CR->carr1f[n] = CM->fk2v[n]*xln_n*sump/(pow(4.0,n));  //Z=11906
                         params.CR->carr2f[n] = params.CR->carr2p[n];  //Z=11907
                         /*  cross-sectional  */  //Z=11908
-                        params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  //Z=11909
+                        params.CR->carr4p[n] = 4*(n+1/2.0)*CM->fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*CM->fkv[n]*CM->fkv[n]*(n+1)*CM->fkv[n]);  //Z=11909
                         sump = 0.0;  //Z=11910
-                        for ( int m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=11911
+                        for ( int m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11911
                         params.CR->carr4f[n] = xrn_n*sump;  //Z=11912
                         if ( search1 )
                         {/*7*/  //Z=11913
@@ -4520,6 +4757,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n4f ) n4f = n;  //Z=11929
                         }/*7*/  //Z=11930
                     }/*6*/  //Z=11931
+                    calcdone_label99 = true;
                 }/*5*/  /*  of homogeneous cylinder  */  //Z=11932
 
                 /*  core/shell  */  //Z=11934
@@ -4534,49 +4772,49 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=11937
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=11938
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11939
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=11939
                         //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=11940
-                        fkv[n] = fkv[n-1]*n;  //Z=11941
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=11942
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=11943
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=11941
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=11942
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=11943
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=11944 */
                         xln_n = -xln_n*xl2z;  //Z=11945
                         xrn_n = -xrn_n*xr2z;  //Z=11946
                         xrmn_n = -xrmn_n*xrm2z;  //Z=11947
-                        pn[n] = pn[n-1]*p*p;  //Z=11948
+                        CM->pn[n] = CM->pn[n-1]*p*p;  //Z=11948
                         /*  longitudinal  */  //Z=11949
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=11950
                             double sump = 0.0;  //Z=11951
                             for ( int ll=0; ll<=m; ll++ )  //Z=11952
-                                sump += pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[m-ll][n-m+ll]/(pow(4.0,ll)*fk2v[m-ll]*fkv[n-m+ll]*fkv[ll]*params.norm);  //Z=11953
+                                sump += pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[m-ll][n-m+ll]/(pow(4.0,ll)*CM->fk2v[m-ll]*CM->fkv[n-m+ll]*CM->fkv[ll]*params.norm);  //Z=11953
                             /* carr1pm[i]:=power(4,m)*sump/(fkv[n-m]);  //Z=11954 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=11955 */
                             /* i:=i+1;  //Z=11956 */
-                            params.CR->carr11pm[n][m] = pow(4.0,m)*sump/(fkv[n-m]);  //Z=11957
+                            params.CR->carr11pm[n][m] = pow(4.0,m)*sump/(CM->fkv[n-m]);  //Z=11957
                         }/*7*/  //Z=11958
                         /*  P(q)-coefficients  */  //Z=11959
-                        params.CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=11960
-                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=11961
+                        params.CR->carr1p[n] = pow(4.0,n)*CM->z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=11960
+                        params.CR->carr2p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=11961
                         /*  F(q)-coefficients  */  //Z=11962
                         double sump = 0.0;  //Z=11963
-                        for ( int m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=11964
-                        params.CR->carr1f[n] = fk2v[n]*xln_n*sump/(pow(4.0,n));  //Z=11965
+                        for ( int m=0; m<=n; m++ ) sump = sump+CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=11964
+                        params.CR->carr1f[n] = CM->fk2v[n]*xln_n*sump/(pow(4.0,n));  //Z=11965
                         params.CR->carr2f[n] = params.CR->carr2p[n];  //Z=11966
 
                         /*  P(q)-coefficients  */  //Z=11968
                         /*  cross-sectional  */  //Z=11969
                         /*  F121  */  //Z=11970
-                        params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=11971
+                        params.CR->carr4p[n] = 4*(n+1/2.0)*CM->fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*CM->fkv[n]*CM->fkv[n]*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=11971
                         /*  F122  */  //Z=11972
                         sump = 0.0;  //Z=11973
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=11974
-                            sump += pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=11975
+                            sump += CM->pn[m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=11975
                         }/*7*/  //Z=11976
                         params.CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=11977
                         /*  F123  */  //Z=11978
-                        params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=11979
+                        params.CR->carr6p[n] = params.CR->carr4p[n]/CM->pn[n];  //Z=11979
 
                         /*  F(q)-coefficients  */  //Z=11981
                         /*  cross-sectional  */  //Z=11982
@@ -4584,18 +4822,18 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         sump = 0.0;  //Z=11984
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=11985
-                            sump += z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=11986
+                            sump += z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=11986
                         }/*7*/  //Z=11987
                         params.CR->carr4f[n] = xrn_n*sump;  //Z=11988
                         /*  F122  */  //Z=11989
                         sump = 0.0;  //Z=11990
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=11991
-                            sump += pn[m]*z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=11992
+                            sump += CM->pn[m]*z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=11992
                         }/*7*/  //Z=11993
                         params.CR->carr5f[n] = xrmn_n*sump;  //Z=11994
                         /*  F123  */  //Z=11995
-                        params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=11996
+                        params.CR->carr6f[n] = params.CR->carr4f[n]/CM->pn[n];  //Z=11996
 
                         if ( search1 )
                         {/*7*/  //Z=11998
@@ -4646,6 +4884,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n6f ) n6f = n;  //Z=12032
                         }/*7*/  //Z=12033
                     }/*6*/  /*  n-loop  */  //Z=12034
+                    calcdone_label99 = true;
                 }/*5*/  /*  homogeneous loop  */  //Z=12035
 
                 /*  inhomogeneous core/shell  */  //Z=12039
@@ -4659,45 +4898,45 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=12042
                         z12v_n = z12v_n*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=12043
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12044
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12044
                         //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=12045
-                        fkv[n] = fkv[n-1]*n;  //Z=12046
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=12047
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=12048
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=12046
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=12047
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=12048
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=12049 */
                         xln_n = -xln_n*xl2z;  //Z=12050
                         xrn_n = -xrn_n*xr2z;  //Z=12051
                         xrmn_n = -xrmn_n*xrm2z;  //Z=12052
-                        pn[n] = pn[n-1]*p*p;  //Z=12053
+                        CM->pn[n] = CM->pn[n-1]*p*p;  //Z=12053
                         /*  longitudinal  */  //Z=12054
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12055
                             double sump = 0.0;  //Z=12056
                             for ( int ll=0; ll<=m; ll++ )  //Z=12057
-                                sump += pow(sqr(params.p11),ll)*pow(sqr(params.p13),m-ll)*intlar[m-ll][n-m+ll]/(pow(4.0,ll)*fk2v[m-ll]*fkv[n-m+ll]*fkv[ll]*params.norm);  //Z=12058
+                                sump += pow(sqr(params.p11),ll)*pow(sqr(params.p13),m-ll)*intlar[m-ll][n-m+ll]/(pow(4.0,ll)*CM->fk2v[m-ll]*CM->fkv[n-m+ll]*CM->fkv[ll]*params.norm);  //Z=12058
                             /* carr1pm[i]:=power(4,m)*sump/(fkv[n-m]);  //Z=12059 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=12060 */
                             /* i:=i+1;  //Z=12061 */
-                            params.CR->carr11pm[n][m] = pow(4.0,m)*sump/(fkv[n-m]);  //Z=12062
+                            params.CR->carr11pm[n][m] = pow(4.0,m)*sump/(CM->fkv[n-m]);  //Z=12062
                         }/*7*/  //Z=12063
                         /*  P(q)-coefficients  */  //Z=12064
-                        params.CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=12065
-                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12066
+                        params.CR->carr1p[n] = pow(4.0,n)*CM->z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=12065
+                        params.CR->carr2p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=12066
                         /*  F(q)-coefficients  */  //Z=12067
                         double sump = 0.0;  //Z=12068
-                        for ( int m=0; m<=n; m++ ) sump += z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12069
-                        params.CR->carr1f[n] = fk2v[n]*xln_n*sump/(pow(4.0,n));  //Z=12070
+                        for ( int m=0; m<=n; m++ ) sump += CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=12069
+                        params.CR->carr1f[n] = CM->fk2v[n]*xln_n*sump/(pow(4.0,n));  //Z=12070
                         params.CR->carr2f[n] = params.CR->carr2p[n];  //Z=12071
 
 
                         /*  cross-sectional P(q)  */  //Z=12074
-                        params.CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v_n*xrn_n/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=12075
+                        params.CR->carr4p[n] = pow(4.0,n+1)*CM->gam3[n]*z12v_n*xrn_n/(sqrt(M_PI)*(n+2)*(n+1)*CM->fkv[n]*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=12075
                         sump = 0.0;  //Z=12076
                         double sump1 = 0.0;  //Z=12077
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12078
-                            const double sumi = 1/((m+1-params.alphash1/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=12079
-                            sump += pn[n-m]*sumi;  //Z=12080
+                            const double sumi = 1/((m+1-params.alphash1/2.0)*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]*CM->fkv[m]);  //Z=12079
+                            sump += CM->pn[n-m]*sumi;  //Z=12080
                             sump1 += sumi;  //Z=12081
                         }/*7*/  //Z=12082
                         params.CR->carr5p[n] = (1-params.uca/2.0)*z12v_n*xrmn_n*sump;  //Z=12083
@@ -4706,18 +4945,18 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         sump1 = 0.0;  //Z=12086
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12087
-                            const double sumi = 1/((n-m+1-params.alphash1/2.0)*(m+1-params.alphash1/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=12088
+                            const double sumi = 1/((n-m+1-params.alphash1/2.0)*(m+1-params.alphash1/2.0)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=12088
                             sump += sumi;  //Z=12089
-                            sump1 += pn[n-m]*sumi;  //Z=12090
+                            sump1 += CM->pn[n-m]*sumi;  //Z=12090
                         }/*7*/  //Z=12091
                         params.CR->carr7p[n] = (1-params.alphash1/2.0)*(1-params.alphash1/2.0)*z12v_n*xrmn_n*sump;  //Z=12092
                         params.CR->carr8p[n] = (1-params.alphash1/2.0)*(1-params.alphash1/2.0)*z12v_n*xrmn_n*sump1;  //Z=12093
                         params.CR->carr9p[n] = (1-params.alphash1/2.0)*(1-params.alphash1/2.0)*z12v_n*xrn_n*sump;  //Z=12094
 
                         /*  F(q)-coefficients  */  //Z=12111
-                        params.CR->carr4f[n] = z12v_n*xrn_n/((n+1)*fkv[n]*fkv[n]);  //Z=12112
-                        params.CR->carr5f[n] = (1-params.alphash1/2.0)*z12v_n*xrmn_n/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=12113
-                        params.CR->carr6f[n] = (1-params.alphash1/2.0)*z12v_n*xrn_n/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=12114
+                        params.CR->carr4f[n] = z12v_n*xrn_n/((n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=12112
+                        params.CR->carr5f[n] = (1-params.alphash1/2.0)*z12v_n*xrmn_n/((n+1-params.alphash1/2.0)*CM->fkv[n]*CM->fkv[n]);  //Z=12113
+                        params.CR->carr6f[n] = (1-params.alphash1/2.0)*z12v_n*xrn_n/((n+1-params.alphash1/2.0)*CM->fkv[n]*CM->fkv[n]);  //Z=12114
 
                         if ( search1 )
                         {/*7*/  //Z=12116
@@ -4792,6 +5031,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n9f ) n9f = n;  //Z=12168
                         }/*7*/  //Z=12169
                     }/*6*/   /*  of n-loop  */  //Z=12170
+                    calcdone_label99 = true;
                 }/*5*/  /*  of inhomogeneous core/shell  */  //Z=12171
 
                 /*  myelin  */  //Z=12173
@@ -4805,11 +5045,11 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=12176
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=12177
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12178
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12178
                         //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=12179
-                        fkv[n] = fkv[n-1]*n;  //Z=12180
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=12181
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=12182
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=12180
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=12181
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=12182
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=12183 */
                         xln_n = -xln_n*xl2z;  //Z=12184
                         xrn_n = -xrn_n*x12zm;  //Z=12185
@@ -4818,25 +5058,25 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         {/*7*/  //Z=12187
                             double sump = 0.0;  //Z=12188
                             for ( int ll=0; ll<=m; ll++ )  //Z=12189
-                                sump += pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[m-ll][n-m+ll]/(pow(4.0,ll)*fk2v[m-ll]*fkv[n-m+ll]*fkv[ll]*params.norm);  //Z=12190
+                                sump += pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[m-ll][n-m+ll]/(pow(4.0,ll)*CM->fk2v[m-ll]*CM->fkv[n-m+ll]*CM->fkv[ll]*params.norm);  //Z=12190
                             /* carr1pm[i]:=power(4,m)*sump/(fkv[n-m]);  //Z=12191 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=12192 */
                             /* i:=i+1;  //Z=12193 */
-                            params.CR->carr11pm[n][m] = pow(4.0,m)*sump/(fkv[n-m]);  //Z=12194
+                            params.CR->carr11pm[n][m] = pow(4.0,m)*sump/(CM->fkv[n-m]);  //Z=12194
                         }/*7*/  //Z=12195
                         /*  P(q)-coefficients  */  //Z=12196
-                        params.CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=12197
-                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12198
+                        params.CR->carr1p[n] = pow(4.0,n)*CM->z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=12197
+                        params.CR->carr2p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=12198
                         /*  F(q)-coefficients  */  //Z=12199
                         double sump = 0.0;  //Z=12200
-                        for ( int m=0; m<=n; m++ ) sump += z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12201
-                        params.CR->carr1f[n] = fk2v[n]*xln_n*sump/(pow(4.0,n));  //Z=12202
+                        for ( int m=0; m<=n; m++ ) sump += CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=12201
+                        params.CR->carr1f[n] = CM->fk2v[n]*xln_n*sump/(pow(4.0,n));  //Z=12202
                         params.CR->carr2f[n] = params.CR->carr2p[n];  //Z=12203
                         /*  cross-sectional  */  //Z=12204
                         params.CR->carr4p[n] = z12v[n]*xrn_n;  //Z=12205
 
                         sump = 0.0;  //Z=12207
-                        for ( int m=0; m<=n; m++ ) sump += z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12208
+                        for ( int m=0; m<=n; m++ ) sump += z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=12208
                         params.CR->carr4f[n] = xrn_n*sump;  //Z=12209
                         if ( search1 )
                         {/*7*/  //Z=12210
@@ -4863,6 +5103,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n4f ) n4f = n;  //Z=12226
                         }/*7*/  //Z=12227
                     }/*6*/  //Z=12228
+                    calcdone_label99 = true;
                 }/*5*/        /*  of myelin  */  //Z=12229
             }/*4*/   /*  of cylinder  */  //Z=12230
 
@@ -4892,7 +5133,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
              end;      */  //Z=12255
 
             /*  disk form factor coefficients  */  //Z=12257
-            if ( dim==2 )
+            if ( cdim==2 )
             {/*4*/  //Z=12258
                 long double xln_n = 1.0;
                 /*  homogeneous  */  //Z=12259
@@ -4905,10 +5146,10 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=12262
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=12263
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12264
-                        fkv[n] = fkv[n-1]*n;  //Z=12265
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=12266
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=12267
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12264
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=12265
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=12266
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=12267
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=12268 */
                         xln_n = -xln_n*xl2z;  //Z=12269
                         xrn_n = -xrn_n*xr2z;  //Z=12270
@@ -4917,40 +5158,40 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         {/*7*/  //Z=12272
                             double sump = 0.0;  //Z=12273
                             for ( int ll=0; ll<=m; ll++ )  //Z=12274
-                                sump += pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[m-ll][n-m+ll]/(pow(4.0,ll)*fk2v[m-ll]*fkv[n-m+ll]*fkv[ll]*params.norm);  //Z=12275
+                                sump += pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[m-ll][n-m+ll]/(pow(4.0,ll)*CM->fk2v[m-ll]*CM->fkv[n-m+ll]*CM->fkv[ll]*params.norm);  //Z=12275
                             /* carr2pm[i]:=power(4,m)*sump/(fkv[n-m]);  //Z=12276 */
-                            params.CR->carr11pm[n][m] = pow(4.0,m)*sump/(fkv[n-m]);  //Z=12277
+                            params.CR->carr11pm[n][m] = pow(4.0,m)*sump/(CM->fkv[n-m]);  //Z=12277
                             /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]);  //Z=12278 */
-                            params.CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=12279
+                            params.CR->carr11pm[n][m] = pow(-1,m)*CM->fk2v[m]/(pow(4.0,m)*CM->fkv[m]*CM->fkv[n-m]);  //Z=12279
                             /* carr2fm[i]:=carr2pm[i];  //Z=12280 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=12281 */
                             //i = i+1;  //Z=12282
                         }/*7*/  //Z=12283
-                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=12284
+                        params.CR->carr1p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=12284
                         double sump = 0.0;  //Z=12285
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12286
-                            sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=12287
+                            sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=12287
                         }/*7*/  //Z=12288
-                        params.CR->carr1f[n] = xln_n*fkv[n]*sump;  //Z=12289
+                        params.CR->carr1f[n] = xln_n*CM->fkv[n]*sump;  //Z=12289
 
                         /*  cross-sectional  */  //Z=12291
-                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=12292
+                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=12292
                         sump = 0.0;  //Z=12293
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12294
-                            sump += z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12295
+                            sump += z12v[m]*z12v[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=12295
                         }/*7*/  //Z=12296
                         params.CR->carr4f[n] = M_PI*xrn_n*sump/4.0;  //Z=12297
 
                         /*  series for <...> integration  */  //Z=12299
-                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12300
+                        params.CR->carr2p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=12300
                         sump = 0.0;  //Z=12301
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12302
-                            sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12303
+                            sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=12303
                         }/*7*/  //Z=12304
-                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln_n*sump/(2.0*gam3[n]);  //Z=12305
+                        params.CR->carr2f[n] = sqrt(M_PI)*CM->fkv[n]*xln_n*sump/(2.0*CM->gam3[n]);  //Z=12305
 
                         if ( search1 )
                         {/*7*/  //Z=12307
@@ -4977,6 +5218,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n4f ) n4f = n;  //Z=12323
                         }/*7*/  //Z=12324
                     }/*6*/  //Z=12325
+                    calcdone_label99 = true;
                 }/*5*/  //Z=12326
 
                 /*  core/shell  */  //Z=12328
@@ -4990,46 +5232,46 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=12331
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=12332
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12333
-                        fkv[n] = fkv[n-1]*n;  //Z=12334
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=12335
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=12336
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12333
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=12334
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=12335
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=12336
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=12337 */
                         xln_n = -xln_n*xl2z;  //Z=12338
                         xrn_n = -xrn_n*xr2z;  //Z=12339
                         xrmn_n = -xrmn_n*xrm2z;  //Z=12340
-                        pn[n] = pn[n-1]*p*p;  //Z=12341
+                        CM->pn[n] = CM->pn[n-1]*p*p;  //Z=12341
                         /*  longitudinal  */  //Z=12342
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12343
                             double sump = 0.0;  //Z=12344
                             for ( int ll=0; ll<=m; ll++ )  //Z=12345
-                                sump += pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[m-ll][n-m+ll]/(pow(4.0,ll)*fk2v[m-ll]*fkv[n-m+ll]*fkv[ll]*params.norm);  //Z=12346
+                                sump += pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[m-ll][n-m+ll]/(pow(4.0,ll)*CM->fk2v[m-ll]*CM->fkv[n-m+ll]*CM->fkv[ll]*params.norm);  //Z=12346
                             /* carr2pm[i]:=power(4,m)*sump/(fkv[n-m]);  //Z=12347 */
-                            params.CR->carr11pm[n][m] = pow(4.0,m)*sump/(fkv[n-m]);  //Z=12348
+                            params.CR->carr11pm[n][m] = pow(4.0,m)*sump/(CM->fkv[n-m]);  //Z=12348
                             /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]);  //Z=12349 */
-                            params.CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=12350
+                            params.CR->carr11pm[n][m] = pow(-1,m)*CM->fk2v[m]/(pow(4.0,m)*CM->fkv[m]*CM->fkv[n-m]);  //Z=12350
                             /* carr2fm[i]:=carr2pm[i];  //Z=12351 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=12352 */
                             /* i:=i+1;  //Z=12353 */
                         }/*7*/  //Z=12354
-                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12355
+                        params.CR->carr1p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=12355
                         double sump = 0.0;  //Z=12356
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12357
-                            sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=12358
+                            sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=12358
                         }/*7*/  //Z=12359
-                        params.CR->carr1f[n] = xln_n*fkv[n]*sump;  //Z=12360
+                        params.CR->carr1f[n] = xln_n*CM->fkv[n]*sump;  //Z=12360
 
                         /*  P(q)-coefficients  */  //Z=12362
                         /*  cross-sectional  */  //Z=12363
                         /*  F121  */  //Z=12364
-                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=12365
+                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=12365
                         /*  F122  */  //Z=12366
                         sump = 0.0;  //Z=12367
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12368
-                            sump += pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12369
+                            sump += CM->pn[m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=12369
                         }/*7*/  //Z=12370
                         params.CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=12371
 
@@ -5038,38 +5280,38 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         sump = 0.0;  //Z=12375
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12376
-                            sump += pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12377
+                            sump += CM->pn[m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=12377
                         }/*7*/  //Z=12378
                         params.CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=12379
 
 
                         /*  F123  */  //Z=12382
-                        params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=12383
+                        params.CR->carr6p[n] = params.CR->carr4p[n]/CM->pn[n];  //Z=12383
                         /*  F121  */  //Z=12384
                         sump = 0.0;  //Z=12385
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12386
-                            sump += z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12387
+                            sump += z12v[m]*z12v[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=12387
                         }/*7*/  //Z=12388
                         params.CR->carr4f[n] = M_PI*xrn_n*sump/4.0;  //Z=12389
                         /*  F122  */  //Z=12390
                         sump = 0.0;  //Z=12391
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12392
-                            sump += pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12393
+                            sump += CM->pn[m]*z12v[m]*z12v[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=12393
                         }/*7*/  //Z=12394
                         params.CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=12395
                         /*  F123  */  //Z=12396
-                        params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=12397
+                        params.CR->carr6f[n] = params.CR->carr4f[n]/CM->pn[n];  //Z=12397
 
                         /*  series for <...> integration  */  //Z=12399
-                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12400
+                        params.CR->carr2p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=12400
                         sump = 0.0;  //Z=12401
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12402
-                            sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12403
+                            sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=12403
                         }/*7*/  //Z=12404
-                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln_n*sump/(2.0*gam3[n]);  //Z=12405
+                        params.CR->carr2f[n] = sqrt(M_PI)*CM->fkv[n]*xln_n*sump/(2.0*CM->gam3[n]);  //Z=12405
 
                         if ( search1 )
                         {/*7*/  //Z=12407
@@ -5120,6 +5362,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n6f ) n6f = n;  //Z=12441
                         }/*7*/  //Z=12442
                     }/*6*/ /*  of n-loop  */  //Z=12443
+                    calcdone_label99 = true;
                 }/*5*/  /*  of core/shell  */  //Z=12444
 
                 /*  inhomogeneous core/shell  */  //Z=12446
@@ -5132,45 +5375,45 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=12449
                         z12v_n = z12v_n*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=12450
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12451
-                        fkv[n] = fkv[n-1]*n;  //Z=12452
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=12453
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=12454
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12451
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=12452
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=12453
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=12454
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=12455 */
                         xln_n = -xln_n*xl2z;  //Z=12456
                         xrn_n = -xrn_n*xr2z;  //Z=12457
                         xrmn_n = -xrmn_n*xrm2z;  //Z=12458
-                        pn[n] = pn[n-1]*p*p;  //Z=12459
+                        CM->pn[n] = CM->pn[n-1]*p*p;  //Z=12459
                         /*  longitudinal  */  //Z=12460
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12461
                             double sump = 0.0;  //Z=12462
                             for ( int ll=0; ll<=m; ll++ )  //Z=12463
-                                sump += pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[m-ll][n-m+ll]/(pow(4.0,ll)*fk2v[m-ll]*fkv[n-m+ll]*fkv[ll]*params.norm);  //Z=12464
+                                sump += pow(params.p11*params.p11,ll)*pow(params.p13*params.p13,m-ll)*intlar[m-ll][n-m+ll]/(pow(4.0,ll)*CM->fk2v[m-ll]*CM->fkv[n-m+ll]*CM->fkv[ll]*params.norm);  //Z=12464
                             /* carr2pm[i]:=power(4,m)*sump/(fkv[n-m]);  //Z=12465 */
-                            params.CR->carr11pm[n][m] = pow(4.0,m)*sump/(fkv[n-m]);  //Z=12466
+                            params.CR->carr11pm[n][m] = pow(4.0,m)*sump/(CM->fkv[n-m]);  //Z=12466
                             /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]);  //Z=12467 */
-                            params.CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=12468
+                            params.CR->carr11pm[n][m] = pow(-1,m)*CM->fk2v[m]/(pow(4.0,m)*CM->fkv[m]*CM->fkv[n-m]);  //Z=12468
                             /* carr2fm[i]:=carr2pm[i];  //Z=12469 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=12470 */
                             /* i:=i+1;  //Z=12471 */
                         }/*7*/  //Z=12472
-                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12473
+                        params.CR->carr1p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=12473
                         double sump1 = 0.0;  //Z=12474
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12475
-                            sump1 += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=12476
+                            sump1 += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=12476
                         }/*7*/  //Z=12477
-                        params.CR->carr1f[n] = xln_n*fkv[n]*sump1;  //Z=12478
+                        params.CR->carr1f[n] = xln_n*CM->fkv[n]*sump1;  //Z=12478
 
                         /*  cross-sectional P(q)  */  //Z=12480
-                        params.CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v_n*xrn_n/((n+1)*gam3[n]*fkv[n]);  //Z=12481
+                        params.CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v_n*xrn_n/((n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=12481
                         double sump = 0.0;  //Z=12482
                         sump1 = 0.0;  //Z=12483
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12484
-                            const double sumi = (m+1/2.0)/((m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=12485
-                            sump += pn[n-m]*sumi;  //Z=12486
+                            const double sumi = (m+1/2.0)/((m+1/2.0-params.alphash1/2.0)*CM->gam3[n-m]*CM->gam3[m]*CM->fkv[n-m]*CM->fkv[m]);  //Z=12485
+                            sump += CM->pn[n-m]*sumi;  //Z=12486
                             sump1 += sumi;  //Z=12487
                         }/*7*/  //Z=12488
                         params.CR->carr5p[n] = (M_PI/4.0)*(1-params.alphash1)*z12v_n*xrmn_n*sump;  //Z=12489
@@ -5179,9 +5422,9 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         sump1 = 0.0;  //Z=12492
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12493
-                            const double sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-params.alphash1/2.0)*(m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=12494
+                            const double sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-params.alphash1/2.0)*(m+1/2.0-params.alphash1/2.0)*CM->gam3[n-m]*CM->gam3[m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=12494
                             sump += sumi;  //Z=12495
-                            sump1 += pn[n-m]*sumi;  //Z=12496
+                            sump1 += CM->pn[n-m]*sumi;  //Z=12496
                         }/*7*/  //Z=12497
                         params.CR->carr7p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v_n*xrmn_n*sump;  //Z=12498
                         params.CR->carr8p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v_n*xrmn_n*sump1;  //Z=12499
@@ -5207,18 +5450,18 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             carr6p[n]:=carr4p[n]/pn[n];      */  //Z=12519
 
                         /*  F(q)  */  //Z=12521
-                        params.CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v_n*xrn_n/(gam3[n]*fkv[n]);  //Z=12522
-                        params.CR->carr5f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v_n*xrmn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=12523
-                        params.CR->carr6f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v_n*xrn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=12524
+                        params.CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v_n*xrn_n/(CM->gam3[n]*CM->fkv[n]);  //Z=12522
+                        params.CR->carr5f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v_n*xrmn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*CM->gam3[n]*CM->fkv[n]);  //Z=12523
+                        params.CR->carr6f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v_n*xrn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*CM->gam3[n]*CM->fkv[n]);  //Z=12524
 
                         /*  series for <...> integration  */  //Z=12526
-                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=12527
+                        params.CR->carr2p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=12527
                         sump = 0.0;  //Z=12528
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12529
-                            sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12530
+                            sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=12530
                         }/*7*/  //Z=12531
-                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln_n*sump/(2.0*gam3[n]);  //Z=12532
+                        params.CR->carr2f[n] = sqrt(M_PI)*CM->fkv[n]*xln_n*sump/(2.0*CM->gam3[n]);  //Z=12532
 
                         if ( search1 )
                         {/*7*/  //Z=12534
@@ -5293,6 +5536,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n9f ) n9f = n;  //Z=12586
                         }/*7*/  //Z=12587
                     }/*6*/ /*  of n-loop  */  //Z=12588
+                    calcdone_label99 = true;
                 }/*5*/  /*  of inhomogeneous core/shell  */  //Z=12589
 
             }/*4*/   /*  of disk  */  //Z=12593
@@ -5319,14 +5563,14 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             params.p32 = 0;  //Z=12723
             params.p33 = -cos(theta*M_PI/180.0);  //Z=12724
 
-            for ( int n=1; n<=2*nmax; n++ ) fkv[n] = fkv[n-1]*n;  //Z=12726
+            for ( int n=1; n<=2*nmax; n++ ) CM->fkv[n] = CM->fkv[n-1]*n;  //Z=12726
 
             //i = 2;  //Z=12728
             for ( int n=1; n<=nmax; n++ )
             {/*4*/  //Z=12729
                 for ( int m=0; m<=2*n; m++ )
                 {/*5*/  //Z=12730
-                    qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,5,0,m,2*n-m,params.CR->carr1p,intl);
+                    qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,5,0,m,2*n-m,params.CR->carr1p,intl);
                     /* carr1pm[i]:=intl/(fkv[m]*fkv[2*n-m]*norm);  //Z=12732 */
                     //i = i+1;  //Z=12733
                 }/*5*/  //Z=12734
@@ -5338,10 +5582,10 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
             long double xln_n = 1.0;
             double b1s;
             /*  factor for cross-sectional formfactors  */  //Z=9417
-            if ( dim==1 ) b1s = 2;           /*  cylinder, cross-section is disk  */  //Z=9418
-            if ( dim==2 ) b1s = 3/2.0;       /*  disk, cross-section is cylinder  */  //Z=9419
-            if ( dim==3 ) b1s = 5/2.0;       /*  sphere  */  //Z=9420
-            if ( dim==4 ) b1s = 3/2.0;       /*  cube  */  //Z=9421
+            if ( cdim==1 ) b1s = 2;           /*  cylinder, cross-section is disk  */  //Z=9418
+            if ( cdim==2 ) b1s = 3/2.0;       /*  disk, cross-section is cylinder  */  //Z=9419
+            if ( cdim==3 ) b1s = 5/2.0;       /*  sphere  */  //Z=9420
+            if ( cdim==4 ) b1s = 3/2.0;       /*  cube  */  //Z=9421
 
             for ( int n=1; n<=nmax; n++ )
             {/*4*/  //Z=12737
@@ -5350,7 +5594,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                 xln_n = -xln_n*xl2z;  //Z=12740
                 xrn_n = -xrn_n*xr2z;  //Z=12741
                 params.CR->carr1p[n] = pow(4.0,2*n)*z12v_n*xln_n/((2.0*n+1)*(n+1));  //Z=12742
-                params.CR->carr3p[n] = 4*(n+1/2.0)*fk2v[n]*z12v_n*xrn_n/((n+2)*(n+1)*fkv[n]*fkv[n]*b1sv_n*fkv[n]);  //Z=12743
+                params.CR->carr3p[n] = 4*(n+1/2.0)*CM->fk2v[n]*z12v_n*xrn_n/((n+2)*(n+1)*CM->fkv[n]*CM->fkv[n]*b1sv_n*CM->fkv[n]);  //Z=12743
                 if ( search1 )
                 {/*5*/  //Z=12744
                     if ( params.CR->carr1p[n]<1e-50 )
@@ -5368,14 +5612,15 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     }/*6*/  //Z=12754
                 }/*5*/  //Z=12755
             }/*4*/  //Z=12756
+            calcdone_label99 = true;
         }/*3*/   /*  of cho1=5  */  //Z=12757
 
 
         /* ** x-axis ** */  //Z=12762
-        if ( (params.orcase==orcXaxis) && (dim!=3) )
+        if ( (params.orcase==orcXaxis) && (cdim!=3) )
         {/*3*/  //Z=12763
             /* ** cylinders ** */  //Z=12764
-            if ( dim==1 )
+            if ( cdim==1 )
             {/*4*/  //Z=12765
                 double z12v[nnmax+1];   // local
                 z12v[0] = 1.0;
@@ -5388,35 +5633,35 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=12769
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=12770
-                        z12vl[n] = z12vl[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=12771
+                        CM->z12vl[n] = CM->z12vl[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=12771
                         //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=12772
-                        fkv[n] = fkv[n-1]*n;  //Z=12773
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=12774
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=12775
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=12773
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=12774
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=12775
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=12776 */
                         xln_n = -xln_n*xl2z;  //Z=12777
                         xrn_n = -xrn_n*xr2z;  //Z=12778
                         /*  longitudinal  */  //Z=12779
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12780
-                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);
                             //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);  //Z=12781
                             /* carr1pm[i]:=power(4,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=12782 */
-                            params.CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*params.norm);  //Z=12783
+                            params.CR->carr11pm[n][m] = pow(4.0,m)*intl/(CM->fk2v[m]*CM->fkv[n-m]*CM->fkv[n-m]*params.norm);  //Z=12783
                             /* carr1fm[i]:=carr1pm[i];  //Z=12784 */
                             /* i:=i+1;  //Z=12785 */
                         }/*7*/  //Z=12786
                         /*  P(q)-coefficient  */  //Z=12787
-                        params.CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=12788
+                        params.CR->carr1p[n] = pow(4.0,n)*CM->z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=12788
                         /*  F(q)-coefficient  */  //Z=12789
                         double sump = 0.0;  //Z=12790
-                        for ( int m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12791
-                        params.CR->carr1f[n] = fk2v[n]*xln_n*sump/(pow(4.0,n));  //Z=12792
+                        for ( int m=0; m<=n; m++ ) sump = sump+CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=12791
+                        params.CR->carr1f[n] = CM->fk2v[n]*xln_n*sump/(pow(4.0,n));  //Z=12792
 
                         /*  cross-section  */  //Z=12794
-                        params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  //Z=12795
+                        params.CR->carr4p[n] = 4*(n+1/2.0)*CM->fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*CM->fkv[n]*CM->fkv[n]*(n+1)*CM->fkv[n]);  //Z=12795
                         sump = 0.0;  //Z=12796
-                        for ( int m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=12797
+                        for ( int m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=12797
                         params.CR->carr4f[n] = xrn_n*sump;  //Z=12798
 
 
@@ -5445,6 +5690,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n4f ) n4f = n;  //Z=12817
                         }/*7*/  //Z=12818
                     }/*6*/  /*  of n-loop  */  //Z=12819
+                    calcdone_label99 = true;
                 }/*5*/  /*  of cs=0  */  //Z=12820
 
                 /*  core/shell  */  //Z=12822
@@ -5456,46 +5702,46 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=12825
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=12826
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12827
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12827
                         //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=12828
-                        fkv[n] = fkv[n-1]*n;  //Z=12829
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=12830
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=12831
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=12829
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=12830
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=12831
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=12832 */
                         xln_n = -xln_n*xl2z;  //Z=12833
                         xrn_n = -xrn_n*xr2z;  //Z=12834
                         xrmn_n = -xrmn_n*xrm2z;  //Z=12835
-                        pn[n] = pn[n-1]*p*p;  //Z=12836
+                        CM->pn[n] = CM->pn[n-1]*p*p;  //Z=12836
                         /*  longitudinal  */  //Z=12837
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12838
-                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);
                             //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);  //Z=12839
                             /* carr1pm[i]:=power(4,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=12840 */
-                            params.CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*params.norm);  //Z=12841
+                            params.CR->carr11pm[n][m] = pow(4.0,m)*intl/(CM->fk2v[m]*CM->fkv[n-m]*CM->fkv[n-m]*params.norm);  //Z=12841
                             /* carr1fm[i]:=carr1pm[i];  //Z=12842 */
                             /* i:=i+1;  //Z=12843 */
                         }/*7*/  //Z=12844
                         /*  P(q)-coefficient  */  //Z=12845
-                        params.CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=12846
+                        params.CR->carr1p[n] = pow(4.0,n)*CM->z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=12846
                         /*  F(q)-coefficient  */  //Z=12847
                         double sump = 0.0;  //Z=12848
-                        for ( int m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12849
-                        params.CR->carr1f[n] = fk2v[n]*xln_n*sump/(pow(4.0,n));  //Z=12850
+                        for ( int m=0; m<=n; m++ ) sump = sump+CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=12849
+                        params.CR->carr1f[n] = CM->fk2v[n]*xln_n*sump/(pow(4.0,n));  //Z=12850
 
                         /*  P(q)-coefficients  */  //Z=12852
                         /*  cross-sectional  */  //Z=12853
                         /*  F121  */  //Z=12854
-                        params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=12855
+                        params.CR->carr4p[n] = 4*(n+1/2.0)*CM->fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*CM->fkv[n]*CM->fkv[n]*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=12855
                         /*  F122  */  //Z=12856
                         sump = 0.0;  //Z=12857
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12858
-                            sump = sump+pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=12859
+                            sump = sump+CM->pn[m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=12859
                         }/*7*/  //Z=12860
                         params.CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=12861
                         /*  F123  */  //Z=12862
-                        params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=12863
+                        params.CR->carr6p[n] = params.CR->carr4p[n]/CM->pn[n];  //Z=12863
 
                         /*  F(q)-coefficients  */  //Z=12865
                         /*  cross-sectional  */  //Z=12866
@@ -5503,18 +5749,18 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         sump = 0.0;  //Z=12868
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12869
-                            sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=12870
+                            sump = sump+z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=12870
                         }/*7*/  //Z=12871
                         params.CR->carr4f[n] = xrn_n*sump;  //Z=12872
                         /*  F122  */  //Z=12873
                         sump = 0.0;  //Z=12874
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12875
-                            sump = sump+pn[m]*z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=12876
+                            sump = sump+CM->pn[m]*z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=12876
                         }/*7*/  //Z=12877
                         params.CR->carr5f[n] = xrmn_n*sump;  //Z=12878
                         /*  F123  */  //Z=12879
-                        params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=12880
+                        params.CR->carr6f[n] = params.CR->carr4f[n]/CM->pn[n];  //Z=12880
 
 
                         if ( search1 )
@@ -5566,6 +5812,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n6f ) n6f = n;  //Z=12917
                         }/*7*/  //Z=12918
                     }/*6*/  /*  of n-loop  */  //Z=12919
+                    calcdone_label99 = true;
                 }/*5*/  /*  of cs=1  */  //Z=12920
 
                 /*  inhomogeneous core/shell  */  //Z=12922
@@ -5578,42 +5825,42 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=12925
                         z12v_n = z12v_n*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=12926
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12927
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=12927
                         //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=12928
-                        fkv[n] = fkv[n-1]*n;  //Z=12929
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=12930
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=12931
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=12929
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=12930
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=12931
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=12932 */
                         xln_n = -xln_n*xl2z;  //Z=12933
                         xrn_n = -xrn_n*xr2z;  //Z=12934
                         xrmn_n = -xrmn_n*xrm2z;  //Z=12935
-                        pn[n] = pn[n-1]*p*p;  //Z=12936
+                        CM->pn[n] = CM->pn[n-1]*p*p;  //Z=12936
                         /*  longitudinal  */  //Z=12937
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12938
-                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);
                             //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);  //Z=12939
                             /* carr1pm[i]:=power(4,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=12940 */
-                            params.CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*params.norm);  //Z=12941
+                            params.CR->carr11pm[n][m] = pow(4.0,m)*intl/(CM->fk2v[m]*CM->fkv[n-m]*CM->fkv[n-m]*params.norm);  //Z=12941
                             /* carr1fm[i]:=carr1pm[i];  //Z=12942 */
                             /* i:=i+1;  //Z=12943 */
                         }/*7*/  //Z=12944
                         /*  P(q)-coefficient  */  //Z=12945
-                        params.CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=12946
+                        params.CR->carr1p[n] = pow(4.0,n)*CM->z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=12946
                         /*  F(q)-coefficient  */  //Z=12947
                         double sump = 0.0;  //Z=12948
-                        for ( int m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=12949
-                        params.CR->carr1f[n] = fk2v[n]*xln_n*sump/(pow(4.0,n));  //Z=12950
+                        for ( int m=0; m<=n; m++ ) sump = sump+CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=12949
+                        params.CR->carr1f[n] = CM->fk2v[n]*xln_n*sump/(pow(4.0,n));  //Z=12950
 
 
                         /*  cross-sectional P(q)  */  //Z=12953
-                        params.CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v_n*xrn_n/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=12954
+                        params.CR->carr4p[n] = pow(4.0,n+1)*CM->gam3[n]*z12v_n*xrn_n/(sqrt(M_PI)*(n+2)*(n+1)*CM->fkv[n]*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=12954
                         sump = 0.0;  //Z=12955
                         double sump1 = 0.0;  //Z=12956
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12957
-                            const double sumi = 1/((m+1-params.alphash1/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=12958
-                            sump += pn[n-m]*sumi;  //Z=12959
+                            const double sumi = 1/((m+1-params.alphash1/2.0)*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]*CM->fkv[m]);  //Z=12958
+                            sump += CM->pn[n-m]*sumi;  //Z=12959
                             sump1 += sumi;  //Z=12960
                         }/*7*/  //Z=12961
                         params.CR->carr5p[n] = (1-params.uca/2.0)*z12v_n*xrmn_n*sump;  //Z=12962
@@ -5622,9 +5869,9 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         sump1 = 0.0;  //Z=12965
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=12966
-                            const double sumi = 1/((n-m+1-params.alphash1/2.0)*(m+1-params.alphash1/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=12967
+                            const double sumi = 1/((n-m+1-params.alphash1/2.0)*(m+1-params.alphash1/2.0)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=12967
                             sump += sumi;  //Z=12968
-                            sump1 += pn[n-m]*sumi;  //Z=12969
+                            sump1 += CM->pn[n-m]*sumi;  //Z=12969
                         }/*7*/  //Z=12970
                         params.CR->carr7p[n] = sqr(1-params.alphash1/2.0)*z12v_n*xrmn_n*sump;  //Z=12971
                         params.CR->carr8p[n] = sqr(1-params.alphash1/2.0)*z12v_n*xrmn_n*sump1;  //Z=12972
@@ -5645,9 +5892,9 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
 
                         /*  F(q)-coefficients  */  //Z=12988
                         /*  cross-sectional  */  //Z=12989
-                        params.CR->carr4f[n] = z12v_n*xrn_n/((n+1)*fkv[n]*fkv[n]);  //Z=12990
-                        params.CR->carr5f[n] = (1-params.alphash1/2.0)*z12v_n*xrmn_n/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=12991
-                        params.CR->carr6f[n] = (1-params.alphash1/2.0)*z12v_n*xrn_n/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=12992
+                        params.CR->carr4f[n] = z12v_n*xrn_n/((n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=12990
+                        params.CR->carr5f[n] = (1-params.alphash1/2.0)*z12v_n*xrmn_n/((n+1-params.alphash1/2.0)*CM->fkv[n]*CM->fkv[n]);  //Z=12991
+                        params.CR->carr6f[n] = (1-params.alphash1/2.0)*z12v_n*xrn_n/((n+1-params.alphash1/2.0)*CM->fkv[n]*CM->fkv[n]);  //Z=12992
 
 
                         if ( search1 )
@@ -5723,6 +5970,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n9f ) n9f = n;  //Z=13047
                         }/*7*/  //Z=13048
                     }/*6*/  /*  of n-loop  */  //Z=13049
+                    calcdone_label99 = true;
                 }/*5*/  /*  of cs=1  */  //Z=13050
 
                 /*  myelin  */  //Z=13052
@@ -5733,36 +5981,36 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=13055
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13056
-                        z12vl[n] = z12vl[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13057
+                        CM->z12vl[n] = CM->z12vl[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13057
                         //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=13058
-                        fkv[n] = fkv[n-1]*n;  //Z=13059
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13060
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13061
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=13059
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=13060
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=13061
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13062 */
                         xln_n = -xln_n*xl2z;  //Z=13063
                         xrn_n = -xrn_n*x12zm;  //Z=13064
                         /*  longitudinal  */  //Z=13065
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13066
-                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);
                             //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);  //Z=13067
                             /* carr1pm[i]:=power(4,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13068 */
-                            params.CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*params.norm);  //Z=13069
+                            params.CR->carr11pm[n][m] = pow(4.0,m)*intl/(CM->fk2v[m]*CM->fkv[n-m]*CM->fkv[n-m]*params.norm);  //Z=13069
                             /* carr1fm[i]:=carr1pm[i];  //Z=13070 */
                             /* i:=i+1;  //Z=13071 */
                         }/*7*/  //Z=13072
                         /*  P(q)-coefficient  */  //Z=13073
-                        params.CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=13074
+                        params.CR->carr1p[n] = pow(4.0,n)*CM->z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=13074
                         /*  F(q)-coefficient  */  //Z=13075
                         double sump = 0.0;  //Z=13076
-                        for ( int m=0; m<=n; m++ ) sump = sump+z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13077
-                        params.CR->carr1f[n] = fk2v[n]*xln_n*sump/(pow(4.0,n));  //Z=13078
+                        for ( int m=0; m<=n; m++ ) sump = sump+CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13077
+                        params.CR->carr1f[n] = CM->fk2v[n]*xln_n*sump/(pow(4.0,n));  //Z=13078
 
                         /*  cross-section  */  //Z=13080
                         params.CR->carr4p[n] = z12v[n]*xrn_n;  //Z=13081
 
                         sump = 0.0;  //Z=13083
-                        for ( int m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13084
+                        for ( int m=0; m<=n; m++ ) sump = sump+z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13084
                         params.CR->carr4f[n] = xrn_n*sump;  //Z=13085
 
 
@@ -5791,11 +6039,12 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n4f ) n4f = n;  //Z=13104
                         }/*7*/  //Z=13105
                     }/*6*/  /*  of n-loop  */  //Z=13106
+                    calcdone_label99 = true;
                 }/*5*/  /*  of cs=3  */  //Z=13107
             }/*4*/  /*  of cylinders  */  //Z=13108
 
             /* ** disks ** */  //Z=13110
-            if ( dim==2 )
+            if ( cdim==2 )
             {/*4*/  //Z=13111
                 double z12v[nnmax+1];   // local
                 z12v[0] = 1.0;
@@ -5808,54 +6057,54 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=13115
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13116
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13117
-                        fkv[n] = fkv[n-1]*n;  //Z=13118
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13119
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13120
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13117
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=13118
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=13119
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=13120
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13121 */
                         xln_n = -xln_n*xl2z;  //Z=13122
                         xrn_n = -xrn_n*xr2z;  //Z=13123
                         /*  longitudinal  */  //Z=13124
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13125
-                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);
                             //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);  //Z=13126
                             /* carr2pm[i]:=power(4,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13127 */
-                            params.CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*params.norm);  //Z=13128
+                            params.CR->carr11pm[n][m] = pow(4.0,m)*intl/(CM->fk2v[m]*CM->fkv[n-m]*CM->fkv[n-m]*params.norm);  //Z=13128
                             /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]);  //Z=13129 */
-                            params.CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=13130
+                            params.CR->carr11pm[n][m] = pow(-1,m)*CM->fk2v[m]/(pow(4.0,m)*CM->fkv[m]*CM->fkv[n-m]);  //Z=13130
                             /* carr2fm[i]:=carr2pm[i];  //Z=13131 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=13132 */
                             /* i:=i+1;  //Z=13133 */
                         }/*7*/  //Z=13134
                         /*  P(q)-coefficient  */  //Z=13135
-                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=13136
+                        params.CR->carr1p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=13136
 
                         /*  F(q)-coefficient  */  //Z=13138
                         double sump = 0.0;  //Z=13139
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13140
-                            sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13141
+                            sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=13141
                         }/*7*/  //Z=13142
-                        params.CR->carr1f[n] = xln_n*fkv[n]*sump;  //Z=13143
+                        params.CR->carr1f[n] = xln_n*CM->fkv[n]*sump;  //Z=13143
 
                         /*  cross-section  */  //Z=13145
-                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=13146
+                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=13146
                         sump = 0.0;  //Z=13147
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13148
-                            sump += z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13149
+                            sump += z12v[m]*z12v[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13149
                         }/*7*/  //Z=13150
                         params.CR->carr4f[n] = M_PI*xln_n*sump/4.0;  //Z=13151
 
                         /*  series for <...> integration  */  //Z=13153
-                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=13154
+                        params.CR->carr2p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=13154
                         sump = 0.0;  //Z=13155
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13156
-                            sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13157
+                            sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13157
                         }/*7*/  //Z=13158
-                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln_n*sump/(2.0*gam3[n]);  //Z=13159
+                        params.CR->carr2f[n] = sqrt(M_PI)*CM->fkv[n]*xln_n*sump/(2.0*CM->gam3[n]);  //Z=13159
 
                         if ( search1 )
                         {/*7*/  //Z=13161
@@ -5882,6 +6131,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n4f ) n4f = n;  //Z=13177
                         }/*7*/  //Z=13178
                     }/*6*/ /*  n-loop  */  //Z=13179
+                    calcdone_label99 = true;
                 }/*5*/  /*  of cs=0  */  //Z=13180
 
                 /*  core/shell  */  //Z=13182
@@ -5892,45 +6142,45 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=13185
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13186
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13187
-                        fkv[n] = fkv[n-1]*n;  //Z=13188
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13189
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13190
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13187
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=13188
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=13189
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=13190
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13191 */
                         xln_n = -xln_n*xl2z;  //Z=13192
                         xrn_n = -xrn_n*xr2z;  //Z=13193
                         xrmn_n = -xrmn_n*xrm2z;  //Z=13194
-                        pn[n] = pn[n-1]*p*p;  //Z=13195
+                        CM->pn[n] = CM->pn[n-1]*p*p;  //Z=13195
                         /*  longitudinal  */  //Z=13196
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13197
-                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);
                             //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);  //Z=13198
                             /* carr2pm[i]:=power(4,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13199 */
-                            params.CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*params.norm);  //Z=13200
+                            params.CR->carr11pm[n][m] = pow(4.0,m)*intl/(CM->fk2v[m]*CM->fkv[n-m]*CM->fkv[n-m]*params.norm);  //Z=13200
                             /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]);  //Z=13201 */
-                            params.CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=13202
+                            params.CR->carr11pm[n][m] = pow(-1,m)*CM->fk2v[m]/(pow(4.0,m)*CM->fkv[m]*CM->fkv[n-m]);  //Z=13202
                             /* carr2fm[i]:=carr2pm[i];  //Z=13203 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=13204 */
                             /* i:=i+1;  //Z=13205 */
                         }/*7*/  //Z=13206
                         /*  P(q)-coefficient  */  //Z=13207
-                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=13208
+                        params.CR->carr1p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=13208
                         /*  F(q)-coefficient  */  //Z=13209
                         double sump = 0.0;  //Z=13210
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13211
-                            sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13212
+                            sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=13212
                         }/*7*/  //Z=13213
-                        params.CR->carr1f[n] = xln_n*fkv[n]*sump;  //Z=13214
+                        params.CR->carr1f[n] = xln_n*CM->fkv[n]*sump;  //Z=13214
 
                         /*  F121  */  //Z=13216
-                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=13217
+                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=13217
                         /*  F122  */  //Z=13218
                         sump = 0.0;  //Z=13219
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13220
-                            sump += pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13221
+                            sump += CM->pn[m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13221
                         }/*7*/  //Z=13222
                         params.CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=13223
 
@@ -5938,38 +6188,38 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         sump = 0.0;  //Z=13226
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13227
-                            sump += pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13228
+                            sump += CM->pn[m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13228
                         }/*7*/  //Z=13229
                         params.CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=13230
 
 
                         /*  F123  */  //Z=13233
-                        params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=13234
+                        params.CR->carr6p[n] = params.CR->carr4p[n]/CM->pn[n];  //Z=13234
                         /*  F121  */  //Z=13235
                         sump = 0.0;  //Z=13236
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13237
-                            sump += z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13238
+                            sump += z12v[m]*z12v[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13238
                         }/*7*/  //Z=13239
                         params.CR->carr4f[n] = M_PI*xrn_n*sump/4.0;  //Z=13240
                         /*  F122  */  //Z=13241
                         sump = 0.0;  //Z=13242
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13243
-                            sump += pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13244
+                            sump += CM->pn[m]*z12v[m]*z12v[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13244
                         }/*7*/  //Z=13245
                         params.CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=13246
                         /*  F123  */  //Z=13247
-                        params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=13248
+                        params.CR->carr6f[n] = params.CR->carr4f[n]/CM->pn[n];  //Z=13248
 
                         /*  series for <...> integration  */  //Z=13250
-                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=13251
+                        params.CR->carr2p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=13251
                         sump = 0.0;  //Z=13252
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13253
-                            sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13254
+                            sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13254
                         }/*7*/  //Z=13255
-                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln_n*sump/(2.0*gam3[n]);  //Z=13256
+                        params.CR->carr2f[n] = sqrt(M_PI)*CM->fkv[n]*xln_n*sump/(2.0*CM->gam3[n]);  //Z=13256
 
                         if ( search1 )
                         {/*7*/  //Z=13258
@@ -6020,6 +6270,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n6f ) n6f = n;  //Z=13292
                         }/*7*/  //Z=13293
                     }/*6*/ /*  n-loop  */  //Z=13294
+                    calcdone_label99 = true;
                 }/*5*/  /*  of cs=1  */  //Z=13295
 
                 /*  inhomogeneous core/shell  */  //Z=13297
@@ -6031,46 +6282,46 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=13300
                         z12v_n = z12v_n*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13301
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13302
-                        fkv[n] = fkv[n-1]*n;  //Z=13303
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13304
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13305
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13302
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=13303
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=13304
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=13305
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13306 */
                         xln_n = -xln_n*xl2z;  //Z=13307
                         xrn_n = -xrn_n*xr2z;  //Z=13308
                         xrmn_n = -xrmn_n*xrm2z;  //Z=13309
-                        pn[n] = pn[n-1]*p*p;  //Z=13310
+                        CM->pn[n] = CM->pn[n-1]*p*p;  //Z=13310
                         /*  longitudinal  */  //Z=13311
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13312
-                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);
                             //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,2,0,2*m,2*n-2*m,params.CR->carr1p,intl);  //Z=13313
                             /* carr2pm[i]:=power(4,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*norm);  //Z=13314 */
-                            params.CR->carr11pm[n][m] = pow(4.0,m)*intl/(fk2v[m]*fkv[n-m]*fkv[n-m]*params.norm);  //Z=13315
+                            params.CR->carr11pm[n][m] = pow(4.0,m)*intl/(CM->fk2v[m]*CM->fkv[n-m]*CM->fkv[n-m]*params.norm);  //Z=13315
                             /* carr1pm[i]:=power(-1,m)*fk2v[m]/(power(4,m)*fkv[m]*fkv[n-m]);  //Z=13316 */
-                            params.CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(pow(4.0,m)*fkv[m]*fkv[n-m]);  //Z=13317
+                            params.CR->carr11pm[n][m] = pow(-1,m)*CM->fk2v[m]/(pow(4.0,m)*CM->fkv[m]*CM->fkv[n-m]);  //Z=13317
                             /* carr2fm[i]:=carr2pm[i];  //Z=13318 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=13319 */
                             /* i:=i+1;  //Z=13320 */
                         }/*7*/  //Z=13321
                         /*  P(q)-coefficient  */  //Z=13322
-                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=13323
+                        params.CR->carr1p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=13323
                         /*  F(q)-coefficient  */  //Z=13324
                         double sump = 0.0;  //Z=13325
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13326
-                            sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13327
+                            sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=13327
                         }/*7*/  //Z=13328
-                        params.CR->carr1f[n] = xln_n*fkv[n]*sump;  //Z=13329
+                        params.CR->carr1f[n] = xln_n*CM->fkv[n]*sump;  //Z=13329
 
                         /*  cross-sectional P(q)  */  //Z=13331
-                        params.CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v_n*xrn_n/((n+1)*gam3[n]*fkv[n]);  //Z=13332
+                        params.CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v_n*xrn_n/((n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=13332
                         sump = 0.0;  //Z=13333
                         double sump1 = 0.0;  //Z=13334
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13335
-                            const double sumi = (m+1/2.0)/((m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=13336
-                            sump += pn[n-m]*sumi;  //Z=13337
+                            const double sumi = (m+1/2.0)/((m+1/2.0-params.alphash1/2.0)*CM->gam3[n-m]*CM->gam3[m]*CM->fkv[n-m]*CM->fkv[m]);  //Z=13336
+                            sump += CM->pn[n-m]*sumi;  //Z=13337
                             sump1 += sumi;  //Z=13338
                         }/*7*/  //Z=13339
                         params.CR->carr5p[n] = (M_PI/4.0)*(1-params.alphash1)*z12v_n*xrmn_n*sump;  //Z=13340
@@ -6079,9 +6330,9 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         sump1 = 0.0;  //Z=13343
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13344
-                            const double sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-params.alphash1/2.0)*(m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=13345
+                            const double sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-params.alphash1/2.0)*(m+1/2.0-params.alphash1/2.0)*CM->gam3[n-m]*CM->gam3[m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13345
                             sump += sumi;  //Z=13346
-                            sump1 += pn[n-m]*sumi;  //Z=13347
+                            sump1 += CM->pn[n-m]*sumi;  //Z=13347
                         }/*7*/  //Z=13348
                         params.CR->carr7p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v_n*xrmn_n*sump;  //Z=13349
                         params.CR->carr8p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v_n*xrmn_n*sump1;  //Z=13350
@@ -6106,18 +6357,18 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                          carr6p[n]:=carr4p[n]/pn[n];   */  //Z=13369
 
                         /*  F(q)   */  //Z=13371
-                        params.CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v_n*xrn_n/(gam3[n]*fkv[n]);  //Z=13372
-                        params.CR->carr5f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v_n*xrmn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=13373
-                        params.CR->carr6f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v_n*xrn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=13374
+                        params.CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v_n*xrn_n/(CM->gam3[n]*CM->fkv[n]);  //Z=13372
+                        params.CR->carr5f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v_n*xrmn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*CM->gam3[n]*CM->fkv[n]);  //Z=13373
+                        params.CR->carr6f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v_n*xrn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*CM->gam3[n]*CM->fkv[n]);  //Z=13374
 
                         /*  series for <...> integration  */  //Z=13376
-                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=13377
+                        params.CR->carr2p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=13377
                         sump = 0.0;  //Z=13378
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13379
-                            sump = sump+z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13380
+                            sump = sump+CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13380
                         }/*7*/  //Z=13381
-                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln_n*sump/(2.0*gam3[n]);  //Z=13382
+                        params.CR->carr2f[n] = sqrt(M_PI)*CM->fkv[n]*xln_n*sump/(2.0*CM->gam3[n]);  //Z=13382
 
                         if ( search1 )
                         {/*7*/  //Z=13384
@@ -6192,6 +6443,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n9f ) n9f = n;  //Z=13436
                         }/*7*/  //Z=13437
                     }/*6*/ /*  n-loop  */  //Z=13438
+                    calcdone_label99 = true;
                 }/*5*/  /*  of inhomogeneous core/shell  */  //Z=13439
 
             }/*4*/  /*  of disk  */  //Z=13441
@@ -6199,11 +6451,11 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
 
 
         /* ** y-axis ** */  //Z=13446
-        if ( (params.orcase==orcYaxis) && (dim!=3) )
+        if ( (params.orcase==orcYaxis) && (cdim!=3) )
         {/*3*/  //Z=13447
 
             /* ** cylinder ** */  //Z=13449
-            if ( dim==1 )
+            if ( cdim==1 )
             {/*4*/  //Z=13450
                 double z12v[nnmax+1];   // local
                 z12v[0] = 1.0;
@@ -6216,35 +6468,35 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=13454
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13455
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13456
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13456
                         //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=13457
-                        fkv[n] = fkv[n-1]*n;  //Z=13458
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13459
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13460
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=13458
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=13459
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=13460
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13461 */
                         xln_n = -xln_n*xl2z;  //Z=13462
                         xrn_n = -xrn_n*xr2z;  //Z=13463
                         /*  longitudinal  */  //Z=13464
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13465
-                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);
                             //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);  //Z=13466
                             /* carr1pm[i]:=intl/(power(4,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=13467 */
-                            params.CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*params.norm);  //Z=13468
+                            params.CR->carr11pm[n][m] = intl/(pow(4.0,m)*CM->fk2v[n-m]*CM->fkv[m]*CM->fkv[m]*params.norm);  //Z=13468
                             /* carr1fm[i]:=carr1pm[i];  //Z=13469 */
                             /* i:=i+1;  //Z=13470 */
                         }/*7*/  //Z=13471
                         /*  P(q)-coefficient  */  //Z=13472
-                        params.CR->carr1p[n] = pow(4.0,2*n)*z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=13473
+                        params.CR->carr1p[n] = pow(4.0,2*n)*CM->z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=13473
                         /*  F(q)-coefficient  */  //Z=13474
                         double sump = 0.0;  //Z=13475
-                        for ( int m=0; m<=n; m++ ) sump += z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13476
-                        params.CR->carr1f[n] = fk2v[n]*xln_n*sump;  //Z=13477
+                        for ( int m=0; m<=n; m++ ) sump += CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13476
+                        params.CR->carr1f[n] = CM->fk2v[n]*xln_n*sump;  //Z=13477
 
                         /*  cross-section  */  //Z=13479
-                        params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  //Z=13480
+                        params.CR->carr4p[n] = 4*(n+1/2.0)*CM->fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*CM->fkv[n]*CM->fkv[n]*(n+1)*CM->fkv[n]);  //Z=13480
                         sump = 0.0;  //Z=13481
-                        for ( int m=0; m<=n; m++ ) sump += z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13482
+                        for ( int m=0; m<=n; m++ ) sump += z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13482
                         params.CR->carr4f[n] = xrn_n*sump;  //Z=13483
 
                         if ( search1 )
@@ -6272,6 +6524,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n4f ) n4f = n;  //Z=13501
                         }/*7*/  //Z=13502
                     }/*6*/  /*  of n-loop  */  //Z=13503
+                    calcdone_label99 = true;
                 }/*5*/  /*  cs=0  */  //Z=13504
 
                 /*  core/shell  */  //Z=13506
@@ -6282,46 +6535,46 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=13509
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13510
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13511
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13511
                         //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=13512
-                        fkv[n] = fkv[n-1]*n;  //Z=13513
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13514
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13515
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=13513
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=13514
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=13515
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13516 */
                         xln_n = -xln_n*xl2z;  //Z=13517
                         xrn_n = -xrn_n*xr2z;  //Z=13518
                         xrmn_n = -xrmn_n*xrm2z;  //Z=13519
-                        pn[n] = pn[n-1]*p*p;  //Z=13520
+                        CM->pn[n] = CM->pn[n-1]*p*p;  //Z=13520
                         /*  longitudinal  */  //Z=13521
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13522
-                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);
                             //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);  //Z=13523
                             /* carr1pm[i]:=intl/(power(4,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=13524 */
-                            params.CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*params.norm);  //Z=13525
+                            params.CR->carr11pm[n][m] = intl/(pow(4.0,m)*CM->fk2v[n-m]*CM->fkv[m]*CM->fkv[m]*params.norm);  //Z=13525
                             /* carr1fm[i]:=carr1pm[i];  //Z=13526 */
                             /* i:=i+1;  //Z=13527 */
                         }/*7*/  //Z=13528
                         /*  P(q)-coefficient  */  //Z=13529
-                        params.CR->carr1p[n] = pow(4.0,2*n)*z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=13530
+                        params.CR->carr1p[n] = pow(4.0,2*n)*CM->z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=13530
                         /*  F(q)-coefficient  */  //Z=13531
                         double sump = 0.0;  //Z=13532
-                        for ( int m=0; m<=n; m++ ) sump += z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13533
-                        params.CR->carr1f[n] = fk2v[n]*xln_n*sump;  //Z=13534
+                        for ( int m=0; m<=n; m++ ) sump += CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13533
+                        params.CR->carr1f[n] = CM->fk2v[n]*xln_n*sump;  //Z=13534
 
                         /*  P(q)-coefficients  */  //Z=13536
                         /*  cross-sectional  */  //Z=13537
                         /*  F121  */  //Z=13538
-                        params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=13539
+                        params.CR->carr4p[n] = 4*(n+1/2.0)*CM->fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*CM->fkv[n]*CM->fkv[n]*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=13539
                         /*  F122  */  //Z=13540
                         sump = 0.0;  //Z=13541
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13542
-                            sump += pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13543
+                            sump += CM->pn[m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=13543
                         }/*7*/  //Z=13544
                         params.CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=13545
                         /*  F123  */  //Z=13546
-                        params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=13547
+                        params.CR->carr6p[n] = params.CR->carr4p[n]/CM->pn[n];  //Z=13547
 
                         /*  F(q)-coefficients  */  //Z=13549
                         /*  cross-sectional  */  //Z=13550
@@ -6329,18 +6582,18 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         sump = 0.0;  //Z=13552
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13553
-                            sump += z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13554
+                            sump += z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=13554
                         }/*7*/  //Z=13555
                         params.CR->carr4f[n] = xrn_n*sump;  //Z=13556
                         /*  F122  */  //Z=13557
                         sump = 0.0;  //Z=13558
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13559
-                            sump += pn[m]*z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13560
+                            sump += CM->pn[m]*z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=13560
                         }/*7*/  //Z=13561
                         params.CR->carr5f[n] = xrmn_n*sump;  //Z=13562
                         /*  F123  */  //Z=13563
-                        params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=13564
+                        params.CR->carr6f[n] = params.CR->carr4f[n]/CM->pn[n];  //Z=13564
 
                         if ( search1 )
                         {/*7*/  //Z=13566
@@ -6391,6 +6644,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n6f ) n6f = n;  //Z=13600
                         }/*7*/  //Z=13601
                     }/*6*/  /*  of n-loop  */  //Z=13602
+                    calcdone_label99 = true;
                 }/*5*/  /*  cs=1  */  //Z=13603
 
                 /*  inhomogeneous core/shell  */  //Z=13605
@@ -6402,41 +6656,41 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=13608
                         z12v_n = z12v_n*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13609
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13610
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13610
                         //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=13611
-                        fkv[n] = fkv[n-1]*n;  //Z=13612
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13613
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13614
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=13612
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=13613
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=13614
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13615 */
                         xln_n = -xln_n*xl2z;  //Z=13616
                         xrn_n = -xrn_n*xr2z;  //Z=13617
                         xrmn_n = -xrmn_n*xrm2z;  //Z=13618
-                        pn[n] = pn[n-1]*p*p;  //Z=13619
+                        CM->pn[n] = CM->pn[n-1]*p*p;  //Z=13619
                         /*  longitudinal  */  //Z=13620
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13621
-                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);
                             //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);  //Z=13622
                             /* carr1pm[i]:=intl/(power(4,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=13623 */
-                            params.CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*params.norm);  //Z=13624
+                            params.CR->carr11pm[n][m] = intl/(pow(4.0,m)*CM->fk2v[n-m]*CM->fkv[m]*CM->fkv[m]*params.norm);  //Z=13624
                             /* carr1fm[i]:=carr1pm[i];  //Z=13625 */
                             /* i:=i+1;  //Z=13626 */
                         }/*7*/  //Z=13627
                         /*  P(q)-coefficient  */  //Z=13628
-                        params.CR->carr1p[n] = pow(4.0,2*n)*z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=13629
+                        params.CR->carr1p[n] = pow(4.0,2*n)*CM->z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=13629
                         /*  F(q)-coefficient  */  //Z=13630
                         double sump = 0.0;  //Z=13631
-                        for ( int m=0; m<=n; m++ ) sump += z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13632
-                        params.CR->carr1f[n] = fk2v[n]*xln_n*sump;  //Z=13633
+                        for ( int m=0; m<=n; m++ ) sump += CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13632
+                        params.CR->carr1f[n] = CM->fk2v[n]*xln_n*sump;  //Z=13633
 
                         /*  cross-sectional P(q)  */  //Z=13635
-                        params.CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v_n*xrn_n/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=13636
+                        params.CR->carr4p[n] = pow(4.0,n+1)*CM->gam3[n]*z12v_n*xrn_n/(sqrt(M_PI)*(n+2)*(n+1)*CM->fkv[n]*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=13636
                         sump = 0.0;  //Z=13637
                         double sump1 = 0.0;  //Z=13638
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13639
-                            const double sumi = 1/((m+1-params.alphash1/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=13640
-                            sump += pn[n-m]*sumi;  //Z=13641
+                            const double sumi = 1/((m+1-params.alphash1/2.0)*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]*CM->fkv[m]);  //Z=13640
+                            sump += CM->pn[n-m]*sumi;  //Z=13641
                             sump1 += sumi;  //Z=13642
                         }/*7*/  //Z=13643
                         params.CR->carr5p[n] = (1-params.uca/2.0)*z12v_n*xrmn_n*sump;  //Z=13644
@@ -6445,9 +6699,9 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         sump1 = 0.0;  //Z=13647
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13648
-                            const double sumi = 1/((n-m+1-params.alphash1/2.0)*(m+1-params.alphash1/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=13649
+                            const double sumi = 1/((n-m+1-params.alphash1/2.0)*(m+1-params.alphash1/2.0)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13649
                             sump += sumi;  //Z=13650
-                            sump1 += pn[n-m]*sumi;  //Z=13651
+                            sump1 += CM->pn[n-m]*sumi;  //Z=13651
                         }/*7*/  //Z=13652
                         params.CR->carr7p[n] = sqr(1-params.alphash1/2.0)*z12v_n*xrmn_n*sump;  //Z=13653
                         params.CR->carr8p[n] = sqr(1-params.alphash1/2.0)*z12v_n*xrmn_n*sump1;  //Z=13654
@@ -6468,9 +6722,9 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
 
                         /*  F(q)-coefficients  */  //Z=13670
                         /*  cross-sectional  */  //Z=13671
-                        params.CR->carr4f[n] = z12v_n*xrn_n/((n+1)*fkv[n]*fkv[n]);  //Z=13672
-                        params.CR->carr5f[n] = (1-params.alphash1/2.0)*z12v_n*xrmn_n/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=13673
-                        params.CR->carr6f[n] = (1-params.alphash1/2.0)*z12v_n*xrn_n/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=13674
+                        params.CR->carr4f[n] = z12v_n*xrn_n/((n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=13672
+                        params.CR->carr5f[n] = (1-params.alphash1/2.0)*z12v_n*xrmn_n/((n+1-params.alphash1/2.0)*CM->fkv[n]*CM->fkv[n]);  //Z=13673
+                        params.CR->carr6f[n] = (1-params.alphash1/2.0)*z12v_n*xrn_n/((n+1-params.alphash1/2.0)*CM->fkv[n]*CM->fkv[n]);  //Z=13674
 
                         if ( search1 )
                         {/*7*/  //Z=13676
@@ -6545,6 +6799,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n9f ) n9f = n;  //Z=13728
                         }/*7*/  //Z=13729
                     }/*6*/  /*  of n-loop  */  //Z=13730
+                    calcdone_label99 = true;
                 }/*5*/  /*  cs=2  */  //Z=13731
 
 
@@ -6555,36 +6810,36 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=13737
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13738
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13739
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13739
                         //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=13740
-                        fkv[n] = fkv[n-1]*n;  //Z=13741
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13742
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13743
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=13741
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=13742
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=13743
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13744 */
                         xln_n = -xln_n*xl2z;  //Z=13745
                         xrn_n = -xrn_n*x12zm;  //Z=13746
                         /*  longitudinal  */  //Z=13747
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13748
-                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);
                             //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);  //Z=13749
                             /* carr1pm[i]:=intl/(power(4,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=13750 */
-                            params.CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*params.norm);  //Z=13751
+                            params.CR->carr11pm[n][m] = intl/(pow(4.0,m)*CM->fk2v[n-m]*CM->fkv[m]*CM->fkv[m]*params.norm);  //Z=13751
                             /* carr1fm[i]:=carr1pm[i];  //Z=13752 */
                             /* i:=i+1;  //Z=13753 */
                         }/*7*/  //Z=13754
                         /*  P(q)-coefficient  */  //Z=13755
-                        params.CR->carr1p[n] = pow(4.0,2*n)*z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=13756
+                        params.CR->carr1p[n] = pow(4.0,2*n)*CM->z12vl[n]*xln_n/((2.0*n+1)*(n+1));  //Z=13756
                         /*  F(q)-coefficient  */  //Z=13757
                         double sump = 0.0;  //Z=13758
-                        for ( int m=0; m<=n; m++ ) sump += z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13759
-                        params.CR->carr1f[n] = fk2v[n]*xln_n*sump;  //Z=13760
+                        for ( int m=0; m<=n; m++ ) sump += CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13759
+                        params.CR->carr1f[n] = CM->fk2v[n]*xln_n*sump;  //Z=13760
 
                         /*  cross-section  */  //Z=13762
                         params.CR->carr4p[n] = z12v[n]*xrn_n;  //Z=13763
 
                         sump = 0.0;  //Z=13765
-                        for ( int m=0; m<=n; m++ ) sump += z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13766
+                        for ( int m=0; m<=n; m++ ) sump += z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13766
                         params.CR->carr4f[n] = xrn_n*sump;  //Z=13767
 
                         if ( search1 )
@@ -6612,13 +6867,14 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n4f ) n4f = n;  //Z=13785
                         }/*7*/  //Z=13786
                     }/*6*/  /*  of n-loop  */  //Z=13787
+                    calcdone_label99 = true;
                 }/*5*/  /*  cs=3  */  //Z=13788
 
             }/*4*/  /*  of cylinders  */  //Z=13790
 
 
             /* ** disks ** */  //Z=13793
-            if ( dim==2 )
+            if ( cdim==2 )
             {/*4*/  //Z=13794
                 double z12v[nnmax+1];   // local
                 z12v[0] = 1.0;
@@ -6631,53 +6887,53 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=13798
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13799
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13800
-                        fkv[n] = fkv[n-1]*n;  //Z=13801
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13802
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13803
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13800
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=13801
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=13802
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=13803
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13804 */
                         xln_n = -xln_n*xl2z;  //Z=13805
                         xrn_n = -xrn_n*xr2z;  //Z=13806
                         /*  longitudinal  */  //Z=13807
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13808
-                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);
                             //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);  //Z=13809
                             /* carr2pm[i]:=intl/(power(4,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=13810 */
-                            params.CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*params.norm);  //Z=13811
+                            params.CR->carr11pm[n][m] = intl/(pow(4.0,m)*CM->fk2v[n-m]*CM->fkv[m]*CM->fkv[m]*params.norm);  //Z=13811
                             /* carr1pm[i]:=power(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=13812 */
-                            params.CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=13813
+                            params.CR->carr11pm[n][m] = pow(-1,m)*CM->fk2v[m]/(CM->fkv[m]*CM->fkv[n-m]);  //Z=13813
                             /* carr2fm[i]:=carr2pm[i];  //Z=13814 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=13815 */
                             /* i:=i+1;  //Z=13816 */
                         }/*7*/  //Z=13817
                         /*  P(q)-coefficient  */  //Z=13818
-                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=13819
+                        params.CR->carr1p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=13819
                         /*  F(q)-coefficient  */  //Z=13820
                         double sump = 0.0;  //Z=13821
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13822
-                            sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13823
+                            sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=13823
                         }/*7*/  //Z=13824
-                        params.CR->carr1f[n] = xln_n*fkv[n]*sump;  //Z=13825
+                        params.CR->carr1f[n] = xln_n*CM->fkv[n]*sump;  //Z=13825
 
                         /*  cross-section  */  //Z=13827
-                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=13828
+                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=13828
                         sump = 0.0;  //Z=13829
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13830
-                            sump += z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13831
+                            sump += z12v[m]*z12v[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13831
                         }/*7*/  //Z=13832
                         params.CR->carr4f[n] = M_PI*xln_n*sump/4.0;  //Z=13833
 
                         /*  series for <...> integration  */  //Z=13835
-                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=13836
+                        params.CR->carr2p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=13836
                         sump = 0.0;  //Z=13837
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13838
-                            sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13839
+                            sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13839
                         }/*7*/  //Z=13840
-                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln_n*sump/(2.0*gam3[n]);  //Z=13841
+                        params.CR->carr2f[n] = sqrt(M_PI)*CM->fkv[n]*xln_n*sump/(2.0*CM->gam3[n]);  //Z=13841
 
                         if ( search1 )
                         {/*7*/  //Z=13843
@@ -6704,6 +6960,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n4f ) n4f = n;  //Z=13859
                         }/*7*/  //Z=13860
                     }/*6*/  /*  of n-loop  */  //Z=13861
+                    calcdone_label99 = true;
                 }/*5*/  /*  of cs=0  */  //Z=13862
 
                 /*  core/shell  */  //Z=13864
@@ -6714,82 +6971,82 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=13867
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13868
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13869
-                        fkv[n] = fkv[n-1]*n;  //Z=13870
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13871
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13872
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13869
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=13870
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=13871
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=13872
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13873 */
                         xln_n = -xln_n*xl2z;  //Z=13874
                         xrn_n = -xrn_n*xr2z;  //Z=13875
                         xrmn_n = -xrmn_n*xrm2z;  //Z=13876
-                        pn[n] = pn[n-1]*p*p;  //Z=13877
+                        CM->pn[n] = CM->pn[n-1]*p*p;  //Z=13877
                         /*  longitudinal  */  //Z=13878
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13879
-                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);
                             //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);  //Z=13880
                             /* carr2pm[i]:=intl/(power(4,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=13881 */
-                            params.CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*params.norm);  //Z=13882
+                            params.CR->carr11pm[n][m] = intl/(pow(4.0,m)*CM->fk2v[n-m]*CM->fkv[m]*CM->fkv[m]*params.norm);  //Z=13882
                             /* carr1pm[i]:=power(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=13883 */
-                            params.CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=13884
+                            params.CR->carr11pm[n][m] = pow(-1,m)*CM->fk2v[m]/(CM->fkv[m]*CM->fkv[n-m]);  //Z=13884
                             /* carr2fm[i]:=carr2pm[i];  //Z=13885 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=13886 */
                             /* i:=i+1;  //Z=13887 */
                         }/*7*/  //Z=13888
                         /*  P(q)-coefficient  */  //Z=13889
-                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=13890
+                        params.CR->carr1p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=13890
                         /*  F(q)-coefficient  */  //Z=13891
                         double sump = 0.0;  //Z=13892
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13893
-                            sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=13894
+                            sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=13894
                         }/*7*/  //Z=13895
-                        params.CR->carr1f[n] = xln_n*fkv[n]*sump;  //Z=13896
+                        params.CR->carr1f[n] = xln_n*CM->fkv[n]*sump;  //Z=13896
 
                         /*  cross-sectional  */  //Z=13898
                         /*  F121  */  //Z=13899
-                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=13900
+                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=13900
                         /*  F122  */  //Z=13901
                         sump = 0.0;  //Z=13902
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13903
-                            sump += pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13904
+                            sump += CM->pn[m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13904
                         }/*7*/  //Z=13905
                         params.CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=13906
                         /*  F122  */  //Z=13907
                         sump = 0.0;  //Z=13908
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13909
-                            sump += pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13910
+                            sump += CM->pn[m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13910
                         }/*7*/  //Z=13911
                         params.CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=13912
                         /*  F123  */  //Z=13913
-                        params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=13914
+                        params.CR->carr6p[n] = params.CR->carr4p[n]/CM->pn[n];  //Z=13914
                         /*  F121  */  //Z=13915
                         sump = 0.0;  //Z=13916
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13917
-                            sump += z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13918
+                            sump += z12v[m]*z12v[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13918
                         }/*7*/  //Z=13919
                         params.CR->carr4f[n] = M_PI*xrn_n*sump/4.0;  //Z=13920
                         /*  F122  */  //Z=13921
                         sump = 0.0;  //Z=13922
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13923
-                            sump = sump+pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=13924
+                            sump = sump+CM->pn[m]*z12v[m]*z12v[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13924
                         }/*7*/  //Z=13925
                         params.CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=13926
                         /*  F123  */  //Z=13927
-                        params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=13928
+                        params.CR->carr6f[n] = params.CR->carr4f[n]/CM->pn[n];  //Z=13928
 
                         /*  series for <...> integration  */  //Z=13930
-                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=13931
+                        params.CR->carr2p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=13931
                         sump = 0.0;  //Z=13932
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13933
-                            sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=13934
+                            sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=13934
                         }/*7*/  //Z=13935
-                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln_n*sump/(2.0*gam3[n]);  //Z=13936
+                        params.CR->carr2f[n] = sqrt(M_PI)*CM->fkv[n]*xln_n*sump/(2.0*CM->gam3[n]);  //Z=13936
 
                         if ( search1 )
                         {/*7*/  //Z=13938
@@ -6840,6 +7097,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n6f ) n6f = n;  //Z=13972
                         }/*7*/  //Z=13973
                     }/*6*/  /*  of n-loop  */  //Z=13974
+                    calcdone_label99 = true;
                 }/*5*/  /*  of cs=1  */  //Z=13975
 
                 /*  inhomogeneous core/shell  */  //Z=13977
@@ -6850,46 +7108,46 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=13980
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=13981
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13982
-                        fkv[n] = fkv[n-1]*n;  //Z=13983
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=13984
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=13985
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=13982
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=13983
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=13984
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=13985
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=13986 */
                         xln_n = -xln_n*xl2z;  //Z=13987
                         xrn_n = -xrn_n*xr2z;  //Z=13988
                         xrmn_n = -xrmn_n*xrm2z;  //Z=13989
-                        pn[n] = pn[n-1]*p*p;  //Z=13990
+                        CM->pn[n] = CM->pn[n-1]*p*p;  //Z=13990
                         /*  longitudinal  */  //Z=13991
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=13992
-                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);
+                            qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);
                             //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,3,0,2*n-2*m,2*m,params.CR->carr1p,intl);  //Z=13993
                             /* carr2pm[i]:=intl/(power(4,m)*fk2v[n-m]*fkv[m]*fkv[m]*norm);  //Z=13994 */
-                            params.CR->carr11pm[n][m] = intl/(pow(4.0,m)*fk2v[n-m]*fkv[m]*fkv[m]*params.norm);  //Z=13995
+                            params.CR->carr11pm[n][m] = intl/(pow(4.0,m)*CM->fk2v[n-m]*CM->fkv[m]*CM->fkv[m]*params.norm);  //Z=13995
                             /* carr1pm[i]:=power(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=13996 */
-                            params.CR->carr11pm[n][m] = pow(-1,m)*fk2v[m]/(fkv[m]*fkv[n-m]);  //Z=13997
+                            params.CR->carr11pm[n][m] = pow(-1,m)*CM->fk2v[m]/(CM->fkv[m]*CM->fkv[n-m]);  //Z=13997
                             /* carr2fm[i]:=carr2pm[i];  //Z=13998 */
                             /* carr1fm[i]:=carr1pm[i];  //Z=13999 */
                             /* i:=i+1;  //Z=14000 */
                         }/*7*/  //Z=14001
                         /*  P(q)-coefficient  */  //Z=14002
-                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14003
+                        params.CR->carr1p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=14003
                         /*  F(q)-coefficient  */  //Z=14004
                         double sump = 0.0;  //Z=14005
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14006
-                            sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14007
+                            sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=14007
                         }/*7*/  //Z=14008
-                        params.CR->carr1f[n] = xln_n*fkv[n]*sump;  //Z=14009
+                        params.CR->carr1f[n] = xln_n*CM->fkv[n]*sump;  //Z=14009
 
                         /*  cross-sectional P(q)  */  //Z=14011
-                        params.CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn_n/((n+1)*gam3[n]*fkv[n]);  //Z=14012
+                        params.CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn_n/((n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=14012
                         sump = 0.0;  //Z=14013
                         double sump1 = 0.0;  //Z=14014
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14015
-                            const double sumi = (m+1/2.0)/((m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=14016
-                            sump += pn[n-m]*sumi;  //Z=14017
+                            const double sumi = (m+1/2.0)/((m+1/2.0-params.alphash1/2.0)*CM->gam3[n-m]*CM->gam3[m]*CM->fkv[n-m]*CM->fkv[m]);  //Z=14016
+                            sump += CM->pn[n-m]*sumi;  //Z=14017
                             sump1 += sumi;  //Z=14018
                         }/*7*/  //Z=14019
                         params.CR->carr5p[n] = (M_PI/4.0)*(1-params.alphash1)*z12v[n]*xrmn_n*sump;  //Z=14020
@@ -6898,9 +7156,9 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         sump1 = 0.0;  //Z=14023
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14024
-                            const double sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-params.alphash1/2.0)*(m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=14025
+                            const double sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-params.alphash1/2.0)*(m+1/2.0-params.alphash1/2.0)*CM->gam3[n-m]*CM->gam3[m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=14025
                             sump = sump+sumi;  //Z=14026
-                            sump1 = sump1+pn[n-m]*sumi;  //Z=14027
+                            sump1 = sump1+CM->pn[n-m]*sumi;  //Z=14027
                         }/*7*/  //Z=14028
                         params.CR->carr7p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrmn_n*sump;  //Z=14029
                         params.CR->carr8p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrmn_n*sump1;  //Z=14030
@@ -6924,18 +7182,18 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                          carr6p[n]:=carr4p[n]/pn[n];       */  //Z=14048
 
                         /*  F(q)  */  //Z=14050
-                        params.CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn_n/(gam3[n]*fkv[n]);  //Z=14051
-                        params.CR->carr5f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=14052
-                        params.CR->carr6f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=14053
+                        params.CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn_n/(CM->gam3[n]*CM->fkv[n]);  //Z=14051
+                        params.CR->carr5f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*CM->gam3[n]*CM->fkv[n]);  //Z=14052
+                        params.CR->carr6f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*CM->gam3[n]*CM->fkv[n]);  //Z=14053
 
                         /*  series for <...> integration  */  //Z=14055
-                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14056
+                        params.CR->carr2p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=14056
                         sump = 0.0;  //Z=14057
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14058
-                            sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14059
+                            sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=14059
                         }/*7*/  //Z=14060
-                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln_n*sump/(2.0*gam3[n]);  //Z=14061
+                        params.CR->carr2f[n] = sqrt(M_PI)*CM->fkv[n]*xln_n*sump/(2.0*CM->gam3[n]);  //Z=14061
 
                         if ( search1 )
                         {/*7*/  //Z=14063
@@ -6998,20 +7256,21 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n6f ) n6f = n;  //Z=14106
                         }/*7*/  //Z=14107
                     }/*6*/  /*  of n-loop  */  //Z=14108
+                    calcdone_label99 = true;
                 }/*5*/  /*  of cs=2  */  //Z=14109
 
             }/*4*/  /*  of disks  */  //Z=14111
         }/*3*/  //Z=14112
 
         /* ** z-axis ** */  //Z=14114
-        if ( (params.orcase==orcZaxis) && (dim!=3) )
+        if ( (params.orcase==orcZaxis) && (cdim!=3) )
         {/*3*/  //Z=14115
             double z12v[nnmax+1];   // local
             z12v[0] = 1.0;
             double xrn_n  = 1.0;
             long double xln_n = 1.0;
             /* ** cylinders ** */  //Z=14116
-            if ( dim==1 )
+            if ( cdim==1 )
             {/*4*/  //Z=14117
                 /*  homogeneous  */  //Z=14118
                 if ( params.cs==0 )
@@ -7020,29 +7279,29 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=14121
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=14122
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14123
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14123
                         //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=14124
-                        fkv[n] = fkv[n-1]*n;  //Z=14125
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14126
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=14127
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=14125
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=14126
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=14127
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=14128 */
                         xln_n = -xln_n*xl2z;  //Z=14129
                         xrn_n = -xrn_n*xr2z;  //Z=14130
                         /*  longitudinal  */  //Z=14131
-                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);
+                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,4,0,0,2*n,params.CR->carr1p,intl);
                         //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);  //Z=14132
                         /*  P(q)-coefficient  */  //Z=14133
-                        params.CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln_n*intl/((2.0*n+1)*(n+1)*fkv[n]*fkv[n]*params.norm);  //Z=14134
+                        params.CR->carr1p[n] = pow(4.0,n)*CM->z12vl[n]*xln_n*intl/((2.0*n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*params.norm);  //Z=14134
                         /*  F(q)-coefficient  */  //Z=14135
                         double sump = 0.0;  //Z=14136
-                        for ( int m=0; m<=n; m++ ) sump += z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14137
-                        params.CR->carr1f[n] = fk2v[n]*xln_n*sump*intl/(pow(4.0,n)*fkv[n]*fkv[n]*params.norm);  //Z=14138
+                        for ( int m=0; m<=n; m++ ) sump += CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=14137
+                        params.CR->carr1f[n] = CM->fk2v[n]*xln_n*sump*intl/(pow(4.0,n)*CM->fkv[n]*CM->fkv[n]*params.norm);  //Z=14138
                         /*  cross-sectional  */  //Z=14139
                         /*  P(q)-coefficient  */  //Z=14140
-                        params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]);  //Z=14141
+                        params.CR->carr4p[n] = 4*(n+1/2.0)*CM->fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*CM->fkv[n]*CM->fkv[n]*(n+1)*CM->fkv[n]);  //Z=14141
                         /*  F(q)-coefficient  */  //Z=14142
                         sump = 0.0;  //Z=14143
-                        for ( int m=0; m<=n; m++ ) sump += z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14144
+                        for ( int m=0; m<=n; m++ ) sump += z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=14144
                         params.CR->carr4f[n] = xrn_n*sump;  //Z=14145
 
                         if ( search1 )
@@ -7070,6 +7329,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n4f ) n4f = n;  //Z=14163
                         }/*7*/  //Z=14164
                     }/*6*/  /*  of n-loop  */  //Z=14165
+                    calcdone_label99 = true;
                 }/*5*/  /*  of cs=0  */  //Z=14166
 
                 /*  core/shell  */  //Z=14168
@@ -7080,38 +7340,38 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=14171
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=14172
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14173
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14173
                         //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=14174
-                        fkv[n] = fkv[n-1]*n;  //Z=14175
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14176
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=14177
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=14175
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=14176
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=14177
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=14178 */
                         xln_n = -xln_n*xl2z;  //Z=14179
                         xrn_n = -xrn_n*xr2z;  //Z=14180
                         xrmn_n = -xrmn_n*xrm2z;  //Z=14181
-                        pn[n] = pn[n-1]*p*p;  //Z=14182
+                        CM->pn[n] = CM->pn[n-1]*p*p;  //Z=14182
                         /*  longitudinal  */  //Z=14183
-                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);
+                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,4,0,0,2*n,params.CR->carr1p,intl);
                         //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);  //Z=14184
                         /*  P(q)-coefficient  */  //Z=14185
-                        params.CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln_n*intl/((2.0*n+1)*(n+1)*fkv[n]*fkv[n]*params.norm);  //Z=14186
+                        params.CR->carr1p[n] = pow(4.0,n)*CM->z12vl[n]*xln_n*intl/((2.0*n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*params.norm);  //Z=14186
                         /*  F(q)-coefficient  */  //Z=14187
                         double sump = 0.0;  //Z=14188
-                        for ( int m=0; m<=n; m++ ) sump += z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14189
-                        params.CR->carr1f[n] = fk2v[n]*xln_n*sump*intl/(pow(4.0,n+1)*fkv[n]*fkv[n]*params.norm);  //Z=14190
+                        for ( int m=0; m<=n; m++ ) sump += CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=14189
+                        params.CR->carr1f[n] = CM->fk2v[n]*xln_n*sump*intl/(pow(4.0,n+1)*CM->fkv[n]*CM->fkv[n]*params.norm);  //Z=14190
                         /*  P(q)-coefficients  */  //Z=14191
                         /*  cross-sectional  */  //Z=14192
                         /*  F121  */  //Z=14193
-                        params.CR->carr4p[n] = 4*(n+1/2.0)*fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*fkv[n]*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=14194
+                        params.CR->carr4p[n] = 4*(n+1/2.0)*CM->fk2v[n]*z12v[n]*xrn_n/((n+2)*(n+1)*CM->fkv[n]*CM->fkv[n]*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=14194
                         /*  F122  */  //Z=14195
                         sump = 0.0;  //Z=14196
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14197
-                            sump += pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14198
+                            sump += CM->pn[m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=14198
                         }/*7*/  //Z=14199
                         params.CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=14200
                         /*  F123  */  //Z=14201
-                        params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=14202
+                        params.CR->carr6p[n] = params.CR->carr4p[n]/CM->pn[n];  //Z=14202
 
                         /*  F(q)-coefficients  */  //Z=14204
                         /*  cross-sectional  */  //Z=14205
@@ -7119,18 +7379,18 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         sump = 0.0;  //Z=14207
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14208
-                            sump = sump+z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14209
+                            sump = sump+z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=14209
                         }/*7*/  //Z=14210
                         params.CR->carr4f[n] = xrn_n*sump;  //Z=14211
                         /*  F122  */  //Z=14212
                         sump = 0.0;  //Z=14213
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14214
-                            sump += pn[m]*z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14215
+                            sump += CM->pn[m]*z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=14215
                         }/*7*/  //Z=14216
                         params.CR->carr5f[n] = xrmn_n*sump;  //Z=14217
                         /*  F123  */  //Z=14218
-                        params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=14219
+                        params.CR->carr6f[n] = params.CR->carr4f[n]/CM->pn[n];  //Z=14219
 
                         if ( search1 )
                         {/*7*/  //Z=14221
@@ -7181,6 +7441,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n6f ) n6f = n;  //Z=14255
                         }/*7*/  //Z=14256
                     }/*6*/  /*  of n-loop  */  //Z=14257
+                    calcdone_label99 = true;
                 }/*5*/  /*  of cs=1  */  //Z=14258
 
 
@@ -7192,34 +7453,34 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=14264
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=14265
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14266
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14266
                         //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=14267
-                        fkv[n] = fkv[n-1]*n;  //Z=14268
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14269
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=14270
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=14268
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=14269
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=14270
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=14271 */
                         xln_n = -xln_n*xl2z;  //Z=14272
                         xrn_n = -xrn_n*xr2z;  //Z=14273
                         xrmn_n = -xrmn_n*xrm2z;  //Z=14274
-                        pn[n] = pn[n-1]*p*p;  //Z=14275
+                        CM->pn[n] = CM->pn[n-1]*p*p;  //Z=14275
                         /*  longitudinal  */  //Z=14276
-                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);
+                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,4,0,0,2*n,params.CR->carr1p,intl);
                         //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);  //Z=14277
                         /*  P(q)-coefficient  */  //Z=14278
-                        params.CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln_n*intl/((2.0*n+1)*(n+1)*fkv[n]*fkv[n]*params.norm);  //Z=14279
+                        params.CR->carr1p[n] = pow(4.0,n)*CM->z12vl[n]*xln_n*intl/((2.0*n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*params.norm);  //Z=14279
                         /*  F(q)-coefficient  */  //Z=14280
                         double sump = 0.0;  //Z=14281
-                        for ( int m=0; m<=n; m++ ) sump += z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14282
-                        params.CR->carr1f[n] = fk2v[n]*xln_n*sump*intl/(pow(4.0,n+1)*fkv[n]*fkv[n]*params.norm);  //Z=14283
+                        for ( int m=0; m<=n; m++ ) sump += CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=14282
+                        params.CR->carr1f[n] = CM->fk2v[n]*xln_n*sump*intl/(pow(4.0,n+1)*CM->fkv[n]*CM->fkv[n]*params.norm);  //Z=14283
 
                         /*  cross-sectional P(q)  */  //Z=14285
-                        params.CR->carr4p[n] = pow(4.0,n+1)*gam3[n]*z12v[n]*xrn_n/(sqrt(M_PI)*(n+2)*(n+1)*fkv[n]*(n+1)*fkv[n]*fkv[n]);  //Z=14286
+                        params.CR->carr4p[n] = pow(4.0,n+1)*CM->gam3[n]*z12v[n]*xrn_n/(sqrt(M_PI)*(n+2)*(n+1)*CM->fkv[n]*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=14286
                         sump = 0.0;  //Z=14287
                         double sump1 = 0.0;  //Z=14288
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14289
-                            const double sumi = 1/((m+1-params.alphash1/2.0)*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]*fkv[m]);  //Z=14290
-                            sump += pn[n-m]*sumi;  //Z=14291
+                            const double sumi = 1/((m+1-params.alphash1/2.0)*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]*CM->fkv[m]);  //Z=14290
+                            sump += CM->pn[n-m]*sumi;  //Z=14291
                             sump1 += sumi;  //Z=14292
                         }/*7*/  //Z=14293
                         params.CR->carr5p[n] = (1-params.uca/2.0)*z12v[n]*xrmn_n*sump;  //Z=14294
@@ -7228,9 +7489,9 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         sump1 = 0.0;  //Z=14297
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14298
-                            const double sumi = 1/((n-m+1-params.alphash1/2.0)*(m+1-params.alphash1/2.0)*fkv[n-m]*fkv[m]*fkv[m]*fkv[n-m]);  //Z=14299
+                            const double sumi = 1/((n-m+1-params.alphash1/2.0)*(m+1-params.alphash1/2.0)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=14299
                             sump += sumi;  //Z=14300
-                            sump1 += pn[n-m]*sumi;  //Z=14301
+                            sump1 += CM->pn[n-m]*sumi;  //Z=14301
                         }/*7*/  //Z=14302
                         params.CR->carr7p[n] = (1-params.alphash1/2.0)*(1-params.alphash1/2.0)*z12v[n]*xrmn_n*sump;  //Z=14303
                         params.CR->carr8p[n] = (1-params.alphash1/2.0)*(1-params.alphash1/2.0)*z12v[n]*xrmn_n*sump1;  //Z=14304
@@ -7251,9 +7512,9 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
 
                         /*  F(q)-coefficients  */  //Z=14320
                         /*  cross-sectional  */  //Z=14321
-                        params.CR->carr4f[n] = z12v[n]*xrn_n/((n+1)*fkv[n]*fkv[n]);  //Z=14322
-                        params.CR->carr5f[n] = (1-params.alphash1/2.0)*z12v[n]*xrmn_n/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=14323
-                        params.CR->carr6f[n] = (1-params.alphash1/2.0)*z12v[n]*xrn_n/((n+1-params.alphash1/2.0)*fkv[n]*fkv[n]);  //Z=14324
+                        params.CR->carr4f[n] = z12v[n]*xrn_n/((n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=14322
+                        params.CR->carr5f[n] = (1-params.alphash1/2.0)*z12v[n]*xrmn_n/((n+1-params.alphash1/2.0)*CM->fkv[n]*CM->fkv[n]);  //Z=14323
+                        params.CR->carr6f[n] = (1-params.alphash1/2.0)*z12v[n]*xrn_n/((n+1-params.alphash1/2.0)*CM->fkv[n]*CM->fkv[n]);  //Z=14324
 
                         if ( search1 )
                         {/*7*/  //Z=14326
@@ -7316,6 +7577,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n6f ) n6f = n;  //Z=14369
                         }/*7*/  //Z=14370
                     }/*6*/  /*  of n-loop  */  //Z=14371
+                    calcdone_label99 = true;
                 }/*5*/  /*  of cs=2  */  //Z=14372
 
                 /*  myelin  */  //Z=14374
@@ -7325,30 +7587,30 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=14377
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=14378
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14379
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14379
                         //b1sv[n] = b1sv[n-1]*(b1s-1+n);  //Z=14380
-                        fkv[n] = fkv[n-1]*n;  //Z=14381
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14382
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=14383
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=14381
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=14382
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=14383
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=14384 */
                         xln_n = -xln_n*xl2z;  //Z=14385
                         xrn_n = -xrn_n*x12zm;  //Z=14386
                         /*  longitudinal  */  //Z=14387
-                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);
+                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,4,0,0,2*n,params.CR->carr1p,intl);
                         //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);  //Z=14388
                         /*  P(q)-coefficient  */  //Z=14389
-                        params.CR->carr1p[n] = pow(4.0,n)*z12vl[n]*xln_n*intl/((2.0*n+1)*(n+1)*fkv[n]*fkv[n]*params.norm);  //Z=14390
+                        params.CR->carr1p[n] = pow(4.0,n)*CM->z12vl[n]*xln_n*intl/((2.0*n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*params.norm);  //Z=14390
                         /*  F(q)-coefficient  */  //Z=14391
                         double sump = 0.0;  //Z=14392
-                        for ( int m=0; m<=n; m++ ) sump += z12vl[m]*z12vl[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14393
-                        params.CR->carr1f[n] = fk2v[n]*xln_n*sump*intl/(pow(4.0,n)*fkv[n]*fkv[n]*params.norm);  //Z=14394
+                        for ( int m=0; m<=n; m++ ) sump += CM->z12vl[m]*CM->z12vl[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=14393
+                        params.CR->carr1f[n] = CM->fk2v[n]*xln_n*sump*intl/(pow(4.0,n)*CM->fkv[n]*CM->fkv[n]*params.norm);  //Z=14394
                         /*  cross-sectional  */  //Z=14395
                         /*  P(q)-coefficient  */  //Z=14396
                         params.CR->carr4p[n] = z12v[n]*xrn_n;  //Z=14397
 
                         /*  F(q)-coefficient  */  //Z=14399
                         sump = 0.0;  //Z=14400
-                        for ( int m=0; m<=n; m++ ) sump += z12v[m]*z12v[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14401
+                        for ( int m=0; m<=n; m++ ) sump += z12v[m]*z12v[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=14401
                         params.CR->carr4f[n] = xrn_n*sump;  //Z=14402
 
                         if ( search1 )
@@ -7376,29 +7638,31 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n4f ) n4f = n;  //Z=14420
                         }/*7*/  //Z=14421
                     }/*6*/  /*  of n-loop  */  //Z=14422
+                    calcdone_label99 = true;
                 }/*5*/  /*  of cs=3  */  //Z=14423
             }/*4*/  /*  of cylinders  */  //Z=14424
 
             /* ** disks ** */  //Z=14426
-            if ( dim==2 )
+            if ( cdim==2 )
             {/*4*/  //Z=14427
                 /*  homogeneous  */  //Z=14428
+                double carr2i[coeffarray_len]; // Lokal
                 if ( params.cs==0 )
                 {/*5*/  //Z=14429
                     carr2i[0] = 1;  //Z=14430
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=14431
-                        fkv[n] = fkv[n-1]*n;  //Z=14432
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14433
-                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=14432
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=14433
+                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,4,0,0,2*n,params.CR->carr1p,intl);
                         //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);  //Z=14434
-                        carr2i[n] = pow(-1,n)*fk2v[n]*intl/(pow(4.0,n)*fkv[n]*fkv[n]*fkv[n]*params.norm);  //Z=14435
+                        carr2i[n] = pow(-1,n)*CM->fk2v[n]*intl/(pow(4.0,n)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]*params.norm);  //Z=14435
                     }/*6*/  //Z=14436
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=14437
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=14438
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14439
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=14440
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14439
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=14440
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=14441 */
                         xln_n = -xln_n*xl2z;  //Z=14442
                         xrn_n = -xrn_n*xr2z;  //Z=14443
@@ -7406,33 +7670,33 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         double sump = 0.0;  //Z=14445
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14446
-                            sump += carr2i[m]/fkv[n-m];  //Z=14447
+                            sump += carr2i[m]/CM->fkv[n-m];  //Z=14447
                         }/*7*/  //Z=14448
-                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n*sump/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14449
+                        params.CR->carr1p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n*sump/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=14449
                         double sump1 = 0.0;  //Z=14450  Achtung: sump wird unten nochmal gebraucht!
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14451
-                            sump1 += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14452
+                            sump1 += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=14452
                         }/*7*/  //Z=14453
-                        params.CR->carr1f[n] = xln_n*fkv[n]*sump1*sump;  //Z=14454
+                        params.CR->carr1f[n] = xln_n*CM->fkv[n]*sump1*sump;  //Z=14454
 
                         /*  cross-sectional  */  //Z=14456
-                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=14457
+                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=14457
                         sump = 0.0;  //Z=14458
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14459
-                            sump += z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14460
+                            sump += z12v[m]*z12v[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=14460
                         }/*7*/  //Z=14461
                         params.CR->carr4f[n] = M_PI*xln_n*sump/4.0;  //Z=14462
 
                         /*  series for <...> integration  */  //Z=14464
-                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14465
+                        params.CR->carr2p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=14465
                         sump = 0.0;  //Z=14466
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14467
-                            sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14468
+                            sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=14468
                         }/*7*/  //Z=14469
-                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln_n*sump/(2.0*gam3[n]);  //Z=14470
+                        params.CR->carr2f[n] = sqrt(M_PI)*CM->fkv[n]*xln_n*sump/(2.0*CM->gam3[n]);  //Z=14470
 
                         if ( search1 )
                         {/*7*/  //Z=14472
@@ -7459,6 +7723,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n4f ) n4f = n;  //Z=14488
                         }/*7*/  //Z=14489
                     }/*6*/  /*  of n-loop  */  //Z=14490
+                    calcdone_label99 = true;
                 }/*5*/  /*  of cs=0  */  //Z=14491
 
 
@@ -7468,81 +7733,81 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     carr2i[0] = 1;  //Z=14496
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=14497
-                        fkv[n] = fkv[n-1]*n;  //Z=14498
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14499
-                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=14498
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=14499
+                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,4,0,0,2*n,params.CR->carr1p,intl);
                         //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);  //Z=14500
-                        carr2i[n] = pow(-1,n)*fk2v[n]*intl/(pow(4.0,n)*fkv[n]*fkv[n]*fkv[n]*params.norm);  //Z=14501
+                        carr2i[n] = pow(-1,n)*CM->fk2v[n]*intl/(pow(4.0,n)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]*params.norm);  //Z=14501
                     }/*6*/  //Z=14502
                     double xrmn_n = 1.0;
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=14503
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=14504
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14505
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=14506
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14505
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=14506
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=14507 */
                         xln_n = -xln_n*xl2z;  //Z=14508
                         xrn_n = -xrn_n*xr2z;  //Z=14509
                         xrmn_n = -xrmn_n*xrm2z;  //Z=14510
-                        pn[n] = pn[n-1]*p*p;  //Z=14511
+                        CM->pn[n] = CM->pn[n-1]*p*p;  //Z=14511
                         /*  longitudinal  */  //Z=14512
                         double sump = 0.0;  //Z=14513
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14514
-                            sump += carr2i[m]/fkv[n-m];  //Z=14515
+                            sump += carr2i[m]/CM->fkv[n-m];  //Z=14515
                         }/*7*/  //Z=14516
-                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n*sump/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14517
+                        params.CR->carr1p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n*sump/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=14517
                         double sump1 = 0.0;  //Z=14518
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14519
-                            sump1 += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14520
+                            sump1 += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=14520
                         }/*7*/  //Z=14521
-                        params.CR->carr1f[n] = xln_n*fkv[n]*sump1*sump;  //Z=14522
+                        params.CR->carr1f[n] = xln_n*CM->fkv[n]*sump1*sump;  //Z=14522
 
                         /*  cross-sectional  */  //Z=14524
                         /*  F121  */  //Z=14525
-                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*gam3[n]*fkv[n]);  //Z=14526
+                        params.CR->carr4p[n] = pow(4.0,n)*sqrt(M_PI)*z12v[n]*xrn_n/(2.0*(n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=14526
                         /*  F122  */  //Z=14527
                         sump = 0.0;  //Z=14528
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14529
-                            sump += pn[m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14530
+                            sump += CM->pn[m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=14530
                         }/*7*/  //Z=14531
                         params.CR->carr5p[n] = z12v[n]*xrmn_n*sump;  //Z=14532
                         /*  F122  */  //Z=14533
                         sump = 0.0;  //Z=14534
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14535
-                            sump += pn[m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14536
+                            sump += CM->pn[m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=14536
                         }/*7*/  //Z=14537
                         params.CR->carr5p[n] = M_PI*z12v[n]*xrmn_n*sump/4.0;  //Z=14538
                         /*  F123  */  //Z=14539
-                        params.CR->carr6p[n] = params.CR->carr4p[n]/pn[n];  //Z=14540
+                        params.CR->carr6p[n] = params.CR->carr4p[n]/CM->pn[n];  //Z=14540
                         /*  F121  */  //Z=14541
                         sump = 0.0;  //Z=14542
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14543
-                            sump += z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14544
+                            sump += z12v[m]*z12v[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=14544
                         }/*7*/  //Z=14545
                         params.CR->carr4f[n] = M_PI*xrn_n*sump/4.0;  //Z=14546
                         /*  F122  */  //Z=14547
                         sump = 0.0;  //Z=14548
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14549
-                            sump += pn[m]*z12v[m]*z12v[n-m]/(gam3[m]*gam3[n-m]*fkv[m]*fkv[n-m]);  //Z=14550
+                            sump += CM->pn[m]*z12v[m]*z12v[n-m]/(CM->gam3[m]*CM->gam3[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=14550
                         }/*7*/  //Z=14551
                         params.CR->carr5f[n] = M_PI*xrmn_n*sump/4.0;  //Z=14552
                         /*  F123  */  //Z=14553
-                        params.CR->carr6f[n] = params.CR->carr4f[n]/pn[n];  //Z=14554
+                        params.CR->carr6f[n] = params.CR->carr4f[n]/CM->pn[n];  //Z=14554
 
                         /*  series for <...> integration  */  //Z=14556
-                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14557
+                        params.CR->carr2p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=14557
                         sump = 0.0;  //Z=14558
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14559
-                            sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14560
+                            sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=14560
                         }/*7*/  //Z=14561
-                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln_n*sump/(2.0*gam3[n]);  //Z=14562
+                        params.CR->carr2f[n] = sqrt(M_PI)*CM->fkv[n]*xln_n*sump/(2.0*CM->gam3[n]);  //Z=14562
 
                         if ( search1 )
                         {/*7*/  //Z=14564
@@ -7593,6 +7858,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n6f ) n6f = n;  //Z=14598
                         }/*7*/  //Z=14599
                     }/*6*/  /*  of n-loop  */  //Z=14600
+                    calcdone_label99 = true;
                 }/*5*/  /*  of cs=1  */  //Z=14601
 
                 /*  inhomogeneous core/shell  */  //Z=14603
@@ -7601,45 +7867,45 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                     carr2i[0] = 1;  //Z=14605
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=14606
-                        fkv[n] = fkv[n-1]*n;  //Z=14607
-                        fk2v[n] = fk2v[n-1]*(2*n-1)*(2*n);  //Z=14608
-                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);
+                        CM->fkv[n] = CM->fkv[n-1]*n;  //Z=14607
+                        CM->fk2v[n] = CM->fk2v[n-1]*(2*n-1)*(2*n);  //Z=14608
+                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,params.polPhi,1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,cdim,*/1,4,0,0,2*n,params.CR->carr1p,intl);
                         //qrombdeltac(params.length,r,p1,sigma,alfa,dbeta,theta,phi,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,dim,1,4,0,0,2*n,params.CR->carr1p,intl);  //Z=14609
-                        carr2i[n] = pow(-1,n)*fk2v[n]*intl/(pow(4.0,n)*fkv[n]*fkv[n]*fkv[n]*params.norm);  //Z=14610
+                        carr2i[n] = pow(-1,n)*CM->fk2v[n]*intl/(pow(4.0,n)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]*params.norm);  //Z=14610
                     }/*6*/  //Z=14611
                     double xrmn_n = 1.0;
                     for ( int n=1; n<=nmax; n++ )
                     {/*6*/  //Z=14612
                         z12v[n] = z12v[n-1]*((z+1)-2+2*n)*((z+1)-1+2*n);  //Z=14613
-                        z12vl[n] = z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14614
-                        gam3[n] = gam3[n-1]*(2*n+1)/2.0;  //Z=14615
+                        CM->z12vl[n] = CM->z12vl[n-1]*((zl+1)-2+2*n)*((zl+1)-1+2*n);  //Z=14614
+                        CM->gam3[n] = CM->gam3[n-1]*(2*n+1)/2.0;  //Z=14615
                         /* e1[n]:=e1[n-1]*(epsi*epsi-1);  //Z=14616 */
                         xln_n = -xln_n*xl2z;  //Z=14617
                         xrn_n = -xrn_n*xr2z;  //Z=14618
                         xrmn_n = -xrmn_n*xrm2z;  //Z=14619
-                        pn[n] = pn[n-1]*p*p;  //Z=14620
+                        CM->pn[n] = CM->pn[n-1]*p*p;  //Z=14620
                         /*  longitudinal  */  //Z=14621
                         double sump = 0.0;  //Z=14622
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14623
-                            sump += carr2i[m]/fkv[n-m];  //Z=14624
+                            sump += carr2i[m]/CM->fkv[n-m];  //Z=14624
                         }/*7*/  //Z=14625
-                        params.CR->carr1p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n*sump/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]);  //Z=14626
+                        params.CR->carr1p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n*sump/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]);  //Z=14626
                         double sump1 = 0.0;  //Z=14627
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14628
-                            sump1 += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]);  //Z=14629
+                            sump1 += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]);  //Z=14629
                         }/*7*/  //Z=14630
-                        params.CR->carr1f[n] = xln_n*fkv[n]*sump1*sump;  //Z=14631
+                        params.CR->carr1f[n] = xln_n*CM->fkv[n]*sump1*sump;  //Z=14631
 
                         /*  cross-sectional P(q)  */  //Z=14633
-                        params.CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn_n/((n+1)*gam3[n]*fkv[n]);  //Z=14634
+                        params.CR->carr4p[n] = (sqrt(M_PI)/2.0)*pow(4.0,n)*z12v[n]*xrn_n/((n+1)*CM->gam3[n]*CM->fkv[n]);  //Z=14634
                         sump = 0.0;  //Z=14635
                         sump1 = 0.0;  //Z=14636
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14637
-                            const double sumi = (m+1/2.0)/((m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[n-m]*fkv[m]);  //Z=14638
-                            sump += pn[n-m]*sumi;  //Z=14639
+                            const double sumi = (m+1/2.0)/((m+1/2.0-params.alphash1/2.0)*CM->gam3[n-m]*CM->gam3[m]*CM->fkv[n-m]*CM->fkv[m]);  //Z=14638
+                            sump += CM->pn[n-m]*sumi;  //Z=14639
                             sump1 += sumi;  //Z=14640
                         }/*7*/  //Z=14641
                         params.CR->carr5p[n] = (M_PI/4.0)*(1-params.alphash1)*z12v[n]*xrmn_n*sump;  //Z=14642
@@ -7648,9 +7914,9 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                         sump1 = 0.0;  //Z=14645
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14646
-                            const double sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-params.alphash1/2.0)*(m+1/2.0-params.alphash1/2.0)*gam3[n-m]*gam3[m]*fkv[m]*fkv[n-m]);  //Z=14647
+                            const double sumi = (n-m+1/2.0)*(m+1/2.0)/((n-m+1/2.0-params.alphash1/2.0)*(m+1/2.0-params.alphash1/2.0)*CM->gam3[n-m]*CM->gam3[m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=14647
                             sump += sumi;  //Z=14648
-                            sump1 += pn[n-m]*sumi;  //Z=14649
+                            sump1 += CM->pn[n-m]*sumi;  //Z=14649
                         }/*7*/  //Z=14650
                         params.CR->carr7p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrmn_n*sump;  //Z=14651
                         params.CR->carr8p[n] = (M_PI/4.0)*sqr(1-params.alphash1)*z12v[n]*xrmn_n*sump1;  //Z=14652
@@ -7675,18 +7941,18 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                          carr6p[n]:=carr4p[n]/pn[n];    */  //Z=14671
 
                         /*  F(q)  */  //Z=14673
-                        params.CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn_n/(gam3[n]*fkv[n]);  //Z=14674
-                        params.CR->carr5f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=14675
-                        params.CR->carr6f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*gam3[n]*fkv[n]);  //Z=14676
+                        params.CR->carr4f[n] = (sqrt(M_PI)/2.0)*z12v[n]*xrn_n/(CM->gam3[n]*CM->fkv[n]);  //Z=14674
+                        params.CR->carr5f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrmn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*CM->gam3[n]*CM->fkv[n]);  //Z=14675
+                        params.CR->carr6f[n] = (sqrt(M_PI)*(1-params.alphash1)/2.0)*z12v[n]*xrn_n*(n+1)/((n+1/2.0-params.alphash1/2.0)*CM->gam3[n]*CM->fkv[n]);  //Z=14676
 
                         /*  series for <...> integration  */  //Z=14678
-                        params.CR->carr2p[n] = pow(4.0,n+1)*gam3[n]*z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*fkv[n]*fkv[n]*fkv[n]);  //Z=14679
+                        params.CR->carr2p[n] = pow(4.0,n+1)*CM->gam3[n]*CM->z12vl[n]*xln_n/(sqrt(M_PI)*(n+2)*(n+1)*(n+1)*CM->fkv[n]*CM->fkv[n]*CM->fkv[n]);  //Z=14679
                         sump = 0.0;  //Z=14680
                         for ( int m=0; m<=n; m++ )
                         {/*7*/  //Z=14681
-                            sump += z12vl[m]*z12vl[n-m]/((m+1)*fkv[m]*(n-m+1)*fkv[n-m]*fkv[m]*fkv[n-m]);  //Z=14682
+                            sump += CM->z12vl[m]*CM->z12vl[n-m]/((m+1)*CM->fkv[m]*(n-m+1)*CM->fkv[n-m]*CM->fkv[m]*CM->fkv[n-m]);  //Z=14682
                         }/*7*/  //Z=14683
-                        params.CR->carr2f[n] = sqrt(M_PI)*fkv[n]*xln_n*sump/(2.0*gam3[n]);  //Z=14684
+                        params.CR->carr2f[n] = sqrt(M_PI)*CM->fkv[n]*xln_n*sump/(2.0*CM->gam3[n]);  //Z=14684
 
                         if ( search1 )
                         {/*7*/  //Z=14686
@@ -7761,6 +8027,7 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
                             if ( n<n9f ) n9f = n;  //Z=14738
                         }/*7*/  //Z=14739
                     }/*6*/  /*  of n-loop  */  //Z=14740
+                    calcdone_label99 = true;
                 }/*5*/  /*  of cs=2  */  //Z=14741
 
 
@@ -7769,11 +8036,15 @@ void SasCalc_GENERIC_calculation::coefficients(int dim/*cdim*/, int nmax/*120*/,
     }/*2*/  /*  of ordis=0  */  //Z=14746
 
 
-//#ifndef __CUDACC__
-//    qDebug() << "*** coefficients(): keine Berechnungen durchgeführt. ***";
-//#endif
+    if ( ! calcdone_label99 )
+    {
+        qDebug() << "***** coefficients: cs=" << params.cs << "cdim=" << cdim << "ordis=" << params.ordis
+                 << "orcase=" << params.orcase;
+        qDebug() << "***** coefficients: no calculations done.";
+    }
 
-Label99:
+
+//Label99:
      // Es kommt vor, dass die carr??[] beim genutzten Index (n?) den Wert 'inf' haben. Damit
      // lässt sich aber schlecht weiterrechnen. Daher hier die passenden Indizes verringern auf
      // den letzten gültigen Wert.
@@ -7916,6 +8187,8 @@ Label99:
         qDebug() << fout.errorString();
 */
 #endif
+    delete CM;
+    return calcdone_label99;
 }
 
 
@@ -7971,15 +8244,16 @@ bool SasCalc_GENERIC_calculation::setFitData( int sx, int sy, const double *data
 
 
 // Nur in prepareCalculation
-void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype ) const
+std::string SasCalc_GENERIC_calculation::ButtonHKLClick(int ltype, bool nurtext) const
 {   //Z=43355
 
     //const int np=20000;
 
+    std::string retval = "?";
+
     int /*i,j,*/ii/*,jj*/,h,k,l,hmax,kmax,lmax;//,index,xpos,ypos,image1width,image1height;
     int /*c0,*/c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,mult,/*multmax,hlev,klev,llev,zlev,zvar,*/ct1;
     // Unbenutzte Variablen: c3, c5, c9, c11, c12, c14 - sie werden aber hier gelassen, da ich sie nicht aus den Zuweisungs-case rausnehmen will
-    Q_UNUSED(c3); Q_UNUSED(c5); Q_UNUSED(c9); Q_UNUSED(c11); Q_UNUSED(c12); Q_UNUSED(c14);
     int ccase=0,c1case,c2case/*,c3case*/,c4case/*,c5case*/,c6case,c7case,c8case/*,c9case*/,c10case;//,c11case,c12case;
     float a,b,c,alf,gam; //,xmin,xmax,wave,ttheta,sinarg;
 #ifdef UseStringGrid12
@@ -8036,18 +8310,15 @@ void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype ) const
         RadioButtonSysOrtho=false,      // unused
         RadioButtonSysMonoclinic=false, // unused
         RadioButtonSysTriclinic=false;  // unused
-    int     ComboBoxCubic,
-        ComboBoxTetragonal,
-        ComboBox1D,
-        ComboBox2D,
-        ComboBoxHexagonal,
+    int     ComboBoxCubic=0,
+        ComboBoxTetragonal=0,
+        ComboBox1D=0,
+        ComboBox2D=0,
+        ComboBoxHexagonal=0,
         ComboBoxTrigonal=0,     // unused
         ComboBoxOrthorhombic=0, // unused
         ComboBoxMonoclinic=0,   // unused
         ComboBoxTriclinic=0;    // unused
-
-    setLatpar1(  1,0,0);
-    setLatpar2(  1,0,0);
 
     switch ( ltype )
     {
@@ -8131,7 +8402,7 @@ void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype ) const
         break;
 
     default:
-        return; // TODO Fehlermeldung?
+        return "HKLclick: unknown lattice"; // TODO Fehlermeldung?
         //break;
     } // switch ltype
 
@@ -8160,16 +8431,26 @@ void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype ) const
 
     //(**************** Reflection conditions **************)
 
+    //qDebug() << "HKLclick:" << RadioButtonSysCubic << RadioButtonSysTetragonal << RadioButtonSys1D << RadioButtonSys2D
+    //         << RadioButtonSysHex << RadioButtonSysTrigonal << RadioButtonSysOrtho << RadioButtonSysMonoclinic
+    //         << RadioButtonSysTriclinic << ComboBoxCubic << ComboBoxTetragonal << ComboBox1D << ComboBox2D
+    //         << ComboBoxHexagonal << ComboBoxTrigonal << ComboBoxOrthorhombic << ComboBoxMonoclinic << ComboBoxTriclinic;
+    // BCC:  HKLclick: true false false false false false false false false 7 0 0 0 1088052736 0 0 0 0
+
+    //Q_UNUSED(c3); Q_UNUSED(c5); Q_UNUSED(c9); Q_UNUSED(c11); Q_UNUSED(c12); Q_UNUSED(c14);
+#define SETCX(a,b,c,d,e,f,g,h,i,j,k,l,m,n) { c1=a; c2=b; /*c3=c;*/ c4=d; /*c5=e;*/ c6=f; c7=g; c8=h; /*c9=i;*/ \
+                                             c10=j; /*c11=k; c12=l;*/ c13=m; /*c14=n;*/ }
+
     /* ***** 1D systems **** */  //Z=43550
     if ( RadioButtonSys1D )
     {/*2*/  //Z=43551
 
         /*  lamellar structure  */  //Z=43553
         if ( ComboBox1D==0 )
-        {/*3*/ /*  P1 (1)  */  //Z=43554
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c14 = 0;  //Z=43555
-            //EditSG.Text = 'LAM';
-        }/*3*/  //Z=43556
+        { /*  P1 (1)  */  //Z=43554
+            SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 0);  //Z=43555
+            retval = "LAM";
+        }  //Z=43556
     }/*2*/  //Z=43557
 
 
@@ -8180,66 +8461,66 @@ void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype ) const
         {
             /*  parallelogram (monoclinic)  */  //Z=43563
         case  0: /*  P1 (1)  */  //Z=43564
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c14 = 0;  //Z=43565
-            //EditSG.Text = 'P1(1)'; }/*3*/  //Z=43568
+            SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 0);  //Z=43565
+            retval = "P1(1)";
             break;
         case  1: /*  P2 (3) */  //Z=43569
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2; c14 = 0;  //Z=43570
-            //EditSG.Text = 'P112(3);unique c-axis'; }/*3*/  //Z=43573
+            SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 2, 0);  //Z=43570
+            retval = "P112(3);unique c-axis";
             break;
 
             /*  rectangular (monoclinic, b-axis unique  */  //Z=43575
         case  2: /*  Pm (6)  */  //Z=43576
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1; c14 = 0;  //Z=43577
-            //EditSG.Text = 'P1m1(6);unique b-axis'; }/*3*/  //Z=43581
+            SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 1, 0);  //Z=43577
+            retval = "P1m1(6);unique b-axis";
             break;
         case  3: /*  Pg (7) h0l:h, h00:h  */  //Z=43582
-            c1 = -1; c2 = -1; c3 = 1; c4 = -1; c5 = 0; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1; c14 = 1;  //Z=43583
-            //EditSG.Text = 'P1a1(7);unique b-axis'; }/*3*/  //Z=43587
+            SETCX(-1,-1, 1,-1, 0,-1,-1,-1,-1,-1,-1,-1, 1, 1);  //Z=43583
+            retval = "P1a1(7);unique b-axis";
             break;
         case  4: /*  Cm (8) hkl:h+k, 0kl:k, h0l:h, hk0:h+k, h00:h, 0k0:k  */  //Z=43588
-            c1 = 1; c2 = 1; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1; c14 = 2;  //Z=43589
-            //EditSG.Text = 'C1m1(8);unique b-axis'; }/*3*/  //Z=43593
+            SETCX( 1, 1, 1, 0, 0, 0,-1,-1,-1,-1,-1,-1, 1, 2);  //Z=43589
+            retval = "C1m1(8);unique b-axis";
             break;
 
             /*  rectangular (orthorhombic)  */  //Z=43595
         case  5: /*  Pmm2 (25)  */  //Z=43596
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c14 = 0;  //Z=43597
-            //EditSG.Text = 'Pmm2(25)'; }/*3*/  //Z=43601
+            SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 0);  //Z=43597
+            retval = "Pmm2(25)";/*3*/  //Z=43601
             break;
         case  6: /*  Pmg2 (28) 0kl:k, 0k0:k  */  //Z=43602
-            c1 = -1; c2 = 1; c3 = -1; c4 = -1; c5 = -1; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c14 = 3;  //Z=43603
-            //EditSG.Text = 'Pbm2(28)'; }/*3*/  //Z=43607
+            SETCX(-1, 1,-1,-1,-1, 0,-1,-1,-1,-1,-1,-1,-1, 3);  //Z=43603
+            retval = "Pbm2(28)";/*3*/  //Z=43607
             break;
         case  7: /*  Pgg2 (32) 0kl:k, h0l:h, h00:h, 0k0:k  */  //Z=43608
-            c1 = -1; c2 = 1; c3 = 1; c4 = -1; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c14 = 4;  //Z=43609
-            //EditSG.Text = 'Pba2(32)'; }/*3*/  //Z=43613
+            SETCX(-1, 1, 1,-1, 0, 0,-1,-1,-1,-1,-1,-1,-1, 4);  //Z=43609
+            retval = "Pba2(32)";/*3*/  //Z=43613
             break;
         case  8: /*  Cmm2 (35) hkl:h+k, 0kl:k, h0l:h, hk0:h+k, h00:h, 0k0:k  */  //Z=43614
-            c1 = 1; c2 = 1; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c14 = 5;  //Z=43615
-            //EditSG.Text = 'Cmm2(35)'; }/*3*/  //Z=43619
+            SETCX( 1, 1, 1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1, 5);  //Z=43615
+            retval = "Cmm2(35)";/*3*/  //Z=43619
             break;
 
             /*  trigonal  */  //Z=43621
         case  9: /*  P3-- (143,156,157)  */  //Z=43622
-            /*c0=0;*/ c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 1; c14 = 0;  //Z=43623
-            //EditSG.Text = 'P3(143),P3m1(156),P31m(157)'; trigP = 'h'; }/*3*/  //Z=43628
+            SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 1,-1, 0);  //Z=43623
+            retval = "P3(143),P3m1(156),P31m(157)'; trigP = 'h";/*3*/  //Z=43628
             break;
 
             /*  tetragonal  */  //Z=43630
         case 10: /*  P4-- (75,99)  */  //Z=43631
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 0; c14 = 0;  //Z=43632
-            //EditSG.Text = 'P4(75),P4mm(99)'; }/*3*/  //Z=43637
+            SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 0,-1, 0);  //Z=43632
+            retval = "P4(75),P4mm(99)";/*3*/  //Z=43637
             break;
         case 11: /*  P4gm (100) 0kl:k, h0l:h, 0k0:k  */  //Z=43638
-            c1 = -1; c2 = 1; c3 = 1; c4 = -1; c5 = -1; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 0; c14 = 6;  //Z=43639
-            //EditSG.Text = 'P4bm(100)'; }/*3*/  //Z=43644
+            SETCX(-1, 1, 1,-1,-1, 0,-1,-1,-1,-1,-1, 0,-1, 6);  //Z=43639
+            retval = "P4bm(100)";/*3*/  //Z=43644
             break;
 
             /*  hexagonal  */  //Z=43646
         case 12: /*  P6-- (168,183)  */  //Z=43647
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 1; c14 = 0;  //Z=43648
-            //EditSG.Text = 'P6(168),P6mm(183)'; }/*3*/  //Z=43653
+            SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 1,-1, 0);  //Z=43648
+            retval = "P6(168),P6mm(183)";/*3*/  //Z=43653
             break;
         } // switch ComboBox2D
     } // if RadioButtonSys2D
@@ -8252,76 +8533,76 @@ void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype ) const
         {
         /*  P___  */  //Z=43660
         case  0: /*  P--- |  */  //Z=43661
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 2;  //Z=43662
-            //EditSG.Text = 'P23(195),Pm-3(200),P432(207),P-43m(215),Pm-3m(221)'; }/*3*/  //Z=43663
+            SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 2,-1,-1);  //Z=43662
+            retval = "P23(195),Pm-3(200),P432(207),P-43m(215),Pm-3m(221)";/*3*/  //Z=43663
             break;
         case  1: /*  P21--, P42-- | 00l:l  */  //Z=43664
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0;  c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 2;  //Z=43665
-            //EditSG.Text = 'P213(198),P4232(208)'; }/*3*/  //Z=43666
+            SETCX(-1,-1,-1,-1,-1,-1, 0,-1,-1,-1,-1, 2,-1,-1);  //Z=43665
+            retval = "P213(198),P4232(208)";/*3*/  //Z=43666
             break;
         case  2: /*  P41-- | 00l:4n  */  //Z=43667
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 1;  c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 2;  //Z=43668
-            //EditSG.Text = 'P4132(213),P4332(212)'; }/*3*/  //Z=43669
+            SETCX(-1,-1,-1,-1,-1,-1, 1,-1,-1,-1,-1, 2,-1,-1);  //Z=43668
+            retval = "P4132(213),P4332(212)";/*3*/  //Z=43669
             break;
         case  3: /*  P--n | hhl:l, 00l:l  */  //Z=43670
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0;  c8 = -1; c9 = -1; c10 = 0;  c11 = -1; c12 = 2;  //Z=43671
-            //EditSG.Text = 'P-43n(218),Pm-3n(223)'; }/*3*/  //Z=43672
+            SETCX(-1,-1,-1,-1,-1,-1, 0,-1,-1, 0,-1, 2,-1,-1);  //Z=43671
+            retval = "P-43n(218),Pm-3n(223)";/*3*/  //Z=43672
             break;
         case  4: /*  Pa-- | cyclic permutations: 0kl:k, h0l:l, hk0:h, h00:h, 0k0:k, 00l:l  */  //Z=43673
-            c1 = -1; c2 = 5;  c3 = -1;  c4 = -1;  c5 = 0;  c6 = 0;  c7 = 0;  c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 2;  //Z=43674
-            //EditSG.Text = 'Pa-3(205)'; }/*3*/  //Z=43675
+            SETCX(-1, 5,-1,-1, 0, 0, 0,-1,-1,-1,-1, 2,-1,-1);  //Z=43674
+            retval = "Pa-3(205)";/*3*/  //Z=43675
             break;
         case  5: /*  Pn-- | 0kl:k+l, 00l:l  */  //Z=43676
-            c1 = -1; c2 = 0;  c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0;  c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 2;  //Z=43677
-            //EditSG.Text = 'Pn-3(201),Pn-3m(224)'; }/*3*/  //Z=43678
+            SETCX(-1, 0,-1,-1,-1,-1, 0,-1,-1,-1,-1, 2,-1,-1);  //Z=43677
+            retval = "Pn-3(201),Pn-3m(224)";/*3*/  //Z=43678
             break;
         case  6: /*  Pn-n | 0kl:k+l, hhl:l, 00l:l  */  //Z=43679
-            c1 = -1; c2 = 0;  c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0;  c8 = -1; c9 = -1; c10 = 0;  c11 = -1; c12 = 2;  //Z=43680
-            //EditSG.Text = 'Pn-3n(222)'; }/*3*/  //Z=43681
+            SETCX(-1, 0,-1,-1,-1,-1, 0,-1,-1, 0,-1, 2,-1,-1);  //Z=43680
+            retval = "Pn-3n(222)";/*3*/  //Z=43681
             break;
 
         /*  I___  */  //Z=43683
         case  7: /*  I--- | hkl:h+k+l, 0kl:k+l, hhl:l, 00l:l  */  //Z=43684
-            c1 = 0; c2 = 0;  c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0;  c8 = -1; c9 = -1; c10 = 0;  c11 = -1; c12 = 2;  //Z=43685
-            //EditSG.Text = 'I23(197),I213(199),Im-3(204),I432(211),I-43m(217),Im-3m(229)'; }/*3*/  //Z=43686
+            SETCX( 0, 0,-1,-1,-1,-1, 0,-1,-1, 0,-1, 2,-1,-1);  //Z=43685
+            retval = "I23(197),I213(199),Im-3(204),I432(211),I-43m(217),Im-3m(229)";
             break;
         case  8: /*  I41-- | hkl:h+k+l, 0kl:k+l, hhl:l, 00l:4n  */  //Z=43687
-            c1 = 0;  c2 = 0; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 1;  c8 = -1; c9 = -1; c10 = 0;  c11 = -1; c12 = 2;  //Z=43688
-            //EditSG.Text = 'I4132(214)'; }/*3*/  //Z=43689
+            SETCX( 0, 0,-1,-1,-1,-1, 1,-1,-1, 0,-1, 2,-1,-1);  //Z=43688
+            retval = "I4132(214)";/*3*/  //Z=43689
             break;
         case  9: /*  I--d | hkl:h+k+l, 0kl:k+l, hhl:2h+l=4n,l, 00l:4n  */  //Z=43690
-            c1 = 0; c2 = 0;  c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 1;  c8 = -1; c9 = -1; c10 = 4;  c11 = -1; c12 = 2;  //Z=43691
-            //EditSG.Text = 'I-43d(220)'; }/*3*/  //Z=43692
+            SETCX( 0, 0,-1,-1,-1,-1, 1,-1,-1, 4,-1, 2,-1,-1);  //Z=43691
+            retval = "I-43d(220)";/*3*/  //Z=43692
             break;
         case 10: /*  Ia-- | hkl:h+k+l, 0kl:k,l, hhl:l, 00l:l  */  //Z=43693
-            c1 = 0;  c2 = 4; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0;  c8 = -1; c9 = -1; c10 = 0;  c11 = -1; c12 = 2;  //Z=43694
-            //EditSG.Text = 'Ia-3(206)'; }/*3*/  //Z=43695
+            SETCX( 0, 4,-1,-1,-1,-1, 0,-1,-1, 0,-1, 2,-1,-1);  //Z=43694
+            retval = "Ia-3(206)";/*3*/  //Z=43695
             break;
         case 11: /*  Ia-d | hkl:h+k+l, 0kl:k,l, hhl:2h+l=4n,l, 00l:4n  */  //Z=43696
-            c1 = 0;  c2 = 4; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 1; c8 = -1; c9 = -1;  c10 = 4;  c11 = -1; c12 = 2;  //Z=43697
-            //EditSG.Text = 'Ia-3d(230)'; }/*3*/  //Z=43698
+            SETCX( 0, 4,-1,-1,-1,-1, 1,-1,-1, 4,-1, 2,-1,-1);  //Z=43697
+            retval = "Ia-3d(230)";/*3*/  //Z=43698
             break;
 
         /*  F___  */  //Z=43700
         case 12: /*  F--- | hkl:h+k,h+l,k+l, 0kl:k,l, hhl:h+l, 00l:l  */  //Z=43701
-            c1 = 6;  c2 = 4; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = 2;  c11 = -1; c12 = 2;  //Z=43702
-            //EditSG.Text = 'F23(196),Fm-3(202),F432(209),F-43m(216),Fm-3m(225)'; }/*3*/  //Z=43703
+            SETCX( 6, 4,-1,-1,-1,-1, 0,-1,-1, 2,-1, 2,-1,-1);  //Z=43702
+            retval = "F23(196),Fm-3(202),F432(209),F-43m(216),Fm-3m(225)";/*3*/  //Z=43703
             break;
         case 13: /*  F41-- | hkl:h+k,h+l,k+l, 0kl: k,l, hhl:h+l, 00l:4n  */  //Z=43704
-            c1 = 6; c2 = 4; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 1;  c8 = -1; c9 = -1; c10 = 2; c11 = -1; c12 = 2;  //Z=43705
-            //EditSG.Text = 'F4132(210)'; }/*3*/  //Z=43706
+            SETCX( 6, 4,-1,-1,-1,-1, 1,-1,-1, 2,-1, 2,-1,-1);  //Z=43705
+            retval = "F4132(210)";/*3*/  //Z=43706
             break;
         case 14: /*  F--c | hkl:h+k,h+l,k+l, 0kl:k,l, hhl:h,l, 00l:l  */  //Z=43707
-            c1 = 6; c2 = 4; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = 5; c11 = -1; c12 = 2;  //Z=43708
-            //EditSG.Text = 'F-43c(219),Fm-3c(226)'; }/*3*/  //Z=43709
+            SETCX( 6, 4,-1,-1,-1,-1, 0,-1,-1, 5,-1, 2,-1,-1);  //Z=43708
+            retval = "F-43c(219),Fm-3c(226)";/*3*/  //Z=43709
             break;
         case 15: /*  Fd-- | hkl:h+k,h+l,k+l, 0kl:k+l=4n,k,l, hhl:h+l, 00l:4n  */  //Z=43710
-            c1 = 6; c2 = 3; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 1; c8 = -1; c9 = -1; c10 = 2; c11 = -1; c12 = 2;  //Z=43711
-            //EditSG.Text = 'Fd-3(203),Fd-3m(227)'; }/*3*/  //Z=43712
+            SETCX( 6, 3,-1,-1,-1,-1, 1,-1,-1, 2,-1, 2,-1,-1);  //Z=43711
+            retval = "Fd-3(203),Fd-3m(227)";/*3*/  //Z=43712
             break;
         case 16: /*  Fd-c | hkl:h+k,h+l,k+l, 0kl:k+l=4n,k,l, hhl:h,l, 00l:4n  */  //Z=43713
-            c1 = 6; c2 = 3; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 1; c8 = -1; c9 = -1; c10 = 5; c11 = -1; c12 = 2;  //Z=43714
-            //EditSG.Text = 'Fd-3c(228)'; }/*3*/  //Z=43715
+            SETCX( 6, 3,-1,-1,-1,-1, 1,-1,-1, 5,-1, 2,-1,-1);  //Z=43714
+            retval = "Fd-3c(228)";/*3*/  //Z=43715
             break;
         } // switch ComboBoxCubic
     } // if RadioButtonSysCubic
@@ -8337,32 +8618,32 @@ void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype ) const
         {
         /*  P___  */  //Z=43723
         case  0: /*  P--- |  */  //Z=43724
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 1;  //Z=43725
-            //EditSG.Text = 'P6(168),P-6(174),P6/m(175),P622(177),P6mm(183),P-62m(189),P-6m2(187),P6/mmm(191)'; }/*3*/  //Z=43726
+            SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 1,-1,-1);  //Z=43725
+            retval = "P6(168),P-6(174),P6/m(175),P622(177),P6mm(183),P-62m(189),P-6m2(187),P6/mmm(191)";/*3*/  //Z=43726
             break;
         case  1: /*  P63-- | 00l:l  */  //Z=43727
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 1;  //Z=43728
-            //EditSG.Text = 'P63(173),P63/m(176),P6322(182)'; }/*3*/  //Z=43729
+            SETCX(-1,-1,-1,-1,-1,-1, 0,-1,-1,-1,-1, 1,-1,-1);  //Z=43728
+            retval = "P63(173),P63/m(176),P6322(182)";/*3*/  //Z=43729
             break;
         case  2: /*  P62-- | 00l:3n  */  //Z=43730
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 2; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 1;  //Z=43731
-            //EditSG.Text = 'P62(171),P64(172),P6222(180),P6422(181)'; }/*3*/  //Z=43732
+            SETCX(-1,-1,-1,-1,-1,-1, 2,-1,-1,-1,-1, 1,-1,-1);  //Z=43731
+            retval = "P62(171),P64(172),P6222(180),P6422(181)";/*3*/  //Z=43732
             break;
         case  3: /*  P61-- | 00l:6n  */  //Z=43733
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 3; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 1;  //Z=43734
-            //EditSG.Text = 'P61(169),P63(170),P6122(178),P6522(179)'; }/*3*/  //Z=43735
+            SETCX(-1,-1,-1,-1,-1,-1, 3,-1,-1,-1,-1, 1,-1,-1);  //Z=43734
+            retval = "P61(169),P63(170),P6122(178),P6522(179)";/*3*/  //Z=43735
             break;
         case  4: /*  P--c | hhl:l, 00l:l  */  //Z=43736
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = 0; c11 = -1; c12 = 1;  //Z=43737
-            //EditSG.Text = 'P63mc(186),P-62c(190),P63/mmc(194)'; }/*3*/  //Z=43738
+            SETCX(-1,-1,-1,-1,-1,-1, 0,-1,-1, 0,-1, 1,-1,-1);  //Z=43737
+            retval = "P63mc(186),P-62c(190),P63/mmc(194)";/*3*/  //Z=43738
             break;
         case  5: /*  P-c- | h-hl:l, 00l:l  */  //Z=43739
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = 0; c10 = -1; c11 = -1; c12 = 1;  //Z=43740
-            //EditSG.Text = 'P63cm(185),P-6c2(188),P63/mcm(193)'; }/*3*/  //Z=43741
+            SETCX(-1,-1,-1,-1,-1,-1, 0,-1, 0,-1,-1, 1,-1,-1);  //Z=43740
+            retval = "P63cm(185),P-6c2(188),P63/mcm(193)";/*3*/  //Z=43741
             break;
         case  6: /*  P-cc | h-hl:l, hhl:l, 00l:l  */  //Z=43742
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = 0; c10 = 0; c11 = -1; c12 = 1;  //Z=43743
-            //EditSG.Text = 'P6cc(184),P6/mcc(192)'; }/*3*/  //Z=43744
+            SETCX(-1,-1,-1,-1,-1,-1, 0,-1, 0, 0,-1, 1,-1,-1);  //Z=43743
+            retval = "P6cc(184),P6/mcc(192)";/*3*/  //Z=43744
             break;
         } // switch ComboBoxHexagonal
     } // if RadioButtonSysHex
@@ -8378,56 +8659,56 @@ void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype ) const
         {
             /*  hexagonal axes, P___  */  //Z=43752
         case  0: /*  P--- |  */  //Z=43753
-            /*c0=0;*/ c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 1;  //Z=43754
-            //EditSG.Text = 'P3(143),P-3(147),P321(150),P3m1(156),P-3m1(164),P312(149),P31m(157),P-31m(162)'; }/*3*/  //Z=43755
+            SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 1,-1,-1);  //Z=43754
+            retval = "P3(143),P-3(147),P321(150),P3m1(156),P-3m1(164),P312(149),P31m(157),P-31m(162)";/*3*/  //Z=43755
             trigP = 'h';
             break;
         case  1: /*  P31-- | 00l:3n  */  //Z=43756
-            /*c0=0;*/ c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 2; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 1;  //Z=43757
-            //EditSG.Text = 'P31(144),P32(145),P3121(152),P3221(154),P3112(151),P3212(153)'; }/*3*/  //Z=43758
+            SETCX(-1,-1,-1,-1,-1,-1, 2,-1,-1,-1,-1, 1,-1,-1);  //Z=43757
+            retval = "P31(144),P32(145),P3121(152),P3221(154),P3112(151),P3212(153)";/*3*/  //Z=43758
             trigP = 'h';
             break;
         case  2: /*  P--c | hhl:l, 00l:l  */  //Z=43759
-            /*c0=0;*/ c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = 0; c11 = -1; c12 = 1;  //Z=43760
-            //EditSG.Text = 'P31c(159),P-31c(163)'; }/*3*/  //Z=43761
+            SETCX(-1,-1,-1,-1,-1,-1, 0,-1,-1, 0,-1, 1,-1,-1);  //Z=43760
+            retval = "P31c(159),P-31c(163)";/*3*/  //Z=43761
             trigP = 'h';
             break;
         case  3: /*  P-c- | h-hl:l, 00l:l  */  //Z=43762
-            /*c0=0;*/ c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = 0; c10 = -1; c11 = -1; c12 = 1;  //Z=43763
-            //EditSG.Text = 'P3c1(158),P-3c1(165)'; }/*3*/  //Z=43764
+            SETCX(-1,-1,-1,-1,-1,-1, 0,-1, 0,-1,-1, 1,-1,-1);  //Z=43763
+            retval = "P3c1(158),P-3c1(165)";/*3*/  //Z=43764
             trigP = 'h';
             break;
 
             /*  hexagonal axes, R___  */  //Z=43766
         case  4: /*  R(obv)-- | hkl:-h+k+l=3n, h-hl:h+l=3n, hhl:l=3n, 00l:3n  */  //Z=43767
-            /*c0=1;*/ c1 = 4; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 2; c8 = -1; c9 = 1; c10 = 1; c11 = -1; c12 = 1;  //Z=43768
-            //EditSG.Text = 'R3(146),R-3(148),R32(155),R3m(160),R-3m(166)'; }/*3*/  //Z=43769
+            SETCX( 4,-1,-1,-1,-1,-1, 2,-1, 1, 1,-1, 1,-1,-1);  //Z=43768
+            retval = "R3(146),R-3(148),R32(155),R3m(160),R-3m(166)";/*3*/  //Z=43769
             trigP = 'h';
             break;
         case  5: /*  R(obv)-c | hkl:-h+k+l=3n, h-hl:h+l=3n,l, hhl:l=3n, 00l:6n  */  //Z=43770
-            /*c0=1;*/ c1 = 4; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 3; c8 = -1; c9 = 3; c10 = 1; c11 = -1; c12 = 1;  //Z=43771
-            //EditSG.Text = 'R3c(161),R-3c(148)'; trigP = 'h'; }/*3*/  //Z=43772
+            SETCX( 4,-1,-1,-1,-1,-1, 3,-1, 3, 1,-1, 1,-1,-1);  //Z=43771
+            retval = "R3c(161),R-3c(148)'; trigP = 'h";/*3*/  //Z=43772
             break;
         case  6: /*  R(rev)-- | hkl:h-k+l=3n, h-hl:-h+l=3n, hhl:l=3n, 00l:3n  */  //Z=43773
-            /*c0=2;*/ c1 = 5; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 2; c8 = -1; c9 = 2; c10 = 1; c11 = -1; c12 = 1;  //Z=43774
-            //EditSG.Text = 'R3(146),R-3(148),R32(155),R3m(160),R-3m(166)'; }/*3*/  //Z=43775
+            SETCX( 5,-1,-1,-1,-1,-1, 2,-1, 2, 1,-1, 1,-1,-1);  //Z=43774
+            retval = "R3(146),R-3(148),R32(155),R3m(160),R-3m(166)";/*3*/  //Z=43775
             trigP = 'h';
             break;
         case  7: /*  R(rev)-c | hkl:h-k+l=3n, h-hl:-h+l=3n,l, hhl:l=3n, 00l:6n  */  //Z=43776
-            /*c0=2;*/ c1 = 5; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 3; c8 = -1; c9 = 3; c10 = 1; c11 = 0; c12 = 1;  //Z=43777
-            //EditSG.Text = 'R3c(161),R-3c(167)'; }/*3*/  //Z=43778
+            SETCX( 5,-1,-1,-1,-1,-1, 3,-1, 3, 1, 0, 1,-1,-1);  //Z=43777
+            retval = "R3c(161),R-3c(167)";/*3*/  //Z=43778
             trigP = 'h';
             break;
 
             /*  rhombohedral axes, R___  */  //Z=43780
         case  8: /*  R-- |   */  //Z=43781
-            /*c0=-1;*/ c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 1;  //Z=43782
-            //EditSG.Text = 'R3(146),R-3(148),R32(155),R3m(160),R-3m(166); rhombohedral'; }/*3*/  //Z=43783
+            SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 1,-1,-1);  //Z=43782
+            retval = "R3(146),R-3(148),R32(155),R3m(160),R-3m(166); rhombohedral";/*3*/  //Z=43783
             trigP='r';
             break;
         case  9: /*  R-c | hhl:l, hhh:h  */  //Z=43784
-            /*c0=-1;*/ c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = 0; c11 = 0; c12 = 1;  //Z=43785
-            //EditSG.Text = 'R3c(161),R-3c(167); rhombohedral'; }/*3*/  //Z=43786
+            SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1, 0, 0, 1,-1,-1);  //Z=43785
+            retval = "R3c(161),R-3c(167); rhombohedral";/*3*/  //Z=43786
             trigP = 'r';
             break;
         } // switch ComboBoxTrigonal
@@ -8444,130 +8725,130 @@ void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype ) const
         switch ( ComboBoxTetragonal )
         {
         case  0: /*  P--- |  */  //Z=43796
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 0;  //Z=43797
-            //EditSG.Text = 'P4(75),P-4(81),P4/m(83),P422(89),P4mm(99),P-42m(111),P-4m2(115),P4/mmm(123)'; }/*3*/  //Z=43798
+            SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 0,-1,-1);  //Z=43797
+            retval = "P4(75),P-4(81),P4/m(83),P422(89),P4mm(99),P-42m(111),P-4m2(115),P4/mmm(123)";/*3*/  //Z=43798
             break;
         case  1: /*  P-21- | 0k0:k &permu: h00:h  */  //Z=43799
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 0;  //Z=43800
-            //EditSG.Text = 'P4212(90),P-421m(113)'; }/*3*/  //Z=43801
+            SETCX(-1,-1,-1,-1, 0, 0,-1,-1,-1,-1,-1, 0,-1,-1);  //Z=43800
+            retval = "P4212(90),P-421m(113)";/*3*/  //Z=43801
             break;
         case  2: /*  P42-- | 00l:l  */  //Z=43802
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 0;  //Z=43803
-            //EditSG.Text = 'P42(77),P42/m(84),P4222(93)'; }/*3*/  //Z=43804
+            SETCX(-1,-1,-1,-1,-1,-1, 0,-1,-1,-1,-1, 0,-1,-1);  //Z=43803
+            retval = "P42(77),P42/m(84),P4222(93)";/*3*/  //Z=43804
             break;
         case  3: /*  P4221- | 00l:l, 0k0:k &permu: h00:h  */  //Z=43805
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 0;  //Z=43806
-            //EditSG.Text = 'P42212(94)'; }/*3*/  //Z=43807
+            SETCX(-1,-1,-1,-1, 0, 0, 0,-1,-1,-1,-1, 0,-1,-1);  //Z=43806
+            retval = "P42212(94)";/*3*/  //Z=43807
             break;
         case  4: /*  P41-- | 00l:4n  */  //Z=43808
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 0;  //Z=43809
-            //EditSG.Text = 'P41(76),P43(78),P4122(91),P4322(95)'; }/*3*/  //Z=43810
+            SETCX(-1,-1,-1,-1,-1,-1, 1,-1,-1,-1,-1, 0,-1,-1);  //Z=43809
+            retval = "P41(76),P43(78),P4122(91),P4322(95)";/*3*/  //Z=43810
             break;
         case  5: /*  P4121- | 00l:4n, 0k0:k &permu: h00:h  */  //Z=43811
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = 0; c6 = 0; c7 = 1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 0;  //Z=43812
-            //EditSG.Text = 'P41212(92),P43212(96)'; }/*3*/  //Z=43813
+            SETCX(-1,-1,-1,-1, 0, 0, 1,-1,-1,-1,-1, 0,-1,-1);  //Z=43812
+            retval = "P41212(92),P43212(96)";/*3*/  //Z=43813
             break;
         case  6: /*  P--c | hhl:l, 00l:l  */  //Z=43814
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = 0; c11 = -1; c12 = 0;  //Z=43815
-            //EditSG.Text = 'P42mc(105),P-42c(112),P42/mmc(131)'; }/*3*/  //Z=43816
+            SETCX(-1,-1,-1,-1,-1,-1, 0,-1,-1, 0,-1, 0,-1,-1);  //Z=43815
+            retval = "P42mc(105),P-42c(112),P42/mmc(131)";/*3*/  //Z=43816
             break;
         case  7: /*  P-21c | hhl:l, 00l:l, 0k0:k &permu: h00:h  */  //Z=43817
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = 0; c11 = -1; c12 = 0;  //Z=43818
-            //EditSG.Text = 'P-421c(114)'; }/*3*/  //Z=43819
+            SETCX(-1,-1,-1,-1, 0, 0, 0,-1,-1, 0,-1, 0,-1,-1);  //Z=43818
+            retval = "P-421c(114)";/*3*/  //Z=43819
             break;
         case  8: /*  P-b- | 0kl:k, 0k0:k &permu: h0l:h  */  //Z=43820
-            c1 = -1; c2 = 1; c3 = 1; c4 = -1; c5 = -1; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 0;  //Z=43821
-            //EditSG.Text = 'P4bm(100),P-4b2(117),P4/mbm(127)'; }/*3*/  //Z=43822
+            SETCX(-1, 1, 1,-1,-1, 0,-1,-1,-1,-1,-1, 0,-1,-1);  //Z=43821
+            retval = "P4bm(100),P-4b2(117),P4/mbm(127)";/*3*/  //Z=43822
             break;
         case  9: /*  P-bc | 0kl:k, hhl:l, 00l:l, 0k0:k &permu: h0l:h  */  //Z=43823
-            c1 = -1; c2 = 1; c3 = 1; c4 = -1; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = 0; c11 = -1; c12 = 0;  //Z=43824
-            //EditSG.Text = 'P42bc(106),P42/mbc(135)'; }/*3*/  //Z=43825
+            SETCX(-1, 1, 1,-1,-1, 0, 0,-1,-1, 0,-1, 0,-1,-1);  //Z=43824
+            retval = "P42bc(106),P42/mbc(135)";/*3*/  //Z=43825
             break;
         case 10: /*  P-c- | 0kl:l, 00l:l &permu: h0l:l */  //Z=43826
-            c1 = -1; c2 = 2; c3 = 2; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 0;  //Z=43827
-            //EditSG.Text = 'P42cm(101),P-4c2(116),P42mcm(132)'; }/*3*/  //Z=43828
+            SETCX(-1, 2, 2,-1,-1,-1, 0,-1,-1,-1,-1, 0,-1,-1);  //Z=43827
+            retval = "P42cm(101),P-4c2(116),P42mcm(132)";/*3*/  //Z=43828
             break;
         case 11: /*  P-cc | 0kl:l, hhl:l, 00l:l &permu: h0l:l  */  //Z=43829
-            c1 = -1; c2 = 2; c3 = 2; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = 0; c11 = -1; c12 = 0;  //Z=43830
-            //EditSG.Text = 'P4cc(103),P4/mcc(124)'; }/*3*/  //Z=43831
+            SETCX(-1, 2, 2,-1,-1,-1, 0,-1,-1, 0,-1, 0,-1,-1);  //Z=43830
+            retval = "P4cc(103),P4/mcc(124)";/*3*/  //Z=43831
             break;
         case 12: /*  P-n- | 0kl:k+l, 00l:l, 0k0:k &permu: h0l:h+l  */  //Z=43832
-            c1 = -1; c2 = 0; c3 = 0; c4 = -1; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 0;  //Z=43833
-            //EditSG.Text = 'P42nm(102),P-4n2(118),P42/mnm(136)'; }/*3*/  //Z=43834
+            SETCX(-1, 0, 0,-1,-1, 0, 0,-1,-1,-1,-1, 0,-1,-1);  //Z=43833
+            retval = "P42nm(102),P-4n2(118),P42/mnm(136)";/*3*/  //Z=43834
             break;
         case 13: /*  P-nc | 0kl:k+l, hhl:l, 00l:l, 0k0:k &permu: h0l:h+l  */  //Z=43835
-            c1 = -1; c2 = 0; c3 = 0; c4 = -1; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = 0; c11 = -1; c12 = 0;  //Z=43836
-            //EditSG.Text = 'P4nc(104),P4/mnc(128)'; }/*3*/  //Z=43837
+            SETCX(-1, 0, 0,-1,-1, 0, 0,-1,-1, 0,-1, 0,-1,-1);  //Z=43836
+            retval = "P4nc(104),P4/mnc(128)";/*3*/  //Z=43837
             break;
         case 14: /*  Pn-- | hk0:h+k, 0k0:k  */  //Z=43838
-            c1 = -1; c2 = -1; c3 = -1; c4 = 0; c5 = -1; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 0;  //Z=43839
-            //EditSG.Text = 'P4/n(85),P4/nmm(129)'; }/*3*/  //Z=43840
+            SETCX(-1,-1,-1, 0,-1, 0,-1,-1,-1,-1,-1, 0,-1,-1);  //Z=43839
+            retval = "P4/n(85),P4/nmm(129)";/*3*/  //Z=43840
             break;
         case 15: /*  P42/n-- | hk0:h+k, 00l:l, 0k0:k  */  //Z=43841
-            c1 = -1; c2 = -1; c3 = -1; c4 = 0; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 0;  //Z=43842
-            //EditSG.Text = 'P42/n(86)'; }/*3*/  //Z=43843
+            SETCX(-1,-1,-1, 0,-1, 0, 0,-1,-1,-1,-1, 0,-1,-1);  //Z=43842
+            retval = "P42/n(86)";/*3*/  //Z=43843
             break;
         case 16: /*  Pn-c | hk0:h+k, hhl:l, 00l:l, 0k0:k  */  //Z=43844
-            c1 = -1; c2 = -1; c3 = -1; c4 = 0; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = 0; c11 = -1; c12 = 0;  //Z=43845
-            //EditSG.Text = 'P42/nmc(137)'; }/*3*/  //Z=43846
+            SETCX(-1,-1,-1, 0,-1, 0, 0,-1,-1, 0,-1, 0,-1,-1);  //Z=43845
+            retval = "P42/nmc(137)";/*3*/  //Z=43846
             break;
         case 17: /*  Pnb- | hk0:h+k, 0kl:k, 0k0:k &permu: h0l:h  */  //Z=43847
-            c1 = -1; c2 = 1; c3 = 1; c4 = 0; c5 = -1; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 0;  //Z=43848
-            //EditSG.Text = 'P4/nbm(125)'; }/*3*/  //Z=43849
+            SETCX(-1, 1, 1, 0,-1, 0,-1,-1,-1,-1,-1, 0,-1,-1);  //Z=43848
+            retval = "P4/nbm(125)";/*3*/  //Z=43849
             break;
         case 18: /*  Pnbc | hk0:h+k, 0kl:k, hhl:l, 00l:l, 0k0:k &permu: h0l:h */  //Z=43850
-            c1 = -1; c2 = 1; c3 = 1; c4 = 0; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = 0; c11 = -1; c12 = 0;  //Z=43851
-            //EditSG.Text = 'P42/nbc(133)'; }/*3*/  //Z=43852
+            SETCX(-1, 1, 1, 0,-1, 0, 0,-1,-1, 0,-1, 0,-1,-1);  //Z=43851
+            retval = "P42/nbc(133)";/*3*/  //Z=43852
             break;
         case 19: /*  Pnc- | hk0:h+k, 0kl:l, 00l:l, 0k0:k &permu: h0l:l  */  //Z=43853
-            c1 = -1; c2 = 2; c3 = 2; c4 = 0; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 0;  //Z=43854
-            //EditSG.Text = 'P42/ncm(138)'; }/*3*/  //Z=43855
+            SETCX(-1, 2, 2, 0,-1, 0, 0,-1,-1,-1,-1, 0,-1,-1);  //Z=43854
+            retval = "P42/ncm(138)";/*3*/  //Z=43855
             break;
         case 20: /*  Pncc | hk0:h+k, 0kl:l, hhl:l, 00l:l, 0k0:k &permu: h0l:l  */  //Z=43856
-            c1 = -1; c2 = 2; c3 = 2; c4 = 0; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = 0; c11 = -1; c12 = 0;  //Z=43857
-            //EditSG.Text = 'P4/ncc(130)'; }/*3*/  //Z=43858
+            SETCX(-1, 2, 2, 0,-1, 0, 0,-1,-1, 0,-1, 0,-1,-1);  //Z=43857
+            retval = "P4/ncc(130)";/*3*/  //Z=43858
             break;
         case 21: /*  Pnn- | hk0:h+k, 0kl:k+l, 00l:l, 0k0:k  */  //Z=43859
-            c1 = -1; c2 = 0; c3 = -1; c4 = 0; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = 0;  //Z=43860
-            //EditSG.Text = 'P42/nnm(134)'; }/*3*/  //Z=43861
+            SETCX(-1, 0,-1, 0,-1, 0, 0,-1,-1,-1,-1, 0,-1,-1);  //Z=43860
+            retval = "P42/nnm(134)";/*3*/  //Z=43861
             break;
         case 22: /*  Pnnc | hk0:h+k, 0kl:k+l, hhl:l, 00l:l, 0k0:k  */  //Z=43862
-            c1 = -1; c2 = 0; c3 = -1; c4 = 0; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = 0; c11 = -1; c12 = 0;  //Z=43863
-            //EditSG.Text = 'P4/ncc(126)'; }/*3*/  //Z=43864
+            SETCX(-1, 0,-1, 0,-1, 0, 0,-1,-1, 0,-1, 0,-1,-1);  //Z=43863
+            retval = "P4/ncc(126)";/*3*/  //Z=43864
             break;
 
             /*  I___  */  //Z=43866
         case 23: /*  I--- | hkl:h+k+l, hk0:h+k, 0kl:k+l, hhl:l, 00l:l, 0k0:k  */  //Z=43867
-            c1 = 0; c2 = 0; c3 = -1; c4 = 0; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = 0; c11 = -1; c12 = 0;  //Z=43868
-            //EditSG.Text = 'I4(79),I-4(82),I4/m(87),I422(97),I4mm(107),I-42m(121),I-4m2(119),I4/mmm(13)'; }/*3*/  //Z=43869
+            SETCX( 0, 0,-1, 0,-1, 0, 0,-1,-1, 0,-1, 0,-1,-1);  //Z=43868
+            retval = "I4(79),I-4(82),I4/m(87),I422(97),I4mm(107),I-42m(121),I-4m2(119),I4/mmm(13)";/*3*/  //Z=43869
             break;
         case 24: /*  I41-- | hkl:h+k+l, hk0:h+k, 0kl:k+l, hhl:l, 00l:4n, 0k0:k  */  //Z=43870
-            c1 = 0; c2 = 0; c3 = -1; c4 = 0; c5 = -1; c6 = 0; c7 = 1; c8 = -1; c9 = -1; c10 = 0; c11 = -1; c12 = 0;  //Z=43871
-            //EditSG.Text = 'I41(80),I4122(98)'; }/*3*/  //Z=43872
+            SETCX( 0, 0,-1, 0,-1, 0, 1,-1,-1, 0,-1, 0,-1,-1);  //Z=43871
+            retval = "I41(80),I4122(98)";/*3*/  //Z=43872
             break;
         case 25: /*  I--d | hkl:h+k+l, hk0:h+k, 0kl:k+l, hhl:2h+l=4n,l, 00l:4n, 0k0:k, hh0:h  */  //Z=43873
-            c1 = 0; c2 = 0; c3 = -1; c4 = 0; c5 = -1; c6 = 0; c7 = 1; c8 = 0; c9 = -1; c10 = 4; c11 = -1; c12 = 0;  //Z=43874
-            //EditSG.Text = 'I41md(109),I-42d(122)'; }/*3*/  //Z=43875
+            SETCX( 0, 0,-1, 0,-1, 0, 1, 0,-1, 4,-1, 0,-1,-1);  //Z=43874
+            retval = "I41md(109),I-42d(122)";/*3*/  //Z=43875
             break;
         case 26: /*  I-c- | hkl:h+k+l, hk0:h+k, 0kl:k,l, hhl:l, 00l:l, 0k0:k  */  //Z=43876
-            c1 = 0; c2 = 4; c3 = -1; c4 = 0; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = 0; c11 = -1; c12 = 0;  //Z=43877
-            //EditSG.Text = 'I4cm(108),I-4c2(120),I4/mcm(140)'; }/*3*/  //Z=43878
+            SETCX( 0, 4,-1, 0,-1, 0, 0,-1,-1, 0,-1, 0,-1,-1);  //Z=43877
+            retval = "I4cm(108),I-4c2(120),I4/mcm(140)";/*3*/  //Z=43878
             break;
         case 27: /*  I-cd | hkl:h+k+l, hk0:h+k, 0kl:k,l, hhl:2h+l=4n,l, 00l:4n, 0k0:k, hh0:h  */  //Z=43879
-            c1 = 0; c2 = 4; c3 = -1; c4 = 0; c5 = -1; c6 = 0; c7 = 1; c8 = 0; c9 = -1; c10 = 4; c11 = -1; c12 = 0;  //Z=43880
-            //EditSG.Text = 'I41cd(110)'; }/*3*/  //Z=43881
+            SETCX( 0, 4,-1, 0,-1, 0, 1, 0,-1, 4,-1, 0,-1,-1);  //Z=43880
+            retval = "I41cd(110)";/*3*/  //Z=43881
             break;
         case 28: /*  I41/a-- | hkl:h+k+l, hk0:h,k, 0kl:k+l, hhl:l, 00l:4n, 0k0:k  */  //Z=43882
-            c1 = 0; c2 = 0; c3 = -1; c4 = 4; c5 = -1; c6 = 0; c7 = 1; c8 = -1; c9 = -1; c10 = 0; c11 = -1; c12 = 0;  //Z=43883
-            //EditSG.Text = 'I41/a(88)'; }/*3*/  //Z=43884
+            SETCX( 0, 0,-1, 4,-1, 0, 1,-1,-1, 0,-1, 0,-1,-1);  //Z=43883
+            retval = "I41/a(88)";/*3*/  //Z=43884
             break;
         case 29: /*  Ia-d | hkl:h+k+l, hk0:h,k, 0kl:k+l, hhl:2h+l=4n,l, 00l:4n, 0k0:k, hh0:h  */  //Z=43885
-            c1 = 0; c2 = 0; c3 = -1; c4 = 4; c5 = -1; c6 = 0; c7 = 1; c8 = 0; c9 = -1; c10 = 4; c11 = -1; c12 = 0;  //Z=43886
-            //EditSG.Text = 'I41/amd(141)'; }/*3*/  //Z=43887
+            SETCX( 0, 0,-1, 4,-1, 0, 1, 0,-1, 4,-1, 0,-1,-1);  //Z=43886
+            retval = "I41/amd(141)";/*3*/  //Z=43887
             break;
         case 30: /*  Iacd | hkl:h+k+l, hk0:h,k, 0kl:k,l, hhl:2h+l=4n,l, 00l:4n, 0k0:k, hh0:h  */  //Z=43888
-            c1 = 0; c2 = 4; c3 = -1; c4 = 4; c5 = -1; c6 = 0; c7 = 1; c8 = 0; c9 = -1; c10 = 4; c11 = -1; c12 = 0;  //Z=43889
-            //EditSG.Text = 'I41/acd(142)'; }/*3*/  //Z=43890
+            SETCX( 0, 4,-1, 4,-1, 0, 1, 0,-1, 4,-1, 0,-1,-1);  //Z=43889
+            retval = "I41/acd(142)";/*3*/  //Z=43890
             break;
         } // switch ( ComboBoxTetragonal )
     } // if ( RadioButtonSysTetragonal )
@@ -8585,457 +8866,457 @@ void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype ) const
             /*  primitive  */  //Z=43899
         case   0: /*  P--- |  */  //Z=43900
             c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43901
-            //EditSG.Text = 'P222(16),Pmm2(25),Pm2m(25),P2mm(25),Pmmm(47)'; }/*3*/  //Z=43902
+            retval = "P222(16),Pmm2(25),Pm2m(25),P2mm(25),Pmmm(47)";/*3*/  //Z=43902
             break;
         case   1: /*  P--21 | 00l:l  */  //Z=43903
             c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43904
-            //EditSG.Text = 'P2221(17)'; }/*3*/  //Z=43905
+            retval = "P2221(17)";/*3*/  //Z=43905
             break;
         case   2: /*  P-21- | 0k0:k  */  //Z=43906
             c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43907
-            //EditSG.Text = 'P2212(17)'; }/*3*/  //Z=43908
+            retval = "P2212(17)";/*3*/  //Z=43908
             break;
         case   3: /*  P-2121 | 0k0:k, 00l:l  */  //Z=43909
             c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43910
-            //EditSG.Text = 'P22121(18)'; }/*3*/  //Z=43911
+            retval = "P22121(18)";/*3*/  //Z=43911
             break;
         case   4: /*  P21-- | h00:h  */  //Z=43912
             c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = 0; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43913
-            //EditSG.Text = 'P2122(17)'; }/*3*/  //Z=43914
+            retval = "P2122(17)";/*3*/  //Z=43914
             break;
         case   5: /*  P21-21 | h00:h, 00l:l  */  //Z=43915
             c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43916
-            //EditSG.Text = 'P21221(18)'; }/*3*/  //Z=43917
+            retval = "P21221(18)";/*3*/  //Z=43917
             break;
         case   6: /*  P2121- | h00:h, 0k0:k  */  //Z=43918
             c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43919
-            //EditSG.Text = 'P21212(18)'; }/*3*/  //Z=43920
+            retval = "P21212(18)";/*3*/  //Z=43920
             break;
         case   7: /*  P212121 | h00:h, 0k0:k, 00l:l  */  //Z=43921
             c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43922
-            //EditSG.Text = 'P212121(19)'; }/*3*/  //Z=43923
+            retval = "P212121(19)";/*3*/  //Z=43923
             break;
         case   8: /*  P--a | hk0:h, h00:h  */  //Z=43924
             c1 = -1; c2 = -1; c3 = -1; c4 = 1; c5 = 0; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43925
-            //EditSG.Text = 'Pm2a(28),P21ma(26),Pmma(51)'; }/*3*/  //Z=43926
+            retval = "Pm2a(28),P21ma(26),Pmma(51)";/*3*/  //Z=43926
             break;
         case   9: /*  P--b | hk0:k, 0k0:k  */  //Z=43927
             c1 = -1; c2 = -1; c3 = -1; c4 = 2; c5 = -1; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43928
-            //EditSG.Text = 'Pm21b(26),P2mb(28),Pmmb(51)'; }/*3*/  //Z=43929
+            retval = "Pm21b(26),P2mb(28),Pmmb(51)";/*3*/  //Z=43929
             break;
         case  10: /*  P--n | hk0:h+k, h00:h, 0k0:k  */  //Z=43930
             c1 = -1; c2 = -1; c3 = -1; c4 = 0; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43931
-            //EditSG.Text = 'Pm21n(31),P21mn(31),Pmmn(59)'; }/*3*/  //Z=43932
+            retval = "Pm21n(31),P21mn(31),Pmmn(59)";/*3*/  //Z=43932
             break;
         case  11: /*  P-a- | h0l:h, h00:h  */  //Z=43933
             c1 = -1; c2 = -1; c3 = 1; c4 = -1; c5 = 0; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43934
-            //EditSG.Text = 'Pma2(28),P21am(26),Pmam(51)'; }/*3*/  //Z=43935
+            retval = "Pma2(28),P21am(26),Pmam(51)";/*3*/  //Z=43935
             break;
         case  12: /*  P-aa | h0l:h, hk0:h, h00:h  */  //Z=43936
             c1 = -1; c2 = -1; c3 = 1; c4 = 1; c5 = 0; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43937
-            //EditSG.Text = 'P2aa(27),Pmaa(49)'; }/*3*/  //Z=43938
+            retval = "P2aa(27),Pmaa(49)";/*3*/  //Z=43938
             break;
         case  13: /*  P-ab | h0l:h, hk0:k, h00:h, 0k0:k  */  //Z=43939
             c1 = -1; c2 = -1; c3 = 1; c4 = 1; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43940
-            //EditSG.Text = 'P21ab(29),Pmab(57)'; }/*3*/  //Z=43941
+            retval = "P21ab(29),Pmab(57)";/*3*/  //Z=43941
             break;
         case  14: /*  P-an | h0l:h, hk0:h+k, h00:h, 0k0:k  */  //Z=43942
             c1 = -1; c2 = -1; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43943
-            //EditSG.Text = 'P2an(30),Pman(53)'; }/*3*/  //Z=43944
+            retval = "P2an(30),Pman(53)";/*3*/  //Z=43944
             break;
         case  15: /*  P-c- | h0l:l, 00l:l  */  //Z=43945
             c1 = -1; c2 = -1; c3 = 2; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43946
-            //EditSG.Text = 'Pmc21(26),P2cm(28),Pmcm(51)'; }/*3*/  //Z=43947
+            retval = "Pmc21(26),P2cm(28),Pmcm(51)";/*3*/  //Z=43947
             break;
         case  16: /*  P-ca | h0l:l, hk0:h, h00:h, 00l:l  */  //Z=43948
             c1 = -1; c2 = -1; c3 = 2; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43949
-            //EditSG.Text = 'P21ca(29),Pmca(57)'; }/*3*/  //Z=43950
+            retval = "P21ca(29),Pmca(57)";/*3*/  //Z=43950
             break;
         case  17: /*  P-cb | h0l:l, hk0:k, 0k0:k, 00l:l  */  //Z=43951
             c1 = -1; c2 = -1; c3 = 2; c4 = 2; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43952
-            //EditSG.Text = 'P2cb(32),Pmcb(55)'; }/*3*/  //Z=43953
+            retval = "P2cb(32),Pmcb(55)";/*3*/  //Z=43953
             break;
         case  18: /*  P-cn | h0l:l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=43954
             c1 = -1; c2 = -1; c3 = 2; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43955
-            //EditSG.Text = 'P21cn(33),Pmcn(62)'; }/*3*/  //Z=43956
+            retval = "P21cn(33),Pmcn(62)";/*3*/  //Z=43956
             break;
         case  19: /*  P-n- | h0l:h+l, h00:h, 00l:l  */  //Z=43957
             c1 = -1; c2 = -1; c3 = 0; c4 = -1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43958
-            //EditSG.Text = 'Pmn21(31),P21nm(31),Pmnm(59)'; }/*3*/  //Z=43959
+            retval = "Pmn21(31),P21nm(31),Pmnm(59)";/*3*/  //Z=43959
             break;
         case  20: /*  P-na | h0l:h+l, hk0:h, h00:h, 00l:l  */  //Z=43960
             c1 = -1; c2 = -1; c3 = 0; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43961
-            //EditSG.Text = 'P2na(30),Pmna(53)'; }/*3*/  //Z=43962
+            retval = "P2na(30),Pmna(53)";/*3*/  //Z=43962
             break;
         case  21: /*  P-nb | h0l:h+l, hk0:k, h00:h, 0k0:k, 00l:l  */  //Z=43963
             c1 = -1; c2 = -1; c3 = 0; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43964
-            //EditSG.Text = 'P21nb(33),Pmnb(62)'; }/*3*/  //Z=43965
+            retval = "P21nb(33),Pmnb(62)";/*3*/  //Z=43965
             break;
         case  22: /*  P-nn | h0l:h+l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=43966
             c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43967
-            //EditSG.Text = 'P2nn(34),Pmnn(58)'; }/*3*/  //Z=43968
+            retval = "P2nn(34),Pmnn(58)";/*3*/  //Z=43968
             break;
         case  23: /*  Pb-- | 0kl:k, 0k0:k  */  //Z=43969
             c1 = -1; c2 = 1; c3 = -1; c4 = -1; c5 = -1; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43970
-            //EditSG.Text = 'Pbm2(28),Pb21m(26),Pbmm(51)'; }/*3*/  //Z=43971
+            retval = "Pbm2(28),Pb21m(26),Pbmm(51)";/*3*/  //Z=43971
             break;
         case  24: /*  Pb-a | 0kl:k, hk0:h, h00:h, 0k0:k  */  //Z=43972
             c1 = -1; c2 = 1; c3 = -1; c4 = 1; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43973
-            //EditSG.Text = 'Pb21a(29),Pbma(57)'; }/*3*/  //Z=43974
+            retval = "Pb21a(29),Pbma(57)";/*3*/  //Z=43974
             break;
         case  25: /*  Pb-b | 0kl:k, hk0:k, 0k0:k  */  //Z=43975
             c1 = -1; c2 = 1; c3 = -1; c4 = 2; c5 = -1; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43976
-            //EditSG.Text = 'Pb2b(27),Pbmb(49)'; }/*3*/  //Z=43977
+            retval = "Pb2b(27),Pbmb(49)";/*3*/  //Z=43977
             break;
         case 26: /*  Pb-n | 0kl:k, hk0:h+k, h00:h, 0k0:k  */  //Z=43978
             c1 = -1; c2 = 1; c3 = -1; c4 = 0; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43979
-            //EditSG.Text = 'Pb2n(30),Pbmn(53)'; }/*3*/  //Z=43980
+            retval = "Pb2n(30),Pbmn(53)";/*3*/  //Z=43980
             break;
         case 27: /*  Pba- | 0kl:k, h0l:h, h00:h, 0k0:k  */  //Z=43981
             c1 = -1; c2 = 1; c3 = 1; c4 = -1; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43982
-            //EditSG.Text = 'Pba2(32),Pbam(55)'; }/*3*/  //Z=43983
+            retval = "Pba2(32),Pbam(55)";/*3*/  //Z=43983
             break;
         case 28: /*  Pbaa | 0kl:k, h0l:h, hk0:h, h00:h, 0k0:k  */  //Z=43984
             c1 = -1; c2 = 1; c3 = 1; c4 = 1; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43985
-            //EditSG.Text = 'Pbaa(54)'; }/*3*/  //Z=43986
+            retval = "Pbaa(54)";/*3*/  //Z=43986
             break;
         case 29: /*  Pbab | 0kl:k, h0l:h, hk0:k, h00:h, 0k0:k  */  //Z=43987
             c1 = -1; c2 = 1; c3 = 1; c4 = 2; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43988
-            //EditSG.Text = 'Pbab(54)'; }/*3*/  //Z=43989
+            retval = "Pbab(54)";/*3*/  //Z=43989
             break;
         case 30: /*  Pban | 0kl:k, h0l:h, hk0:h+k, h00:h, 0k0:k  */  //Z=43990
             c1 = -1; c2 = 1; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43991
-            //EditSG.Text = 'Pban(50)'; }/*3*/  //Z=43992
+            retval = "Pban(50)";/*3*/  //Z=43992
             break;
         case 31: /*  Pbc- | 0kl:k, h0l:l, 0k0:k, 00l:l  */  //Z=43993
             c1 = -1; c2 = 1; c3 = 2; c4 = -1; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43994
-            //EditSG.Text = 'Pbc21(29),Pbcm(57)'; }/*3*/  //Z=43995
+            retval = "Pbc21(29),Pbcm(57)";/*3*/  //Z=43995
             break;
         case 32: /*  Pbca | 0kl:k, h0l:l, hk0:h, h00:h, 0k0:k, 00l:l  */  //Z=43996
             c1 = -1; c2 = 1; c3 = 2; c4 = 1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43997
-            //EditSG.Text = 'Pbca(61)'; }/*3*/  //Z=43998
+            retval = "Pbca(61)";/*3*/  //Z=43998
             break;
         case 33: /*  Pbcb | 0kl:k, h0l:l, hk0:k, 0k0:k, 00l:l  */  //Z=43999
             c1 = -1; c2 = 1; c3 = 2; c4 = 2; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44000
-            //EditSG.Text = 'Pbcb(54)'; }/*3*/  //Z=44001
+            retval = "Pbcb(54)";/*3*/  //Z=44001
             break;
         case 34: /*  Pbcn | 0kl:k, h0l:l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44002
             c1 = -1; c2 = 1; c3 = 2; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44003
-            //EditSG.Text = 'Pbcn(60)'; }/*3*/  //Z=44004
+            retval = "Pbcn(60)";/*3*/  //Z=44004
             break;
         case 35: /*  Pbn- | 0kl:k, h0l:h+l, h00:h, 0k0:k, 00l:l  */  //Z=44005
             c1 = -1; c2 = 1; c3 = 0; c4 = -1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44006
-            //EditSG.Text = 'Pbn21(33),Pbnm(62)'; }/*3*/  //Z=44007
+            retval = "Pbn21(33),Pbnm(62)";/*3*/  //Z=44007
             break;
         case 36: /*  Pbna | 0kl:k, h0l:h+l, hk0:h, h00:h, 0k0:k, 00l:l  */  //Z=44008
             c1 = -1; c2 = 1; c3 = 0; c4 = 1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44009
-            //EditSG.Text = 'Pbna(60)'; }/*3*/  //Z=44010
+            retval = "Pbna(60)";/*3*/  //Z=44010
             break;
         case 37: /*  Pbnb | 0kl:k, h0l:h+l, hk0:k, h00:h, 0k0:k, 00l:l  */  //Z=44011
             c1 = -1; c2 = 1; c3 = 0; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44012
-            //EditSG.Text = 'Pbnb(56)'; }/*3*/  //Z=44013
+            retval = "Pbnb(56)";/*3*/  //Z=44013
             break;
         case 38: /*  Pbnn | 0kl:k, h0l:h+l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44014
             c1 = -1; c2 = 1; c3 = 0; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44015
-            //EditSG.Text = 'Pbnn(52)'; }/*3*/  //Z=44016
+            retval = "Pbnn(52)";/*3*/  //Z=44016
             break;
         case 39: /*  Pc-- | 0kl:l, 00l:l  */  //Z=44017
             c1 = -1; c2 = 2; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44018
-            //EditSG.Text = 'Pcm21(26),Pc2m(28),Pcmm(51)'; }/*3*/  //Z=44019
+            retval = "Pcm21(26),Pc2m(28),Pcmm(51)";/*3*/  //Z=44019
             break;
         case 40: /*  Pc-a | 0kl:l, hk0:h, h00:h, 00l:l  */  //Z=44020
             c1 = -1; c2 = 2; c3 = -1; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44021
-            //EditSG.Text = 'Pc2a(32),Pcma(55)'; }/*3*/  //Z=44022
+            retval = "Pc2a(32),Pcma(55)";/*3*/  //Z=44022
             break;
         case 41: /*  Pc-b | 0kl:l, hk0:k, 0k0:k, 00l:l  */  //Z=44023
             c1 = -1; c2 = 2; c3 = -1; c4 = 2; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44024
-            //EditSG.Text = 'Pc21b(29),Pcmb(57)'; }/*3*/  //Z=44025
+            retval = "Pc21b(29),Pcmb(57)";/*3*/  //Z=44025
             break;
         case 42: /*  Pc-n | 0kl:l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44026
             c1 = -1; c2 = 2; c3 = -1; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44027
-            //EditSG.Text = 'Pc21n(33),Pcmn(62)'; }/*3*/  //Z=44028
+            retval = "Pc21n(33),Pcmn(62)";/*3*/  //Z=44028
             break;
         case 43: /*  Pca- | 0kl:l, h0l:h, h00:h, 00l:l  */  //Z=44029
             c1 = -1; c2 = 2; c3 = 1; c4 = -1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44030
-            //EditSG.Text = 'Pca21(29),Pcam(57)'; }/*3*/  //Z=44031
+            retval = "Pca21(29),Pcam(57)";/*3*/  //Z=44031
             break;
         case 44: /*  Pcaa | 0kl:l, h0l:h, hk0:h, h00:h, 00l:l  */  //Z=44032
             c1 = -1; c2 = 2; c3 = 1; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44033
-            //EditSG.Text = 'Pcaa(54)'; }/*3*/  //Z=44034
+            retval = "Pcaa(54)";/*3*/  //Z=44034
             break;
         case 45: /*  Pcab | 0kl:l, h0l:h, hk0:k, h00:h, 0k0:k, 00l:l  */  //Z=44035
             c1 = -1; c2 = 2; c3 = 1; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44036
-            //EditSG.Text = 'Pcab(61)'; }/*3*/  //Z=44037
+            retval = "Pcab(61)";/*3*/  //Z=44037
             break;
         case 46: /*  Pcan | 0kl:l, h0l:h, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44038
             c1 = -1; c2 = 2; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44039
-            //EditSG.Text = 'Pcan(60)'; }/*3*/  //Z=44040
+            retval = "Pcan(60)";/*3*/  //Z=44040
             break;
         case 47: /*  Pcc- | 0kl:l, h0l:l, 00l:l  */  //Z=44041
             c1 = -1; c2 = 2; c3 = 2; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44042
-            //EditSG.Text = 'Pcc2(27),Pccm(49)'; }/*3*/  //Z=44043
+            retval = "Pcc2(27),Pccm(49)";/*3*/  //Z=44043
             break;
         case 48: /*  Pcca | 0kl:l, h0l:l, hk0:h, h00:h, 00l:l  */  //Z=44044
             c1 = -1; c2 = 2; c3 = 2; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44045
-            //EditSG.Text = 'Pcca(54)'; }/*3*/  //Z=44046
+            retval = "Pcca(54)";/*3*/  //Z=44046
             break;
         case 49: /*  Pccb | 0kl:l, h0l:l, hk0:k, 0k0:k, 00l:l  */  //Z=44047
             c1 = -1; c2 = 2; c3 = 2; c4 = 2; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44048
-            //EditSG.Text = 'Pccb(54)'; }/*3*/  //Z=44049
+            retval = "Pccb(54)";/*3*/  //Z=44049
             break;
         case 50: /*  Pccn | 0kl:l, h0l:l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44050
             c1 = -1; c2 = 2; c3 = 2; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44051
-            //EditSG.Text = 'Pccn(56)'; }/*3*/  //Z=44052
+            retval = "Pccn(56)";/*3*/  //Z=44052
             break;
         case 51: /*  Pcn- | 0kl:l, h0l:h+l, h00:h, 00l:l  */  //Z=44053
             c1 = -1; c2 = 2; c3 = 0; c4 = -1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44054
-            //EditSG.Text = 'Pcn2(30),Pcnm(53)'; }/*3*/  //Z=44055
+            retval = "Pcn2(30),Pcnm(53)";/*3*/  //Z=44055
             break;
         case 52: /*  Pcna | 0kl:l, h0l:h+l, hk0:h, h00:h, 00l:l  */  //Z=44056
             c1 = -1; c2 = 2; c3 = 0; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44057
-            //EditSG.Text = 'Pcna(50)'; }/*3*/  //Z=44058
+            retval = "Pcna(50)";/*3*/  //Z=44058
             break;
         case 53: /*  Pcnb | 0kl:l, h0l:h+l, hk0:k, h00:h, 0k0:k, 00l:l  */  //Z=44059
             c1 = -1; c2 = 2; c3 = 0; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44060
-            //EditSG.Text = 'Pcnb(60)'; }/*3*/  //Z=44061
+            retval = "Pcnb(60)";/*3*/  //Z=44061
             break;
         case 54: /*  Pcnn | 0kl:l, h0l:h+l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44062
             c1 = -1; c2 = 2; c3 = 0; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44063
-            //EditSG.Text = 'Pcnn(52)'; }/*3*/  //Z=44064
+            retval = "Pcnn(52)";/*3*/  //Z=44064
             break;
         case 55: /*  Pn-- | 0kl:k+l, 0k0:k, 00l:l  */  //Z=44065
             c1 = -1; c2 = 0; c3 = -1; c4 = -1; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44066
-            //EditSG.Text = 'Pnm21(31),Pn21m(31),Pnmm(59)'; }/*3*/  //Z=44067
+            retval = "Pnm21(31),Pn21m(31),Pnmm(59)";/*3*/  //Z=44067
             break;
         case 56: /*  Pn-a | 0kl:k+l, hk0:h, h00:h, 0k0:k, 00l:l  */  //Z=44068
             c1 = -1; c2 = 0; c3 = -1; c4 = 1; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44069
-            //EditSG.Text = 'Pn21a(33),Pnma(62)'; }/*3*/  //Z=44070
+            retval = "Pn21a(33),Pnma(62)";/*3*/  //Z=44070
             break;
         case 57: /*  Pn-b | 0kl:k+l, hk0:k, 0k0:k, 00l:l  */  //Z=44071
             c1 = -1; c2 = 0; c3 = -1; c4 = 2; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44072
-            //EditSG.Text = 'Pn2b(30),Pnmb(53)'; }/*3*/  //Z=44073
+            retval = "Pn2b(30),Pnmb(53)";/*3*/  //Z=44073
             break;
         case 58: /*  Pn-n | 0kl:k+l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44074
             c1 = -1; c2 = 0; c3 = -1; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44075
-            //EditSG.Text = 'Pn2n(34),Pnmn(58)'; }/*3*/  //Z=44076
+            retval = "Pn2n(34),Pnmn(58)";/*3*/  //Z=44076
             break;
         case 59: /*  Pna- | 0kl:k+l, h0l:h, h00:h, 0k0:k, 00l:l  */  //Z=44077
             c1 = -1; c2 = 0; c3 = 1; c4 = -1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44078
-            //EditSG.Text = 'Pna21(33),Pnam(62)'; }/*3*/  //Z=44079
+            retval = "Pna21(33),Pnam(62)";/*3*/  //Z=44079
             break;
         case 60: /*  Pnaa | 0kl:k+l, h0l:h, hk0:h, h00:h, 0k0:k, 00l:l  */  //Z=44080
             c1 = -1; c2 = 0; c3 = 1; c4 = 1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44081
-            //EditSG.Text = 'Pnaa(56)'; }/*3*/  //Z=44082
+            retval = "Pnaa(56)";/*3*/  //Z=44082
             break;
         case 61: /*  Pnab | 0kl:k+l, h0l:h, hk0:k, h00:h, 0k0:k, 00l:l  */  //Z=44083
             c1 = -1; c2 = 0; c3 = 1; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44084
-            //EditSG.Text = 'Pnab(60)'; }/*3*/  //Z=44085
+            retval = "Pnab(60)";/*3*/  //Z=44085
             break;
         case 62: /*  Pnan | 0kl:k+l, h0l:h, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44086
             c1 = -1; c2 = 0; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44087
-            //EditSG.Text = 'Pnan(52)'; }/*3*/  //Z=44088
+            retval = "Pnan(52)";/*3*/  //Z=44088
             break;
         case 63: /*  Pnc- | 0kl:k+l, h0l:l, 0k0:k, 00l:l  */  //Z=44089
             c1 = -1; c2 = 0; c3 = 2; c4 = -1; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44090
-            //EditSG.Text = 'Pnc2(30),Pncm(53)'; }/*3*/  //Z=44091
+            retval = "Pnc2(30),Pncm(53)";/*3*/  //Z=44091
             break;
         case 64: /*  Pnca | 0kl:k+l, h0l:l, hk0:h, h00:h, 0k0:k, 00l:l  */  //Z=44092
             c1 = -1; c2 = 0; c3 = 2; c4 = 1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44093
-            //EditSG.Text = 'Pnca(60)'; }/*3*/  //Z=44094
+            retval = "Pnca(60)";/*3*/  //Z=44094
             break;
         case 65: /*  Pncb | 0kl:k+l, h0l:l, hk0:k, 0k0:k, 00l:l |   */  //Z=44095
             c1 = -1; c2 = 0; c3 = 2; c4 = 2; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44096
-            //EditSG.Text = 'Pncb(50)'; }/*3*/  //Z=44097
+            retval = "Pncb(50)";/*3*/  //Z=44097
             break;
         case 66: /*  Pncn | 0kl:k+l, h0l:l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44098
             c1 = -1; c2 = 0; c3 = 2; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44099
-            //EditSG.Text = 'Pncn(52)'; }/*3*/  //Z=44100
+            retval = "Pncn(52)";/*3*/  //Z=44100
             break;
         case 67: /*  Pnn- | 0kl:k+l, h0l:h+l, h00:h, 0k0:k, 00l:l  */  //Z=44101
             c1 = -1; c2 = 0; c3 = 0; c4 = -1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44102
-            //EditSG.Text = 'Pnn2(34),Pnnm(58)'; }/*3*/  //Z=44103
+            retval = "Pnn2(34),Pnnm(58)";/*3*/  //Z=44103
             break;
         case 68: /*  Pnna | 0kl:k+l, h0l:h+l, hk0:h, h00:h, 0k0:k, 00l:l  */  //Z=44104
             c1 = -1; c2 = 0; c3 = 0; c4 = 1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44105
-            //EditSG.Text = 'Pnna(52)'; }/*3*/  //Z=44106
+            retval = "Pnna(52)";/*3*/  //Z=44106
             break;
         case 69: /*  Pnnb | 0kl:k+l, h0l:h+l, hk0:k, h00:h, 0k0:k, 00l:l  */  //Z=44107
             c1 = -1; c2 = 0; c3 = 0; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44108
-            //EditSG.Text = 'Pnnb(52)'; }/*3*/  //Z=44109
+            retval = "Pnnb(52)";/*3*/  //Z=44109
             break;
         case 70: /*  Pnnn | 0kl:k+l, h0l:h+l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44110
             c1 = -1; c2 = 0; c3 = 0; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44111
-            //EditSG.Text = 'Pnnn(48)'; }/*3*/  //Z=44112
+            retval = "Pnnn(48)";/*3*/  //Z=44112
             break;
 
             /*  centered C___  */  //Z=44115
         case 71: /*  C--- | hkl:h+k, 0kl:k, h0l:h, hk0:h+k, h00:h, 0k0:k  */  //Z=44116
             c1 = 1; c2 = 1; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44117
-            //EditSG.Text = 'C222(21),Cmm2(35),Cm2m(38),C2mm(38),Cmmm(65)'; }/*3*/  //Z=44118
+            retval = "C222(21),Cmm2(35),Cm2m(38),C2mm(38),Cmmm(65)";/*3*/  //Z=44118
             break;
         case 72: /*  C--21 | hkl:h+k, 0kl:k, h0l:h, hk0:h+k, h00:h, 0k0:k, 00l:.  */  //Z=44119
             c1 = 1; c2 = 1; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44120
-            //EditSG.Text = 'C2221(20)'; }/*3*/  //Z=44121
+            retval = "C2221(20)";/*3*/  //Z=44121
             break;
         case 73: /*  C--(ab) | hkl:h+k, 0kl:k, h0l:h, hk0:h,k, h00:h, 0k0:k  */  //Z=44122
             c1 = 1; c2 = 1; c3 = 1; c4 = 4; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44123
-            //EditSG.Text = 'Cm2e(39),C2me(39),Cmme(67)'; }/*3*/  //Z=44124
+            retval = "Cm2e(39),C2me(39),Cmme(67)";/*3*/  //Z=44124
             break;
         case 74: /*  C-c- | hkl:h+k, 0kl:k, h0l:h,l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44125
             c1 = 1; c2 = 1; c3 = 4; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44126
-            //EditSG.Text = 'Ccm21(36),C2cm(40),Cmcm(63)'; }/*3*/  //Z=44127
+            retval = "Ccm21(36),C2cm(40),Cmcm(63)";/*3*/  //Z=44127
             break;
         case 75: /*  C-c(ab) | hkl:h+k, 0kl:k, h0l:h,l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44128
             c1 = 1; c2 = 1; c3 = 4; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44129
-            //EditSG.Text = 'C2ce(41),Cmce(64)'; }/*3*/  //Z=44130
+            retval = "C2ce(41),Cmce(64)";/*3*/  //Z=44130
             break;
         case 76: /*  Cc-- | hkl:h+k, 0kl:k,l, h0l:h, hk0:h+k, h00:h, 0k0:k, 001:l  */  //Z=44131
             c1 = 1; c2 = 4; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44132
-            //EditSG.Text = 'Ccm21(36),Cc2m(40),Ccmm(63)'; }/*3*/  //Z=44133
+            retval = "Ccm21(36),Cc2m(40),Ccmm(63)";/*3*/  //Z=44133
             break;
         case 77: /*  Cc-(ab) | hkl:h+k, 0kl:k,l, h0l:h, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44134
             c1 = 1; c2 = 4; c3 = 1; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44135
-            //EditSG.Text = 'Cc2e(41),Ccme(64)'; }/*3*/  //Z=44136
+            retval = "Cc2e(41),Ccme(64)";/*3*/  //Z=44136
             break;
         case 78: /*  Ccc- | hkl:h+k, 0kl:k,l, h0l:h,l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44137
             c1 = 1; c2 = 4; c3 = 4; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44138
-            //EditSG.Text = 'Ccc2(37),Cccm(66)'; }/*3*/  //Z=44139
+            retval = "Ccc2(37),Cccm(66)";/*3*/  //Z=44139
             break;
         case 79: /*  Ccc(ab) | hkl:h+k, 0kl:k,l, h0l:h,l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44140
             c1 = 1; c2 = 4; c3 = 4; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44141
-            //EditSG.Text = 'Ccce(68)'; }/*3*/  //Z=44142
+            retval = "Ccce(68)";/*3*/  //Z=44142
             break;
 
             /*  centered B___  */  //Z=44145
         case 80: /*  B--- | hkl:h+l, 0kl:l, h0l:h+l, hk0:h, h00:h, 00l:l  */  //Z=44146
             c1 = 3; c2 = 2; c3 = 0; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44147
-            //EditSG.Text = 'B222(21),Bmm2(38),Bm2m(35),B2mm(38),Bmmm(65)'; }/*3*/  //Z=44148
+            retval = "B222(21),Bmm2(38),Bm2m(35),B2mm(38),Bmmm(65)";/*3*/  //Z=44148
             break;
         case 81: /*  B-21- | hkl:h+l, 0kl:l, h0l:h+l, hk0:h, h00:h, 0k0:k, 00l:l  */  //Z=44149
             c1 = 3; c2 = 2; c3 = 0; c4 = 1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44150
-            //EditSG.Text = 'B2212(20)'; }/*3*/  //Z=44151
+            retval = "B2212(20)";/*3*/  //Z=44151
             break;
         case 82: /*  B--b | hkl:h+l, 0kl:l, h0l:h+l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44152
             c1 = 3; c2 = 2; c3 = 0; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44153
-            //EditSG.Text = 'Bm21b(36),B2mb(40),Bmmb(63)'; }/*3*/  //Z=44154
+            retval = "Bm21b(36),B2mb(40),Bmmb(63)";/*3*/  //Z=44154
             break;
         case 83: /*  B-(ac)- | hkl:h+l, 0kl:l, h0l;h,l, hk0:h, h00:h, 00l:l  */  //Z=44155
             c1 = 3; c2 = 2; c3 = 4; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44156
-            //EditSG.Text = 'Bme2(39),B2em(39),Bmem(67)'; }/*3*/  //Z=44157
+            retval = "Bme2(39),B2em(39),Bmem(67)";/*3*/  //Z=44157
             break;
         case 84: /*  B-(ac)b | hkl:h+l, 0kl:l, h0l:h,l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44158
             c1 = 3; c2 = 2; c3 = 4; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44159
-            //EditSG.Text = 'B2eb(41),Bmeb(64)'; }/*3*/  //Z=44160
+            retval = "B2eb(41),Bmeb(64)";/*3*/  //Z=44160
             break;
         case 85: /*  Bb-- | hkl:h+l, 0kl:k,l, h0l:h+l, hk0:h, h00:h, 0k0:k, 00l:l  */  //Z=44161
             c1 = 3; c2 = 4; c3 = 0; c4 = 1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44162
-            //EditSG.Text = 'Bbm2(40),Bb21m(36),Bbmm(63)'; }/*3*/  //Z=44163
+            retval = "Bbm2(40),Bb21m(36),Bbmm(63)";/*3*/  //Z=44163
             break;
         case 86: /*  Bb-b | hkl:h+l, 0kl:k,l, h0l:h+l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44164
             c1 = 3; c2 = 4; c3 = 0; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44165
-            //EditSG.Text = 'Bb2b(37),Bbmb(66)'; }/*3*/  //Z=44166
+            retval = "Bb2b(37),Bbmb(66)";/*3*/  //Z=44166
             break;
         case 87: /*  Bb(ac)- | hkl:h+l, 0kl:k,l, h0l:h,l, hk0:h, h00:h, 0k0:k, 00l:l  */  //Z=44167
             c1 = 3; c2 = 4; c3 = 4; c4 = 1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44168
-            //EditSG.Text = 'Bbe2(41),Bbem(64)'; }/*3*/  //Z=44169
+            retval = "Bbe2(41),Bbem(64)";/*3*/  //Z=44169
             break;
         case 88: /*  Bb(ac)b | hkl:h+l, 0kl:k,l, h0l:h,l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44170
             c1 = 3; c2 = 4; c3 = 4; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44171
-            //EditSG.Text = 'Bbeb(68)'; }/*3*/  //Z=44172
+            retval = "Bbeb(68)";/*3*/  //Z=44172
             break;
 
             /*  centered A___  */  //Z=44175
         case 89: /*  A--- | hkl:k+l, 0kl:k+l, h0l:l, hk0:k, 0k0:k, 00l:l  */  //Z=44176
             c1 = 2; c2 = 0; c3 = 2; c4 = 2; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44177
-            //EditSG.Text = 'A222(21),Amm2(38),Am2m(38),A2mm(35),Ammm(65)'; }/*3*/  //Z=44178
+            retval = "A222(21),Amm2(38),Am2m(38),A2mm(35),Ammm(65)";/*3*/  //Z=44178
             break;
         case 90: /*  A21-- | hkl:k+l, 0kl:k+l, h0l:l, hk0:k, h00:h, 0k0:k, 00l:l  */  //Z=44179
             c1 = 2; c2 = 0; c3 = 2; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44180
-            //EditSG.Text = 'A2122(20)'; }/*3*/  //Z=44181
+            retval = "A2122(20)";/*3*/  //Z=44181
             break;
         case 91: /*  A--a | hkl:k+l, 0kl:k+l, h0l:l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44182
             c1 = 2; c2 = 0; c3 = 2; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44183
-            //EditSG.Text = 'Am2a(40),A21ma(36),Amma(63)'; }/*3*/  //Z=44184
+            retval = "Am2a(40),A21ma(36),Amma(63)";/*3*/  //Z=44184
             break;
         case 92: /*  A-a-| hkl:k+l, 0kl:k+l, h0l:h,l, hk0:k, h00:h, 0k0:k, 00l:l  */  //Z=44185
             c1 = 2; c2 = 0; c3 = 4; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44186
-            //EditSG.Text = 'Ama2(40),A21am(36),Amam(63)'; }/*3*/  //Z=44187
+            retval = "Ama2(40),A21am(36),Amam(63)";/*3*/  //Z=44187
             break;
         case 93: /*  A-aa | hkl:k+l, 0kl:k+l, h0l:h,l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44188
             c1 = 2; c2 = 0; c3 = 4; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44189
-            //EditSG.Text = 'A2aa(37),Amaa(66)'; }/*3*/  //Z=44190
+            retval = "A2aa(37),Amaa(66)";/*3*/  //Z=44190
             break;
         case 94: /*  A(bc)-- | hkl:k+l, 0kl:k,l, h0l:l, hk0:k, 0k0:k, 00l:l  */  //Z=44191
             c1 = 2; c2 = 4; c3 = 2; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44192
-            //EditSG.Text = 'Aem2(39),Ae2m(39),Aemm(67)'; }/*3*/  //Z=44193
+            retval = "Aem2(39),Ae2m(39),Aemm(67)";/*3*/  //Z=44193
             break;
         case 95: /*  A(bc)-a | hkl:k+l, 0kl:k,l, h0l:l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44194
             c1 = 2; c2 = 4; c3 = 2; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44195
-            //EditSG.Text = 'Ae2a(41),Aema(64)'; }/*3*/  //Z=44196
+            retval = "Ae2a(41),Aema(64)";/*3*/  //Z=44196
             break;
         case 96: /*  A(bc)a- | hkl:k+l, 0kl:k,l, h0l:h,l, hk0:k, h00:h, 0k0:k, 00l:l  */  //Z=44197
             c1 = 2; c2 = 4; c3 = 4; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44198
-            //EditSG.Text = 'Aea2(41),Aeam(64)'; }/*3*/  //Z=44199
+            retval = "Aea2(41),Aeam(64)";/*3*/  //Z=44199
             break;
         case 97: /*  A(bc)aa | hkl:k+l, 0kl:k,l, h0l:h,l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44200
             c1 = 2; c2 = 4; c3 = 4; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44201
-            //EditSG.Text = 'Aeaa(68)'; }/*3*/  //Z=44202
+            retval = "Aeaa(68)";/*3*/  //Z=44202
             break;
 
             /*  centered I___  */  //Z=44205
         case 98: /*  I--- | hkl:h+k+l, 0kl:k+l, h0l:h+l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44206
             c1 = 0; c2 = 0; c3 = 0; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44207
-            //EditSG.Text = 'I222(23),I212121(24),Imm2(44),Im2m(44),I2mm(44),Immm(71)'; }/*3*/  //Z=44208
+            retval = "I222(23),I212121(24),Imm2(44),Im2m(44),I2mm(44),Immm(71)";/*3*/  //Z=44208
             break;
         case 99: /*  I--(ab) | hkl:h+k+l, 0kl:k+l, h0l:h+l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44209
             c1 = 0; c2 = 0; c3 = 0; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44210
-            //EditSG.Text = 'Im2a(46),I2mb(46),Imma(74),Immb(74)'; }/*3*/  //Z=44211
+            retval = "Im2a(46),I2mb(46),Imma(74),Immb(74)";/*3*/  //Z=44211
             break;
         case 100: /*  I-(ac)- | hkl:h+k+l, 0kl:k+l, h0l:h,l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44212
             c1 = 0; c2 = 0; c3 = 4; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44213
-            //EditSG.Text = 'Ima2(46),I2cm(46),Imam(74),Imcm(74)'; }/*3*/  //Z=44214
+            retval = "Ima2(46),I2cm(46),Imam(74),Imcm(74)";/*3*/  //Z=44214
             break;
         case 101: /*  I-cb | hkl:h+k+l, 0kl:k+l, h0l:h,l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44215
             c1 = 0; c2 = 0; c3 = 4; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44216
-            //EditSG.Text = 'I2cb(45),Imcb(72)'; }/*3*/  //Z=44217
+            retval = "I2cb(45),Imcb(72)";/*3*/  //Z=44217
             break;
         case 102: /*  I(bc)-- | hkl:h+k+l, 0kl:k,l, h0l:h+l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44218
             c1 = 0; c2 = 4; c3 = 0; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44219
-            //EditSG.Text = 'Iem2(46),Ie2m(46),Iemm(74)'; }/*3*/  //Z=44220
+            retval = "Iem2(46),Ie2m(46),Iemm(74)";/*3*/  //Z=44220
             break;
         case 103: /*  Ic-a | hkl:h+k+l, 0kl:k,l, h0l:h+l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44221
             c1 = 0; c2 = 4; c3 = 0; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44222
-            //EditSG.Text = 'Ic2a(45),Icma(72)'; }/*3*/  //Z=44223
+            retval = "Ic2a(45),Icma(72)";/*3*/  //Z=44223
             break;
         case 104: /*  Iba- | hkl:h+k+l, 0kl:k,l, h0l:h,l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44224
             c1 = 0; c2 = 4; c3 = 4; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44225
-            //EditSG.Text = 'Iba2(45),Ibam(72)'; }/*3*/  //Z=44226
+            retval = "Iba2(45),Ibam(72)";/*3*/  //Z=44226
             break;
         case 105: /*  Ibca | hkl:h+k+l, 0kl:k,l, h0l:h,l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44227
             c1 = 0; c2 = 4; c3 = 4; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44228
-            //EditSG.Text = 'Ibca(73),Icab(73)'; }/*3*/  //Z=44229
+            retval = "Ibca(73),Icab(73)";/*3*/  //Z=44229
             break;
 
             /*  centered F___  */  //Z=44232
         case 106: /*  F--- | hkl:h+k,h+l,k+l, 0kl:k,l, h0l:h,l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44233
             c1 = 6; c2 = 4; c3 = 4; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44234
-            //EditSG.Text = 'F222(22),Fmm2(42),Fm2m(42),F2mm(42),Fmmm(69)'; }/*3*/  //Z=44235
+            retval = "F222(22),Fmm2(42),Fm2m(42),F2mm(42),Fmmm(69)";/*3*/  //Z=44235
             break;
         case 107: /*  F-dd | hkl:h+k,h+l,k+l, 0kl:k,l, h0l:4n,h,l, hk0:4n,h,k, h00:4n, 0k0:4n, 00l:4n  */  //Z=44236
             c1 = 6; c2 = 4; c3 = 3; c4 = 3; c5 = 1; c6 = 1; c7 = 1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44237
-            //EditSG.Text = 'F2dd(43)'; }/*3*/  //Z=44238
+            retval = "F2dd(43)";/*3*/  //Z=44238
             break;
         case 108: /*  Fd-d | hkl:h+k,h+l,k+l, 0kl:4n,k,l, h0l:h,l, hk0:4n,h,k, h00:4n, 0k0:4n, 00l:4n  */  //Z=44239
             c1 = 6; c2 = 3; c3 = 4; c4 = 3; c5 = 1; c6 = 1; c7 = 1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44240
-            //EditSG.Text = 'Fd2d(43)'; }/*3*/  //Z=44241
+            retval = "Fd2d(43)";/*3*/  //Z=44241
             break;
         case 109: /*  Fdd- | hkl:h+k,h+l,k+l, 0kl:4n,k,l, h0l:4n,h,l, hk0:h,k, h00:4n, 0k0:4n, 00l:4n  */  //Z=44242
             c1 = 6; c2 = 3; c3 = 3; c4 = 4; c5 = 1; c6 = 1; c7 = 1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44243
-            //EditSG.Text = 'Fdd2(43)'; }/*3*/  //Z=44244
+            retval = "Fdd2(43)";/*3*/  //Z=44244
             break;
         case 110: /*  Fddd | hkl:h+k,h+l,k+l, 0kl:4n,k,l, h0l:4n,h,l, hk0:4n,h,k, h00:4n, 0k0:4n, 00l:4n  */  //Z=44245
             c1 = 6; c2 = 3; c3 = 3; c4 = 3; c5 = 1; c6 = 1; c7 = 1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44246
-            //EditSG.Text = 'Fddd(70)'; }/*3*/  //Z=44247
+            retval = "Fddd(70)";/*3*/  //Z=44247
             break;
         } // switch ComboBoxOrthorhombic
     } // if RadioButtonSysOrtho
@@ -9052,194 +9333,194 @@ void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype ) const
             /*  P___ unique axis b  */  //Z=44258
         case 0: /*  P1-1  */  //Z=44259
             c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44260
-            //EditSG.Text = 'P121(3),P1m1(6),P12/m1(10);unique b-axis'; }/*3*/  //Z=44261
+            retval = "P121(3),P1m1(6),P12/m1(10);unique b-axis";/*3*/  //Z=44261
             //>>>>>> Das hier ist im Screenshot von Prof. Förster zu lesen ....
             break;
         case 1: /*  P1211 | 0k0:k  */  //Z=44262
             c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44263
-            //EditSG.Text = 'P1211(4),P21/m1(11);unique b-axis'; }/*3*/  //Z=44264
+            retval = "P1211(4),P21/m1(11);unique b-axis";/*3*/  //Z=44264
             break;
         case 2: /*  P1a1 | h0l,h00:h  */  //Z=44265
             c1 = -1; c2 = -1; c3 = 1; c4 = -1; c5 = 0; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44266
-            //EditSG.Text = 'P1a1(7),P12/a1(13);unique b-axis'; }/*3*/  //Z=44267
+            retval = "P1a1(7),P12/a1(13);unique b-axis";/*3*/  //Z=44267
             break;
         case 3: /*  P121/a1 | h0l,h00:h, 0k0:k  */  //Z=44268
             c1 = -1; c2 = -1; c3 = 1; c4 = -1; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44269
-            //EditSG.Text = 'P121/a1(14);unique b-axis'; }/*3*/  //Z=44270
+            retval = "P121/a1(14);unique b-axis";/*3*/  //Z=44270
             break;
         case 4: /*  P1c1 | h0l,00l:l  */  //Z=44271
             c1 = -1; c2 = -1; c3 = 2; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44272
-            //EditSG.Text = 'P1c1(7),P12/c1(13);unique b-axis'; }/*3*/  //Z=44273
+            retval = "P1c1(7),P12/c1(13);unique b-axis";/*3*/  //Z=44273
             break;
         case 5: /*  P121/c1 | h0l,00l:l, 0k0:k  */  //Z=44274
             c1 = -1; c2 = -1; c3 = 2; c4 = -1; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44275
-            //EditSG.Text = 'P121/c1(14);unique b-axis'; }/*3*/  //Z=44276
+            retval = "P121/c1(14);unique b-axis";/*3*/  //Z=44276
             break;
         case 6: /*  P1n1 | h0l,h00,00l:h+l  */  //Z=44277
             c1 = -1; c2 = -1; c3 = 0; c4 = -1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44278
-            //EditSG.Text = 'P1n1(7),P12/n1(13);unique b-axis'; }/*3*/  //Z=44279
+            retval = "P1n1(7),P12/n1(13);unique b-axis";/*3*/  //Z=44279
             break;
         case 7: /*  P121/n1 | h0l,h00,00l:h+l, 0k0:k  */  //Z=44280
             c1 = -1; c2 = -1; c3 = 0; c4 = -1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44281
-            //EditSG.Text = 'P121/n1(14);unique b-axis'; }/*3*/  //Z=44282
+            retval = "P121/n1(14);unique b-axis";/*3*/  //Z=44282
             break;
 
             /*  C___  */  //Z=44284
         case 8: /*  C1-1 | hkl,0kl,hk0:h+k, h0l,h00,00l:h, 0k0:k  */  //Z=44285
             c1 = 1; c2 = 1; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44286
-            //EditSG.Text = 'C121(5),C1m1(8),C12/m1(12);unique b-axis'; }/*3*/  //Z=44287
+            retval = "C121(5),C1m1(8),C12/m1(12);unique b-axis";/*3*/  //Z=44287
             break;
         case 9: /*  C1c1 | hkl,0kl,hk0:h+k, h0l,h00,00l:h,l, 0k0:k  */  //Z=44288
             c1 = 1; c2 = 1; c3 = 4; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44289
-            //EditSG.Text = 'C1c1(9),C12/c1(15);unique b-axis'; }/*3*/  //Z=44290
+            retval = "C1c1(9),C12/c1(15);unique b-axis";/*3*/  //Z=44290
             break;
 
             /*  A___  */  //Z=44292
         case 10: /*  A1-1 | hkl,0kl,hk0:k+l, h0l,h00,00l:l, 0k0:k  */  //Z=44293
             c1 = 2; c2 = 0; c3 = 2; c4 = 2; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44294
-            //EditSG.Text = 'A121(15),A1m1(8),A12/m1(12);unique b-axis'; }/*3*/  //Z=44295
+            retval = "A121(15),A1m1(8),A12/m1(12);unique b-axis";/*3*/  //Z=44295
             break;
         case 11: /*  A1n1 | hkl,0kl,hk0:k+l, h0l,h00,00l:h,l, 0k0:k  */  //Z=44296
             c1 = 2; c2 = 0; c3 = 4; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44297
-            //EditSG.Text = 'A1n1(9),A12/n1(15);unique b-axis'; }/*3*/  //Z=44298
+            retval = "A1n1(9),A12/n1(15);unique b-axis";/*3*/  //Z=44298
             break;
 
             /*  I___  */  //Z=44300
         case 12: /*  I1-1 | hkl,0kl,hk0:h+k+l, h0l,h00,00l:h+l, 0k0:k  */  //Z=44301
             c1 = 0; c2 = 0; c3 = 0; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44302
-            //EditSG.Text = 'I121(5),I1m1(8),I12/m1(12)'; }/*3*/  //Z=44303
+            retval = "I121(5),I1m1(8),I12/m1(12)";/*3*/  //Z=44303
             break;
         case 13: /*  I1a1 | hkl,0kl,hk0:h+k+l, h0l,h00,00l:h,l, 0k0:k  */  //Z=44304
             c1 = 0; c2 = 0; c3 = 4; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44305
-            //EditSG.Text = 'I1a1(9),I12/a1(15);unique b-axis'; }/*3*/  //Z=44306
+            retval = "I1a1(9),I12/a1(15);unique b-axis";/*3*/  //Z=44306
             break;
 
             /*  P___ unique axis c  */  //Z=44311
         case 14: /*  P11-  */  //Z=44312
             c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44313
-            //EditSG.Text = 'P112(3),P11m(6),P112/m(10);unique c-axis'; }/*3*/  //Z=44314
+            retval = "P112(3),P11m(6),P112/m(10);unique c-axis";/*3*/  //Z=44314
             break;
         case 15: /*  P1121 | 00l:l  */  //Z=44315
             c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44316
-            //EditSG.Text = 'P1121(4),P1121/m(11);unique c-axis'; }/*3*/  //Z=44317
+            retval = "P1121(4),P1121/m(11);unique c-axis";/*3*/  //Z=44317
             break;
         case 16: /*  P11a | hk0,h00,0k0:h  */  //Z=44318
             c1 = -1; c2 = -1; c3 = -1; c4 = 1; c5 = 0; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44319
-            //EditSG.Text = 'P11a(7),P112/a(13);unique c-axis'; }/*3*/  //Z=44320
+            retval = "P11a(7),P112/a(13);unique c-axis";/*3*/  //Z=44320
             break;
         case 17: /*  P1121/a | hk0,h00,0k0:h, 00l:l  */  //Z=44321
             c1 = -1; c2 = -1; c3 = -1; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44322
-            //EditSG.Text = 'P1121/a(14);unique c-axis'; }/*3*/  //Z=44323
+            retval = "P1121/a(14);unique c-axis";/*3*/  //Z=44323
             break;
         case 18: /*  P11b | hk0,h00,0k0:k  */  //Z=44324
             c1 = -1; c2 = -1; c3 = -1; c4 = 2; c5 = -1; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44325
-            //EditSG.Text = 'P11b(7),P112/b(13);unique c-axis'; }/*3*/  //Z=44326
+            retval = "P11b(7),P112/b(13);unique c-axis";/*3*/  //Z=44326
             break;
         case 19: /*  P1121/b | hk0,h00,0k0:k, 00l:l  */  //Z=44327
             c1 = -1; c2 = -1; c3 = -1; c4 = 2; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44328
-            //EditSG.Text = 'P1121/b(14);unique c-axis'; }/*3*/  //Z=44329
+            retval = "P1121/b(14);unique c-axis";/*3*/  //Z=44329
             break;
         case 20: /*  P11n | hk0,h00,0k0:h+k  */  //Z=44330
             c1 = -1; c2 = -1; c3 = -1; c4 = 0; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44331
-            //EditSG.Text = 'P11n(7),P112/n(13);unique c-axis'; }/*3*/  //Z=44332
+            retval = "P11n(7),P112/n(13);unique c-axis";/*3*/  //Z=44332
             break;
         case 21: /*  P1121/n | hk0,h00,0k0:h+k, 00l:l  */  //Z=44333
             c1 = -1; c2 = -1; c3 = -1; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44334
-            //EditSG.Text = 'P1121/n(14);unique c-axis'; }/*3*/  //Z=44335
+            retval = "P1121/n(14);unique c-axis";/*3*/  //Z=44335
             break;
 
             /*  B___  */  //Z=44337
         case 22: /*  B11- | hkl,0kl,h0l:h+l, hk0,h00,0k0:h, 00l:l  */  //Z=44338
             c1 = 3; c2 = 2; c3 = 0; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  c13 = 2;  //Z=44339
-            //EditSG.Text = 'B112(5),B11m(8),B112/m(12);unique c-axis'; }/*3*/  //Z=44340
+            retval = "B112(5),B11m(8),B112/m(12);unique c-axis";/*3*/  //Z=44340
             break;
         case 23: /*  B11n | hkl,0kl,h0l:h+l, hk0,h00,0k0:h,k, 00l:l  */  //Z=44341
             c1 = 3; c2 = 2; c3 = 0; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  c13 = 2;  //Z=44342
-            //EditSG.Text = 'B11n(9),B112/n(15);unique c-axis'; }/*3*/  //Z=44343
+            retval = "B11n(9),B112/n(15);unique c-axis";/*3*/  //Z=44343
             break;
 
             /*  A___  */  //Z=44345
         case 24: /*  A11- | hkl,0kl,h0l:k+l, hk0,h00,0k0:k, 00l:l  */  //Z=44346
             c1 = 2; c2 = 0; c3 = 2; c4 = 2; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44347
-            //EditSG.Text = 'A112(15),A11m(8),A112/m(12);unique c-axis'; }/*3*/  //Z=44348
+            retval = "A112(15),A11m(8),A112/m(12);unique c-axis";/*3*/  //Z=44348
             break;
         case 25: /*  A11a | hkl,0kl,h0l:k+l, hk0,h00,0k0:h,k, 00l:l  */  //Z=44349
             c1 = 2; c2 = 0; c3 = 2; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44350
-            //EditSG.Text = 'A11a(9),A112/a(15);unique c-axis'; }/*3*/  //Z=44351
+            retval = "A11a(9),A112/a(15);unique c-axis";/*3*/  //Z=44351
             break;
 
             /*  I___  */  //Z=44353
         case 26: /*  I11- | hkl,0kl,h0l:h+k+l, hk0,h00,0k0:h+k, 00l:l  */  //Z=44354
             c1 = 0; c2 = 0; c3 = 0; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44355
-            //EditSG.Text = 'I112(5),I11m(8),I112/m(12);unique c-axis'; }/*3*/  //Z=44356
+            retval = "I112(5),I11m(8),I112/m(12);unique c-axis";/*3*/  //Z=44356
             break;
         case 27: /*  I11b | hkl,0kl,h0l:h+k+l, hk0,h00,0k0:h,k, 00l:l  */  //Z=44357
             c1 = 0; c2 = 0; c3 = 0; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44358
-            //EditSG.Text = 'I11b(9),I112/b(15);unique c-axis'; }/*3*/  //Z=44359
+            retval = "I11b(9),I112/b(15);unique c-axis";/*3*/  //Z=44359
             break;
 
             /*  P___ unique axis a  */  //Z=44363
         case 28: /*  P-11  */  //Z=44364
             c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44365
-            //EditSG.Text = 'P211(3),Pm11(6),P2/m11(10);unique a-axis'; }/*3*/  //Z=44366
+            retval = "P211(3),Pm11(6),P2/m11(10);unique a-axis";/*3*/  //Z=44366
             break;
         case 29: /*  P2111 | h00:h  */  //Z=44367
             c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = 0; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44368
-            //EditSG.Text = 'P2111(4),P21/m11(11);unique a-axis'; }/*3*/  //Z=44369
+            retval = "P2111(4),P21/m11(11);unique a-axis";/*3*/  //Z=44369
             break;
         case 30: /*  Pb11 | 0kl,0k0,00l:k  */  //Z=44370
             c1 = -1; c2 = 1; c3 = -1; c4 = -1; c5 = -1; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44371
-            //EditSG.Text = 'Pb11(7),P2/b11(13);unique a-axis'; }/*3*/  //Z=44372
+            retval = "Pb11(7),P2/b11(13);unique a-axis";/*3*/  //Z=44372
             break;
         case 31: /*  P21/b11 | 0kl,0k0,00l:k, h00:h  */  //Z=44373
             c1 = -1; c2 = 1; c3 = -1; c4 = -1; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44374
-            //EditSG.Text = 'P21/b11(14);unique q-axis'; }/*3*/  //Z=44375
+            retval = "P21/b11(14);unique q-axis";/*3*/  //Z=44375
             break;
         case 32: /*  Pc11 | 0kl,0k0,00l:l  */  //Z=44376
             c1 = -1; c2 = 2; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44377
-            //EditSG.Text = 'Pc11(7),P2/c11(13);unique a-axis'; }/*3*/  //Z=44378
+            retval = "Pc11(7),P2/c11(13);unique a-axis";/*3*/  //Z=44378
             break;
         case 33: /*  P21/c11 | 0kl,0k0,00l:l, h00:h  */  //Z=44379
             c1 = -1; c2 = 2; c3 = -1; c4 = -1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44380
-            //EditSG.Text = 'P21/c11(14);unique a-axis'; }/*3*/  //Z=44381
+            retval = "P21/c11(14);unique a-axis";/*3*/  //Z=44381
             break;
         case 34: /*  Pn11 | 0kl,0k0,00l:k+l  */  //Z=44382
             c1 = -1; c2 = 0; c3 = -1; c4 = -1; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44383
-            //EditSG.Text = 'Pn11(7),P2/n11(13);unique a-axis'; }/*3*/  //Z=44384
+            retval = "Pn11(7),P2/n11(13);unique a-axis";/*3*/  //Z=44384
             break;
         case 35: /*  P21/n11 | 0kl,0k0,00l:k+l, h00:h  */  //Z=44385
             c1 = -1; c2 = 0; c3 = -1; c4 = -1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44386
-            //EditSG.Text = 'P21/n11(14);unique c-axis'; }/*3*/  //Z=44387
+            retval = "P21/n11(14);unique c-axis";/*3*/  //Z=44387
             break;
 
             /*  C___  */  //Z=44389
         case 36: /*  C-11 | hkl,h0l,hk0:h+k, 0kl,0k0,00l:k, h00:h  */  //Z=44390
             c1 = 1; c2 = 1; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44391
-            //EditSG.Text = 'C211(5),Cm11(8),C2/m11(12);unique a-axis'; }/*3*/  //Z=44392
+            retval = "C211(5),Cm11(8),C2/m11(12);unique a-axis";/*3*/  //Z=44392
             break;
         case 37: /*  Cn11 | hkl,h0l,hk0:h+k, 0kl,0k0,00l:k,l, h00:h  */  //Z=44393
             c1 = 1; c2 = 4; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44394
-            //EditSG.Text = 'Cn11(9),C2/n11(15);unique a-axis'; }/*3*/  //Z=44395
+            retval = "Cn11(9),C2/n11(15);unique a-axis";/*3*/  //Z=44395
             break;
 
             /*  B___  */  //Z=44397
         case 38: /*  B-11 | hkl,h0l,hk0:h+l, 0kl,0k0,00l:l, h00:h  */  //Z=44398
             c1 = 3; c2 = 2; c3 = 0; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44399
-            //EditSG.Text = 'B211(15),Bm11(8),B2/m11(12);unique a-axis'; }/*3*/  //Z=44400
+            retval = "B211(15),Bm11(8),B2/m11(12);unique a-axis";/*3*/  //Z=44400
             break;
         case 40: /*  Bb11 | hkl,h0l,hk0:h+l, 0kl,0k0,00l:k,l, h00:h  */  //Z=44401
             c1 = 3; c2 = 4; c3 = 0; c4 = 1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44402
-            //EditSG.Text = 'Bb11(9),B2/b11(15);unique a-axis'; }/*3*/  //Z=44403
+            retval = "Bb11(9),B2/b11(15);unique a-axis";/*3*/  //Z=44403
             break;
 
             /*  I___  */  //Z=44405
         case 41: /*  I-11 | hkl,h0l,hk0:h+k+l, 0kl,0k0,00l:k+l, h00:h  */  //Z=44406
             c1 = 0; c2 = 0; c3 = 0; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44407
-            //EditSG.Text = 'I211(5),Im11(8),I2/m11(12);unique a-axis'; }/*3*/  //Z=44408
+            retval = "I211(5),Im11(8),I2/m11(12);unique a-axis";/*3*/  //Z=44408
             break;
         case 42: /*  Ic11 | hkl,h0l,hk0:h+k+l, 0kl,0k0,00l:k,l, h00:h  */  //Z=44409
             c1 = 0; c2 = 0; c3 = 0; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44410
-            //EditSG.Text = 'Ic11(9),I2/c11(15);unique a-axis'; }/*3*/  //Z=44411
+            retval = "Ic11(9),I2/c11(15);unique a-axis";/*3*/  //Z=44411
             break;
         } // switch ComboBoxMonoclinic
     } // if RadioButtonSysMonoclinic
@@ -9255,12 +9536,18 @@ void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype ) const
         {
         /*  P___  */  //Z=44420
         case 0: /*  P- |  */  //Z=44421
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44422
-            //EditSG.Text = 'P1(1),P-1(2)'; }/*3*/  //Z=44423
+            SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=44422
+            retval = "P1(1),P-1(2)";
+            retval = "P1(1),P-1(2)";/*3*/  //Z=44423
             break;
         } // switch ComboBoxTriclinic
     } // if RadioButtonSysTriclinic
 
+    // Nur bestimmen des 'EditSG.Text' Strings, der zurückgegeben wird.
+    if ( nurtext ) return retval;
+
+    setLatpar1(  1,0,0);
+    setLatpar2(  1,0,0);
 
     //(* update unit cell values *)         //{NV}-31652
     a=params.uca; // StrToFloat(EditCellA.Text);
@@ -9334,7 +9621,7 @@ void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype ) const
         b=a; alf=M_PI/2.;  gam=2*M_PI/3.;
 #ifdef UseStringGrid12
         bet=M_PI/2.;  bmax=amax;
-#endif \
+#endif
     //EditCellb.Text:=FloatToStr(b);
     }
     if ( RadioButtonSysTrigonal )   //(* reads angle alfa *)
@@ -9489,7 +9776,7 @@ void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype ) const
                     if ( sinarg>1 ) sinarg=0.0;
                     ttheta=(180./M_PI)*2*asin(sinarg);
                     StringGrid12[8] = QString::number(ttheta);   //StringGrid12.Cells[8,ct]:=FloatToStrF(ttheta,FFFixed,5,3);
-#endif \
+#endif
     //(* sort into categories for multiplicity *)
                     hklcase=_hkl; // Default
 
@@ -9528,116 +9815,117 @@ void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype ) const
 
                     else if ( RadioButtonSysCubic )    //{NV}-32507
                     {
-                        if ( hklcase==_hkl ) mult=48;
-                        if ( hklcase==_hhl ) mult=24;
-                        if ( hklcase==_hlh ) mult=24;
-                        if ( hklcase==_lhh ) mult=24;
-                        if ( hklcase==_hh0 ) mult=12;
-                        if ( hklcase==_h0h ) mult=12;
-                        if ( hklcase==_0hh ) mult=12;
-                        if ( hklcase==_hhh ) mult=8;
-                        if ( hklcase==_hk0 ) mult=24;
-                        if ( hklcase==_h0l ) mult=24;
-                        if ( hklcase==_0kl ) mult=24;
-                        if ( hklcase==_h00 ) mult=6;
-                        if ( hklcase==_0k0 ) mult=6;
-                        if ( hklcase==_00l ) mult=6;
-                        //multmax=48;
+                        switch ( hklcase )
+                        {
+                        case _hkl: mult=48; break;
+                        case _hhl:
+                        case _hlh:
+                        case _hk0:
+                        case _h0l:
+                        case _0kl:
+                        case _lhh: mult=24; break;
+                        case _hh0:
+                        case _h0h:
+                        case _0hh: mult=12; break;
+                        case _hhh: mult= 8; break;
+                        case _h00:
+                        case _0k0:
+                        case _00l: mult= 6; break;
+                        case _000: mult= 0; break; // default
+                        }
                     }
 
                     else if ( RadioButtonSysTetragonal )
                     {
-                        if ( hklcase==_hkl ) mult=16;
-                        if ( hklcase==_hhl ) mult=8;
-                        if ( hklcase==_hlh ) mult=8;
-                        if ( hklcase==_lhh ) mult=8;
-                        if ( hklcase==_hh0 ) mult=4;
-                        if ( hklcase==_h0h ) mult=8;
-                        if ( hklcase==_0hh ) mult=8;
-                        if ( hklcase==_hhh ) mult=8;
-                        if ( hklcase==_hk0 ) mult=8;
-                        if ( hklcase==_h0l ) mult=8;
-                        if ( hklcase==_0kl ) mult=8;
-                        if ( hklcase==_h00 ) mult=4;
-                        if ( hklcase==_0k0 ) mult=4;
-                        if ( hklcase==_00l ) mult=2;
-                        //multmax=16;
+                        switch ( hklcase )
+                        {
+                        case _hkl: mult=16; break;
+                        case _hhl:
+                        case _hlh:
+                        case _lhh:
+                        case _h0h:
+                        case _0hh:
+                        case _hhh:
+                        case _hk0:
+                        case _h0l:
+                        case _0kl: mult=8; break;
+                        case _hh0:
+                        case _h00:
+                        case _0k0: mult=4; break;
+                        case _00l: mult=2; break;
+                        case _000: mult=0; break; // default
+                        }
                     }
 
                     else if ( RadioButtonSysHex )
                     {
-                        if ( hklcase==_hkl ) mult=24;
-                        if ( hklcase==_hhl ) mult=12;
-                        if ( hklcase==_hlh ) mult=12;
-                        if ( hklcase==_lhh ) mult=12;
-                        if ( hklcase==_hh0 ) mult=6;
-                        if ( hklcase==_h0h ) mult=12;
-                        if ( hklcase==_0hh ) mult=12;
-                        if ( hklcase==_hhh ) mult=12;
-                        if ( hklcase==_hk0 ) mult=12;
-                        if ( hklcase==_h0l ) mult=12;
-                        if ( hklcase==_0kl ) mult=12;
-                        if ( hklcase==_h00 ) mult=6;
-                        if ( hklcase==_0k0 ) mult=6;
-                        if ( hklcase==_00l ) mult=2;
-                        //multmax=24;
+                        switch ( hklcase )
+                        {
+                        case _hkl: mult=24; break;
+                        case _hhl:
+                        case _hlh:
+                        case _lhh:
+                        case _h0h:
+                        case _0hh:
+                        case _hhh:
+                        case _hk0:
+                        case _h0l:
+                        case _0kl: mult=12; break;
+                        case _hh0:
+                        case _h00:
+                        case _0k0: mult=6; break;
+                        case _00l: mult=2; break;
+                        case _000: mult=0; break; // default
+                        }
                     }
 
                     else if ( RadioButtonSysOrtho )
                     {
-                        if ( hklcase==_hkl ) mult=8;
-                        if ( hklcase==_hhl ) mult=8;
-                        if ( hklcase==_hlh ) mult=8;
-                        if ( hklcase==_lhh ) mult=8;
-                        if ( hklcase==_hh0 ) mult=8;
-                        if ( hklcase==_h0h ) mult=8;
-                        if ( hklcase==_0hh ) mult=8;
-                        if ( hklcase==_hhh ) mult=8;
-                        if ( hklcase==_hk0 ) mult=4;
-                        if ( hklcase==_h0l ) mult=4;
-                        if ( hklcase==_0kl ) mult=4;
-                        if ( hklcase==_h00 ) mult=2;
-                        if ( hklcase==_0k0 ) mult=2;
-                        if ( hklcase==_00l ) mult=2;
-                        //multmax:=8;
+                        switch ( hklcase )
+                        {
+                        case _hkl:
+                        case _hhl:
+                        case _hlh:
+                        case _lhh:
+                        case _hh0:
+                        case _h0h:
+                        case _0hh:
+                        case _hhh: mult=8; break;
+                        case _hk0:
+                        case _h0l:
+                        case _0kl: mult=4; break;
+                        case _h00:
+                        case _0k0:
+                        case _00l: mult=2; break;
+                        case _000: mult=0; break; // default
+                        }
                     }
 
                     else if ( RadioButtonSysMonoclinic )
                     {
-                        if ( hklcase==_hkl ) mult=4;
-                        if ( hklcase==_hhl ) mult=4;
-                        if ( hklcase==_hlh ) mult=4;
-                        if ( hklcase==_lhh ) mult=4;
-                        if ( hklcase==_hh0 ) mult=4;
-                        if ( hklcase==_h0h ) mult=4;
-                        if ( hklcase==_0hh ) mult=4;
-                        if ( hklcase==_hhh ) mult=4;
-                        if ( hklcase==_hk0 ) mult=4;
-                        if ( hklcase==_h0l ) mult=2;
-                        if ( hklcase==_0kl ) mult=4;
-                        if ( hklcase==_h00 ) mult=2;
-                        if ( hklcase==_0k0 ) mult=2;
-                        if ( hklcase==_00l ) mult=2;
-                        //multmax:=4;
+                        switch ( hklcase )
+                        {
+                        case _hkl:
+                        case _hhl:
+                        case _hlh:
+                        case _lhh:
+                        case _hh0:
+                        case _h0h:
+                        case _0hh:
+                        case _hhh:
+                        case _hk0:
+                        case _0kl: mult=4; break;
+                        case _h0l:
+                        case _h00:
+                        case _0k0:
+                        case _00l: mult=2; break;
+                        case _000: mult=0; break; // default
+                        }
                     }
 
                     else if ( RadioButtonSysTriclinic || RadioButtonSysTrigonal )
                     {
-                        if ( hklcase==_hkl ) mult=2;
-                        if ( hklcase==_hhl ) mult=2;
-                        if ( hklcase==_hlh ) mult=2;
-                        if ( hklcase==_lhh ) mult=2;
-                        if ( hklcase==_hh0 ) mult=2;
-                        if ( hklcase==_h0h ) mult=2;
-                        if ( hklcase==_0hh ) mult=2;
-                        if ( hklcase==_hhh ) mult=2;
-                        if ( hklcase==_hk0 ) mult=2;
-                        if ( hklcase==_h0l ) mult=2;
-                        if ( hklcase==_0kl ) mult=2;
-                        if ( hklcase==_h00 ) mult=2;
-                        if ( hklcase==_0k0 ) mult=2;
-                        if ( hklcase==_00l ) mult=2;
-                        //multmax:=2;
+                        if ( hklcase != _000 ) mult=2;
                     }
 
 #ifdef UseStringGrid12
@@ -10003,6 +10291,7 @@ void SasCalc_GENERIC_calculation::ButtonHKLClick( int ltype ) const
         }  //(* of hkl-loop *)
     }  //(* of ii=1,2-case *)
 
+    return retval;
 } /* ButtonHKLClick() */
 
 

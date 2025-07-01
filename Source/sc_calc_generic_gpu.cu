@@ -964,7 +964,8 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
                                               //double ax2x, double ax2y, double ax2z,
                                               //double ax3x, double ax3y, double ax3z,
                                               //double sigx, double sigy, double sigz,
-                                              int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
+                                              //int ordis, int dim,
+                                              int i0, int i1, int i2, int i3, int i4,
                                               double *carr1, double &pq, int n, int &trapzddeltac_cnt ) const
 {
     int j;  //Zupq1=2045
@@ -1051,8 +1052,10 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
 #endif
             break;
         case 4:   /*  cylinder formfactor  */  //Zupq1=2111
-            qrombchid(l,r,p1,sigma,alfa,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,/*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,*/ordis,dim,i0,i1,i2,i3,i4,carr1,pa);  //Zupq1=2112
-            qrombchid(l,r,p1,sigma,alfa,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,/*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,*/ordis,dim,i0,i1,i2,i3,i4,carr1,pb);  //Zupq1=2113
+            qrombchid(l,r,p1,sigma,alfa,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,
+                      /*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,*/i1,i2,i3,i4,carr1,pa);  //Zupq1=2112
+            qrombchid(l,r,p1,sigma,alfa,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,
+                      /*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,*/i1,i2,i3,i4,carr1,pb);  //Zupq1=2113
 #ifdef nichtVerwendet
             switch ( i2 )   // TODO: nur case 0 wird verwendet
             {
@@ -1074,8 +1077,10 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
 #endif
             break;
         case 5:   /*  unit cell rotation  */  //Zupq1=2127
-            qrombchid(l,r,p1,sigma,alfa,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,/*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,*/ordis,dim,i0,i1,i2,i3,i4,carr1,pa);  //Zupq1=2128
-            qrombchid(l,r,p1,sigma,alfa,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,/*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,*/ordis,dim,i0,i1,i2,i3,i4,carr1,pb);  //Zupq1=2129
+            qrombchid(l,r,p1,sigma,alfa,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,
+                      /*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,*/i1,i2,i3,i4,carr1,pa);  //Zupq1=2128
+            qrombchid(l,r,p1,sigma,alfa,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,
+                      /*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,*/i1,i2,i3,i4,carr1,pb);  //Zupq1=2129
 #ifdef nichtVerwendet
             switch ( i2 )   // TODO: nur case 0 wird verwendet
             {
@@ -1097,8 +1102,10 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
 #endif
             break;
         case 6:   /*  disk formfactor  */  //Zupq1=2143
-            qrombchid(l,r,p1,sigma,alfa,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,/*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,*/ordis,dim,i0,i1,i2,i3,i4,carr1,pa);  //Zupq1=2144
-            qrombchid(l,r,p1,sigma,alfa,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,/*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,*/ordis,dim,i0,i1,i2,i3,i4,carr1,pb);  //Zupq1=2145
+            qrombchid(l,r,p1,sigma,alfa,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,
+                      /*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,*/i1,i2,i3,i4,carr1,pa);  //Zupq1=2144
+            qrombchid(l,r,p1,sigma,alfa,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,
+                      /*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,*/i1,i2,i3,i4,carr1,pb);  //Zupq1=2145
 #ifdef nichtVerwendet
             switch ( i2 )   // TODO: nur case 0 wird verwendet
             {
@@ -1122,14 +1129,18 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
 #endif
             break;
         case 7:    /*  cube-, triaxial ellipsoid-integration  */  //Zupq1=2161
-            qrombchid(l,r,p1,sigma,alfa,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,/*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,*/ordis,dim,i0,i1,i2,i3,i4,carr1,pa);  //Zupq1=2162
-            qrombchid(l,r,p1,sigma,alfa,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,/*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,*/ordis,dim,i0,i1,i2,i3,i4,carr1,pb);  //Zupq1=2163
+            qrombchid(l,r,p1,sigma,alfa,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,
+                      /*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,*/i1,i2,i3,i4,carr1,pa);  //Zupq1=2162
+            qrombchid(l,r,p1,sigma,alfa,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,
+                      /*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,*/i1,i2,i3,i4,carr1,pb);  //Zupq1=2163
             pa = pa*sin(a);  //Zupq1=2164
             pb = pb*sin(b);  //Zupq1=2165
             break;  //Zupq1=2166
         case 8:   /*  superball integration  */  //Zupq1=2167
-            qrombchid(l,r,p1,sigma,alfa,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,/*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,*/ordis,dim,i0,i1,i2,i3,i4,carr1,pa);  //Zupq1=2168
-            qrombchid(l,r,p1,sigma,alfa,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,/*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,*/ordis,dim,i0,i1,i2,i3,i4,carr1,pb);  //Zupq1=2169
+            qrombchid(l,r,p1,sigma,alfa,a,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,
+                      /*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,*/i1,i2,i3,i4,carr1,pa);  //Zupq1=2168
+            qrombchid(l,r,p1,sigma,alfa,b,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,
+                      /*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,*/i1,i2,i3,i4,carr1,pb);  //Zupq1=2169
             /* pa:=1.05;  //Zupq1=2170 */
             /* pb:=1.0;  //Zupq1=2171 */
             break;  //Zupq1=2172
@@ -1201,7 +1212,8 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
                 /* if i0=3 then px:=sin(x)*exp(-(x-pi/2)*(x-pi/2)/(dbeta*dbeta))*(3*cos(x)*cos(x)-1)/2;  //Zupq1=2208 */
 
             case 4:  /*  cylinder formfactor  */  //Zupq1=2210
-                qrombchid(l,r,p1,sigma,alfa,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,/*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,*/ordis,dim,i0,i1,i2,i3,i4,carr1,px);  //Zupq1=2211
+                qrombchid(l,r,p1,sigma,alfa,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,
+                          /*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,*/i1,i2,i3,i4,carr1,px);  //Zupq1=2211
 #ifdef nichtVerwendet
                 if ( i2==0 )
 #endif
@@ -1213,7 +1225,8 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
                 break;  //Zupq1=2215
 
             case 5:  /*  unit cell rotation  */  //Zupq1=2216
-                qrombchid(l,r,p1,sigma,alfa,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,/*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,*/ordis,dim,i0,i1,i2,i3,i4,carr1,px);  //Zupq1=2217
+                qrombchid(l,r,p1,sigma,alfa,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,
+                          /*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,*/i1,i2,i3,i4,carr1,px);  //Zupq1=2217
 #ifdef nichtVerwendet
                 if ( i2==0 )
 #endif
@@ -1225,7 +1238,8 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
                 break;  //Zupq1=2221
 
             case 6:  /*  disk formfactor  */  //Zupq1=2222
-                qrombchid(l,r,p1,sigma,alfa,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,/*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,*/ordis,dim,i0,i1,i2,i3,i4,carr1,px);  //Zupq1=2223
+                qrombchid(l,r,p1,sigma,alfa,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,
+                          /*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,*/i1,i2,i3,i4,carr1,px);  //Zupq1=2223
 #ifdef nichtVerwendet
                 if ( i2==0 )
 #endif
@@ -1238,12 +1252,14 @@ void SasCalc_GENERIC_calculation::trapzddeltac( double a, double b, double l, do
                 break;  //Zupq1=2228
 
             case 7:  /*  cube-, triaxial ellipsoid-integration  */  //Zupq1=2229
-                qrombchid(l,r,p1,sigma,alfa,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,/*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,*/ordis,dim,i0,i1,i2,i3,i4,carr1,px);  //Zupq1=2230
+                qrombchid(l,r,p1,sigma,alfa,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,
+                          /*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,*/i1,i2,i3,i4,carr1,px);  //Zupq1=2230
                 px = px*sin(x);  //Zupq1=2231
                 break;  //Zupq1=2232
 
             case 8:  /*  superball integration  */  //Zupq1=2233
-                qrombchid(l,r,p1,sigma,alfa,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,/*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,*/ordis,dim,i0,i1,i2,i3,i4,carr1,px);  //Zupq1=2234
+                qrombchid(l,r,p1,sigma,alfa,x,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,qxn,qyn,qzn,qhkl,
+                          /*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,ordis,dim,i0,*/i1,i2,i3,i4,carr1,px);  //Zupq1=2234
                 /* px:=0.99;  //Zupq1=2235 */
                 break;  //Zupq1=2236
             } // switch i0
@@ -1357,7 +1373,8 @@ void SasCalc_GENERIC_calculation::qrombdeltac( double p1, double sigma, double a
                                              //double ax1n, double ax2n, double ax3n, double ax1x, double ax1y, double ax1z,
                                              //double ax2x, double ax2y, double ax2z, double ax3x, double ax3y, double ax3z,
                                              //double sigx, double sigy, double sigz,
-                                             int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
+                                             //int ordis, int dim,
+                                             int i0, int i1, int i2, int i3, int i4,
                                              double *carr1, double &pq ) const
 {
     /* label 99; */  //Zupq1=1968
@@ -1449,7 +1466,7 @@ void SasCalc_GENERIC_calculation::qrombdeltac( double p1, double sigma, double a
         CHECKENDTHREAD_RET;
         trapzddeltac(alim,blim,params.length,params.radius,p1,sigma,alfa,dbeta,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,p31,p32,p33,
                      qxn,qyn,qzn,qhkl,/*ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,*/
-                     ordis,dim,i0,i1,i2,i3,i4,carr1,sp[j],j, trapzddeltac_cnt );  //Zupq1=2295
+                     /*ordis,dim,*/i0,i1,i2,i3,i4,carr1,sp[j],j, trapzddeltac_cnt );  //Zupq1=2295
         if ( j>=k )
         {  //Zupq1=2296
             for ( i=1; i<=k; i++ )
@@ -1486,7 +1503,8 @@ void SasCalc_GENERIC_calculation::qrombchid( double l, double r, double p1, doub
                                            //double ax2x, double ax2y, double ax2z,
                                            //double ax3x, double ax3y, double ax3z,
                                            //double sigx, double sigy, double sigz,
-                                           int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
+                                           //int ordis, int dim, int i0,
+                                           int i1, int i2, int i3, int i4,
                                            double *carr1, double &pq ) const
 {/*1*/  //Zupq1=53
 
@@ -1541,7 +1559,8 @@ void SasCalc_GENERIC_calculation::qrombchid( double l, double r, double p1, doub
         trapzdchid(alim,blim,l,r,p1,sigma,alfa,delta,theta,phi,qx,qy,qz,p11,p12,p13,p21,p22,p23,
                    p31,p32,p33,qxn,qyn,qzn,qhkl,
                    //ax1n,ax2n,ax3n,ax1x,ax1y,ax1z,ax2x,ax2y,ax2z,ax3x,ax3y,ax3z,sigx,sigy,sigz,
-                   ordis,dim,i0,i1,i2,i3,i4,carr1,sp[j],j, trapzdchid_cnt );  //Zupq1=1452
+                   //ordis,dim,i0,
+                   i1,i2,i3,i4,carr1,sp[j],j, trapzdchid_cnt );  //Zupq1=1452
         if ( j>=k )
         {  //Zupq1=1453
             for ( int i=1; i<=k; i++ )
@@ -1579,7 +1598,8 @@ void SasCalc_GENERIC_calculation::trapzdchid( double a, double b, double l, doub
                                             //double ax2x, double ax2y, double ax2z,
                                             //double ax3x, double ax3y, double ax3z,
                                             //double sigx, double sigy, double sigz,
-                                            int /*ordis*/, int /*dim*/, int /*i0*/, int i1, int /*i2*/, int i3, int /*i4*/,
+                                            //int /*ordis*/, int /*dim*/, int /*i0*/,
+                                            int i1, int /*i2*/, int i3, int /*i4*/,
                                             double *carr1, double &pq, int n,
                                             int &trapzdchid_cnt ) const
 {

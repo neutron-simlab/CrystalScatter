@@ -23,8 +23,9 @@ QHash<QString,paramConsHelper*> SC_CalcCons::params;
  */
 SC_CalcCons::SC_CalcCons()
 {
-    calcGeneric = new SC_Calc_GENERIC;
-    QStringList meta = calcGeneric->guiLayoutNeu();
+    calcGeneric = new SasCalc_GENERIC_calculation();
+    calcGenericWrapper = new SC_Calc_GENERIC(calcGeneric);
+    QStringList meta = calcGenericWrapper->guiLayoutNeu();
     for ( int m=0; m<meta.size(); m++ )
     {
         QStringList sl = meta[m].split(";");
@@ -50,21 +51,21 @@ SC_CalcCons::SC_CalcCons()
         e->value.flag   = false;
         e->minNum       = 0;
         e->maxNum       = 0;
-        QStringList typval = sl[2].split("|",Qt::SkipEmptyParts);
+        e->slSelectValues = sl[2].split("|",Qt::SkipEmptyParts);  // eher wichtig für die ComboBoxen
         switch ( sl[0][0].toLatin1() )
         {
         case 'C':   // ComboBox  : "...|...|..." mit den jeweiligen Werten
             e->type = paramConsHelper::select;
             if ( !sl[4].isEmpty() )
             {   // set default in local variable
-                e->value.number = typval.indexOf(sl[4]);
+                e->value.number = e->slSelectValues.indexOf(sl[4]);
             }
-            e->maxNum = typval.size();
+            e->maxNum = e->slSelectValues.size();
             break;
         case 'N':   // Zahlenwert: "frac|min|max|unit" mit Nachkommastellen und Grenzwerten (optional)
             e->type = paramConsHelper::numdbl;
-            e->minNum = ( typval.size() > 1 ) ? typval[1].toDouble() : -10000.0;
-            e->maxNum = ( typval.size() > 2 ) ? typval[2].toDouble() :  10000.0;
+            e->minNum = ( e->slSelectValues.size() > 1 ) ? e->slSelectValues[1].toDouble() : -10000.0;
+            e->maxNum = ( e->slSelectValues.size() > 2 ) ? e->slSelectValues[2].toDouble() :  10000.0;
             if ( !sl[4].isEmpty() )
             {   // set default in local variable
                 e->value.number = sl[4].toDouble();
@@ -72,8 +73,8 @@ SC_CalcCons::SC_CalcCons()
             break;
         case 'I':   // Integer-Zahlenwert: "min|max|unit"
             e->type = paramConsHelper::numint;
-            e->minNum = ( typval.size() > 0 ) ? typval[0].toDouble() : -10000.0;
-            e->maxNum = ( typval.size() > 1 ) ? typval[1].toDouble() :  10000.0;
+            e->minNum = ( e->slSelectValues.size() > 0 ) ? e->slSelectValues[0].toDouble() : -10000.0;
+            e->maxNum = ( e->slSelectValues.size() > 1 ) ? e->slSelectValues[1].toDouble() :  10000.0;
             if ( !sl[4].isEmpty() )
             {   // set default in local variable
                 e->value.number = sl[4].toDouble();
@@ -112,7 +113,11 @@ void SC_CalcCons::loadParameter( QString fn )
     gr.removeOne("Inputs");
     gr.removeOne("FFT");
     gr.removeOne("AI");     // TODO: neue feste Gruppen hier ausblenden
-    QString usedGroup = calcGeneric->methodName();
+    QString usedGroup;
+    if ( gr.contains(calcGenericWrapper->methodNameOld()) )
+        usedGroup = calcGenericWrapper->methodNameOld();
+    else
+        usedGroup = calcGenericWrapper->methodNameNew();
     if ( gr.size() > 1 )
     {   // Jetzt gibt es mehr als eine Methode (Alte Dateien)
         sets.beginGroup( "Inputs" );
@@ -395,7 +400,11 @@ void SC_CalcCons::loadParameter( QString fn )
 void SC_CalcCons::saveParameter( QString fn )
 {
     QSettings sets( fn, QSettings::IniFormat );
-    sets.beginGroup( calcGeneric->methodName() );
+    if ( sets.childGroups().contains(calcGenericWrapper->methodNameOld()) )
+    {   // Die alte Gruppe löschen
+        sets.remove(calcGenericWrapper->methodNameOld());
+    }
+    sets.beginGroup( calcGenericWrapper->methodNameNew() );
     sets.remove(""); // Remove all previous keys in this group to save only the current settings
     QHash<QString,paramConsHelper*>::iterator ip = params.begin();
     //std::cerr << "saveParameter: " << qPrintable(params.keys().join(", ")) << std::endl;
@@ -615,17 +624,17 @@ bool SC_CalcCons::isCurrentParameterValid( QString p )
 
 
 /**
- * @brief SC_CalcCons::prepareCalculation
+ * @brief SC_CalcCons::prepareData
  * @param getData - if true call the method specific prepare function (not in fit)
  */
-void SC_CalcCons::prepareCalculation( bool fromFit, bool use1d )
+void SC_CalcCons::prepareData( bool fromFit, bool use1d )
 {
     if ( fromFit )
     {   // Special call during 2D-Fit to update the parameters
-        calcGeneric->prepareData( &dataGetter, use1d );    // Cons noch ohne 1D
+        calcGenericWrapper->prepareData( &dataGetter, use1d );    // Cons noch ohne 1D
         return;
     }
-    calcGeneric->prepareData( &dataGetter, use1d );
+    calcGenericWrapper->prepareData( &dataGetter, use1d );
 }
 
 
@@ -685,7 +694,7 @@ void SC_CalcCons::dataGetter( QString p, _valueTypes &v )
  */
 void SC_CalcCons::doCalculation(int numThreads, bool ignNewSwitch)
 {
-    calcGeneric->doCalculation( numThreads, ignNewSwitch );
+    calcGeneric->doCalculation( numThreads, ignNewSwitch, false/*ignCbs*/ );
 }
 
 double SC_CalcCons::doFitCalculation( int numThreads, int bstop, int border, long &cnt, long &nancnt )
@@ -704,12 +713,12 @@ double SC_CalcCons::higResTimerElapsed( whichHigResTimer f )
     switch ( f )
     {
     case htimPrep:
-        return calcGeneric->higResTimerElapsedPrep();
+        return calcGeneric->higResTimerElapsedPrep;
     case htimCalc:
-        return calcGeneric->higResTimerElapsedCalc();
+        return calcGeneric->higResTimerElapsedCalc;
     case htimBoth:
-        return calcGeneric->higResTimerElapsedPrep() +
-               calcGeneric->higResTimerElapsedCalc();
+        return calcGeneric->higResTimerElapsedPrep +
+               calcGeneric->higResTimerElapsedCalc;
     }
     return 0;
 }

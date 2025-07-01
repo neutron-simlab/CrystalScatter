@@ -21,6 +21,7 @@ typedef struct
     enum { undef, numdbl, numint, select, toggle, outdbl } type;
     QString key;        // Name des Parameters
     QString tooltip;    // Default ToolTip ohne Fitrange oder andere Zusatzinfos (aus der Liste)
+    QString deflabel;   // Default prompt label
     myGuiParam *gpFit;  // !=0 wenn ein Fit möglich ist (enabled und checked ==> kommt in die Tabelle)
     union
     {

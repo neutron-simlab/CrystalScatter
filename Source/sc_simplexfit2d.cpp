@@ -51,11 +51,11 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
                                 );
 #endif
     }
-    calc->prepareCalculation( true, false/*TODO only1d*/ );     // to transfer parameter values into the calculation class
+    calc->prepareData( true, _use1D );     // to transfer parameter values into the calculation class
 
     // Berechne das Image...
 #ifdef FITDATA_IN_GPU  // fqs
-    if ( useGpuFit )
+    if ( !_use1D && useGpuFit )
     {   // Neuer Algorithmus (Juli 2022), damit die FQS auf der GPU berechnet wird
         long   cnt = 0;     // Pixelcounter for Debug
         long   nancnt = 0;  // Counter for nan values
@@ -77,7 +77,28 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
     long   nancnt = 0;  // Counter for nan values
     long   nullcnt = 0; // Counter for null values after beamstop check
 
-    if ( _borderPixel > 0 || _bstoppixel > 0 )
+    if ( _use1D )
+    {
+        for ( int i=calc->minX(); i<calc->maxX(); i++ )
+        {
+            // Test: Werte <= 0.0 werden ignoriert, da der log10(0.0) keinen Sinn ergibt
+            if ( calc->getCalcPtr()->xyIntensity(i,0) <= 0.0 ||
+                fitData(i,0) <= 0.0 )
+            {
+                nullcnt++;
+                continue;
+            }
+            // Pixelcounter for Debug
+            cnt++;
+            summe += FQSVERGL( calc->getCalcPtr()->xyIntensity(i,0),
+                              fitData(i,0) );
+            if ( std::isnan(calc->getCalcPtr()->xyIntensity(i,0)) )
+                nancnt++;
+            if ( cnt < 20 ) qDebug() << "FQS" << i << calc->getCalcPtr()->xyIntensity(i,0) << fitData(i,0);
+        } // for i
+        qDebug() << "FQS" << summe << "----------------------";
+    }
+    else if ( _borderPixel > 0 || _bstoppixel > 0 )
     {   // Ausblendungen über Pixelangaben an Rand und Mitte
         for ( int ihex=calc->minX(), ihexd=_xmin; ihex<calc->maxX() && ihexd<_xmax; ihex++, ihexd++ )  // (***   z-loop  ***)
         {
@@ -231,11 +252,12 @@ double SasCalc_SimplexFit2D::amotry( int numThreads,
 
 
 void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit, double ftol,
-                                          int borderpix, int bstoppix, progressLogging pl,
+                                          int borderpix, int bstoppix, bool use1d, progressLogging pl,
                                           _param2fitval *vals, QString &retinfo )
 {
     aborted = false;
     retinfo = "";
+    _use1D  = use1d;
 
     parVals = vals;
     //typedef enum { fitNone, fitNumeric, fitCbs } _fitTypes;

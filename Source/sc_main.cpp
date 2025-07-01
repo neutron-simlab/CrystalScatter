@@ -24,7 +24,8 @@ int main(int argc, char *argv[])
     //                                                    ^ Used    ^ GroupBox mit Hintergrund u.a.
 #ifdef WIN32
 #if (QT_VERSION >= QT_VERSION_CHECK(6,0,0))
-    QApplication::setStyle(QStyleFactory::create("windowsvista"));
+    //QStyle *style = QStyleFactory::create("windows");         // ==> Macht Probleme beim Debugger (TODO)
+    //if ( style != nullptr ) QApplication::setStyle(style);
 #endif
 #endif
 // #ifdef Q_OS_LINUX

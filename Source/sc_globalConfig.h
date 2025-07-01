@@ -12,7 +12,7 @@
 
 
 // This version information is displayed in the top right corner in the GUI and with -v in the console
-#define MYVERSION "2.1.3  (Jan 2025)"
+#define MYVERSION "2.2.0  (Mar 2025)"
 
 
 #define FITDATA_IN_GPU  // Neu im Juli 2022 - ACHTUNG unten

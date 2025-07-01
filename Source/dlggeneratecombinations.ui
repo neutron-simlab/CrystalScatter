@@ -7,63 +7,13 @@
     <x>0</x>
     <y>0</y>
     <width>858</width>
-    <height>733</height>
+    <height>845</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Generate all combinations of ComboBoxes</string>
   </property>
-  <layout class="QGridLayout" name="gridLayout_2">
-   <item row="0" column="0">
-    <widget class="QGroupBox" name="groupBox">
-     <property name="title">
-      <string>Write all files into</string>
-     </property>
-     <layout class="QGridLayout" name="gridLayout">
-      <item row="0" column="1">
-       <widget class="QPushButton" name="butOutPath">
-        <property name="maximumSize">
-         <size>
-          <width>30</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>...</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0" colspan="2">
-       <widget class="QCheckBox" name="togDoCalc">
-        <property name="text">
-         <string>Calculate images directly</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="0">
-       <widget class="QLineEdit" name="inpOutPath"/>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item row="0" column="1">
-    <layout class="QVBoxLayout" name="verticalLayout_2">
-     <item>
-      <widget class="QPushButton" name="butDone">
-       <property name="text">
-        <string>Close</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="butStartGen">
-       <property name="text">
-        <string>Start generation</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
-   </item>
+  <layout class="QGridLayout" name="gridLayout_2" columnstretch="1,0">
    <item row="1" column="0" colspan="2">
     <layout class="QGridLayout" name="gridLayout_3">
      <item row="0" column="0">
@@ -98,8 +48,192 @@
      </item>
     </layout>
    </item>
+   <item row="0" column="1">
+    <layout class="QVBoxLayout" name="verticalLayout_2">
+     <item>
+      <widget class="QPushButton" name="butDone">
+       <property name="text">
+        <string>Close</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="butSaveSettings">
+       <property name="toolTip">
+        <string>and use them in the console version</string>
+       </property>
+       <property name="text">
+        <string>Save settings</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="butLoadSettings">
+       <property name="text">
+        <string>Load settings</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="butStartGen">
+       <property name="font">
+        <font>
+         <bold>true</bold>
+        </font>
+       </property>
+       <property name="text">
+        <string>Start generation</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item row="0" column="0">
+    <widget class="QGroupBox" name="groupBox">
+     <property name="title">
+      <string>Write all files into</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout" columnstretch="0,0,1,0">
+      <property name="verticalSpacing">
+       <number>3</number>
+      </property>
+      <item row="3" column="0" colspan="4">
+       <widget class="QCheckBox" name="togCheckNaN">
+        <property name="text">
+         <string>Try to generate image without NaN (change some parameters)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0" colspan="4">
+       <widget class="QCheckBox" name="togDoCalc">
+        <property name="text">
+         <string>Calculate images directly (*.png)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="3">
+       <widget class="QPushButton" name="butOutPath">
+        <property name="maximumSize">
+         <size>
+          <width>30</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>...</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QCheckBox" name="togLimitCalc">
+        <property name="text">
+         <string>Limit calculation time to:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QSpinBox" name="inpLimitCalc">
+        <property name="suffix">
+         <string> sec</string>
+        </property>
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>3600</number>
+        </property>
+        <property name="value">
+         <number>5</number>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="2">
+       <widget class="QLabel" name="label_2">
+        <property name="text">
+         <string> </string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0" colspan="4">
+       <widget class="QCheckBox" name="togGenJson">
+        <property name="text">
+         <string>Generate ChatBot-Training file for each saved image (*.json in the same directory)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0" colspan="3">
+       <widget class="QLineEdit" name="inpOutPath"/>
+      </item>
+     </layout>
+    </widget>
+   </item>
   </layout>
  </widget>
  <resources/>
- <connections/>
+ <connections>
+  <connection>
+   <sender>togDoCalc</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>togCheckNaN</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>168</x>
+     <y>87</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>197</x>
+     <y>154</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>togDoCalc</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>togLimitCalc</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>80</x>
+     <y>83</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>80</x>
+     <y>110</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>togDoCalc</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>inpLimitCalc</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>439</x>
+     <y>88</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>303</x>
+     <y>110</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>togLimitCalc</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>inpLimitCalc</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>213</x>
+     <y>110</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>266</x>
+     <y>120</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
 </ui>

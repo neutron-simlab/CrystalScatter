@@ -19,14 +19,21 @@ public:
     QStringList getValues( QString hdr );
     QList<int> getValueIDs( QString hdr );
 
+    void setCalcTimeLimit( int secs );
+    int  getCalcTimeLimit();
+
     QString getPath();
     bool getCalcDirect();
     bool getCalcAll();
+    bool getCalcNaNCheck();
+    bool getCalcGenJson();
 
 private slots:
     void on_butDone_clicked();
     void on_butStartGen_clicked();
-    void on_butOutPath_clicked();
+    void on_butOutPath_clicked();    
+    void on_butSaveSettings_clicked();
+    void on_butLoadSettings_clicked();
 
 private:
     Ui::dlgGenerateCombinations *ui;

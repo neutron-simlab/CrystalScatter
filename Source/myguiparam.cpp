@@ -561,7 +561,7 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
 
 /*static*/ void myGuiParam::generateTestFile()
 {
-    QStringList meta = SC_MainGUI::getInst()->getCalcGui()->getCalcPtr()->guiLayoutNeu();
+    QStringList meta = SC_MainGUI::getInst()->getCalcGui()->getCalcPtrWrapper()->guiLayoutNeu();
     QStringList testLType, testCBParticle, testOrdis, testCBInterior, testCBPeak;
     foreach ( QString mm, meta )
     {
@@ -692,7 +692,7 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
     }
     // Im ersten Schritt die Namensliste der Parameter aufbauen
     QStringList names;
-    QStringList meta = SC_MainGUI::getInst()->getCalcGui()->getCalcPtr()->guiLayoutNeu();
+    QStringList meta = SC_MainGUI::getInst()->getCalcGui()->getCalcPtrWrapper()->guiLayoutNeu();
     foreach ( QString mm, meta )
     {
         QStringList sl = mm.split(";");
@@ -765,10 +765,12 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
             //    qDebug() << "getpar" << on << par->type;
             par->gpFit = nullptr;
             par->tooltip = sl[3].trimmed();
+            par->deflabel = "";
 
             if ( w->objectName().startsWith("lbl") )
             {
                 myGuiParam::setLabel(w);
+                par->deflabel = static_cast<QLabel*>(w)->text();
             }
             else if ( w->objectName().startsWith("cbs") )
             {   //  [2]typespec = C:Selection : "...|...|..."  (required)
@@ -1021,7 +1023,14 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
         if ( lbl[0] == '@' && gp->cbs() != nullptr )
             gp->cbs()->setCurrentIndex( lbl.mid(1).toInt() );
         else if ( gp->lbl() != nullptr )
-            gp->lbl()->setText(lbl);
+        {
+            if ( gp->_par->deflabel.isEmpty() )
+                gp->_par->deflabel = gp->lbl()->text();
+            if ( lbl[0] == '*' )
+                gp->lbl()->setText(gp->_par->deflabel);
+            else
+                gp->lbl()->setText(lbl);
+        }
     }
     if ( !tt.isEmpty() )
     {   // Anpassen des Tooltips
@@ -1050,6 +1059,7 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
 
 /*static*/ void myGuiParam::setEnabled(QWidget *w, bool ena)
 {
+    //qDebug() << "setEnabled(" << w->objectName() << ") =" << ena;
     if ( hideValues )
         w->setVisible(ena);
     else

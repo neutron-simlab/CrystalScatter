@@ -1,9 +1,9 @@
 #include "sc_calc_generic.h"
 
 
-SC_Calc_GENERIC::SC_Calc_GENERIC()
+SC_Calc_GENERIC::SC_Calc_GENERIC(SasCalc_GENERIC_calculation *c)
 {
-    calc = new SasCalc_GENERIC_calculation();
+    calc = c;
 }
 
 

@@ -156,10 +156,10 @@ The user has to fill out all parameters in the gui. If you change the comboboxes
 	Save all parameters to a temporary file. This is done for one reason: if the calculation crashes, you can recover exactly these settings and try some different ones. Then it calls the next function.
 
 \item SC\_MainGUI::local\_butCalc\_clicked() \\
-	This procedure is called every time an image must be calculated from the gui (in simplex 2d fit, fft and some test cases). It first calls the preparation (prepareCalculation), then initialize some internal variables for the resulting image size and then starts the calculation (done in a thread!). After the thread is finished some cleanup is done (finishCalculation) and the image will be displayed (addImage).
+	This procedure is called every time an image must be calculated from the gui (in simplex 2d fit, fft and some test cases). It first calls the preparation (prepareGuiAndData), then initialize some internal variables for the resulting image size and then starts the calculation (done in a thread!). After the thread is finished some cleanup is done (finishCalculation) and the image will be displayed (addImage).
 
-\item SC\_MainGUI::prepareCalculation( bool progbar ) \\
-	This disables some start calculation buttons and enables the progress bar and the abort button. Then all input fields are copied into the calculation class (fillDataFromInputs). After this the preparation inside the calculation class is called (calcGui::prepareCalculation).
+\item SC\_MainGUI::prepareGuiAndData() \\
+	This disables some start calculation buttons, enables the progress bar and the abort button. Then all input fields are copied into the calculation class (fillDataFromInputs). After this the preparation inside the calculation class is called (calcGui::prepareData).
 
 \item SC\_MainGUI::fillDataFromInputs() \\
 	In the program I use (historically) some hashes/vectors for the variables:
@@ -172,10 +172,10 @@ The user has to fill out all parameters in the gui. If you change the comboboxes
 	\end{itemize}
 In this function the values are copied from the gui input fields into the hashes. All variables are accessed by thier name. The names comes from the first pascal program I've got and represents the variable names there.
 
-\item SC\_CalcGUI::prepareCalculation( bool fromFit ) \\
-	In the normal calculation this calls SC\_Calc\_GENERIC::prepareData( \_dataGetter dg ). From the fit it call the same routine but use another parameter function.
+\item SC\_CalcGUI::prepareData( bool fromFit, bool only1d ) \\
+	In the normal calculation this calls SC\_Calc\_GENERIC::prepareData( \_dataGetter dg, bool only1d ). From the fit it call the same routine but use another parameter function.
 
-\item SC\_Calc\_GENERIC::prepareData( \_dataGetter dg ) \\
+\item SC\_Calc\_GENERIC::prepareData( \_dataGetter dg, bool only1d ) \\
 	In this procedure all values are copied from the gui elements into the calcHelper::params hash and then put them into the calculation class (into internal variables there). The function provided by the parameter gets two arguments: one string as the name of the parameter and a special value structure to get back all types of values (double, int, bool).
 
 \item myCalcThread::run() \\
@@ -221,6 +221,17 @@ In this function the values are copied from the gui input fields into the hashes
 
 \end{itemize}
 
+Stacking of the used classes:
+\begin{itemize}
+\item[] SC\_CalcGUI - all GUI routines \\
+	  SC\_CalcCons - all Console control routines
+	\begin{itemize}
+	\item[] SC\_Calc\_GENERIC - wrapper around the calculation class
+		\begin{itemize}
+		\item[] SasCalc\_GENERIC\_calculation - all calculation routines
+		\end{itemize}
+	\end{itemize}
+\end{itemize}
 
 
 %\clearpage
@@ -424,7 +435,7 @@ There are calls for almost every group of parameters: Lattice, Particle, Peak Sh
 %\subsection{Model settings}
 \subsection{Model settings - examples of usage}
 
-This part is still under development. If you want to extract sone code pieces to write your own implementation, please ask for the correct statements.
+This part is still under development. If you want to extract some code pieces to write your own implementation, please ask for the correct statements.
 
 %\subsubsection{Spheres}
 \subsubsection{Spheres - C++ calls}

@@ -101,6 +101,7 @@
 22. Jun 2023 & Finish the first version after GUI-Redesign. \\ \hline
 27. Jun 2024 & Update screenshots and some descriptions, add Chatbot. \\ \hline
 21. Jan 2025 & Update screenshots, add 1D informations. \\ \hline
+30. Jan 2025 & Add section with parameter tables. \\ \hline
 \end{longtable}
 
 \centerline{All sources saved at https://iffgit.fz-juelich.de/wagener/sas-crystal (only private access)}
@@ -273,9 +274,9 @@ All data inputs are logically grouped. On the right of most input fields there i
 	\end{itemize}
 \end{minipage}
 \begin{minipage}{0.30\textwidth}
-	\includegraphics[width=\textwidth]{gui-calculations-2d.png} \\
+	\includegraphics[width=0.98\textwidth]{gui-calculations-2d.png} \\
 	
-	\includegraphics[width=\textwidth]{gui-calculations-1d.png}
+	\includegraphics[width=0.98\textwidth]{gui-calculations-1d.png}
 \end{minipage}
 
 \item Group {\it Usage} - if the recalculate checkbox is checked, every value change in the other fields starts a calculation. If the calculation is longer than 2 seconds, this box is unchecked. Below this the current loaded parameter file is shown and you can load / save the parameters in the same way as from the menu bar. If some input fields are marked with a colored background a short explanation will be displayed here too.
@@ -480,7 +481,9 @@ The parts of this tab are:
 \item {\it Generate training files} - this generate a training file from the current calculation parameters. The file will be appended each time the {\it Save config} button will be pressed. This file will be use to train the chatbot to learn the parameters.
 \item The buttons {\it Start} and {\it Stop} manipulates the background process.
 \item {\it Read clipboard} - this makes it easier to copy the relevant informations from the chatbot interface to be used by this program. Normally you have to save the chatbot output to a special file (see above). With this you copy the text into the clipboard and click on this button to perform the calculation.
-\item {\it Show image} - if this is checked, the image will be displayed after calculation
+\item {\it Show image directly} - if this is checked, the image will be displayed after calculation
+\item {\it Calculate in main} - if this is checked, the calculation of the image is done in the main programm. The background process will be stopped if running and cannot be started until this checkbox will be unchecked. And the checkbox {\it Show image directly} will be checked automatically.
+\item {\it Start calculation automatically} - if checked, the calculation will start if the clipboard text is a valid parameter set.
 \end{itemize}
 The background process is the console version of this program described later with some special parameters. All settings in this dialog are given at the start to the background process.
 
@@ -509,14 +512,28 @@ In the future the web interface for the chatbot might be integrated into this pr
 	The calculation time limit (if enabled) can be set to a number of seconds. After this time the calculation thread is stopped and the image displayed contains the values up to this time, the rest of the data is zero. This is the same procedure used by the Abort button (see Calculation tab).
 \item Group {\it Default color table} \\
 	All image windows will start with this color table. Inside each of the image windows you can change the color table independently.
-\item Group {\it Logging of all value changes at each calculation} \\
-	this was an idea not implemented yet.
+%\item Group {\it Logging of all value changes at each calculation} \\
+%	this was an idea not implemented yet.
 \item Group {\it Tests} \\
 	Here you can generate some special test images to check the FFT calculations. It was implemented during the FFT programming but now it's seldom used.
-\item Group {\it Scan for files an generate images} \\
+\item Group {\it Scan for files and generate images} \\
 	You can search the given path and all subdirectories for parameter or data files. In the list of found files you can select all or some and then generate png images from the parameter or data files. The images are stored in the same location with the same name as the input file, the file extension will be png.
+	
+If you want to generate chatbot training files from the selected parameter files, one small dialog appears to let you select the destination of the generated training files.
+	
+After the generation process there will be a link shown to the logfile generated during the generation process. This textfile can be opened by clicking on the link (if .log files can be opened by your default text editor).
 \end{itemize}
 
+%\begin{wrapfigure}{l}{0.36\textwidth}
+\begin{wrapfigure}{l}{\textwidth}
+  \begin{center}
+	\includegraphics[width=0.40\textwidth]{gui-config-cbtrain.png}  	
+	\includegraphics[width=0.49\textwidth]{gui-config-linktext.png}
+  \end{center}
+\end{wrapfigure}
+
+
+\clearpage
 
 \subsection{Image windows}
 
@@ -622,6 +639,102 @@ If the checkbox {\it Calculate images directly} is checked, the images are calcu
 Some settings of the comboboxes force other comboxes to be set to a special value. If the checkbox {\it Calculate all selected possibilities....} is not checked, then only this value is used. If the checkbox is checked, then all selected values of this combobox are used. But then it is possible that the generated images are invalid.
 
 
+
+\subsection{Overview of the parameters}
+
+In the above dialog all combobox values (selection possibilities) are displayed. If the current value of a combobox is changed, some other parameters appears or disappears. All parameters not used in the selected calculation will not be shown (execpt the menu topic {\it Hide unused values} is not checked, then the parameters are shown with a grey label).
+
+The following tables marks parameters shown or hidden with the given selection of the combobox.
+\begin{itemize}\itemsep0pt
+\item {\bf x} denotes a visible and used parameter without modifications
+\item {\bf -} denotes a hidden parameter
+\item If a number is in the table then this parameter is enabled and set to this value. With a combobox this means the index (starting at zero).
+\end{itemize}
+
+\begin{longtable}{|L{3.2cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|}
+\caption{Combobox {\bf LType}, Lattice type selection} \\
+\hline\rowcolor{rowcolor}{\bf Parameter} & \rotatebox{90}{Lamellae} & \rotatebox{90}{Hexagonally packed cylinders (P6/mm)} & \rotatebox{90}{Square packed cylinders (P4/mm)} & \rotatebox{90}{Rectangular centered cylinders (cmm)} & \rotatebox{90}{BCC (lm3m)} & \rotatebox{90}{FCC (Fm3m)} & \rotatebox{90}{HCP (P6/mmc)} & \rotatebox{90}{SC (Pm3m)} & \rotatebox{90}{BCT (l4/mm)} & \rotatebox{90}{Gyroid (Ia3d)} & \rotatebox{90}{OBDD (Pn3m)} & \rotatebox{90}{Plumbers Nightmare (Im3m)} & \rotatebox{90}{None} & \rotatebox{90}{CP-Layers} & \rotatebox{90}{2DHex (GISAXS)} & \rotatebox{90}{2DSquare (GISAXS)} & \rotatebox{90}{1DLam (GISAXS)} & \rotatebox{90}{Fd3m} & \rotatebox{90}{Orthorombic} & \rotatebox{90}{LDQ12} \\
+\endfirsthead
+\hline\rowcolor{rowcolor}{\bf Parameter} & \rotatebox{90}{Lamellae} & \rotatebox{90}{Hexagonally packed cylinders (P6/mm)} & \rotatebox{90}{Square packed cylinders (P4/mm)} & \rotatebox{90}{Rectangular centered cylinders (cmm)} & \rotatebox{90}{BCC (lm3m)} & \rotatebox{90}{FCC (Fm3m)} & \rotatebox{90}{HCP (P6/mmc)} & \rotatebox{90}{SC (Pm3m)} & \rotatebox{90}{BCT (l4/mm)} & \rotatebox{90}{Gyroid (Ia3d)} & \rotatebox{90}{OBDD (Pn3m)} & \rotatebox{90}{Plumbers Nightmare (Im3m)} & \rotatebox{90}{None} & \rotatebox{90}{CP-Layers} & \rotatebox{90}{2DHex (GISAXS)} & \rotatebox{90}{2DSquare (GISAXS)} & \rotatebox{90}{1DLam (GISAXS)} & \rotatebox{90}{Fd3m} & \rotatebox{90}{Orthorombic} & \rotatebox{90}{LDQ12} \\
+\endhead
+\hline
+uca 				& x & x & x & x & x & x & x & x & x & x & x & x & - & x & x & x & x & x & x & x \\ \hline
+ucb 				& - & - & - & x & - & - & - & - & x & - & - & - & - & - & - & - & - & - & x & - \\ \hline
+ucc 				& - & - & - & - & - & - & - & - & - & - & - & - & - & - & - & - & - & - & x & - \\ \hline
+EditDomainSize 	& x & x & x & x & x & x & x & x & x & x & x & x & - & - & x & x & x & x & x & - \\ \hline
+EditAzi 			& x & x & x & x & x & x & x & x & x & x & x & x & - & - & - & - & - & x & x & - \\ \hline
+EditDebyeWaller	& x & x & x & x & x & x & x & x & x & x & x & x & - & x & x & x & x & x & x & x \\ \hline
+Twinned 			& - & - & - & - & x & x & x & - & - & - & - & - & - & - & - & - & - & - & - & - \\ \hline % CheckBoxTwinned
+HKLmax 			& x & x & x & x & x & x & x & x & x & x & x & x & - & x & x & x & x & x & x & x \\ \hline
+acpl 			& - & - & - & - & - & - & - & - & - & - & - & - & - & x & - & - & - & - & - & x \\ \hline
+bcpl 			& - & - & - & - & - & - & - & - & - & - & - & - & - & x & - & - & - & - & - & x \\ \hline
+ComboBoxPeak 	& x & x & x & x & x & x & x & x & x & x & x & x & - & 7 & x & x & x & x & x & 7 \\ \hline
+Ceffcyl 			& - & - & - & - & - & - & - & - & - & - & - & - & x & - & - & - & x & - & - & - \\ \hline % EditCeffcyl
+iso 				& x & x & x & x & x & x & x & x & x & x & x & x & x & x & x & - & - & x & x & x \\ \hline
+ComboBoxParticle& 2 & 1 & 1 & 1& 0 & 0 & 0 & 0 & 0 & 3 & 3 & 3 & 0 & 0 & 0 & 0 & 2 & 0 & 0 & 0 \\ \hline
+Length & {\small 250} & {\small 500} & {\small 500} & {\small 500} & - & - & - & - & - & - & - & - & - & - & - & - & x & - & - & - \\ \hline
+\end{longtable}
+
+In {\bf OBDD (Pn3m)} the values of {\it EditRadius}, {\it Length} and {\it Phi} are calculated from {\it uca}. \\
+In {\bf CP-Layers} and {\bf LDQ12} the values of {\it SigmaX,Y,Z} are set to 200.
+
+\begin{longtable}{|L{3.2cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|}
+\caption{{\bf ComboBoxParticle}, Particle shape selection} \\
+\hline\rowcolor{rowcolor}{\bf Parameter} & \rotatebox{90}{sphere} & \rotatebox{90}{cylinder} & \rotatebox{90}{disk} & \rotatebox{90}{vesicle} & \rotatebox{90}{cube} & \rotatebox{90}{ellipsoid} & \rotatebox{90}{triaxial ellipsoid} & \rotatebox{90}{super ellipsoid, barrel} & \rotatebox{90}{superball} & \rotatebox{90}{excluded volume chain} & \rotatebox{90}{Kratky Porod chain}  \\
+\endfirsthead
+\hline\rowcolor{rowcolor}{\bf Parameter} & \rotatebox{90}{sphere} & \rotatebox{90}{cylinder} & \rotatebox{90}{disk} & \rotatebox{90}{vesicle} & \rotatebox{90}{cube} & \rotatebox{90}{ellipsoid} & \rotatebox{90}{triaxial ellipsoid} & \rotatebox{90}{super ellipsoid, barrel} & \rotatebox{90}{superball} & \rotatebox{90}{excluded volume chain} & \rotatebox{90}{Kratky Porod chain}  \\
+\endhead
+\hline
+Length			& - & x & x & x & - & x & x & x & x & x & x  \\ \hline
+SigmaL			& - & x & x & x & - & x & x & x & x & x & x  \\ \hline
+EditRadiusi		& - & - & - & - & - & - & x & x & x & - & -  \\ \hline
+Alpha			& - & - & - & - & - & - & - & x & x & - & -  \\ \hline
+ComboBoxInterior& x & x & x & - & - & x & x & x & x & x & x  \\ \hline
+ \hline
+\end{longtable}
+
+\begin{longtable}{|L{3.2cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|}
+\caption{{\bf Ordis}, Orientational distribution functions} \\
+\hline\rowcolor{rowcolor}{\bf Parameter} & \rotatebox{90}{Gaussian} & \rotatebox{90}{Exponential} & \rotatebox{90}{Onsager} & \rotatebox{90}{Maier-Saupe} & \rotatebox{90}{Cut-off} & \rotatebox{90}{Laguerre} & \rotatebox{90}{z-dir} & \rotatebox{90}{isotropic} & \rotatebox{90}{mirrored Gaussian} & \rotatebox{90}{mirrored Exponential} & \rotatebox{90}{mirrored Onsager} & \rotatebox{90}{mirrored Maier-Saupe} & \rotatebox{90}{mirrored Cut-off} & \rotatebox{90}{fiber pattern}  \\
+\endfirsthead
+\hline\rowcolor{rowcolor}{\bf Parameter} & \rotatebox{90}{Gaussian} & \rotatebox{90}{Exponential} & \rotatebox{90}{Onsager} & \rotatebox{90}{Maier-Saupe} & \rotatebox{90}{Cut-off} & \rotatebox{90}{Laguerre} & \rotatebox{90}{z-dir} & \rotatebox{90}{isotropic} & \rotatebox{90}{mirrored Gaussian} & \rotatebox{90}{mirrored Exponential} & \rotatebox{90}{mirrored Onsager} & \rotatebox{90}{mirrored Maier-Saupe} & \rotatebox{90}{mirrored Cut-off} & \rotatebox{90}{fiber pattern}   \\
+\endhead
+\hline
+ifluc		& - & - & - & - & - & - & x & - & - & - & - & - & - & -  \\ \hline
+rfluc		& - & - & - & - & - & - & x & - & - & - & - & - & - & -  \\ \hline
+ \hline
+\end{longtable}
+
+\begin{longtable}{|L{3.2cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|}
+\caption{{\bf ComboBoxInterior}, Particle nature} \\
+\hline\rowcolor{rowcolor}{\bf Parameter} & \rotatebox{90}{homogeneous} & \rotatebox{90}{core + homogeneous sh} & \rotatebox{90}{core + inhomogeneous sh} & \rotatebox{90}{multi-shell} & \rotatebox{90}{myelin}  \\
+\endfirsthead
+\hline\rowcolor{rowcolor}{\bf Parameter} & \rotatebox{90}{homogeneous} & \rotatebox{90}{core + homogeneous sh} & \rotatebox{90}{core + inhomogeneous sh} & \rotatebox{90}{multi-shell} & \rotatebox{90}{myelin}  \\
+\endhead
+\hline
+EditRadius	& x & x & x & {\small 200} & {\small 200}  \\ \hline
+EditRadiusi	& - & x & x & {\small 1} & {\small 1}  \\ \hline
+Alpha		& - & - & x & {\small 3.5} & {\small 3.5}  \\ \hline
+EditRho		& - & x & x & {\small 3.5} & {\small 3.5}  \\ \hline
+ \hline
+\end{longtable}
+
+\begin{longtable}{|L{3.2cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|C{0.5cm}|}
+\caption{{\bf ComboBoxPeak}, Peak shape} \\
+\hline\rowcolor{rowcolor}{\bf Parameter} & \rotatebox{90}{Lorentzian} & \rotatebox{90}{Gaussian} & \rotatebox{90}{mod. 1 Lorentzian} & \rotatebox{90}{mod. 2 Lorentzian} & \rotatebox{90}{Pseudo-Voigt} & \rotatebox{90}{Pearson VII} & \rotatebox{90}{Gamma} & \rotatebox{90}{Anisotropic Gaussian}  \\
+\endfirsthead
+\hline\rowcolor{rowcolor}{\bf Parameter} & \rotatebox{90}{Lorentzian} & \rotatebox{90}{Gaussian} & \rotatebox{90}{mod. 1 Lorentzian} & \rotatebox{90}{mod. 2 Lorentzian} & \rotatebox{90}{Pseudo-Voigt} & \rotatebox{90}{Pearson VII} & \rotatebox{90}{Gamma} & \rotatebox{90}{Anisotropic Gaussian}  \\
+\endhead
+\hline
+EditPeakPar	& - & - & - & - & x & x & x & x  \\ \hline
+SigmaX,Y,Z	& - & - & - & - & - & - & - & x  \\ \hline
+Ax*,Ay*,Az*	& - & - & - & - & - & - & - & x  \\ \hline
+ \hline
+\end{longtable}
+The values {\it Ax*,Ay*,Az*} are the matrix in the Peak Shape group with three vectors (u1, u2, u3) each consists of the values x,y,z. The values {\it SigmaX,Y,Z} are just below the matrix.
+
+ 
+
 %------------------------
 \clearpage
 \section{Usage and hints}
@@ -701,6 +814,50 @@ The possible commands (at the beginning of each line) for this automatic mode in
 	Perform one fit operation. The values of {\it Stp} (Step size), {\it Iter} (Maximum iterations), {\it Tol} (Tolerance) are the same as in the GUI used for this fit run. After each fit run the percentual change of each parameter is summed up and if this sum is less than the {\it Diff} value the fit step is finished. If not, this fit run is repeated up to 20 times to avoid endless loops. The {\it Kenn} can be used to name the logfiles for each fit run. Use @D to set the current date and @F to set the current fitted data filename. Every other character is used as given. Avoid charatcers not allowed for the filesystem. A running number (01 to 20) is appended automatically.
 \end{itemize}
 
+
+\clearpage
+\subsection{Automatic startup files}
+
+If the program is started with a parameter, this is tried to be used as a filename. In this textfile each line can contain one statement listed below.
+This processing can be startet from the menu too (Tools $\rightarrow$ Start autoprocessing file).
+After calculations the processing continues in the file. All error messages will stop the processing.
+
+\begin{itemize}\itemsep0pt
+\item {\bf \#} \\
+	starts a comment line (also empty lines are ignored).
+\item {\bf TAB} {\it name} \\
+	select the given tab page in the gui.
+\item {\bf OPEN MEAS FILE DEFAULT} \\
+	opens the last used measurement file.
+\item {\bf OPEN MEAS FILE} {\it filename} \\
+	opens the given measurement file.
+\item {\bf LOAD PARAMS DEFAULT} \\
+	opens the last used parameter set.
+\item {\bf LOAD PARAMS} {\it filename} \\
+	opens the given parameter set.
+\item {\bf USE QMAX FROM DATA} \\
+	use the qmax value calculated from the data (if possible).
+\item {\bf USE QMAX PRESET} \\
+	use the qmax value given by the user.
+\item {\bf THREADS} {\it n} \\
+	sets the number of threads to be used to <n> (0=GPU).
+\item {\bf DOCALC} \\
+	starts a normal {\bf 2d} calculation {\it available for compatibility, use DOCALC2D}.
+\item {\bf DOCALC2D} \\
+	starts a normal {\bf 2d} calculation.
+\item {\bf DOCALC1D} \\
+	starts a normal {\bf 1d} calculation.
+\item {\bf DOFFT} \\
+	starts a 2d FFT calculation with the parameters given in the gui.
+\item {\bf DOIFFT} \\
+	starts a 2d iFFT calculation with the parameters given in the gui.
+\item {\bf TEST} {\it n} \\
+	starts a test calculation as shown in the Configuration tab.
+\item {\bf TIMETEST} {\it outfilename} \\
+	starts the TimeTest procedure specified in the Tools $\rightarrow$ Timing tests dialog.
+\item {\bf CHATBOT TRAIN} {\it outputfile} {\bf :} {\it descr} \\
+	saves the current parameter set for the chatbot as a training file (.json) and use the given description for the experiment. Only available if Chatbot functions are enabled.
+\end{itemize}
 
 
 %------------------------

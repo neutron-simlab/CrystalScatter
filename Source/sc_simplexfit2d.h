@@ -72,6 +72,7 @@ public:
                          double ftol,    // Tolerance
                          int borderpix,  // Number of pixels ignored at each border
                          int bstoppix,   // Number of pixels ignored around the beam stop
+                         bool use1d,     // Flag if 1D data is used
                          progressLogging pl,    // Logging function
                          _param2fitval *vals,   // Hash der Werte (incl. Used, Min, Max, Cur)
                          QString &retinfo );    // Error-/Info-Message
@@ -105,6 +106,7 @@ private:
 
     double fehlerquadratsumme( int numThreads, double *params, QString &info );
     int _borderPixel, _bstoppixel;
+    bool _use1D;
 
     static const int nap = 31; // Maximum array len
     static const int map = 30; // Max Anzahl Parameter

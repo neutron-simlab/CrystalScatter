@@ -34,6 +34,10 @@
 #define tblResTemp widImage::slColorNames()[13]
 #endif
 
+#ifdef NOQWT
+#define data1D false
+#endif
+
 
 
 // Qt-Versionen:
@@ -126,6 +130,7 @@ public:
     double ymax() { return maxY; }
     int myWidth() { return maxX - minX; }
     int myHeight() { return maxY - minY; }
+    bool is1D() { return data1D; }
     inline double getData(int x,int y) { return data[(tmpidx=XY2IDX(minX,maxX,minY,maxY,x,y))]; }   // TODO: alt= x,y
     //#define XY2IDX(X0,X1,Y0,Y1,x,y) ((-X0 + (x)) + (X1-X0)*(-Y0 + (y)))
 
@@ -153,11 +158,11 @@ public:
     } _fileInfos;
     inline _fileInfos *getFileInfos() { return &fileInfos; }
 
-    void saveImage( QString fn );
+    bool saveImage( QString fn );
     bool saveImageColor( QString fn, QString coltbl, QString &dbg );
     void saveImageGray( QString fn );
     void saveImageBinary( QString fn );
-    void saveImage( QString fn, QSize siz );
+    bool saveImage( QString fn, QSize siz );
     void saveImageGray( QString fn, QSize siz );
     void saveImageBinary( QString fn, QSize siz );
 
@@ -252,8 +257,6 @@ private:
     QwtPlotCurve *curve1d;
     QVector<QPointF> points1d;
     QwtPlotGrid *grid1d;
-#else
-#define data1D false
 #endif
 
     bool firstView; // zum Sperren weiterer adjustSize() bei setData(...)

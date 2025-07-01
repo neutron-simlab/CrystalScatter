@@ -2,7 +2,6 @@
 #define SASCALC_GENERIC_GPU_H
 
 #include <math.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <string>
 #include <map>
@@ -14,6 +13,8 @@
 #ifndef __CUDACC__
 #include <QDebug>
 #endif
+
+#include <pthread.h>
 
 //#ifdef __OPENCL__
 //#include <CL/opencl.hpp>
@@ -68,6 +69,7 @@ __global__ void kernel_partCylinder_peakGauss_lattBCT_ordisZDir(SasCalc_GENERIC_
 #endif
 
 
+
 /**
  * @brief The SasCalc_GENERIC_calculation class
  * Class for all FCC calculation routines
@@ -80,7 +82,30 @@ public:
     void cleanup();
 
     // PARAMETER: Lattice group
-    void setLType( int v ) { ltype=v; }
+    typedef enum { lattLamellae,    //  0, Lamellae
+                   lattHexPacCyl,   //  1, Hexagonally packed cylinders (P6/mm)
+                   lattSquPacCyl,   //  2, Square packed cylinders (P4/mm)
+                   lattRecCenCyl,   //  3, Rectangular centered cylinders (cmm)
+                   lattBCC,         //  4, BCC (lm3m)
+                   lattFCC,         //  5, FCC (Fm3m)
+                   lattHCP,         //  6, HCP (P6/mmc)
+                   lattSC,          //  7, SC (Pm3m)
+                   lattBCT,         //  8, BCT (l4/mm)
+                   lattGyroid,      //  9, Gyroid (Ia3d)
+                   lattOBDD,        // 10, OBDD (Pn3m)
+                   lattPlumNight,   // 11, Plumbers Nightmare (Im3m)
+                   lattNone,        // 12, None
+                   lattCPLayers,    // 13, CP-Layers
+                   latt2DHex,       // 14, 2DHex (GISAXS)
+                   latt2DSquare,    // 15, 2DSquare (GISAXS)
+                   latt1DLam,       // 16, 1DLam (GISAXS)
+                   lattFd3m,        // 17, Fd3m
+                   lattOrtho,       // 18, Orthorombic
+                   lattLDQ12        // 19, LDQ12
+                   } _latticeType;
+#define MinLType  0
+#define MaxLType 19
+    void setLType( int v ) { ltype = static_cast<_latticeType>(v); }
     void setUCA( double v ) { params.uca = v; }
     void setUCB( double v ) { params.ucb = v; }
     void setUCC( double v ) { params.ucc = v; }
@@ -101,7 +126,7 @@ public:
                           double reff, double acpl, double bcpl,
                           double ifluc, double rfluc)
     {
-        this->ltype=ltype;
+        this->ltype= static_cast<_latticeType>(ltype);
         params.uca = uca;
         params.ucb = ucb;
         params.ucc = ucc;
@@ -131,6 +156,8 @@ public:
                    cbpartChain,         // excluded volume chain = 9,partchain
                    cbpartkpchain        // Kratky Porod chain = 10,partkpchain
     } _cbParticle;
+#define MinParticle  0
+#define MaxParticle 10
     void setComboBoxParticle( int val ) { ComboBoxParticle = static_cast<_cbParticle>(val); }
     typedef enum { /* 0*/ordis_Gaussian,             /* 1*/ordis_Exponential,      /* 2*/ordis_Onsager,
                    /* 3*/ordis_Maier_Saupe,          /* 4*/ordis_CutOff,           /* 5*/ordis_Laguerre,
@@ -138,13 +165,17 @@ public:
                    /* 9*/ordis_mirrored_Exponential, /*10*/ordis_mirrored_Onsager, /*11*/ordis_mirrored_Maier_Saupe,
                    /*12*/ordis_mirrored_CutOff,      /*13*/ordis_FiberPattern
     } _ordistype;
+#define MinOrdis  0
+#define MaxOrdis 13
     void setOrdis( int o ) { params.ordis = static_cast<_ordistype>(o); }
-    typedef enum { cbintHomogeneous,    // homogeneous:=true;
-                   cbintCoreShell,      // coreshell:=true;
-                   cbintCoreInShell,    // coreinshell:=true;
-                   cbintMultiShell,     // lipo:=true;
-                   cbintMyelin          // myelin:=true;
+    typedef enum { cbintHomogeneous,    // 0 homogeneous:=true;
+                   cbintCoreShell,      // 1 coreshell:=true;
+                   cbintCoreInShell,    // 2 coreinshell:=true;
+                   cbintMultiShell,     // 3 lipo:=true;
+                   cbintMyelin          // 4 myelin:=true;
     } _cbInterior;         /*Z0311=19828 aus den Kommentaren den Typ entnommen*/
+#define MinInterior 0
+#define MaxInterior 4
     void setComboBoxInterior( int val ) { ComboBoxInterior = static_cast<_cbInterior>(val); }
     void setRadiusF( double val ) { params.radius = val; }  /*TPV*/
     void setRadiusI( double val ) { params.radiusi = val; }
@@ -187,6 +218,8 @@ public:
                    cbpeakGamma,             // shp:=7; shf:=EditPeakPar.Text;   BurgerG:=true;
                    cbpeakAnisotropicGaussian// shp:=8;                          -kein Flag-
     } _cbPeak;
+#define MinPeak 1
+#define MaxPeak 8
     void setComboBoxPeak( int v ) { shp = static_cast<_cbPeak>(v+1); }
     void setPeakPar( double p ) { /*shf=p;*/ eta=p/100.; beta=p; /*bnu=p;*/ } // TODO - unklar
     // ComboBoxLattice=13,19 -> ComboBoxPeak=7 -> shp=8
@@ -319,8 +352,11 @@ public:
         this->base  = base;
     }
 
+    std::string checkAllParameters(bool ignCbs);  // for Chatbot checking !
+    std::string isCbsValid(int lt, int pa, int od, int in, int pk); // for Chatbot checking !
+
     // Run the calculation once
-    void doCalculation( int numThreads, bool bIgnoreNewSwitch );
+    void doCalculation(int numThreads, bool bIgnoreNewSwitch, bool bIgnoreCbs);
     double doFitCalculation(int numThreads, int bstop, int border, long &cnt, long &nancnt);
 
     //QString tpvPerformRandom(QStringList ids);
@@ -335,7 +371,69 @@ public:
         noFitY1[id] = y1;
     }
 
+    // Order of variables from [clang-analyzer-optin.performance.Padding]
+
     double higResTimerElapsedCalc, higResTimerElapsedPrep;
+
+    size_t arrCRSize;
+
+    double dwfactor, qmax, displacement, bfactor;
+    double qmin; // for 1D
+    double beamX0, beamY0;  // Beamstop
+    double c0, c1, c2, c3, c4; //, p1, approx, ifl, rfl, bf;
+    double azidom, eta, dom1, dom2, dom3;
+    double beta, aziwidth, critdist, /*shf,*/ zz;
+    double rotaxTheta, rotaxPhi, /*bnu,*/ /*xrdalf,*/ wave, iso, izero, base, ifluc, rfluc;
+    double order;
+
+    double F121,F122,F123,pqr0, sinphic, cosphic;
+    double ac1,ac2,ac3,ac4,ac5,ac6,ac7,ac8,ac9,ac10;
+    double ccc1,ccc2,ccc3,vv,vv3;
+    double cc1,cc2,cc3,cc4,cc5,cc6,cc7,cc8,cc9,cc10;
+
+    double acpl, bcpl;
+    double epsilon;        //StrToFloat(EditCeffcyl.Text);
+
+    double fhkl, qhkl; //, qhkl0;
+    double qxhkl, qyhkl, qzhkl, qxyhkl;
+    double qxhklt, qyhklt, qzhklt, qhklt;
+    double peaknorm1, peaknorm1t, peaknorm2, /*g3, g3t,*/ x2phihkl, x2phihklt; //, x2psihkl;
+
+    //{NV} - unit cell definiton (TODO: Double3?)
+    double cosa, cosb, cosg, ucpsi, ucvol,
+        ucn1, ucn2, ucn3, ucn, ucn1n, ucn2n, ucn3n,
+        ucphi, uctheta, cosphi, sinphi, costheta, sintheta,
+        ucl1,ucl2,ucl3, pixnox,pixx_m, pixnoy,pixy_m, det;
+    double ri11,ri12,ri13,ri21,ri22,ri23,ri31,ri32,ri33,
+        rt11,rt12,rt13,rt21,rt22,rt23,rt31,rt32,rt33,
+        nuvwx,nuvwy,nuvwz,uuvwx,uuvwy,uuvwz,vuvwx,vuvwy,vuvwz,
+        nhklx,nhkly,nhklz,uhklx,uhkly,uhklz,vhklx,vhkly,vhklz;
+
+    int   *latpar1ptr/* 6*/, *latpar2ptr/* 6*/;
+    float *latpar3ptr/*17*/; //, *latpar4ptr/* 2*/; // : Array[1..5000,0..15] of real;
+    //  latpar4 wird (noch) nicht wirklich gebraucht
+    size_t latpar1Size, latpar2Size, latpar3Size;
+
+    // Intensity-Array
+    // xyintensity: array[-imax..imax,-imax..imax] of real;
+    double *arrXYIntensity;     //!< array for the resulatant image
+    int _xmin, _xmax,           //!< array limits for the z-values (display horizontal)
+        _ymin, _ymax;           //!< array limits for the i-values (display vertical)
+    size_t _arrCount;           //!< number of double values in the allocated memory
+    size_t arrXYsize;
+
+#ifdef FITDATA_IN_GPU
+    double *arrFitData;
+    double *arrFitFqs;
+    int    _fitWidth,
+        _fitHeight;
+    size_t _arrFitSize;
+    bool   _fitEnabled;
+    size_t arrFitDSize, arrFitFSize;
+#endif
+
+    double ax1n_sigx, ax2n_sigy, ax3n_sigz, cubevol, phiwidth, reldis, dist;
+
 
     void memcleanup( void *arr );
     void endThread();
@@ -441,7 +539,6 @@ public:
     } _localParams;
 
     _localParams params;
-    size_t arrCRSize;
 
     static const int latparlen = 2500;  // war 5000, latpar Max Check: 342, 2196, 1098
 #define latparIDX(a,b,l) (a*l+b)
@@ -491,6 +588,9 @@ public:
     int lastY() { return arrXYIntensity==nullptr ? -10000 : static_cast<int>(arrXYIntensity[1]); }
     bool newSwitchUsed() const { return arrXYIntensity==nullptr ? false : (static_cast<int>(arrXYIntensity[2]) != 0); }
 
+    std::string getLastErrorMessage() { return _lastErrorMessage; }
+    std::string getEditSG_Text();
+
     void scaleIntensity( bool linlog );
 
 #ifdef FITDATA_IN_GPU  // real func decl
@@ -515,38 +615,23 @@ private:
     bool CheckBoxTwinned;
     bool CheckBoxWAXS;
     int    zmax;
-    double dwfactor, qmax, displacement, bfactor;
-    double qmin; // for 1D
     bool   use1d;
+    std::string _lastErrorMessage;
 
     //??? bool twin;  // wird bei LType=4 oder 5 gesetzt und bei corotations verwendet
 
-    double beamX0, beamY0;  // Beamstop
     bool   useBeamStop;
 
     _cbInterior ComboBoxInterior;
     _cbParticle ComboBoxParticle;
     bool RadioButtonDebyeScherrer, RadioButtonPara;
 
-    int  ltype; // Zur Auswahl der Operation in buttonHKLclick und auch später für die Berechnungsmethoden
+    _latticeType ltype; // Zur Auswahl der Operation in buttonHKLclick und auch später für die Berechnungsmethoden
 
     bool prepareCalculation();
 
-    double c0, c1, c2, c3, c4; //, p1, approx, ifl, rfl, bf;
-    //TODO: diese Werte müssen noch übergeben/vorbesetzt werden
-    double azidom, eta, dom1, dom2, dom3;
-    double beta, aziwidth, critdist, /*shf,*/ zz;
-    double rotaxTheta, rotaxPhi, /*bnu,*/ /*xrdalf,*/ wave, iso, izero, base, ifluc, rfluc;
     _cbPeak shp;
     int cdim, partdim;
-    double order;
-
-    double F121,F122,F123,pqr0, sinphic, cosphic;
-    double ac1,ac2,ac3,ac4,ac5,ac6,ac7,ac8,ac9,ac10;
-    double ccc1,ccc2,ccc3,vv,vv3;
-    double cc1,cc2,cc3,cc4,cc5,cc6,cc7,cc8,cc9,cc10;
-
-    double acpl, bcpl;
 
     // internal flags
     bool /*generic=true,*/ twin, debyescherrer, paracrystal, quad1, quad2, quad4,
@@ -556,37 +641,13 @@ private:
          partellipsoid, parttriellipsoid, partbarrel, partball, partchain,
          partkpchain,*/ homogeneous, coreshell, coreinshell, lipo, myelin;
 
-    double epsilon;        //StrToFloat(EditCeffcyl.Text);
-
-    double fhkl, qhkl; //, qhkl0;
-    double qxhkl, qyhkl, qzhkl, qxyhkl;
-    double qxhklt, qyhklt, qzhklt, qhklt;
     int    mhkl, h, k, l, hmax, kmax, lmax;
-    double peaknorm1, peaknorm1t, peaknorm2, /*g3, g3t,*/ x2phihkl, x2phihklt; //, x2psihkl;
-
-    //{NV} - unit cell definiton (TODO: Double3?)
-    double cosa, cosb, cosg, ucpsi, ucvol,
-           ucn1, ucn2, ucn3, ucn, ucn1n, ucn2n, ucn3n,
-           ucphi, uctheta, cosphi, sinphi, costheta, sintheta,
-           ucl1,ucl2,ucl3, pixnox,pixx_m, pixnoy,pixy_m, det;
-    double ri11,ri12,ri13,ri21,ri22,ri23,ri31,ri32,ri33,
-           rt11,rt12,rt13,rt21,rt22,rt23,rt31,rt32,rt33,
-           nuvwx,nuvwy,nuvwz,uuvwx,uuvwy,uuvwz,vuvwx,vuvwy,vuvwz,
-           nhklx,nhkly,nhklz,uhklx,uhkly,uhklz,vhklx,vhkly,vhklz;
-    int   *latpar1ptr/* 6*/, *latpar2ptr/* 6*/;
-    float *latpar3ptr/*17*/; //, *latpar4ptr/* 2*/; // : Array[1..5000,0..15] of real;
-    //  latpar4 wird (noch) nicht wirklich gebraucht
     double latpar[4];
     int peakmax1, peakmax2;
-    size_t latpar1Size, latpar2Size, latpar3Size;
 
 
     void initMemory();
-
-    int dbgHelper[5]; // für latpar1
-
     void createMemory( void **ptr, size_t lensoll, size_t &lenist, bool gpuonly, const char *dbgInfo );
-
     void checkArrays( int minx, int maxx, int miny, int maxy );
 
 #ifdef __CUDACC__
@@ -605,24 +666,6 @@ private:
 
     bool   noGPUavailable;
 
-    // Intensity-Array
-    // xyintensity: array[-imax..imax,-imax..imax] of real;
-    double *arrXYIntensity;     //!< array for the resulatant image
-    int _xmin, _xmax,           //!< array limits for the z-values (display horizontal)
-        _ymin, _ymax;           //!< array limits for the i-values (display vertical)
-    size_t _arrCount;           //!< number of double values in the allocated memory
-    size_t arrXYsize;
-
-#ifdef FITDATA_IN_GPU
-    double *arrFitData;
-    double *arrFitFqs;
-    int    _fitWidth,
-           _fitHeight;
-    size_t _arrFitSize;
-    bool   _fitEnabled;
-    size_t arrFitDSize, arrFitFSize;
-#endif
-
 //    inline int   latpar1( int a, int b ) const { latparMaxCheck(0,a); return latpar1ptr[latparIDX(a,b, 6)]; }      // [5000][6], genutzt: 0,1,2,3,4,5
 //    inline int   latpar2( int a, int b ) const { latparMaxCheck(1,a); return latpar2ptr[latparIDX(a,b, 6)]; }      // [5000][6], genutzt: 0,1,2,3,4,5
 //    inline float latpar3( int a, int b ) const { latparMaxCheck(2,a); return latpar3ptr[latparIDX(a,b,17)]; }      // [5000][15], genutzt: 1 bis 16
@@ -635,7 +678,6 @@ private:
 
     // Internal variables outside all loops
     int zzmin, zzmax, iimin, iimax;
-    double ax1n_sigx, ax2n_sigy, ax3n_sigz, cubevol, phiwidth, reldis, dist;
 
     int noFitX0[4], noFitX1[4], noFitY0[4], noFitY1[4];
     int fitBStopPixel, fitBorderPixel;
@@ -647,8 +689,8 @@ private:
                      double &mtw11, double &mtw12, double &mtw13, double &mtw21, double &mtw22, double &mtw23, double &mtw31, double &mtw32, double &mtw33, double &vvol,
                      double &nuvwx, double &nuvwy, double &nuvwz, double &uuvwx, double &uuvwy, double &uuvwz, double &vuvwx, double &vuvwy, double &vuvwz,
                      double &nhklx, double &nhkly, double &nhklz, double &uhklx, double &uhkly, double &uhklz, double &vhklx, double &vhkly, double &vhklz );
-    void coefficients(int dim, int nmax, double &order);
-    void ButtonHKLClick(int ltype) const;
+    bool coefficients();
+    std::string ButtonHKLClick(int ltype, bool nurtext) const;
     void fhkl_c(int lat, int h, int k, int l,
                 double &sphno, double &fhkl, double &qhkl, double &qhkl0 ) const;
     void extinction(int lat, int h, int k, int l, int aniso,
@@ -762,7 +804,8 @@ private:
                     //double ax2x, double ax2y, double ax2z,
                     //double ax3x, double ax3y, double ax3z,
                     //double sigx, double sigy, double sigz,
-                    int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
+                    //int ordis, int dim,
+                    int i0, int i1, int i2, int i3, int i4,
                     double *carr1, double &pq ) const;
 
 #ifdef __CUDACC__
@@ -777,7 +820,8 @@ private:
                      //double ax2x, double ax2y, double ax2z,
                      //double ax3x, double ax3y, double ax3z,
                      //double sigx, double sigy, double sigz,
-                     int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
+                     //int ordis, int dim,
+                     int i0, int i1, int i2, int i3, int i4,
                      double *carr1, double &pq, int n, int &trapzddeltac_cnt ) const;
 
 #ifdef __CUDACC__
@@ -792,7 +836,8 @@ private:
                    //double ax2x, double ax2y, double ax2z,
                    //double ax3x, double ax3y, double ax3z,
                    //double sigx, double sigy, double sigz,
-                   int /*ordis*/, int /*dim*/, int /*i0*/, int i1, int /*i2*/, int i3, int /*i4*/,
+                   //int ordis, int dim, int i0,
+                   int i1, int /*i2*/, int i3, int /*i4*/,
                    double *carr1, double &pq, int n,
                    int &trapzdchid_cnt ) const;
 
@@ -809,7 +854,8 @@ private:
                   //double ax2x, double ax2y, double ax2z,
                   //double ax3x, double ax3y, double ax3z,
                   //double sigx, double sigy, double sigz,
-                  int ordis, int dim, int i0, int i1, int i2, int i3, int i4,
+                  //int ordis, int dim, int i0,
+                  int i1, int i2, int i3, int i4,
                   double *carr1, double &pq ) const;
 
 

@@ -670,7 +670,7 @@ widImage *SC_ReadData::readImageKWSData( myAddImage add, QString fn )
     {
         if ( QString(fimg.readLine()).trimmed().contains("Data columns") )
         {
-            //qDebug() << "KWS -> 2D-SANS";
+            qDebug() << "KWS -> 2D-SANS";
             fimg.close();
             return readImage2dSans(add,fn);
         }
@@ -812,7 +812,7 @@ widImage *SC_ReadData::readImageKWSData( myAddImage add, QString fn )
     }
     fimg.close();
     //qDebug() << daten;
-    //qDebug() << daten.size();
+    //qDebug() << "Read KWS-data, len=" << daten.size();
 
     int NbRows, NbCols, BeamPosX, BeamPosY;
     if ( daten.size() == 128*128 )
@@ -824,6 +824,11 @@ widImage *SC_ReadData::readImageKWSData( myAddImage add, QString fn )
     {
         NbRows = NbCols = 144;
         BeamPosX = BeamPosY = 72;
+    }
+    else if ( daten.size() == 256*256 )
+    {
+        NbRows = NbCols = 256;
+        BeamPosX = BeamPosY = 128;
     }
     else
     {

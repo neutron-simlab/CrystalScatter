@@ -70,7 +70,7 @@ double SasCalc_GENERIC_calculation::formpq_partEllips(double sigmal, double qx, 
                                   //params.ax2.x(),params.ax2.y(),params.ax2.z(),
                                   //params.ax3.x(),params.ax3.y(),params.ax3.z(),
                                   //params.sig.x(),params.sig.y(),params.sig.z(),
-                                  params.ordis,3,8,13,7,0,0,params.CR->carr1p,pql);  //Z=18033
+                                  /*params.ordis,3,8,*/13,7,0,0,params.CR->carr1p,pql);  //Z=18033
                         pq = pql;  //Z=18034
                     }/*6*/  //Z=18035
                     /*formpq:=*/ return pq;  //Z=18036
@@ -215,7 +215,7 @@ double SasCalc_GENERIC_calculation::formpq_partEllips(double sigmal, double qx, 
                 }/*5*/   /*  of q<lim  */  //Z=18150
                 else
                 {/*5*/  //Z=18151
-                    qrombdeltac(params.p1,sigmal,params.alphash1,params.polTheta,0,qxs,qys,qz,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,3,4,16,0,0,0,params.CR->carr1p,pql);  //Z=18152
+                    qrombdeltac(params.p1,sigmal,params.alphash1,params.polTheta,0,qxs,qys,qz,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,3,*/4,16,0,0,0,params.CR->carr1p,pql);  //Z=18152
                     pql = pql/params.norm;  //Z=18153
                 }/*5*/  //Z=18154
             }/*4*/  /*  of orcase=1,2,3  */  //Z=18155

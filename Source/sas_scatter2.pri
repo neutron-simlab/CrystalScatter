@@ -27,3 +27,16 @@ win32:{
 
     QWT_BASE = "C:/qwt-6.3.0"
 }
+
+macx|macos:{
+    CUDA_DIR = /usr/local/cuda-12.2   # Path to cuda sdk/toolkit install
+    CUDA_EXE = $$CUDA_DIR/bin/nvcc
+    CUDA_ARCH = sm_75  # native #  compute_52      # Type of CUDA architecture, for example 'compute_10', 'compute_11', 'sm_10'
+
+    FFTW3_PATH = /usr/local/include
+    FFTW3_LIBS = /usr/local/lib
+
+    HDF5_BASE = /usr/local/hdf5
+
+    QWT_BASE = /usr/local/qwt
+}

@@ -19,6 +19,11 @@
 #include "sc_simplexfit2d.h"
 #include "widimage.h"
 #include "sc_readdata.h"
+#ifndef ChatbotDisabled
+#include <QJsonObject>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#endif
 
 // Zeilendefinitionen für ui->tblLattice3D
 #define tblLattWaveLen  0
@@ -111,7 +116,7 @@ private slots:
     void on_actionExit_triggered();
     void on_tabMain_currentChanged(int index);
     void on_butCalc_clicked();      // mit speichern der Parameter im Temp-File
-    void local_butCalc_clicked();   // ohne speichern der Parameter im Temp-File (wg Timer als Slot)
+    void local_butCalc_clicked(bool doshow=true);   // ohne speichern der Parameter im Temp-File (wg Timer als Slot)
     void on_butAbbruch_clicked();
     void on_radNewImageCfg_toggled(bool checked);
     void on_radLastImageCfg_toggled(bool checked);
@@ -249,6 +254,21 @@ private slots:
     void on_butChatbotSaveConfig_clicked();
     void on_butChatbotReadClipboard_clicked();
     void chatbotClipboardChanged(QClipboard::Mode);
+    void on_butParamSearchChatbot_clicked();
+    void on_butChatbotSrvConnect_clicked();
+    void on_butChatbotSrvDisconn_clicked();
+    void on_tabCBCommSel_currentChanged(int index);
+    void on_inpChatbotTrainfile_textEdited(const QString &arg1);
+    void on_inpChatbotSrvInput_textChanged();
+    void on_inpChatbotSrvInput_returnPressed();
+    void on_togChatbotCalcMain_toggled(bool arg1);
+    void on_butChatbotSrvClear_clicked();
+    void on_butChatbotSrvSend_clicked();
+
+    // Rest-Api
+    void chatbotDoSend(QString cmd);
+    void chatbotSlotError(QNetworkReply::NetworkError);
+    void chatbotReplyFinished(QNetworkReply*);
 #endif
 
     void on_togUseAdaptiveStep_toggled(bool checked);
@@ -257,14 +277,14 @@ private slots:
     void on_actionSave_current_values_as_text_triggered();
     void on_actionShow_Parameter_w_o_Tooltip_triggered();
 
-    void on_actionGenerate_all_combinations_of_CBs_triggered();    
+    void on_actionGenerate_all_combinations_of_CBs_triggered();
 
 private:
     Ui::SC_MainGUI *ui;
 
-    SC_CalcGUI *calcGui;
-    bool bIgnoreUpdates;    // GUI updates
-
+    SC_CalcGUI *calcGui = nullptr;
+    bool bIgnoreUpdates;    // GUI updates bei performTimingTests oder per Toggle von der GUI
+    bool bNoUpdateFromCBS;  // in den CBS-Callbacks werden keine anderen Daten modifiziert (wegen LoadParameter)
     bool bIgnoreRecalc;     // Load Parameters etc.
 
     QString fnTempParamFile;
@@ -274,7 +294,7 @@ private:
     void closeAutoProcessingFile( QString reason );
 
     void fillDataFromInputs();
-    void prepareCalculation( bool progbar );
+    void prepareGuiAndData();
     void finishCalculation(bool showtime);
 
     void performIFFTcalculations(int curimg, QString tit, bool foreward);
@@ -291,7 +311,7 @@ private:
     QString dataPath;       // Save path to last image
     QString lastDataFile;   // das letzte geöffnete Messdatenfile
     bool closeMainActive;   // True if the main window closes all image windows due to exit
-    widImage* addImage( bool neu, int x0, int x1, int y0, int y1, double *d, QString title, bool meta );
+    widImage* addImage( bool neu, int x0, int x1, int y0, int y1, double *d, QString title, bool meta, bool doshow=true );
     widImage *lastUsedImage;        // das letzte (aktuellste) gerechnete Bild
     widImage *curFitImage;          // das anzufittende Bild
     widImage *lastSelectedImage;    // das letzte selektierte Bild in der Liste der Bilder
@@ -338,18 +358,6 @@ private:
     QElapsedTimer calcRunTime;
     int calcMaxTime;
     myCalcThread *_calcThread;
-    inline void waitForCalcThread()
-    {
-        while ( ! _calcThread->wait(50) )
-        {
-            qApp->processEvents();
-            if ( _bAbbruch )
-            {
-                _calcThread->beenden();
-                break;
-            }
-        }
-    }
     void automaticRecalcDoit(); // Wird von cbsLType aufgerufen
 
     // Tab "AI"
@@ -388,7 +396,9 @@ private:
     void setValue( QString data, QString name );
 
     QStringList tpvParamsKeys;
-    bool vergleicheCheckData( QString par, double val, const double *check, int mx );
+    QStringList parChgImg_doCalculation(QStringList inpParams, QLabel *lblinfo);
+    bool        parChgImg_compareData(QString par, double val, const double *check, int mx);
+    QStringList parChgImg_generateParamList();
 
     // Daten zum Vergleich der aktuellen Parameter mit einem File
     /*typedef struct
@@ -408,14 +418,23 @@ private:
 
     bool localCheckToolTip(QWidget *w, bool &used);
 
-    bool genIniFile_CombinationOfCBs(QFile *flog, QString outpath, bool genimg);
+    bool genIniFile_CombinationOfCBs(QFile *flog, QString outpath, bool genimg, bool checkNan, bool genJson);
 
 #ifndef ChatbotDisabled
     // Tab "ChatBot"
     QString chatbotConsProg;
     QProcess *chatbotBackProg;
     void chatbotBackProgAddLog(QString msg);
-    void chatbotSaveConfigHelper(QFile &fTrain, QString key, bool showena, bool isena);
+    void chatbotSaveConfig(QString fn, QString descr);
+    void chatbotSaveConfigHelper(QJsonObject &jsParam, QString parkey, QString jskey);
+    QString jsval2str( QString key, QJsonValue val );
+    QHash<QString,QString> paramkey2jsonkey;
+    void generateKeyHash();
+    void loadChatbotParamFile(QString fn, bool logLoading);
+
+    QNetworkAccessManager *chatbotManager;
+    QUrl chatbotUrl;
+    QNetworkReply *chatbotReply;
 #endif
 
 };

@@ -57,6 +57,10 @@ void debugWinMsgHandler( QtMsgType type, const QMessageLogContext &context, cons
 #endif
         break;
     case QtWarningMsg:
+        // Warning: setGeometry: Unable to set geometry 481x546+0+39 (frame: 499x593-9+1) on QWidgetWindow/"widImageWindow" on "\\.\DISPLAY1". Resulting geometry: 479x538+1+46 (frame: 497x585-8+8) margins: 9, 38, 9, 9 minimum size: 374x437 MINMAXINFO(maxSize=POINT(x=0, y=0), maxpos=POINT(x=0, y=0), maxtrack=POINT(x=0, y=0), mintrack=POINT(x=486, y=593)))
+        if ( msg.contains("setGeometry: Unable to set geometry") ) break;
+        // Diese Meldung kommt, weil Qt das Image-Fenster anscheinend nicht richtig anzeigen kann.
+        // Meiner Menung nach ist das aber nicht so entscheidend.
 #ifdef MitSourceInfos
         fprintf( stderr, "Warning: %s (%s:%d, %s)\n", qPrintable(msg), context.file, context.line, context.function );
 #else

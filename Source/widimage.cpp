@@ -422,17 +422,17 @@ int widImage::setData1D(int x1, double q0, double q1, double *d)
     maxY = 1;
     //data.clear();
     int len = x1;
-    //qDebug() << "setData1D" << qmin_1d << qmax << "(1d)";
+    qDebug() << "setData1D" << qmin_1d << qmax << "(1d)";
 #ifdef CountNanValues
     int cntNan=0;
 #endif
     data.resize( len );    // TODO brauche ich die hier?
     points1d.resize(len);
-    double qstp = (qmax - qmin_1d) / (double)len;
+    double qstp = (qmax - qmin_1d) / (double)len; // len=x1
     for ( int i=0; i<len; i++ )
     {
         QPointF pnt;
-        pnt.setX( i*qstp );
+        pnt.setX( qmin_1d + i*qstp );
         if ( isnan(*d) )
         {
 #ifdef CountNanValues
@@ -537,6 +537,7 @@ int widImage::setData( int x0, int x1, int y0, int y1, double *d )
     data.clear();
     int len = (x1-x0)*(y1-y0);
     //qDebug() << len << minX << maxX << minY << maxY;
+    if ( len == 0 ) return 0; // Wenn ein Image nicht berechnet wurde
 #ifdef CountNanValues
     int cntNan=0;
 #endif
@@ -633,12 +634,12 @@ bool widImage::loadImageFile( QString fn )
 #endif
 
 
-void widImage::saveImage( QString fn )
+bool widImage::saveImage( QString fn )
 {
     if ( noGUI )
-        imgNoGUI.save(fn);
+        return imgNoGUI.save(fn);
     else
-        imgNormal.save(fn);
+        return imgNormal.save(fn);
 }
 
 bool widImage::saveImageColor(QString fn, QString coltbl, QString &dbg)
@@ -690,13 +691,13 @@ void widImage::saveImageBinary( QString fn )
     f.close();
 }
 
-void widImage::saveImage( QString fn, QSize siz )
+bool widImage::saveImage( QString fn, QSize siz )
 {
-    if ( noGUI ) return;
+    if ( noGUI ) return false;
     if ( siz.isNull() )
-        imgNormal.save(fn);
+        return imgNormal.save(fn);
     else
-        imgNormal.scaled(siz).save(fn);
+        return imgNormal.scaled(siz).save(fn);
 }
 
 void widImage::saveImageGray( QString fn, QSize siz )
@@ -1077,8 +1078,9 @@ void widImage::switchGuiFor1d()
         ui->lblColorTable->hide();
         ui->lblCbsColorTbl->hide();
         ui->cbsColorTbl->hide();
-        ui->scrollArea2d->hide();  //qDebug()<<"img hide";
+        ui->scrollArea2d->hide();
         ui->scrollArea1d->show();
+        ui->grpScaleH->show();
     }
     else
     {   // für 2d wieder zeigen
@@ -1090,7 +1092,8 @@ void widImage::switchGuiFor1d()
         ui->lblCbsColorTbl->show();
         ui->cbsColorTbl->show();
         ui->scrollArea1d->hide();
-        ui->scrollArea2d->show();  //qDebug()<<"img show";
+        ui->scrollArea2d->show();
+        ui->grpScaleH->hide();
     }
     adjustSize();
 }
@@ -1150,7 +1153,7 @@ void widImage::plot1dCurve(double vmin, double vmax, bool isLog)
         QwtScaleDiv yDiv = ylogScale->divideScale(x1, x2, 2/*maxMajorSteps*/, 10/*maxMinorSteps*/, stp/*stepSize*/);
         plot1d->setAxisScaleEngine(QwtPlot::yLeft, ylogScale);
         plot1d->setAxisScaleDiv(QwtPlot::yLeft, yDiv);
-        qDebug() << "yLog:" << vmin << vmax << "->" << x1 << x2 << ":" << stp;
+        //qDebug() << "yLog:" << vmin << vmax << "->" << x1 << x2 << ":" << stp;
     }
     else
     {
@@ -1256,6 +1259,8 @@ QImage widImage::generateImage()
         ui->lblDispMaxLin->setText( QString::number(vmax) );
         ui->lblDispMinLog->setText( QString::number(vlogmin) );
         ui->lblDispMaxLog->setText( QString::number(vlogmax) );
+        if ( isinf(vmax) || isinf(vlogmax) )        // Wenn die Maximalwerte 'inf' sind, dann wird auf die
+            ui->radScaleFixed->setChecked(true);    // feste Skalierung gewechselt, dmait man ein Bild bekommt.
     }
     if ( !noGUI && ui->radScaleFixed->isChecked() )
     {
@@ -1289,7 +1294,7 @@ QImage widImage::generateImage()
         QRect rc = plot1d->geometry();
         QImage img( rc.width(), rc.height(), QImage::Format_RGB32 );
         QPainter pnt(&img);
-        //pnt.fillRect( rc, Qt::white );
+        pnt.fillRect( rc, Qt::white );
         //qDebug() << rc;
         QwtPlotRenderer rend;
         rend.render(plot1d,&pnt,rc);
@@ -1483,7 +1488,7 @@ void widImage::on_butSave_clicked()
         else
             qDebug() << f.fileName() << f.errorString();
 
-        // ----- Save the image in textual format
+        // ----- Save the image in textual format (CSV)
         fn = fnbase + ".csv";
         f.setFileName(fn);
         if ( f.open(QIODevice::WriteOnly) )
@@ -1507,6 +1512,25 @@ void widImage::on_butSave_clicked()
         else
             qDebug() << f.fileName() << f.errorString();
     } // !data1D
+    else
+    {
+        // ----- Save the 1D data in textual format (CSV)
+        fn = fnbase + ".csv";
+        f.setFileName(fn);
+        if ( f.open(QIODevice::WriteOnly) )
+        {
+            double qstp = (qmax - qmin_1d) / (double)(maxX-minX);
+            QTextStream ts(&f);
+            ts << "q;I(q)" << EOL;
+            for ( int x=minX; x<maxX; x++ )
+            {
+                ts << qmin_1d+x*qstp << ";" << getData(x,0) << EOL;
+            }
+            f.close();
+        }
+        else
+            qDebug() << f.fileName() << f.errorString();
+    }
 
     // ----- Save the image in PNG format
     saveImage(fnbase+".png");

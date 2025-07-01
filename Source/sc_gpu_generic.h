@@ -628,7 +628,7 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
                                        CALC.ri11,CALC.ri12,CALC.ri13, CALC.ri21,CALC.ri22,CALC.ri23,
                                        CALC.ri31,CALC.ri32,CALC.ri33,  //Z=25928
                                        qxhkl,qyhkl,qzhkl,qhkl,
-                                       CALC.params.ordis,3,5,7,h,k,l, CALC.params.CR->carr1p, sq);  //Z=25930
+                                       /*CALC.params.ordis,3,5,*/7,h,k,l, CALC.params.CR->carr1p, sq);  //Z=25930
                         sq = sq*2*M_PI*qhkl/(2.0*M_PI*sqrt(M_PI*M_PI*M_PI)*CALC.params.sig.x()*CALC.params.sig.y()*CALC.params.sig.z()/8.0);  //Z=25931
                     }
                     else // if ( (CALC.ordis!=6) && (CALC.ordis!=7) && (CALC.ordis!=13) && (CALC.dbeta!=0) )      //Z=25985
@@ -638,7 +638,7 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
                         const double theta = atan2(sqrt(qxhkl*qxhkl+qyhkl*qyhkl),(qzhkl+eps6)) * 180.0/M_PI;
                         CALC.qrombdeltac(CALC.params.p1, CALC.params.sigma, CALC.params.alpha, // CALC.params.ax*
                                          theta, phi, qx, qy, qz, qxhkl, qyhkl, qzhkl, qhkl,
-                                         CALC.params.ordis,3, /*i0=*/5, /*i1=*/6,0,0,0, CALC.params.CR->carr1p, sq );
+                                         /*CALC.params.ordis,3,*/ /*i0=*/5, /*i1=*/6,0,0,0, CALC.params.CR->carr1p, sq );
                         sq = sq*2*M_PI*qhkl/CALC.params.norm;  //Z=25991
                     }
                 } // if ! twin
@@ -674,7 +674,7 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
                                        CALC.ri11,CALC.ri12,CALC.ri13, CALC.ri21,CALC.ri22,CALC.ri23,
                                        CALC.ri31,CALC.ri32,CALC.ri33,  //Z=25928
                                        qxhkl,qyhkl,qzhkl,qhkl,
-                                       CALC.params.ordis,3,5,7,h,k,l, CALC.params.CR->carr1p, sqtwin);  //Z=25930
+                                       /*CALC.params.ordis,3,5,*/7,h,k,l, CALC.params.CR->carr1p, sqtwin);  //Z=25930
                         sqtwin = sqtwin*2*M_PI*qhkl/(2*M_PI*sqrt(M_PI*M_PI*M_PI)*CALC.params.sig.x()*CALC.params.sig.y()*CALC.params.sig.z()/8.0);
                     }
                     else // if ((ordis<>6) and (ordis<>7) and (ordis<>13) and (dbeta<>0)) then begin
@@ -683,7 +683,7 @@ inline double SasCalc_GENERIC_calculation::calc_GENERIC(const SasCalc_GENERIC_ca
                         const double theta = atan2(sqrt(qxhkl*qxhkl+qyhkl*qyhkl),(qzhkl+eps6)) * 180.0/M_PI;
                         CALC.qrombdeltac(CALC.params.p1, CALC.params.sigma, CALC.params.alpha, // CALC.params.ax*
                                          theta, phi, qx, qy, qz, qxhkl, qyhkl, qzhkl, qhkl,
-                                         CALC.params.ordis,3, /*i0=*/5, /*i1=*/6,0,0,0, CALC.params.CR->carr1p, sq );
+                                         /*CALC.params.ordis,3,*/ /*i0=*/5, /*i1=*/6,0,0,0, CALC.params.CR->carr1p, sq );
                         sqtwin = sqtwin*2*M_PI*qhkl/CALC.params.norm;
                     }
                     sq = CALC.params.ceff*sq+(1-CALC.params.ceff)*sqtwin;

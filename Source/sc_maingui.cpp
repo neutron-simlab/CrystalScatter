@@ -56,6 +56,7 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     fitMinimalOutput = false;
     lastAutoFitLine = "";
     bIgnoreRecalc = true; // during init
+    bNoUpdateFromCBS = false;
     lastUsedImage = nullptr;
     curFitImage = nullptr;
     lastSelectedImage = nullptr;
@@ -78,6 +79,7 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
 
     ui->grpValChg->hide();          // Keine Gruppe mit den Eintragungen der Änderungen
     //ui->spacerValChg->hide();     // oder keinen Spacer...
+    ui->grpChgImgCurParam->hide();
 
     // Set menu flags to defaults
     ui->actionHide_unused_values->setChecked(true);  // true: hide unused values, false: show unused values with grey labels
@@ -144,9 +146,14 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     ui->inpParamSearchPath->setText( sets.value("ParamSearchPath",dataPath).toString() );
     ui->lisParamSearchResult->setEnabled(false);
     ui->butParamSearchGenerate->setEnabled(false);
+    ui->butParamSearchChatbot->setEnabled(false);
     ui->lblParamSearchLog->hide();
     ui->lblParamSearchLog->setText(" ");
     bSearchParamsRunning = false;
+
+    ui->togUseAdaptiveStep->blockSignals(true);
+    ui->togUseAdaptiveStep->setChecked( sets.value("UseAdaptiveStep",true).toBool() );
+    ui->togUseAdaptiveStep->blockSignals(false);
 
     // --------------------------
     // --- TAB  Data ------------
@@ -470,14 +477,23 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     ui->grpChatbotLogfile->setChecked( sets.value("LogEnabled",true).toBool() );
     ui->togChatbotHor->setChecked( sets.value("ImgHor",false).toBool() );
     ui->togChatbotVert->setChecked( sets.value("ImgVert",false).toBool() );
+    ui->grpChatbotWebserver->setChecked( sets.value("WebSrv",false).toBool() );
+    ui->inpChatbotSrvIP->setText( sets.value("SrvIP","").toString() );
+    ui->inpChatbotSrvPort->setValue( sets.value("SrvPort",8008).toInt() );
     sets.endGroup();
     ui->butChatbotStop->setEnabled(false);
+    ui->butChatbotSrvDisconn->setEnabled(false);
+    ui->lblChatbotSrvInfo->setText("Not connected");
+    ui->tabCBCommSel->setCurrentIndex(0);
+    ui->butChatbotSrvSend->setEnabled(false);
     if ( chatbotConsProg.isEmpty() )
     {
         ui->lisChatbotLogOut->clear();
         ui->butChatbotStart->setEnabled(false);
         chatbotBackProgAddLog("Background process exec not found but needed for this function.");
     }
+
+    chatbotManager = nullptr;
 #endif // ChatbotDisabled
 
     // --------------------------
@@ -495,6 +511,9 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     // Abschluss ---------------
     // -------------------------
     ui->tabMain->setCurrentWidget( ui->tabCalc );
+
+     myGuiParam::updateAdaptiveSteps( ui->togUseAdaptiveStep->isChecked() );
+
 /*
     ==> mit dem QApplication::setStyle(QStyleFactory::create("windowsvista")); in sc_main.cpp geht es auch mit den Default-Abständen
 #ifdef WIN32
@@ -518,6 +537,24 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
 #endif
 */
 
+#ifndef WIN32
+#if (QT_VERSION < QT_VERSION_CHECK(6,0,0))
+    QList<QFrame*> frm = findChildren<QFrame*>();
+    QStringList vertStattHor = { "line", "line_2", "line_10", "line_11", "line_12", "line_13" };
+    // Unter der älteren Version / Linux stehen verschiedene Linien (QFrame) nicht richtig, alle
+    //  werden horizontal angezeigt, auch wenn sie vertikal sein sollten. Das wird hier
+    //  korrigiert.
+    foreach ( QFrame *f, frm )
+    {
+        if ( f->objectName().startsWith("line_") || f->objectName()=="line" )
+        {
+            if ( vertStattHor.contains(f->objectName()) )
+                f->setFrameShape( QFrame::VLine );
+        }
+    }
+#endif
+#endif
+
     QTimer::singleShot( 300, this, SLOT(initCbsAfterStart()) ); // Konstruktor für cbs Trigger und adjustSize()
 }
 
@@ -540,6 +577,7 @@ SC_MainGUI::~SC_MainGUI()
  */
 void SC_MainGUI::closeEvent(QCloseEvent *event)
 {
+    //qDebug() << "Main:closeEvent";
     if ( !closeMainActive )
     {
         closeMainActive = true; // Avoid calls to imageWindowClosed()
@@ -566,6 +604,7 @@ void SC_MainGUI::closeEvent(QCloseEvent *event)
         sets.setValue( "ExpandImg", ui->togExpandImage->isChecked() );
         sets.setValue( "ParamSearchPath", ui->inpParamSearchPath->text() );
         sets.setValue( "UseCenterBeam", ui->radCenterBeam->isChecked() );
+        sets.setValue( "UseAdaptiveStep", ui->togUseAdaptiveStep->isChecked() );
 
         if ( fitparams != nullptr )
         {
@@ -697,7 +736,10 @@ void SC_MainGUI::closeEvent(QCloseEvent *event)
         sets.setValue("LogFile",ui->inpChatbotLogfile->text());
         sets.setValue("LogEnabled",ui->grpChatbotLogfile->isChecked());
         sets.setValue("ImgHor",ui->togChatbotHor->isChecked());
-        sets.setValue("ImgVert",ui->togChatbotVert->isChecked());
+        sets.setValue("ImgVert",ui->togChatbotVert->isChecked());        
+        sets.setValue("WebSrv",ui->grpChatbotWebserver->isChecked());
+        sets.setValue("SrvIP",ui->inpChatbotSrvIP->text());
+        sets.setValue("SrvPort",ui->inpChatbotSrvPort->value());
         sets.endGroup();
 #endif
 
@@ -787,11 +829,11 @@ void SC_MainGUI::fillDataFromInputs()
 
 
 /**
- * @brief SC_MainGUI::prepareCalculation
+ * @brief SC_MainGUI::prepareGuiAndData
  * @param progbar - enable state of the progressBar
  * This procedure disables the gui elements during the calculation and starts the prepare routine in the calculation class.
  */
-void SC_MainGUI::prepareCalculation( bool progbar )
+void SC_MainGUI::prepareGuiAndData()
 {
     ui->butCalc->setEnabled(false);
     ui->butFitStart->setEnabled(false);
@@ -799,10 +841,10 @@ void SC_MainGUI::prepareCalculation( bool progbar )
     ui->butFFT->setEnabled(false); // Prepare Calc
     ui->butAbbruch->setEnabled(true);
     ui->butAbbruch->setText("Abort");
-    ui->progressBar->setEnabled(progbar);
+    ui->progressBar->setEnabled(true);
     qApp->processEvents();
     fillDataFromInputs();
-    calcGui->prepareCalculation( false, _is1Dused );
+    calcGui->prepareData( false, _is1Dused );
 }
 
 
@@ -856,7 +898,7 @@ void SC_MainGUI::on_butCalc_clicked()
  * @brief SC_MainGUI::local_butCalc_clicked
  * Start the calculation in a thread without saving the current values.
  */
-void SC_MainGUI::local_butCalc_clicked()
+void SC_MainGUI::local_butCalc_clicked(bool doshow)
 {
     if ( _calcThread == nullptr )
         _calcThread = new myCalcThread(calcGui);
@@ -864,7 +906,7 @@ void SC_MainGUI::local_butCalc_clicked()
     _calcThread->setIgnoreNewSwitch( ui->togIgnNewSwitch->isChecked() );
     _is1Dused = ui->tab1D2D->currentIndex() == 0;
 
-    prepareCalculation( true );
+    prepareGuiAndData();
 
     if ( _logThreadTimer == nullptr )
     {
@@ -916,21 +958,42 @@ void SC_MainGUI::local_butCalc_clicked()
     calcRunTime.start();
     _calcThread->start();
     _logThreadTimer->start( 100 );
-    waitForCalcThread();
-    //qDebug() << "MainGUI: nach Wait" << _bAbbruch << _bAbortTimer;
-    //_calcThread->beenden(); // noch notwendig?
+    // Wait for CalcThread to finish (or cancel it if the user aborts)
+    while ( ! _calcThread->wait(50) )
+    {
+        qApp->processEvents();
+        if ( _bAbbruch )
+        {
+            _calcThread->beenden();
+            break;
+        }
+    }
     _logThreadTimer->stop();
 
     finishCalculation(true);
-    // Generate Image window
-    lastUsedImage = addImage( false,    // Die Radio-Buttons werden beachtet
-                              calcGui->minX(), calcGui->maxX(),
-                              calcGui->minY(), calcGui->maxY(),
-                              calcGui->data(), "Image", true );
+    QString calcError = QString::fromStdString(calcGui->getCalcPtr()->getLastErrorMessage());
 
-    if ( !timingTestsRunning && !bIgnoreRecalc && autoProcessingFile!=nullptr && autoProcessingFile->isOpen() )
+    if ( ! calcError.isEmpty() )
     {
-        QTimer::singleShot( 200, this, SLOT(autoProcessingTimer()) );
+        if ( timingTestsRunning )
+            _bAbbruch = true;
+        else
+            QMessageBox::critical( this, "Parameter-Error", "Some parameters are invalid:\n\n"+calcError);
+        if ( autoProcessingFile!=nullptr && autoProcessingFile->isOpen() )
+            closeAutoProcessingFile("Calc error");
+    }
+    else
+    {
+        // Generate Image window
+        lastUsedImage = addImage( false,    // Die Radio-Buttons werden beachtet
+                                  calcGui->minX(), calcGui->maxX(),
+                                  calcGui->minY(), calcGui->maxY(),
+                                  calcGui->data(), "Image", true, doshow );
+
+        if ( !timingTestsRunning && !bIgnoreRecalc && autoProcessingFile!=nullptr && autoProcessingFile->isOpen() )
+        {
+            QTimer::singleShot( 200, this, SLOT(autoProcessingTimer()) );
+        }
     }
 }
 
@@ -983,7 +1046,7 @@ void SC_MainGUI::automaticRecalc()
              w->objectName().contains("ComboBoxInterior",Qt::CaseInsensitive) ||
              w->objectName().contains("ComboBoxPeak",Qt::CaseInsensitive)*/ )
         {
-            qDebug() << "NO RECALC" << w->objectName();
+            //qDebug() << "NO RECALC" << w->objectName();
             return;
         }
     }
@@ -1396,10 +1459,13 @@ void SC_MainGUI::performSaveParamOperation( QString fn )
 
 void SC_MainGUI::on_actionLoad_all_Parameters_triggered()
 {
+    QString parfilter = "Parameter (*.ini);;Scatter-Parameter (*.par)";
+#ifndef ChatbotDisabled
+    parfilter += ";;Chatbot-Parameter (*.json)";
+#endif
     QSettings data(SETT_APP,SETT_PAR);
     QString fn = data.value("LastParam",".").toString();
-    fn = QFileDialog::getOpenFileName( this, "Load Parameter", fn,
-                                       "Parameter (*.ini);;Scatter-Parameter (*.par)" //);
+    fn = QFileDialog::getOpenFileName( this, "Load Parameter", fn, parfilter //);
                                       , nullptr, QFileDialog::DontUseNativeDialog | QFileDialog::DontResolveSymlinks );
     if ( fn.isEmpty() ) return;
     DT( QElapsedTimer et;   et.start() );
@@ -1458,12 +1524,14 @@ double SC_MainGUI::loadParameter_checkOldFormat(QSettings &sets, QString oldkey,
 QString SC_MainGUI::local_Load_all_Parameters(QString fn)
 {
     bIgnoreRecalc = true;  // Load start
+    bNoUpdateFromCBS = true;
     DT( qDebug() << "local_Load_all_Parameters()" << fn );
     if ( fn.endsWith(".par",Qt::CaseInsensitive) )
     {
         qDebug() << "loadScatterParameter" << fn;
         loadScatterParameter(fn);
         bIgnoreRecalc = false;  // Load Scatter done
+        bNoUpdateFromCBS = false;
         return "";
     }
     ui->lblLoadPrompt->show();
@@ -1481,132 +1549,150 @@ QString SC_MainGUI::local_Load_all_Parameters(QString fn)
     bool hklloaded, gridloaded;
 
     bool logLoading = ui->actionLog_loading->isChecked();
+    int sel1d2d;
 
-    // Wenn im aktuellen Entwicklungsschritt (nur die Methode "Generic" bekannt) alte Files geladen werden
-    // sollen, die noch mehrere Methoden enthalten, dann gibt es den Schlüssel "CurMethod" in der Gruppe
-    // "Inputs". Dies soll dann die Methode sein, die geladen werden soll, auch wenn dieser Name hier nicht
-    // bekannt ist. Zugleich wird der Wert vom Parameter LType auf die Methode gesetzt. Somit können die
-    // Parameterfiles aus dem alten Format wieder normal gelesen werden.
-    QSettings sets( fn, QSettings::IniFormat );
-    QStringList gr = sets.childGroups();
-    if ( logLoading )
+#ifndef ChatbotDisabled
+    if ( fn.endsWith(".json",Qt::CaseInsensitive) )
     {
-        calcGui->loadParamLogmessage(sets,"","START "+fn);  // must be the first message to open the logfile
-        calcGui->loadParamLogmessage(sets,"","all groups: \""+gr.join("\", \"")+"\"");
-    }
-    gr.removeOne("Inputs");
-    gr.removeOne("FFT");
-    gr.removeOne("AI");     // TODO: neue feste Gruppen hier ausblenden
-    if ( gr.size() > 1 )
-    {   // Jetzt gibt es mehr als eine Methode
-        sets.beginGroup( "Inputs" );
-        QString m = sets.value("CurMethod","").toString();
-        sets.endGroup();
-        if ( ! m.isEmpty() )
+        if ( logLoading )
         {
-            QString mm = m;
-            if ( mm.indexOf(" ") > 0 ) mm.truncate(mm.indexOf(" "));
-            if ( logLoading ) calcGui->loadParamLogmessage(sets,"","current method from [Inputs] "+m+" LType="+mm );
-            // Suchen des richtigen LType-Wertes durch scan der Combobox-Texte
-            for ( int val=0; val<ui->cbsLType->count(); val++ )
-                if ( ui->cbsLType->itemText(val).startsWith(mm,Qt::CaseInsensitive) )
-                {
-                    calcGui->updateParamValue( "LType", val, SETCOLMARK_IGNORED, false );
-                    break;
-                }
-            rv = calcGui->loadParameter(fn,"@"+m,hklloaded,gridloaded,logLoading);
-            isloaded = true;
+            calcGui->loadParamLogmessage("JSON","","","START "+fn);  // must be the first message to open the logfile
         }
+        loadChatbotParamFile(fn, logLoading);
+        sel1d2d = 1;
     }
-
-    if ( !isloaded )
-        rv = calcGui->loadParameter(fn,"",hklloaded,gridloaded,logLoading);
-
-    // Load all common parameters
-    sets.beginGroup( "Inputs" );
-    if ( logLoading && !rv.isEmpty() ) calcGui->loadParamLogmessage(sets,""," [Inputs] rv="+rv );
-    ui->radQ1->setChecked( calcGui->loadparamWithLog(sets,"RadioButtonQ1",false,logLoading) );
-    ui->radQ2->setChecked( calcGui->loadparamWithLog(sets,"RadioButtonQ2",false,logLoading) );
-    ui->radQ4->setChecked( calcGui->loadparamWithLog(sets,"RadioButtonQ4",false,logLoading) );
-    ui->togExpandImage->setChecked( sets.value( "ExpandImage", false ).toBool() );
-    ui->togExpandImage->setEnabled( ! ui->radQ4->isChecked() );
-    bool sel1d2d = sets.value("Use2D",1).toInt();  // 0=1D, 1=2D und es muss ohne BlockSignals gesetzt werden!
-    ui->inpVAx1->setValue( loadParameter_checkOldFormat( sets, "EditAxis1x", "VAx1", rv, logLoading ) );
-    ui->inpAy1->setValue( loadParameter_checkOldFormat( sets, "EditAxis1y", "Ay1", rv, logLoading ) );
-    ui->inpAz1->setValue( loadParameter_checkOldFormat( sets, "EditAxis1z", "Az1", rv, logLoading ) );
-    ui->inpVAx2_VAx1->setValue( loadParameter_checkOldFormat( sets, "EditAxis2x", "VAx2", rv, logLoading ) );
-    ui->inpAy2_Ay1->setValue( loadParameter_checkOldFormat( sets, "EditAxis2y", "Ay2", rv, logLoading ) );
-    ui->inpAz2_Az1->setValue( loadParameter_checkOldFormat( sets, "EditAxis2z", "Az2", rv, logLoading ) );
-    ui->inpVAx3_VAx1->setValue( loadParameter_checkOldFormat( sets, "EditAxis3x", "VAx3", rv, logLoading ) );
-    ui->inpAy3_Ay1->setValue( loadParameter_checkOldFormat( sets, "EditAxis3y", "Ay3", rv, logLoading ) );
-    ui->inpAz3_Az1->setValue( loadParameter_checkOldFormat( sets, "EditAxis3z", "Az3", rv, logLoading ) );
-    ui->inpSigX->setValue( loadParameter_checkOldFormat( sets, "Editdom1", "SigX", rv, logLoading ) );
-    ui->inpSigY_SigX->setValue( loadParameter_checkOldFormat( sets, "Editdom2", "SigY", rv, logLoading ) );
-    ui->inpSigZ_SigX->setValue( loadParameter_checkOldFormat( sets, "Editdom3", "SigZ", rv, logLoading ) );
-    ui->inpBeamPosX->setValue( calcGui->loadparamWithLog(sets,"EditCenterX",0.0,logLoading) );
-    ui->inpBeamPosY_BeamPosX->setValue( calcGui->loadparamWithLog(sets,"EditCenterY",0.0,logLoading) );
-    //qDebug() << "Load CenterBeam:" << calcGui->currentParamValueInt("CenterBeam");
-    if ( calcGui->currentParamValueInt("CenterBeam")>0 )
-        ui->radCenterBeam->setChecked( true );
     else
-        ui->radCenterMidpoint->setChecked( true );
-
-    // EditHKLmax und EditGridPoints sind jetzt in die normalen Parameter gewandert...
-    //qDebug() << "*** LOAD ***" << hklloaded << gridloaded;
-    if ( !hklloaded )
-        ui->intHKLmax->setValue( loadParameter_checkOldFormat( sets, "HKLmax", "HKLmax", rv, logLoading ) );
-    if ( !gridloaded )
-        ui->intGridPoints->setValue( loadParameter_checkOldFormat( sets, "GridPoints", "GridPoints", rv, logLoading ) );
-
-    // Werte aus dem 'rv' und den ColorMarkern entfernen, die im alten Format (noch) keinen Sinn gemacht hatten.
-    loadParameter_checkOldFormat( sets, "", "CalcQmax", rv, logLoading );
-    loadParameter_checkOldFormat( sets, "", "CenterBeam", rv, logLoading );
-
-    if ( rv.endsWith(", ") ) rv.chop(2);
-    //qDebug() << "LoadParameters:" << rv;
-    if ( rv.contains("Unknown parameters in file") )
-        showColorMarker( SETCOLMARK_OLDPARAM );
-
-    // Wenn im Parametersatz die GPU aktiviert ist, im aktuellen System diese aber nicht vorhanden ist,
-    // so würde das Eingabefeld auf 1 Thread schalten. Das ist unklug und wird hier auf die maximale
-    // Anzahl von Threads umgebogen. Kommt vor, wenn Parameterfiles vom Linux (mit GPU) zum Laptop
-    // (ohne GPU) kopiert werden.
-    int thr = calcGui->loadparamWithLog(sets,"Threads",0,logLoading);
-    if ( thr == 0 /*GPU*/ && ui->inpNumCores->minimum() == 1 /*keine GPU vorhanden*/ )
-        thr = ui->inpNumCores->maximum();
-    // Andersherum wird bei einem Thread-Parameter > 1 und vorhandener GPU auf die GPU gestellt.
-    else if ( thr > 0 && ui->inpNumCores->minimum() == 0 /*GPU ist vorhanden*/ )
-        thr = 0;
-    ui->inpNumCores->setValue( thr );
-
-    ui->txtComment->setText( calcGui->loadparamWithLog(sets,"Comment",QString(),logLoading) );
-    if ( ui->txtComment->text().isEmpty() )
-        ui->txtComment->setText( QFileInfo(fn).baseName() );
-
-    sets.endGroup();    // [Inputs]
-
-    if ( ui->togAILoadFromParam->isChecked() )
+#endif
     {
-        sets.beginGroup( "AI" );
-        //ui->togAILoadFromParam->setChecked( sets.value("LoadFromParam").toBool() );
-        ui->inpSubDir->setText( calcGui->loadparamWithLog(sets,"LastSubDir",dataPath,logLoading) );
-        ui->cbsAIoutputFormat->setCurrentIndex( calcGui->loadparamWithLog(sets,"Grayscale",1,logLoading) );
-        ui->grpFileInput->setChecked( calcGui->loadparamWithLog(sets,"FileInputEna",false,logLoading) );
-        ui->inpFileName->setText( calcGui->loadparamWithLog(sets,"FileInputLast",QString(),logLoading) );
-        ui->inpFileClass->setText( calcGui->loadparamWithLog(sets,"FileClass","{M}",logLoading) );
-        ui->togAIUseFFTOutput->setChecked( calcGui->loadparamWithLog(sets,"GenerateIFFT",false,logLoading) );
-        ui->radAILinOutput->setChecked( calcGui->loadparamWithLog(sets,"LinOut",false,logLoading) );
-        ui->radAILogOutput->setChecked( ! ui->radAILinOutput->isChecked() );
-        ui->togAIScaleOutput->setChecked( calcGui->loadparamWithLog(sets,"ScaleOut",false,logLoading) );
-        sets.endGroup();
-    }
+
+        // Wenn im aktuellen Entwicklungsschritt (nur die Methode "Generic" bekannt) alte Files geladen werden
+        // sollen, die noch mehrere Methoden enthalten, dann gibt es den Schlüssel "CurMethod" in der Gruppe
+        // "Inputs". Dies soll dann die Methode sein, die geladen werden soll, auch wenn dieser Name hier nicht
+        // bekannt ist. Zugleich wird der Wert vom Parameter LType auf die Methode gesetzt. Somit können die
+        // Parameterfiles aus dem alten Format wieder normal gelesen werden.
+        QSettings sets( fn, QSettings::IniFormat );
+        QStringList gr = sets.childGroups();
+        if ( logLoading )
+        {
+            calcGui->loadParamLogmessage(sets.group(),"","","START "+fn);  // must be the first message to open the logfile
+            calcGui->loadParamLogmessage(sets.group(),"","","all groups: \""+gr.join("\", \"")+"\"");
+        }
+        gr.removeOne("Inputs");
+        gr.removeOne("FFT");
+        gr.removeOne("AI");     // TODO: neue feste Gruppen hier ausblenden
+        if ( gr.size() > 1 )
+        {   // Jetzt gibt es mehr als eine Methode
+            sets.beginGroup( "Inputs" );
+            QString m = sets.value("CurMethod","").toString();
+            sets.endGroup();
+            if ( ! m.isEmpty() )
+            {
+                QString mm = m;
+                if ( mm.indexOf(" ") > 0 ) mm.truncate(mm.indexOf(" "));
+                if ( logLoading ) calcGui->loadParamLogmessage(sets.group(),"","","current method from [Inputs] "+m+" LType="+mm );
+                // Suchen des richtigen LType-Wertes durch scan der Combobox-Texte
+                for ( int val=0; val<ui->cbsLType->count(); val++ )
+                    if ( ui->cbsLType->itemText(val).startsWith(mm,Qt::CaseInsensitive) )
+                    {
+                        calcGui->updateParamValue( "LType", val, SETCOLMARK_IGNORED, false );
+                        break;
+                    }
+                rv = calcGui->loadParameter(fn,"@"+m,hklloaded,gridloaded,logLoading);
+                isloaded = true;
+            }
+        }
+
+        if ( !isloaded )
+            rv = calcGui->loadParameter(fn,"",hklloaded,gridloaded,logLoading);
+
+        // Load all common parameters
+        sets.beginGroup( "Inputs" );
+        if ( logLoading && !rv.isEmpty() ) calcGui->loadParamLogmessage(sets.group(),"",""," [Inputs] rv="+rv );
+        ui->radQ1->setChecked( calcGui->loadparamWithLog(sets,"RadioButtonQ1",false,logLoading) );
+        ui->radQ2->setChecked( calcGui->loadparamWithLog(sets,"RadioButtonQ2",false,logLoading) );
+        ui->radQ4->setChecked( calcGui->loadparamWithLog(sets,"RadioButtonQ4",false,logLoading) );
+        ui->togExpandImage->setChecked( sets.value( "ExpandImage", false ).toBool() );
+        ui->togExpandImage->setEnabled( ! ui->radQ4->isChecked() );
+        sel1d2d = sets.value("Use2D",1).toInt();  // 0=1D, 1=2D und es muss ohne BlockSignals gesetzt werden!
+        ui->inpVAx1->setValue( loadParameter_checkOldFormat( sets, "EditAxis1x", "VAx1", rv, logLoading ) );
+        ui->inpAy1->setValue( loadParameter_checkOldFormat( sets, "EditAxis1y", "Ay1", rv, logLoading ) );
+        ui->inpAz1->setValue( loadParameter_checkOldFormat( sets, "EditAxis1z", "Az1", rv, logLoading ) );
+        ui->inpVAx2_VAx1->setValue( loadParameter_checkOldFormat( sets, "EditAxis2x", "VAx2", rv, logLoading ) );
+        ui->inpAy2_Ay1->setValue( loadParameter_checkOldFormat( sets, "EditAxis2y", "Ay2", rv, logLoading ) );
+        ui->inpAz2_Az1->setValue( loadParameter_checkOldFormat( sets, "EditAxis2z", "Az2", rv, logLoading ) );
+        ui->inpVAx3_VAx1->setValue( loadParameter_checkOldFormat( sets, "EditAxis3x", "VAx3", rv, logLoading ) );
+        ui->inpAy3_Ay1->setValue( loadParameter_checkOldFormat( sets, "EditAxis3y", "Ay3", rv, logLoading ) );
+        ui->inpAz3_Az1->setValue( loadParameter_checkOldFormat( sets, "EditAxis3z", "Az3", rv, logLoading ) );
+        ui->inpSigX->setValue( loadParameter_checkOldFormat( sets, "Editdom1", "SigX", rv, logLoading ) );
+        ui->inpSigY_SigX->setValue( loadParameter_checkOldFormat( sets, "Editdom2", "SigY", rv, logLoading ) );
+        ui->inpSigZ_SigX->setValue( loadParameter_checkOldFormat( sets, "Editdom3", "SigZ", rv, logLoading ) );
+        ui->inpBeamPosX->setValue( calcGui->loadparamWithLog(sets,"EditCenterX",0.0,logLoading) );
+        ui->inpBeamPosY_BeamPosX->setValue( calcGui->loadparamWithLog(sets,"EditCenterY",0.0,logLoading) );
+        //qDebug() << "Load CenterBeam:" << calcGui->currentParamValueInt("CenterBeam");
+        if ( calcGui->currentParamValueInt("CenterBeam")>0 )
+            ui->radCenterBeam->setChecked( true );
+        else
+            ui->radCenterMidpoint->setChecked( true );
+
+        // EditHKLmax und EditGridPoints sind jetzt in die normalen Parameter gewandert...
+        //qDebug() << "*** LOAD ***" << hklloaded << gridloaded;
+        if ( !hklloaded )
+            ui->intHKLmax->setValue( loadParameter_checkOldFormat( sets, "HKLmax", "HKLmax", rv, logLoading ) );
+        if ( !gridloaded )
+            ui->intGridPoints->setValue( loadParameter_checkOldFormat( sets, "GridPoints", "GridPoints", rv, logLoading ) );
+
+        // Werte aus dem 'rv' und den ColorMarkern entfernen, die im alten Format (noch) keinen Sinn gemacht hatten.
+        loadParameter_checkOldFormat( sets, "", "CalcQmax", rv, logLoading );
+        loadParameter_checkOldFormat( sets, "", "CenterBeam", rv, logLoading );
+
+        if ( rv.endsWith(", ") ) rv.chop(2);
+        //qDebug() << "LoadParameters:" << rv;
+        if ( rv.contains("Unknown parameters in file") )
+            showColorMarker( SETCOLMARK_OLDPARAM );
+
+        // Wenn im Parametersatz die GPU aktiviert ist, im aktuellen System diese aber nicht vorhanden ist,
+        // so würde das Eingabefeld auf 1 Thread schalten. Das ist unklug und wird hier auf die maximale
+        // Anzahl von Threads umgebogen. Kommt vor, wenn Parameterfiles vom Linux (mit GPU) zum Laptop
+        // (ohne GPU) kopiert werden.
+        int thr = calcGui->loadparamWithLog(sets,"Threads",0,logLoading);
+        if ( thr == 0 /*GPU*/ && ui->inpNumCores->minimum() == 1 /*keine GPU vorhanden*/ )
+            thr = ui->inpNumCores->maximum();
+        // Andersherum wird bei einem Thread-Parameter > 1 und vorhandener GPU auf die GPU gestellt.
+        else if ( thr > 0 && ui->inpNumCores->minimum() == 0 /*GPU ist vorhanden*/ )
+            thr = 0;
+        ui->inpNumCores->setValue( thr );
+
+        ui->txtComment->setText( calcGui->loadparamWithLog(sets,"Comment",QString(),logLoading) );
+        if ( ui->txtComment->text().isEmpty() )
+            ui->txtComment->setText( QFileInfo(fn).baseName() );
+
+        sets.endGroup();    // [Inputs]
+
+        if ( ui->togAILoadFromParam->isChecked() )
+        {
+            sets.beginGroup( "AI" );
+            //ui->togAILoadFromParam->setChecked( sets.value("LoadFromParam").toBool() );
+            ui->inpSubDir->setText( calcGui->loadparamWithLog(sets,"LastSubDir",dataPath,logLoading) );
+            ui->cbsAIoutputFormat->setCurrentIndex( calcGui->loadparamWithLog(sets,"Grayscale",1,logLoading) );
+            ui->grpFileInput->setChecked( calcGui->loadparamWithLog(sets,"FileInputEna",false,logLoading) );
+            ui->inpFileName->setText( calcGui->loadparamWithLog(sets,"FileInputLast",QString(),logLoading) );
+            ui->inpFileClass->setText( calcGui->loadparamWithLog(sets,"FileClass","{M}",logLoading) );
+            ui->togAIUseFFTOutput->setChecked( calcGui->loadparamWithLog(sets,"GenerateIFFT",false,logLoading) );
+            ui->radAILinOutput->setChecked( calcGui->loadparamWithLog(sets,"LinOut",false,logLoading) );
+            ui->radAILogOutput->setChecked( ! ui->radAILinOutput->isChecked() );
+            ui->togAIScaleOutput->setChecked( calcGui->loadparamWithLog(sets,"ScaleOut",false,logLoading) );
+            sets.endGroup();
+        }
+
+    } // if ! .json
+
     on_cbsLType_currentIndexChanged( ui->cbsLType->currentIndex() );
     on_cbsComboBoxParticle_currentIndexChanged( ui->cbsComboBoxParticle->currentIndex() );
     on_cbsOrdis_currentIndexChanged( ui->cbsOrdis->currentIndex() );
     on_cbsComboBoxInterior_currentIndexChanged( ui->cbsComboBoxInterior->currentIndex() );
     on_cbsComboBoxPeak_currentIndexChanged( ui->cbsComboBoxPeak->currentIndex() );
 
-    if ( logLoading ) calcGui->loadParamLogmessage(sets,"","FINISHED");
+    if ( logLoading ) calcGui->loadParamLogmessage("END","","","FINISHED");
 
     foreach ( QWidget *w, ui->tabCalc->findChildren<QWidget*>() ) w->blockSignals(false);
 
@@ -1624,13 +1710,14 @@ QString SC_MainGUI::local_Load_all_Parameters(QString fn)
     // Debug: Load END QTime("12:19:28.387") -> 0.004 sec ohne Datei ...
 
     bIgnoreRecalc = false;  // Load done
+    bNoUpdateFromCBS = false;
     DT( qDebug() << "... local load::adjustSize ..." );
     adjustSize();   // local load
     return rv;
 } /* local_Load_all_Parameters() */
 
 
-widImage* SC_MainGUI::addImage( bool neu, int x0, int x1, int y0, int y1, double *d, QString title, bool meta )
+widImage* SC_MainGUI::addImage( bool neu, int x0, int x1, int y0, int y1, double *d, QString title, bool meta, bool doshow/*=true*/ )
 {
     if ( d == nullptr ) return nullptr;
     widImage *img = nullptr;
@@ -1688,8 +1775,9 @@ widImage* SC_MainGUI::addImage( bool neu, int x0, int x1, int y0, int y1, double
         QHash<QString,paramHelper*>::iterator ip = calcGui->params.begin();
         while ( ip != calcGui->params.end() )
         {
-            img->addMetaInfo( ip.key(), //ip.value()->str );
-                              calcGui->currentParamValueStr( ip.key(), true ) );
+            if ( calcGui->isCurrentParameterVisible(ip.key()) )
+                img->addMetaInfo( ip.key(), //ip.value()->str );
+                                  calcGui->currentParamValueStr( ip.key(), true ) );
             ++ip;
         }
         // Globale Eingabefelder
@@ -1716,37 +1804,40 @@ widImage* SC_MainGUI::addImage( bool neu, int x0, int x1, int y0, int y1, double
         }
         img->addMetaInfo("@",""); // Sortieren
     }
-    img->show();
-    qApp->processEvents();
+    if ( doshow )
+    {
+        img->show();
+        qApp->processEvents();
 #ifdef IMG_ONE_WINDOW
-    img->parentWidget()->adjustSize();
+        img->parentWidget()->adjustSize();
 #endif
-    if ( neu && ui->togAutoPosit->isChecked() )
-    {   // Posit new images automatically (try to...)
+        if ( neu && ui->togAutoPosit->isChecked() )
+        {   // Posit new images automatically (try to...)
 #if (QT_VERSION <= QT_VERSION_CHECK(6,0,0))
-        if ( img->width() + imgPosX + 10 >= qApp->desktop()->width() )
+            if ( img->width() + imgPosX + 10 >= qApp->desktop()->width() )
 #else
-        if ( img->width() + imgPosX + 10 >= qApp->primaryScreen()->size().width() )
-#endif
-        {
-            imgPosX = imgPosX0;
-            imgPosY += img->height();
-#if (QT_VERSION <= QT_VERSION_CHECK(6,0,0))
-            if ( imgPosY + 20 >= qApp->desktop()->height() )
-#else
-            if ( imgPosY + 20 >= qApp->primaryScreen()->size().height() )
+            if ( img->width() + imgPosX + 10 >= qApp->primaryScreen()->size().width() )
 #endif
             {
-                imgPosX0 += 20;
-                imgPosY0 += 20;
-                imgPosX  = imgPosX0;
-                imgPosY  = imgPosY0;
+                imgPosX = imgPosX0;
+                imgPosY += img->height();
+#if (QT_VERSION <= QT_VERSION_CHECK(6,0,0))
+                if ( imgPosY + 20 >= qApp->desktop()->height() )
+#else
+                if ( imgPosY + 20 >= qApp->primaryScreen()->size().height() )
+#endif
+                {
+                    imgPosX0 += 20;
+                    imgPosY0 += 20;
+                    imgPosX  = imgPosX0;
+                    imgPosY  = imgPosY0;
+                }
             }
+            //qDebug() << "MOVE addImg" << imgPosX << imgPosY << img->windowTitle();
+            img->move( imgPosX, imgPosY );
+            imgPosX += img->width();
         }
-        //qDebug() << "MOVE addImg" << imgPosX << imgPosY << img->windowTitle();
-        img->move( imgPosX, imgPosY );
-        imgPosX += img->width();
-    }
+    } // if doshow
     // Tab Configuration: listWidget
     // Tab FFT: cbsFFTWindows
     // Tab Fit: cbsImageWindows
@@ -2194,6 +2285,10 @@ void SC_MainGUI::on_butOpenMeasFile_clicked()
     if ( fn.isEmpty() ) return;
     data.setValue("LastImage",fn);
     lastDataFile = fn;
+    // Beim butCalc_clicked wird das 1D Flag immer neu gesetzt, je nach Tab-Stellung
+    // Hier werden (z.Zt. nur 2d Daten gelesen, also werden die Flags fest gesetzt.
+    ui->tab1D2D->setCurrentIndex(1);
+    _is1Dused = false;
     if ( ! local_OpenMeasFile(fn,nullptr) )
     {
         qDebug() << fn << "unknown format";
@@ -3292,7 +3387,7 @@ double SC_MainGUI::evaluateFormula( QString formel )
  */
 void SC_MainGUI::on_butTestGo_clicked()
 {
-    prepareCalculation( true );
+    prepareGuiAndData();
 
     // TODO: LogTimer starten (TestGo)
 
@@ -4029,9 +4124,9 @@ void SC_MainGUI::on_butFitStart_clicked()
         //ui->butFitAutomatic->setEnabled(savAutoEna);
         return;
     }
-    if ( curFitImage->myHeight() != curFitImage->myWidth() )
+    if ( !curFitImage->is1D() && (curFitImage->myHeight() != curFitImage->myWidth()) )
     {
-        ui->lisFitLog->addItem("None square images not working '"+ui->cbsFitImageWindows->currentText()+"'");
+        ui->lisFitLog->addItem("None square 2d images not working '"+ui->cbsFitImageWindows->currentText()+"'");
         ui->butFitStart->setEnabled(true);
         //ui->butFitAutomatic->setEnabled(savAutoEna);
         return;
@@ -4106,7 +4201,7 @@ void SC_MainGUI::performOneFitLoop()
     curFitImage->getVarScaling( fitOrgMin, fitOrgmax );
 
     _bAbbruch = false;
-    prepareCalculation( true );
+    prepareGuiAndData();
 
     _param2fitval *parameter = fitparams;
     QHash<QString,_fitLimits*>::const_iterator it;
@@ -4205,6 +4300,7 @@ void SC_MainGUI::performOneFitLoop()
                                   tolerance, //ui->inpFitTolerance->text().toDouble(),
                                   ui->inpFitBorder->value(),
                                   ui->togFitUseMask->isChecked() ? -1 : ui->inpFitBStop->value(),
+                                  _is1Dused,
                                   static_cast<progressLogging>(&this->myProgressLogging),
                                   fitparams, retinfo );
         timeForAll += fitClass->higResTimerElapsed;
@@ -4615,6 +4711,9 @@ void SC_MainGUI::on_actionStart_autoprocessing_file_triggered()
  *  DOIFFT                     starts a 2d iFFT calculation with the parameters given in the gui
  *  TEST <n>                   starts a test calculation as shown in the Configuration tab
  *  TIMETEST <outfilename>     starts the TimeTest procedure specified in the Tools -> Timing tests dialog
+ *  CHATBOT TRAIN <file> : <descr>
+ *                             saves the current parameter set for the chatbot as a training file (.json)
+ *                             and use the given description for the experiment
  */
 void SC_MainGUI::autoProcessingTimer()
 {
@@ -4777,6 +4876,35 @@ void SC_MainGUI::autoProcessingTimer()
             performTimingTests(fn);
             // Autoproc is restarted after calculation
             return;
+        }
+
+        else if ( line.startsWith("CHATBOT TRAIN") )
+        {
+#ifndef ChatbotDisabled
+            // CHATBOT TRAIN <file> : <descr>
+            // saves the current parameter set for the chatbot as a training file (.json)
+            // and use the given description for the experiment
+            line = line.mid(13).trimmed(); // remove "CHATBOT TRAIN"
+            int pos = line.indexOf(":");
+            if ( pos < 3 ) pos = line.indexOf(":",3);
+            QString fn, descr;
+            if ( pos < 0 )
+            {
+                fn = line.trimmed();
+                descr = "from autoprocessing";
+            }
+            else
+            {
+                fn = line.left(pos).trimmed();
+                descr = line.mid(pos+1).trimmed();
+            }
+            //qDebug() << fn << descr;
+            chatbotSaveConfig(fn, descr);
+#else
+            closeAutoProcessingFile( "ERROR chatbot features disabled" );
+            QMessageBox::critical( this, "Autoprocessing ERROR", "Chatbot features disabled.", QMessageBox::Ok );
+            return;
+#endif
         }
 
         break; // endless loop
@@ -6461,6 +6589,7 @@ void SC_MainGUI::on_butParamSearchPath_clicked()
     ui->lisParamSearchResult->clear();
     ui->lisParamSearchResult->setEnabled(false);
     ui->butParamSearchGenerate->setEnabled(false);
+    ui->butParamSearchChatbot->setEnabled(false);
     ui->lblParamSearchCount->setText(" ");
     ui->lblParamSearchLog->hide();
 }
@@ -6473,6 +6602,7 @@ void SC_MainGUI::on_inpParamSearchPath_textEdited(const QString &arg1)
     ui->lisParamSearchResult->clear();
     ui->lisParamSearchResult->setEnabled(false);
     ui->butParamSearchGenerate->setEnabled(false);
+    ui->butParamSearchChatbot->setEnabled(false);
     ui->lblParamSearchCount->setText(" ");
     ui->lblParamSearchLog->hide();
 }
@@ -6521,6 +6651,7 @@ void SC_MainGUI::on_butParamSearchDoit_clicked()
     if ( !ui->inpParamSearchPath->text().endsWith("/") && !ui->inpParamSearchPath->text().endsWith("\\") ) bl++;
     ui->lblParamSearchLog->hide();
     ui->butParamSearchGenerate->setEnabled(false);
+    ui->butParamSearchChatbot->setEnabled(false);
     qApp->setOverrideCursor(Qt::WaitCursor);
     searchParameterFilesHelper(ui->inpParamSearchPath->text(),bl,"*.ini");
     searchParameterFilesHelper(ui->inpParamSearchPath->text(),bl,"*.sas_tpv");
@@ -6537,6 +6668,7 @@ void SC_MainGUI::on_butDataSearchDoit_clicked()
     if ( !ui->inpParamSearchPath->text().endsWith("/") && !ui->inpParamSearchPath->text().endsWith("\\") ) bl++;
     ui->lblParamSearchLog->hide();
     ui->butParamSearchGenerate->setEnabled(false);
+    ui->butParamSearchChatbot->setEnabled(false);
     qApp->setOverrideCursor(Qt::WaitCursor);
     searchParameterFilesHelper(ui->inpParamSearchPath->text(),bl,"*.*");
     qApp->restoreOverrideCursor();
@@ -6549,11 +6681,13 @@ void SC_MainGUI::on_lisParamSearchResult_itemSelectionChanged()
     bool ena = ui->lisParamSearchResult->count() > 0 &&
                ui->lisParamSearchResult->selectedItems().count() > 0;
     ui->butParamSearchGenerate->setEnabled( ena );
+    ui->butParamSearchChatbot->setEnabled( ena );
 }
 
 void SC_MainGUI::on_butParamSearchGenerate_clicked()
 {
     ui->butParamSearchGenerate->setEnabled(false);
+    ui->butParamSearchChatbot->setEnabled(false);
     QString base = ui->inpParamSearchPath->text();
     if ( !base.endsWith("/") ) base += "/";
     ui->lblParamSearchLog->setText("See <a href=\"file:///"+base+"ParamSearch.log\">"+base+"ParamSearch.log</a>");
@@ -7278,7 +7412,7 @@ void SC_MainGUI::on_butTPVreadTrainingTable_clicked()
     bIgnoreRecalc = updFlag;
 }
 
-void SC_MainGUI::on_actionFind_parameters_changing_image_triggered()
+QStringList SC_MainGUI::parChgImg_generateParamList()
 {
     //qDebug() << "TPV" << tpvParamsKeys;
     QStringList all = calcGui->paramsForMethod(true,false,false);
@@ -7304,16 +7438,29 @@ void SC_MainGUI::on_actionFind_parameters_changing_image_triggered()
     all.removeOne("EditDet");       // Detektor-Abstand lassen wir hier mal weg
     all.removeOne("EditPixelX");    // Pixelsizes lassen wir hier auch weg
     all.removeOne("EditPixelY");
+    all.removeOne("EditPixelNoX");
+    all.removeOne("EditPixelNoY");
 
     all.removeOne("iso");           // Diese Werte ändern auch immer die Daten
     all.removeOne("I0");
     all.removeOne("Base");
+    all.removeOne("EditBFactor");
+    all.removeOne("P1");
+
+    all.removeOne("EditQmin");      // 1D Daten
+    all.removeOne("EditQsteps");
 
     // Jetzt sind in 'all' nur noch Parameter enthalten, die nicht vom obigen Lesen gesetzt wurden.
     // Diese werden jetzt durchgespielt, ob diese den Datensatz ändern.
-    qDebug() << "ChgImg" << all;
-        // TODO 1D
+    qDebug() << "ChgImg-All" << all;
+    return all;
+}
 
+
+void SC_MainGUI::on_actionFind_parameters_changing_image_triggered()
+{
+    ui->grpChgImgCurParam->show();
+    ui->lblChgImgCurParam->setText("");
     //on_butResetColorMarker_clicked();
 
     // Zum Test schauen, ob der Datensatz nicht zu groß wird, das würde die Rechenzeit bei dem
@@ -7326,22 +7473,51 @@ void SC_MainGUI::on_actionFind_parameters_changing_image_triggered()
         ui->inpBCenterY->setValue(0);
     }*/
 
+    QStringList all = parChgImg_generateParamList();
+
+    QStringList modParams = parChgImg_doCalculation(all, ui->lblChgImgCurParam);
+
+    foreach ( QString s, modParams )
+        calcGui->updateParamValueColor( s, SETCOLMARK_CHGIMG );
+    showColorMarker( SETCOLMARK_CHGIMG );
+    ui->grpChgImgCurParam->hide();
+
+    qDebug() << "ChgImg-Mod" << modParams;
+}
+
+QStringList SC_MainGUI::parChgImg_doCalculation(QStringList inpParams, QLabel *lblinfo)
+{
     // Erzeugen des aktuellen Datensatzes
     local_butCalc_clicked(); // ohne speichern der Parameter im Temp-File
+/*
+    zzmin = calcQuadrants == radQ4 ? -zmax : 0;
+    zzmax = zmax;
+    iimin = calcQuadrants == radQ1 ? 0 : -zmax;
+    iimax = zmax;
+    _arrCount = (zzmax-zzmin) * (iimax-iimin) + 1;
+*/
     int mx = ui->intGridPoints->value();
     if ( ui->radQ1->isChecked() )
-        mx = 4*mx*mx;
+        mx = mx*mx;
     else if ( ui->radQ2->isChecked() )
         mx = 2*mx*mx;
     else if ( ui->radQ4->isChecked() )
-        mx = mx*mx;
+        mx = 4*mx*mx;
     double *check = new double[mx];
     memcpy( check, calcGui->data(), mx*sizeof(double) );
+    qDebug() << "CheckMem" << mx << check[0] << check[1] << check[2];
 
     // Variationen über alle Parameter
     QStringList modParams;
-    foreach ( QString s, all )
+    int cnt=0;
+    foreach ( QString s, inpParams )
     {
+        if ( !calcGui->isCurrentParameterValid(s,false) || !calcGui->isCurrentParameterVisible(s) ) continue;
+        if ( lblinfo != nullptr )
+        {
+            lblinfo->setText(s+QString("  [%1/%2]").arg(++cnt).arg(inpParams.size()));
+            qApp->processEvents();
+        }
         double curval = calcGui->currentParamValueDbl(s);
         double min, max;
         bool count; // uninteressant
@@ -7380,17 +7556,16 @@ void SC_MainGUI::on_actionFind_parameters_changing_image_triggered()
                 if ( v2 > max ) v2 = max;
             }
         }
-
         //qDebug() << s << curval << min << max << "/" << v1 << v2;
 
-        if ( vergleicheCheckData( s, v1, check, mx ) )
+        if ( parChgImg_compareData( s, v1, check, mx ) )
         {
             //qDebug() << "TRUE-1";
             //break;
             modParams << s;
         }
         if ( _bAbbruch ) break;
-        if ( vergleicheCheckData( s, v2, check, mx ) )
+        if ( parChgImg_compareData( s, v2, check, mx ) )
         {
             //qDebug() << "TRUE-2";
             //break;
@@ -7399,14 +7574,11 @@ void SC_MainGUI::on_actionFind_parameters_changing_image_triggered()
         calcGui->updateParamValue( s, curval, SETCOLMARK_IGNORED );
         if ( _bAbbruch ) break;
     }
-    foreach ( QString s, modParams )
-        calcGui->updateParamValueColor( s, SETCOLMARK_CHGIMG );
-    showColorMarker( SETCOLMARK_CHGIMG );
-
-    qDebug() << modParams;
+    delete[] check;
+    return modParams;
 }
 
-bool SC_MainGUI::vergleicheCheckData( QString par, double val, const double *check, int mx )
+bool SC_MainGUI::parChgImg_compareData(QString par, double val, const double *check, int mx)
 {
     calcGui->updateParamValue( par, val, SETCOLMARK_IGNORED );
 
@@ -7415,9 +7587,16 @@ bool SC_MainGUI::vergleicheCheckData( QString par, double val, const double *che
 
     const double *tmp = calcGui->data();
 
-    for ( int i=0; i<mx; i++ )
-        if ( fabs( *(tmp++) - *(check++) ) > eps4 )
+    int cntnan = 0;
+    for ( int i=0; i<mx; i++, tmp++, check++ )
+    {
+        if (  isnan(*tmp) &&  isnan(*check) ) { cntnan++; continue; }
+        if ( !isnan(*tmp) &&  isnan(*check) ) return true;
+        if (  isnan(*tmp) && !isnan(*check) ) return true;
+        if ( fabs( *tmp - *check ) > eps4 )
             return true;
+    }
+    qDebug() << "vergleicheCheckData" << par << val << cntnan;
 
     return false;
 }
@@ -7571,6 +7750,12 @@ void SC_MainGUI::showColorMarker( QColor c )
 
 void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
 {
+    if ( /*index != 12 &&*/ calcGui != nullptr && calcGui->getCalcPtr() != nullptr )
+    {
+        calcGui->prepareData( false, false/* 1D für den Text unwichtig*/ );
+        //qDebug() << "getEditSG_Text" << calcGui->getCalcPtr()->getEditSG_Text();
+        ui->statusbar->showMessage( "EditSG_Text = "+QString::fromStdString(calcGui->getCalcPtr()->getEditSG_Text()), 15000 );
+    }
 #ifndef NOCBSCALLBACK
     DT( qDebug() << "on_cbsLType_currentIndexChanged()" << index << bIgnoreRecalc );
     bool updFlag = bIgnoreRecalc;
@@ -7595,50 +7780,23 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "bcpl", false );
         myGuiParam::setEnabled( "ComboBoxPeak", true );
         myGuiParam::setEnabled( "EditCeffcyl", false );
-        gp=myGuiParam::getGuiParam("ComboBoxParticle");
-        if(gp)gp->cbs()->setCurrentIndex( 2 );
-        gp=myGuiParam::getGuiParam("Length");
-        if(gp)gp->inp()->setValue( 250 );
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("ComboBoxParticle");
+            if(gp)gp->cbs()->setCurrentIndex( 2 );
+            gp=myGuiParam::getGuiParam("Length");
+            if(gp)gp->inp()->setValue( 250 );
+        }
         //??ButtonBiCont.Visible = false;
         //myGuiParam::setEnabled(ui->grpOrientation, true);
         //??EditAlphai.Visible = false;
         myGuiParam::setEnabled( "iso", true );
         //??Editacrit.visible = false;
         //??EditAbsorb.Visible = false;
-        myGuiParam::setEnabled( "phi", true );
-        myGuiParam::setEnabled( "theta", true );
+        //myGuiParam::setEnabled( "phi", true );
+        //myGuiParam::setEnabled( "theta", true );
         //ButtonHKLClick(Sender);
         //-->RadioButtonSys1DClick(Sender);  //Z=43426
-        /*
-            ComboBoxCubic.ItemIndex = -1;  //Z=41593
-            ComboBoxHexagonal.ItemIndex = -1;  //Z=41594
-            ComboBoxTrigonal.ItemIndex = -1;  //Z=41595
-            ComboBoxTetragonal.ItemIndex = -1;  //Z=41596
-            ComboBoxOrthorhombic.ItemIndex = -1;  //Z=41597
-            ComboBoxMonoclinic.ItemIndex = -1;  //Z=41598
-            ComboBoxTriclinic.ItemIndex = -1;  //Z=41599
-            ComboBox2D.ItemIndex = -1;  //Z=41600
-            ComboBox1D.ItemIndex = 0;  //Z=41601
-
-            TrackBarCellA.visible = true;  //Z=41603
-            EditCellA.visible = true;  //Z=41604
-            EditAmax.visible = true;  //Z=41605
-            TrackBarCellB.visible = false;  //Z=41606
-            EditCellB.visible = false;  //Z=41607
-            EditBmax.visible = false;  //Z=41608
-            TrackBarCellC.visible = false;  //Z=41609
-            EditCellC.visible = false;  //Z=41610
-            EditCmax.visible = false;  //Z=41611
-            TrackBarCellAlpha.visible = false;  //Z=41612
-            EditCellAlpha.visible = false;  //Z=41613
-            EditCellAlpha.Text = '90';  //Z=41614
-            TrackBarCellBeta.visible = false;  //Z=41615
-            EditCellBeta.visible = false;  //Z=41616
-            EditCellBeta.Text = '90';  //Z=41617
-            TrackBarCellGamma.visible = true;  //Z=41618
-            EditCellGamma.visible = true;  //Z=41619
-            EditCellGamma.Text = '90';  //Z=41620
-        */
         break;
 
     case  1:  /*  hexagonal cylinders  */  //Z=36544
@@ -7657,18 +7815,21 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "bcpl", false );
         myGuiParam::setEnabled( "ComboBoxPeak", true );
         myGuiParam::setEnabled( "EditCeffcyl", false );
-        gp=myGuiParam::getGuiParam("ComboBoxParticle");
-        if(gp)gp->cbs()->setCurrentIndex( 1 );
-        gp=myGuiParam::getGuiParam("Length");
-        if(gp)gp->inp()->setValue( 500 );
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("ComboBoxParticle");
+            if(gp)gp->cbs()->setCurrentIndex( 1 );
+            gp=myGuiParam::getGuiParam("Length");
+            if(gp)gp->inp()->setValue( 500 );
+        }
         //??ButtonBiCont.Visible = false;
         //myGuiParam::setEnabled(ui->grpOrientation, true );
         //??EditAlphai.Visible = false;
         myGuiParam::setEnabled( "iso", true );
         //??Editacrit.visible = false;
         //??EditAbsorb.Visible = false;
-        myGuiParam::setEnabled( "phi", true );
-        myGuiParam::setEnabled( "theta", true );
+        //myGuiParam::setEnabled( "phi", true );
+        //myGuiParam::setEnabled( "theta", true );
         //ButtonHKLClick(Sender);
         //-->RadioButtonSys2DClick(Sender);  //Z=43431
         break;
@@ -7689,18 +7850,21 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "bcpl", false );
         myGuiParam::setEnabled( "ComboBoxPeak", true );
         myGuiParam::setEnabled( "EditCeffcyl", false );
-        gp=myGuiParam::getGuiParam("ComboBoxParticle");
-        if(gp)gp->cbs()->setCurrentIndex( 1 );
-        gp=myGuiParam::getGuiParam("Length");
-        if(gp)gp->inp()->setValue( 500 );
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("ComboBoxParticle");
+            if(gp)gp->cbs()->setCurrentIndex( 1 );
+            gp=myGuiParam::getGuiParam("Length");
+            if(gp)gp->inp()->setValue( 500 );
+        }
         //??ButtonBiCont.Visible = false;
         //myGuiParam::setEnabled(ui->grpOrientation, true);
         //??EditAlphai.Visible = false;
         myGuiParam::setEnabled( "iso", true );
         //??Editacrit.visible = false;
         //??EditAbsorb.Visible = false;
-        myGuiParam::setEnabled( "phi", true );
-        myGuiParam::setEnabled( "theta", true );
+        //myGuiParam::setEnabled( "phi", true );
+        //myGuiParam::setEnabled( "theta", true );
         //ButtonHKLClick(Sender);
         //-->RadioButtonSys2DClick(Sender);  //Z=43436
         break;
@@ -7721,18 +7885,21 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "bcpl", false );
         myGuiParam::setEnabled( "ComboBoxPeak", true );
         myGuiParam::setEnabled( "EditCeffcyl", false );
-        gp=myGuiParam::getGuiParam("ComboBoxParticle");
-        if(gp)gp->cbs()->setCurrentIndex( 1 );
-        gp=myGuiParam::getGuiParam("Length");
-        if(gp)gp->inp()->setValue( 500 );
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("ComboBoxParticle");
+            if(gp)gp->cbs()->setCurrentIndex( 1 );
+            gp=myGuiParam::getGuiParam("Length");
+            if(gp)gp->inp()->setValue( 500 );
+        }
         //??ButtonBiCont.Visible = false;
         //myGuiParam::setEnabled(ui->grpOrientation, true);
         //??EditAlphai.Visible = false;
         myGuiParam::setEnabled( "iso", true );
         //??Editacrit.visible = false;
         //??EditAbsorb.Visible = false;
-        myGuiParam::setEnabled( "phi", true );
-        myGuiParam::setEnabled( "theta", true );
+        //myGuiParam::setEnabled( "phi", true );
+        //myGuiParam::setEnabled( "theta", true );
         //ButtonHKLClick(Sender);
         //-->RadioButtonSys2DClick(Sender);  //Z=43441
         break;
@@ -7753,18 +7920,21 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "bcpl", false );
         myGuiParam::setEnabled( "ComboBoxPeak", true );
         myGuiParam::setEnabled( "EditCeffcyl", false );
-        gp=myGuiParam::getGuiParam("ComboBoxParticle");
-        if(gp)gp->cbs()->setCurrentIndex( 0 );
-        //gp=myGuiParam::getGuiParam("Length");
-        //if(gp)gp->inp()->setValue( 250 );
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("ComboBoxParticle");
+            if(gp)gp->cbs()->setCurrentIndex( 0 );
+            //gp=myGuiParam::getGuiParam("Length");
+            //if(gp)gp->inp()->setValue( 250 );
+        }
         //??ButtonBiCont.Visible = false;
         //myGuiParam::setEnabled(ui->grpOrientation, true);
         //??EditAlphai.Visible = false;
         myGuiParam::setEnabled( "iso", true );
         //??Editacrit.visible = false;
         //??EditAbsorb.Visible = false;
-        myGuiParam::setEnabled( "phi", true );
-        myGuiParam::setEnabled( "theta", true );
+        //myGuiParam::setEnabled( "phi", true );
+        //myGuiParam::setEnabled( "theta", true );
         //ButtonHKLClick(Sender);
         //-->RadioButtonSysCubicClick(Sender);  //Z=43446
         break;
@@ -7778,25 +7948,31 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "EditAzi", true );
         myGuiParam::setEnabled( "EditDebyeWaller", true );
         gp=myGuiParam::setEnabled( "CheckBoxTwinned", true );                  /*  twinned  */  //Z=36511
-        //gp->tog()->setChecked(true);
+        if ( !bNoUpdateFromCBS )
+        {
+            gp->tog()->setChecked(true);
+        }
         //??EditTwRatio.Visible = true;
         myGuiParam::setEnabled( "HKLmax", true );
         myGuiParam::setEnabled( "acpl", false );
         myGuiParam::setEnabled( "bcpl", false );
         myGuiParam::setEnabled( "ComboBoxPeak", true );
         myGuiParam::setEnabled( "EditCeffcyl", false );
-        gp=myGuiParam::getGuiParam("ComboBoxParticle");
-        if(gp)gp->cbs()->setCurrentIndex( 0 );
-        //gp=myGuiParam::getGuiParam("Length");
-        //if(gp)gp->inp()->setValue( 250 );
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("ComboBoxParticle");
+            if(gp)gp->cbs()->setCurrentIndex( 0 );
+            //gp=myGuiParam::getGuiParam("Length");
+            //if(gp)gp->inp()->setValue( 250 );
+        }
         //??ButtonBiCont.Visible = true;
         //myGuiParam::setEnabled(ui->grpOrientation, true);
         //??EditAlphai.Visible = false;
         myGuiParam::setEnabled( "iso", true );
         //??Editacrit.visible = false;
         //??EditAbsorb.Visible = false;
-        myGuiParam::setEnabled( "phi", true );
-        myGuiParam::setEnabled( "theta", true );
+        //myGuiParam::setEnabled( "phi", true );
+        //myGuiParam::setEnabled( "theta", true );
         //ButtonHKLClick(Sender);
         //-->RadioButtonSysCubicClick(Sender);  //Z=43451
         break;
@@ -7810,25 +7986,31 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "EditAzi", true );
         myGuiParam::setEnabled( "EditDebyeWaller", true );
         gp=myGuiParam::setEnabled( "CheckBoxTwinned", true );                  /*  twinned  */  //Z=36511
-        //gp->tog()->setChecked(true);
+        if ( !bNoUpdateFromCBS )
+        {
+            gp->tog()->setChecked(true);
+        }
         //??EditTwRatio.Visible = true;
         myGuiParam::setEnabled( "HKLmax", true );
         myGuiParam::setEnabled( "acpl", false );
         myGuiParam::setEnabled( "bcpl", false );
         myGuiParam::setEnabled( "ComboBoxPeak", true );
         myGuiParam::setEnabled( "EditCeffcyl", false );
-        gp=myGuiParam::getGuiParam("ComboBoxParticle");
-        if(gp)gp->cbs()->setCurrentIndex( 0 );
-        //gp=myGuiParam::getGuiParam("Length");
-        //if(gp)gp->inp()->setValue( 250 );
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("ComboBoxParticle");
+            if(gp)gp->cbs()->setCurrentIndex( 0 );
+            //gp=myGuiParam::getGuiParam("Length");
+            //if(gp)gp->inp()->setValue( 250 );
+        }
         //??ButtonBiCont.Visible = false;
         //myGuiParam::setEnabled(ui->grpOrientation, true);
         //??EditAlphai.Visible = false;
         myGuiParam::setEnabled( "iso", true );
         //??Editacrit.visible = false;
         //??EditAbsorb.Visible = false;
-        myGuiParam::setEnabled( "phi", true );
-        myGuiParam::setEnabled( "theta", true );
+        //myGuiParam::setEnabled( "phi", true );
+        //myGuiParam::setEnabled( "theta", true );
         //ButtonHKLClick(Sender);
         //-->RadioButtonSysHexClick(Sender);  //Z=43456
         break;
@@ -7849,18 +8031,21 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "bcpl", false );
         myGuiParam::setEnabled( "ComboBoxPeak", true );
         myGuiParam::setEnabled( "EditCeffcyl", false );
-        gp=myGuiParam::getGuiParam("ComboBoxParticle");
-        if(gp)gp->cbs()->setCurrentIndex( 0 );
-        //gp=myGuiParam::getGuiParam("Length");
-        //if(gp)gp->inp()->setValue( 250 );
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("ComboBoxParticle");
+            if(gp)gp->cbs()->setCurrentIndex( 0 );
+            //gp=myGuiParam::getGuiParam("Length");
+            //if(gp)gp->inp()->setValue( 250 );
+        }
         //??ButtonBiCont.Visible = false;
         //myGuiParam::setEnabled(ui->grpOrientation, true);
         //??EditAlphai.Visible = false;
         myGuiParam::setEnabled( "iso", true );
         //??Editacrit.visible = false;
         //??EditAbsorb.Visible = false;
-        myGuiParam::setEnabled( "phi", true );
-        myGuiParam::setEnabled( "theta", true );
+        //myGuiParam::setEnabled( "phi", true );
+        //myGuiParam::setEnabled( "theta", true );
         //ButtonHKLClick(Sender);
         //-->RadioButtonSysCubicClick(Sender);  //Z=43461
         break;
@@ -7881,52 +8066,23 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "bcpl", false );
         myGuiParam::setEnabled( "ComboBoxPeak", true );
         myGuiParam::setEnabled( "EditCeffcyl", false );
-        gp=myGuiParam::getGuiParam("ComboBoxParticle");
-        if(gp)gp->cbs()->setCurrentIndex( 0 );
-        //gp=myGuiParam::getGuiParam("Length");
-        //if(gp)gp->inp()->setValue( 250 );
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("ComboBoxParticle");
+            if(gp)gp->cbs()->setCurrentIndex( 0 );
+            //gp=myGuiParam::getGuiParam("Length");
+            //if(gp)gp->inp()->setValue( 250 );
+        }
         //??ButtonBiCont.Visible = false;
         //myGuiParam::setEnabled(ui->grpOrientation, true);
         //??EditAlphai.Visible = false;
         myGuiParam::setEnabled( "iso", true );
         //??Editacrit.visible = false;
         //??EditAbsorb.Visible = false;
-        myGuiParam::setEnabled( "phi", true );
-        myGuiParam::setEnabled( "theta", true );
+        //myGuiParam::setEnabled( "phi", true );
+        //myGuiParam::setEnabled( "theta", true );
         //ButtonHKLClick(Sender);
         //-->RadioButtonSysTetragonalClick(Sender);  //Z=43466
-        break;
-
-    case 17:  /*  fd3m  */  //Z=36923
-        myGuiParam::setEnabled( "uca", true  );
-        myGuiParam::setEnabled( "ucb", false );
-        myGuiParam::setEnabled( "ucc", false );
-        myGuiParam::setEnabled( ui->lblucabc, true );
-        myGuiParam::setEnabled( "EditDomainSize", true );
-        myGuiParam::setEnabled( "EditAzi", true );
-        myGuiParam::setEnabled( "EditDebyeWaller", true );
-        gp=myGuiParam::setEnabled( "CheckBoxTwinned", false );                  /*  twinned  */  //Z=36511
-        gp->tog()->setChecked(false);
-        //??EditTwRatio.Visible = false;
-        myGuiParam::setEnabled( "HKLmax", true );
-        myGuiParam::setEnabled( "acpl", false );
-        myGuiParam::setEnabled( "bcpl", false );
-        myGuiParam::setEnabled( "ComboBoxPeak", true );
-        myGuiParam::setEnabled( "EditCeffcyl", false );
-        gp=myGuiParam::getGuiParam("ComboBoxParticle");
-        if(gp)gp->cbs()->setCurrentIndex( 0 );
-        //gp=myGuiParam::getGuiParam("Length");
-        //if(gp)gp->inp()->setValue( 250 );
-        //??ButtonBiCont.Visible = false;
-        //myGuiParam::setEnabled(ui->grpOrientation, true);
-        //??EditAlphai.Visible = false;
-        myGuiParam::setEnabled( "iso", true );
-        //??Editacrit.visible = false;
-        //??EditAbsorb.Visible = false;
-        myGuiParam::setEnabled( "phi", true );
-        myGuiParam::setEnabled( "theta", true );
-        //ButtonHKLClick(Sender);
-        //-->RadioButtonSysCubicClick(Sender);  //Z=43486
         break;
 
     case  9:  /*  gyroid  */  //Z=37018
@@ -7945,24 +8101,28 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "bcpl", false );
         myGuiParam::setEnabled( "ComboBoxPeak", true );
         myGuiParam::setEnabled( "EditCeffcyl", false );
-        gp=myGuiParam::getGuiParam("ComboBoxParticle");
-        if(gp)gp->cbs()->setCurrentIndex( 3 );
-        //gp=myGuiParam::getGuiParam("Length");
-        //if(gp)gp->inp()->setValue( 250 );
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("ComboBoxParticle");
+            if(gp)gp->cbs()->setCurrentIndex( 3 );
+            //gp=myGuiParam::getGuiParam("Length");
+            //if(gp)gp->inp()->setValue( 250 );
+        }
         //??ButtonBiCont.Visible = false;
         //myGuiParam::setEnabled(ui->grpOrientation, true);
         //??EditAlphai.Visible = false;
         myGuiParam::setEnabled( "iso", true );
         //??Editacrit.visible = false;
         //??EditAbsorb.Visible = false;
-        myGuiParam::setEnabled( "phi", true );
-        myGuiParam::setEnabled( "theta", true );
+        //myGuiParam::setEnabled( "phi", true );
+        //myGuiParam::setEnabled( "theta", true );
         //ButtonHKLClick(Sender);
         //-->RadioButtonSysCubicClick(Sender);  //Z=43471
         break;
 
     case 10:  /*  OBDD  */  //Z=37066
         //ButtonPn3mVesClick(Sender);  //Z=37067
+        if ( !bNoUpdateFromCBS )
         {/*1*/  //Z=45878
             const double b = 0.5484;  //Z=45879
             const double c = 0.6200;  //Z=45880
@@ -8000,18 +8160,21 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "bcpl", false );
         myGuiParam::setEnabled( "ComboBoxPeak", true );
         myGuiParam::setEnabled( "EditCeffcyl", false );
-        gp=myGuiParam::getGuiParam("ComboBoxParticle");
-        if(gp)gp->cbs()->setCurrentIndex( 3 );
-        //gp=myGuiParam::getGuiParam("Length");
-        //if(gp)gp->inp()->setValue( 250 );
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("ComboBoxParticle");
+            if(gp)gp->cbs()->setCurrentIndex( 3 );
+            //gp=myGuiParam::getGuiParam("Length");
+            //if(gp)gp->inp()->setValue( 250 );
+        }
         //??ButtonBiCont.Visible = false;
         //myGuiParam::setEnabled(ui->grpOrientation, true);
         //??EditAlphai.Visible = false;
         myGuiParam::setEnabled( "iso", true );
         //??Editacrit.visible = false;
         //??EditAbsorb.Visible = false;
-        myGuiParam::setEnabled( "phi", true );
-        myGuiParam::setEnabled( "theta", true );
+        //myGuiParam::setEnabled( "phi", true );
+        //myGuiParam::setEnabled( "theta", true );
         //ButtonHKLClick(Sender);
         //-->RadioButtonSysCubicClick(Sender);  //Z=43476
         break;
@@ -8033,18 +8196,21 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "bcpl", false );
         myGuiParam::setEnabled( "ComboBoxPeak", true );
         myGuiParam::setEnabled( "EditCeffcyl", false );
-        gp=myGuiParam::getGuiParam("ComboBoxParticle");
-        if(gp)gp->cbs()->setCurrentIndex( 3 );
-        //gp=myGuiParam::getGuiParam("Length");
-        //if(gp)gp->inp()->setValue( 250 );
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("ComboBoxParticle");
+            if(gp)gp->cbs()->setCurrentIndex( 3 );
+            //gp=myGuiParam::getGuiParam("Length");
+            //if(gp)gp->inp()->setValue( 250 );
+        }
         //??ButtonBiCont.Visible = false;
         //myGuiParam::setEnabled(ui->grpOrientation, true);
         //??EditAlphai.Visible = false;
         myGuiParam::setEnabled( "iso", true );
         //??Editacrit.visible = false;
         //??EditAbsorb.Visible = false;
-        myGuiParam::setEnabled( "phi", true );
-        myGuiParam::setEnabled( "theta", true );
+        //myGuiParam::setEnabled( "phi", true );
+        //myGuiParam::setEnabled( "theta", true );
         //ButtonHKLClick(Sender);
         //-->RadioButtonSysCubicClick(Sender);  //Z=43481
         break;
@@ -8065,18 +8231,21 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "bcpl", false );
         myGuiParam::setEnabled( "ComboBoxPeak", false );
         myGuiParam::setEnabled( "EditCeffcyl", true );
-        gp=myGuiParam::getGuiParam("ComboBoxParticle");
-        if(gp)gp->cbs()->setCurrentIndex( 0 );
-        //gp=myGuiParam::getGuiParam("Length");
-        //if(gp)gp->inp()->setValue( 250 );
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("ComboBoxParticle");
+            if(gp)gp->cbs()->setCurrentIndex( 0 );
+            //gp=myGuiParam::getGuiParam("Length");
+            //if(gp)gp->inp()->setValue( 250 );
+        }
         //??ButtonBiCont.Visible = false;
         //myGuiParam::setEnabled(ui->grpOrientation, true);
         //??EditAlphai.Visible = true;
         myGuiParam::setEnabled( "iso", true );
         //??Editacrit.visible = false;
         //??EditAbsorb.Visible = true;
-        myGuiParam::setEnabled( "phi", true );
-        myGuiParam::setEnabled( "theta", true );
+        //myGuiParam::setEnabled( "phi", true );
+        //myGuiParam::setEnabled( "theta", true );
         //ButtonHKLClick(Sender);
         //-->nichts
         break;
@@ -8098,23 +8267,29 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         gp=myGuiParam::setEnabled( "ComboBoxPeak", true );
         if(gp)gp->cbs()->setCurrentIndex( 7 );   //Z=37242
         myGuiParam::setEnabled( "EditCeffcyl", false );
-        gp=myGuiParam::getGuiParam("ComboBoxParticle");
-        if(gp)gp->cbs()->setCurrentIndex( 0 );
-        //gp=myGuiParam::getGuiParam("Length");
-        //if(gp)gp->inp()->setValue( 250 );
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("ComboBoxParticle");
+            if(gp)gp->cbs()->setCurrentIndex( 0 );
+            //gp=myGuiParam::getGuiParam("Length");
+            //if(gp)gp->inp()->setValue( 250 );
+        }
         //??ButtonBiCont.Visible = false;
         //myGuiParam::setEnabled(ui->grpOrientation, true);
         //??EditAlphai.Visible = false;
         myGuiParam::setEnabled( "iso", true );
         //??Editacrit.visible = false;
         //??EditAbsorb.Visible = false;
-        myGuiParam::setEnabled( "phi", true );
-        myGuiParam::setEnabled( "theta", true );
+        //myGuiParam::setEnabled( "phi", true );
+        //myGuiParam::setEnabled( "theta", true );
         //GroupBoxAniso.Visible = true;  //Z=37238
-        gp=myGuiParam::getGuiParam("SigX");
-        if(gp)gp->inp()->setValue(200);  //Editdom1.Text = '200';  //Z=37239
-        if(gp)gp->inp2()->setValue(200); //Editdom2.Text = '200';  //Z=37240
-        if(gp)gp->inp3()->setValue(200); //Editdom3.Text = '200';  //Z=37241
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("SigX");
+            if(gp)gp->inp()->setValue(200);  //Editdom1.Text = '200';  //Z=37239
+            if(gp)gp->inp2()->setValue(200); //Editdom2.Text = '200';  //Z=37240
+            if(gp)gp->inp3()->setValue(200); //Editdom3.Text = '200';  //Z=37241
+        }
         //ButtonHKLClick(Sender);
         //-->nichts
         break;
@@ -8135,18 +8310,21 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "bcpl", false );
         myGuiParam::setEnabled( "ComboBoxPeak", true );
         myGuiParam::setEnabled( "EditCeffcyl", false );
-        gp=myGuiParam::getGuiParam("ComboBoxParticle");
-        if(gp)gp->cbs()->setCurrentIndex( 0 );
-        //gp=myGuiParam::getGuiParam("Length");
-        //if(gp)gp->inp()->setValue( 250 );
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("ComboBoxParticle");
+            if(gp)gp->cbs()->setCurrentIndex( 0 );
+            //gp=myGuiParam::getGuiParam("Length");
+            //if(gp)gp->inp()->setValue( 250 );
+        }
         //??ButtonBiCont.Visible = false;
         //myGuiParam::setEnabled(ui->grpOrientation, true);
         //??EditAlphai.Visible = true;
         myGuiParam::setEnabled( "iso", true );
         //??Editacrit.visible = true;
         //??EditAbsorb.Visible = true;
-        myGuiParam::setEnabled( "phi", true );
-        myGuiParam::setEnabled( "theta", true );
+        //myGuiParam::setEnabled( "phi", true );
+        //myGuiParam::setEnabled( "theta", true );
         //ButtonHKLClick(Sender);
         //-->nichts
         //EditHex2h.Text = '0';  //Z=37292
@@ -8172,18 +8350,21 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "bcpl", false );
         myGuiParam::setEnabled( "ComboBoxPeak", true );
         myGuiParam::setEnabled( "EditCeffcyl", false );
-        gp=myGuiParam::getGuiParam("ComboBoxParticle");
-        if(gp)gp->cbs()->setCurrentIndex( 0 );
-        //gp=myGuiParam::getGuiParam("Length");
-        //if(gp)gp->inp()->setValue( 250 );
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("ComboBoxParticle");
+            if(gp)gp->cbs()->setCurrentIndex( 0 );
+            //gp=myGuiParam::getGuiParam("Length");
+            //if(gp)gp->inp()->setValue( 250 );
+        }
         //??ButtonBiCont.Visible = false;
         //myGuiParam::setEnabled(ui->grpOrientation, true);
         //??EditAlphai.Visible = true;
         myGuiParam::setEnabled( "iso", false );
         //??Editacrit.visible = true;
         //??EditAbsorb.Visible = true;
-        myGuiParam::setEnabled( "phi", true );
-        myGuiParam::setEnabled( "theta", true );
+        //myGuiParam::setEnabled( "phi", true );
+        //myGuiParam::setEnabled( "theta", true );
         //ButtonHKLClick(Sender);
         //-->nichts
         //EditHex2h.Text = '0';  //Z=37350
@@ -8209,18 +8390,21 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "bcpl", false );
         myGuiParam::setEnabled( "ComboBoxPeak", true );
         myGuiParam::setEnabled( "EditCeffcyl", true );
-        gp=myGuiParam::getGuiParam("ComboBoxParticle");
-        if(gp)gp->cbs()->setCurrentIndex( 2 );
-        //gp=myGuiParam::getGuiParam("Length");
-        //if(gp)gp->inp()->setValue( 250 );
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("ComboBoxParticle");
+            if(gp)gp->cbs()->setCurrentIndex( 2 );
+            //gp=myGuiParam::getGuiParam("Length");
+            //if(gp)gp->inp()->setValue( 250 );
+        }
         //??ButtonBiCont.Visible = false;
         //myGuiParam::setEnabled(ui->grpOrientation, true);
         //??EditAlphai.Visible = true;
         myGuiParam::setEnabled( "iso", false );
         //??Editacrit.visible = true;
         //??EditAbsorb.Visible = true;
-        myGuiParam::setEnabled( "phi", true );
-        myGuiParam::setEnabled( "theta", true );
+        //myGuiParam::setEnabled( "phi", true );
+        //myGuiParam::setEnabled( "theta", true );
         //ButtonHKLClick(Sender);
         //-->nichts
         //EditHex2h.Text = '0';  //Z=37408
@@ -8228,6 +8412,41 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         //EditHex2l.Text = '0';  //Z=37410
         //RadioButtonFixU.checked = true;  //Z=37417
         //GroupBoxDataInfo.visible = true;  //Z=37422
+        break;
+
+    case 17:  /*  fd3m  */  //Z=36923
+        myGuiParam::setEnabled( "uca", true  );
+        myGuiParam::setEnabled( "ucb", false );
+        myGuiParam::setEnabled( "ucc", false );
+        myGuiParam::setEnabled( ui->lblucabc, true );
+        myGuiParam::setEnabled( "EditDomainSize", true );
+        myGuiParam::setEnabled( "EditAzi", true );
+        myGuiParam::setEnabled( "EditDebyeWaller", true );
+        gp=myGuiParam::setEnabled( "CheckBoxTwinned", false );                  /*  twinned  */  //Z=36511
+        gp->tog()->setChecked(false);
+        //??EditTwRatio.Visible = false;
+        myGuiParam::setEnabled( "HKLmax", true );
+        myGuiParam::setEnabled( "acpl", false );
+        myGuiParam::setEnabled( "bcpl", false );
+        myGuiParam::setEnabled( "ComboBoxPeak", true );
+        myGuiParam::setEnabled( "EditCeffcyl", false );
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("ComboBoxParticle");
+            if(gp)gp->cbs()->setCurrentIndex( 0 );
+            //gp=myGuiParam::getGuiParam("Length");
+            //if(gp)gp->inp()->setValue( 250 );
+        }
+        //??ButtonBiCont.Visible = false;
+        //myGuiParam::setEnabled(ui->grpOrientation, true);
+        //??EditAlphai.Visible = false;
+        myGuiParam::setEnabled( "iso", true );
+        //??Editacrit.visible = false;
+        //??EditAbsorb.Visible = false;
+        //myGuiParam::setEnabled( "phi", true );
+        //myGuiParam::setEnabled( "theta", true );
+        //ButtonHKLClick(Sender);
+        //-->RadioButtonSysCubicClick(Sender);  //Z=43486
         break;
 
     case 18:  /*  orthogonal centered spheres  */  //Z=37430
@@ -8246,18 +8465,21 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "bcpl", false );
         myGuiParam::setEnabled( "ComboBoxPeak", true );
         myGuiParam::setEnabled( "EditCeffcyl", false );
-        gp=myGuiParam::getGuiParam("ComboBoxParticle");
-        if(gp)gp->cbs()->setCurrentIndex( 0 );
-        //gp=myGuiParam::getGuiParam("Length");
-        //if(gp)gp->inp()->setValue( 250 );
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("ComboBoxParticle");
+            if(gp)gp->cbs()->setCurrentIndex( 0 );
+            //gp=myGuiParam::getGuiParam("Length");
+            //if(gp)gp->inp()->setValue( 250 );
+        }
         //??ButtonBiCont.Visible = false;
         //myGuiParam::setEnabled(ui->grpOrientation, true);
         //??EditAlphai.Visible = true;
         myGuiParam::setEnabled( "iso", true );
         //??Editacrit.visible = false;
         //??EditAbsorb.Visible = false;
-        myGuiParam::setEnabled( "phi", true );
-        myGuiParam::setEnabled( "theta", true );
+        //myGuiParam::setEnabled( "phi", true );
+        //myGuiParam::setEnabled( "theta", true );
         //ButtonHKLClick(Sender);
         //-->RadioButtonSysOrthoClick(Sender);  //Z=43491
         break;
@@ -8277,25 +8499,34 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
         myGuiParam::setEnabled( "acpl", true );     // Editastack
         myGuiParam::setEnabled( "bcpl", true );     // Editbstack
         gp=myGuiParam::setEnabled( "ComboBoxPeak", true );
-        if(gp)gp->cbs()->setCurrentIndex( 7 );   //Z=37513
+        if ( !bNoUpdateFromCBS )
+            if(gp)gp->cbs()->setCurrentIndex( 7 );   //Z=37513
         myGuiParam::setEnabled( "EditCeffcyl", false );
-        gp=myGuiParam::getGuiParam("ComboBoxParticle");
-        if(gp)gp->cbs()->setCurrentIndex( 0 );
-        //gp=myGuiParam::getGuiParam("Length");
-        //if(gp)gp->inp()->setValue( 250 );
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("ComboBoxParticle");
+            if(gp)gp->cbs()->setCurrentIndex( 0 );
+            //gp=myGuiParam::getGuiParam("Length");
+            //if(gp)gp->inp()->setValue( 250 );
+        }
         //??ButtonBiCont.Visible = false;
         //myGuiParam::setEnabled(ui->grpOrientation, true);
         //??EditAlphai.Visible = false;
         myGuiParam::setEnabled( "iso", true );
         //??Editacrit.visible = false;
         //??EditAbsorb.Visible = true;
-        myGuiParam::setEnabled( "phi", true );
-        myGuiParam::setEnabled( "theta", true );
+        //myGuiParam::setEnabled( "phi", true );
+        //myGuiParam::setEnabled( "theta", true );
         //??GroupBoxAniso.Visible = true;  //Z=37509
-        gp=myGuiParam::getGuiParam("SigX");
-        if(gp)gp->inp()->setValue(200);  //Editdom1.Text = '200';  //Z=37510
-        if(gp)gp->inp2()->setValue(200); //Editdom2.Text = '200';  //Z=37511
-        if(gp)gp->inp3()->setValue(200); //Editdom3.Text = '200';  //Z=37512
+        if ( !bNoUpdateFromCBS )
+        {
+            gp=myGuiParam::getGuiParam("SigX");
+            if(gp)
+            {   gp->inp()->setValue(200);  //Editdom1.Text = '200';  //Z=37510
+                gp->inp2()->setValue(200); //Editdom2.Text = '200';  //Z=37511
+                gp->inp3()->setValue(200); //Editdom3.Text = '200';  //Z=37512
+            }
+        }
         //ButtonHKLClick(Sender);
         //-->nichts
         break;
@@ -8323,6 +8554,7 @@ void SC_MainGUI::on_cbsComboBoxParticle_currentIndexChanged(int index)
     DT( qDebug() << "on_cbsComboBoxParticle_currentIndexChanged()" << index << bIgnoreRecalc );
     bool updFlag = bIgnoreRecalc;
     bIgnoreRecalc = true;
+    // Info: "EditRadius" und "EditSigma" werden niemals ausgeblendet, diese Funktion ändert nur das Label!!!
     switch ( index )
     {
     case 0:   /*  sphere  */  //Z=37531
@@ -8483,47 +8715,65 @@ void SC_MainGUI::on_cbsComboBoxInterior_currentIndexChanged(int index)
     DT( qDebug() << "on_cbsComboBoxInterior_currentIndexChanged()" << index << bIgnoreRecalc );
     bool updFlag = bIgnoreRecalc;
     bIgnoreRecalc = true;
+    myGuiParam *gp;
     switch ( index )
     {
     case 0:   /*  homogeneous core */  //Z=41005
-        myGuiParam::setEnabled( "EditRadius",  true  );   /*  Rm     */  //Z=41006
-        myGuiParam::setEnabled( "EditRadiusi", false );   /*  DEFAULT  */
-        myGuiParam::setEnabled( "Alpha",       false );   /*  alpha  */  //Z=41008 - unklar, ob es der richtige Parameter ist (EditAlpha)
-        myGuiParam::setEnabled( "EditRho",     false );   /*  rho    */  //Z=41010
+        myGuiParam::setEnabled( "EditRadius",  true,  "*" );   /*  Rm     */  //Z=41006
+        myGuiParam::setEnabled( "EditRadiusi", false, "*" );   /*  DEFAULT  */
+        myGuiParam::setEnabled( "Alpha",       false, "*" );   /*  alpha  */  //Z=41008 - unklar, ob es der richtige Parameter ist (EditAlpha)
+        myGuiParam::setEnabled( "EditRho",     false, "*" );   /*  rho    */  //Z=41010
         break;
 
     case 1:   /*  homogeneous core/shell */  //Z=41014
-        myGuiParam::setEnabled( "EditRadius",  true  );   /*  Rm     */  //Z=41015
-        myGuiParam::setEnabled( "EditRadiusi", true  );   //Z=41017  <<<NEU<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-        myGuiParam::setEnabled( "Alpha",       false );   /*  alpha  */  //Z=41018 - unklar, ob es der richtige Parameter ist (EditAlpha)
-        myGuiParam::setEnabled( "EditRho",     true  );   /*  rho    */  //Z=41020
+        myGuiParam::setEnabled( "EditRadius",  true,  "*" );   /*  Rm     */  //Z=41015
+        myGuiParam::setEnabled( "EditRadiusi", true,  "*" );   //Z=41017  <<<NEU<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+        myGuiParam::setEnabled( "Alpha",       false, "*" );   /*  alpha  */  //Z=41018 - unklar, ob es der richtige Parameter ist (EditAlpha)
+        myGuiParam::setEnabled( "EditRho",     true,  "*" );   /*  rho    */  //Z=41020
         break;
 
     case 2:   /*  inhomogeneous core/shell */  //Z=41024
-        myGuiParam::setEnabled( "EditRadius",  true  );   /*  Rm     */  //Z=41025
-        myGuiParam::setEnabled( "EditRadiusi", true  );   //Z=41027  <<<NEU<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-        myGuiParam::setEnabled( "Alpha",       true  );   /*  alpha  */  //Z=41028 - unklar, ob es der richtige Parameter ist (EditAlpha)
-        myGuiParam::setEnabled( "EditRho",     true  );   /*  rho    */  //Z=41030
+        myGuiParam::setEnabled( "EditRadius",  true,  "*" );   /*  Rm     */  //Z=41025
+        myGuiParam::setEnabled( "EditRadiusi", true,  "*" );   //Z=41027  <<<NEU<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+        myGuiParam::setEnabled( "Alpha",       true,  "*" );   /*  alpha  */  //Z=41028 - unklar, ob es der richtige Parameter ist (EditAlpha)
+        myGuiParam::setEnabled( "EditRho",     true,  "*" );   /*  rho    */  //Z=41030
         break;
 
-    case 3:   // if ( (ComboBoxInterior.ItemIndex == 3) || (ComboBoxInterior.ItemIndex == 4) )
+    case 3:   // multi-shell
     case 4:   /*  myelin  */  //Z=41034
+        gp=myGuiParam::setEnabled( "EditRadius",  true, "n:"        );   /*  Rm  */  //Z=41037   Label="n:", Value=200
+        if ( !bNoUpdateFromCBS )
+            if(gp) gp->inp()->setValue(200);
+        gp=myGuiParam::setEnabled( "EditRadiusi", true, "*"         );   // Value=1
+        if ( !bNoUpdateFromCBS )
+            if(gp) gp->inp()->setValue(1);
+        gp=myGuiParam::setEnabled( "Alpha",       true, "l_ex[nm]:" );   /*  alpha  */  //Z=41043  Label="l_ex(nm):", Value=3.5
+        if ( !bNoUpdateFromCBS )
+            if(gp) gp->inp()->setValue(3.5);
+        gp=myGuiParam::setEnabled( "EditRho",     true, "l_in(nm):" );   /*  rho  */  //Z=41047   Label="l_in(nm):", Value=3.5
+        if ( !bNoUpdateFromCBS )
+            if(gp) gp->inp()->setValue(3.5);
 #ifdef undef
-        EditRadiusi.Visible = true;  //Z=41035
-        EditRadiusi.Text = '1';  //Z=41036
-        label19.visible = true;             /*  Rm  */  //Z=41037
-        label19.caption = 'n:';  //Z=41038
-        EditRadius.Visible = true;  //Z=41039
-        EditRadius.Text = '200';  //Z=41040
+        //- EditRadiusi.Visible = true;  //Z=41035
+        //- EditRadiusi.Text = '1';  //Z=41036
+
+        //- label19.visible = true;
+        //- label19.caption = 'n:';  //Z=41038
+        //- EditRadius.Visible = true;  //Z=41039
+        //- EditRadius.Text = '200';  //Z=41040
+
         EditLength.Text = '5000';  //Z=41041
-        label20.caption = 'l_ex(nm):';  //Z=41042
-        label20.visible = true;             /*  alpha  */  //Z=41043
-        EditAlpha.Visible = true;  //Z=41044
-        EditAlpha.Text = '3.5';  //Z=41045
-        label21.caption = 'l_in(nm):';  //Z=41046
-        label21.visible = true;             /*  rho  */  //Z=41047
-        Editrho.visible = true;  //Z=41048
-        Editrho.Text = '3.5';  //Z=41049
+
+        //- label20.caption = 'l_ex(nm):';  //Z=41042
+        //- label20.visible = true;             /*  alpha  */  //Z=41043
+        //- EditAlpha.Visible = true;  //Z=41044
+        //- EditAlpha.Text = '3.5';  //Z=41045
+
+        //- label21.caption = 'l_in(nm):';  //Z=41046
+        //- label21.visible = true;             /*  rho  */  //Z=41047
+        //- Editrho.visible = true;  //Z=41048
+        //- Editrho.Text = '3.5';  //Z=41049
+
         label2.Visible = true;  //Z=41050
         label2.Caption = 'head';  //Z=41051
         label88.Visible = true;  //Z=41052
@@ -8736,297 +8986,6 @@ void SC_MainGUI::on_actionAbout_Qt_triggered()
  */
 
 
-#ifndef ChatbotDisabled
-
-void SC_MainGUI::on_butChatbotSearch_clicked()
-{
-    QString fn = QFileDialog::getSaveFileName( this, "Open ChatBot config file", ui->inpChatbotFile->text(), "config file (*.txt)",
-                                              nullptr, QFileDialog::DontConfirmOverwrite );
-    if ( fn.isEmpty() ) return;
-    ui->inpChatbotFile->setText(fn);
-}
-
-void SC_MainGUI::on_butChatbotLogSearch_clicked()
-{
-    QString fn = QFileDialog::getSaveFileName( this, "Open ChatBot logfile", ui->inpChatbotLogfile->text(), "logfile (*.log)" );
-    if ( fn.isEmpty() ) return;
-    ui->inpChatbotLogfile->setText(fn);
-    ui->lblChatbotOpenLogfile->setText("<a href=\"file:///"+ui->inpChatbotLogfile->text()+"\">Open</a>");
-    ui->lblChatbotOpenLogfile->setToolTip("Open "+ui->inpChatbotLogfile->text());
-}
-
-void SC_MainGUI::on_butChatbotStart_clicked()
-{
-    ui->butChatbotStart->setEnabled(false);
-    ui->butChatbotStop->setEnabled(true);
-
-    QString fnpar = QDir::tempPath()+"/tmpForChatbot.ini";
-    performSaveParamOperation( fnpar );
-
-    if ( chatbotBackProg == nullptr )
-    {
-        chatbotBackProg = new QProcess;
-        connect( chatbotBackProg, SIGNAL(errorOccurred(QProcess::ProcessError)),
-                this, SLOT(chatbotBackProg_error(QProcess::ProcessError)) );
-        connect( chatbotBackProg, SIGNAL(finished(int,QProcess::ExitStatus)),
-                this, SLOT(chatbotBackProg_finished(int,QProcess::ExitStatus)) );
-        connect( chatbotBackProg, SIGNAL(readyReadStandardError()),
-                this, SLOT(chatbotBackProg_readyRead()) );
-        connect( chatbotBackProg, SIGNAL(readyReadStandardOutput()),
-                this, SLOT(chatbotBackProg_readyRead()) );
-    }
-    ui->lisChatbotLogOut->clear();
-
-    QStringList params;
-    params << "--chatbot" << ui->inpChatbotFile->text();
-    if ( ui->togChatbotDebug->isChecked() ) params << "--cbkeep";
-    params << "-p" << fnpar;
-    params << "-t" << QString::number(ui->inpNumCores->value());
-    if ( ui->cbsChatbotColor->currentIndex() != 3 )     // 0=grey, 1=glow, 2=earth, 3,def=temp
-        params << "--color" << ui->cbsChatbotColor->currentText();
-    if ( ui->cbsChatbotRotation->currentIndex() > 0 )
-        params << "--rotate" << QString::number(ui->cbsChatbotRotation->currentIndex());
-    if ( ui->cbsChatbotZoom->currentIndex() > 0 )
-        params << "--zoom" << ui->cbsChatbotZoom->currentText();
-    if ( ui->togChatbotHor->isChecked() || ui->togChatbotVert->isChecked() )
-        params << "--swap" << (QString(ui->togChatbotHor->isChecked()?"H":"") + QString(ui->togChatbotVert->isChecked()?"V":""));
-    if ( ui->grpChatbotLogfile->isChecked() && ! ui->inpChatbotLogfile->text().isEmpty() )
-        params << "--logfile" << ui->inpChatbotLogfile->text();
-
-    chatbotBackProgAddLog( "Params: "+params.join(" ") );
-    chatbotBackProgAddLog( "Start: "+chatbotConsProg );
-    chatbotBackProgAddLog( "----------" );
-
-    chatbotBackProg->start( chatbotConsProg, params );
-}
-
-void SC_MainGUI::on_butChatbotStop_clicked()
-{
-    if ( chatbotBackProg != nullptr && chatbotBackProg->state() != QProcess::NotRunning )
-        chatbotBackProg->kill();
-    else
-    {
-        ui->butChatbotStart->setEnabled(true);
-        ui->butChatbotStop->setEnabled(false);
-    }
-}
-
-void SC_MainGUI::chatbotBackProg_error( QProcess::ProcessError err )
-{
-    switch ( err )
-    {
-    case QProcess::FailedToStart:   // The process failed to start. Either the invoked program is missing, or you may have insufficient permissions to invoke the program.
-        QMessageBox::critical( this, "Chatbot input",
-                              "Background process executable not found.\n"+chatbotBackProg->program(),
-                              QMessageBox::Ok );
-        break;
-    case QProcess::Crashed:         // The process crashed some time after starting successfully.
-    case QProcess::Timedout:        // The last waitFor...() function timed out. The state of QProcess is unchanged, and you can try calling waitFor...() again.
-        break;
-    case QProcess::WriteError:      // An error occurred when attempting to write to the process. For example, the process may not be running, or it may have closed its input channel.
-    case QProcess::ReadError:       // An error occurred when attempting to read from the process. For example, the process may not be running.
-        QMessageBox::critical( this, "Chatbot input",
-                              "Background process unable to write to output device.",
-                              QMessageBox::Ok );
-        break;
-    case QProcess::UnknownError:    // An unknown error occurred. This is the default return value of error().
-        break;
-    }
-}
-
-void SC_MainGUI::chatbotBackProg_finished( int /*code*/, QProcess::ExitStatus sta )
-{
-    if ( sta == QProcess::CrashExit )
-        chatbotBackProgAddLog("Background process exited.");
-    ui->butChatbotStart->setEnabled(true);
-    ui->butChatbotStop->setEnabled(false);
-}
-
-void SC_MainGUI::chatbotBackProg_readyRead()
-{
-    QString str;
-    str = chatbotBackProg->readAllStandardOutput();
-    chatbotBackProgAddLog( str.trimmed() );
-    str = chatbotBackProg->readAllStandardError();
-    chatbotBackProgAddLog( str.trimmed() );
-}
-
-void SC_MainGUI::chatbotBackProgAddLog( QString msg )
-{
-    if ( msg.isEmpty() ) return;
-    QStringList sl = msg.split(EOL);
-    ui->lisChatbotLogOut->addItems(sl);
-    ui->lisChatbotLogOut->scrollToBottom();
-    while ( ui->lisChatbotLogOut->count() > 500 ) ui->lisChatbotLogOut->takeItem(0);
-#ifndef ChatbotIgnoreImages
-    if ( ui->togChatbotClpShowImg->isChecked() )
-    {   // Wenn das Bild erzeugt wurde, soll es angezeigt werden.
-        // Die Meldung lautet dann: "IMG: <filename> -> <zeit>ms"
-        int pos = msg.indexOf("IMG:");
-        if ( pos < 0 ) return;
-        QString fn = msg.mid(pos+4).trimmed();
-        pos = fn.indexOf(".png");
-        fn.truncate(pos+4);
-        widImage *img = new widImage("Chatbot","");
-        connect( img, SIGNAL(destroyed(QObject*)), this, SLOT(imageWindowClosed(QObject*)) );
-        images.append(img);
-        img->loadImageFile(fn);
-        img->show();
-        QList<QListWidgetItem*> items = ui->lisDataWindows->findItems( img->windowTitle(), Qt::MatchStartsWith );
-        if ( items.size() == 0 )
-        {
-            ui->lisDataWindows->addItem( img->windowTitle()+" ("+img->getMetaTitle()+")" );
-        }
-    }
-#endif
-}
-
-void SC_MainGUI::on_butChatbotTrainfileSearch_clicked()
-{
-    QString fn = QFileDialog::getSaveFileName( this, "Save ChatBot trainfile", ui->inpChatbotTrainfile->text(),
-                                              "Train Config (*.txt)", nullptr, QFileDialog::DontConfirmOverwrite );
-    if ( fn.isEmpty() ) return;
-    ui->inpChatbotTrainfile->setText(fn);
-    ui->lblChatbotOpenConfig->setText("<a href=\"file:///"+ui->inpChatbotTrainfile->text()+"\">Open</a>");
-    ui->lblChatbotOpenConfig->setToolTip("Open "+ui->inpChatbotTrainfile->text());
-}
-
-void SC_MainGUI::chatbotSaveConfigHelper( QFile &fTrain, QString key, bool showena, bool isena )
-{
-    if ( key.contains("BeamPos") ) qDebug() << key;
-    QString dbg="";
-    QString prtkey;
-    if ( key.startsWith("VAx")  ) prtkey = key.mid(1); // Das 'V' stört bei der Ausgabe
-    else if ( key.startsWith("Edit") ) prtkey = key.mid(4); // Das 'Edit' stört auch
-    else if ( key.startsWith("CheckBox") ) prtkey = key.mid(8);
-    else if ( key.startsWith("ComboBox") ) prtkey = "CB"+key.mid(8);
-    else if ( key.startsWith("RadBut") ) prtkey = key.mid(6);
-    else if ( key.startsWith("RadioButton") ) prtkey = "RB"+key.mid(11);
-    else prtkey = key;
-    QString val = calcGui->currentParamValueStr(key, true/*text*/ );
-    if ( showena || isena )
-    {
-        paramHelper *par = calcGui->params.value(key,nullptr);
-        if ( par != nullptr && ! par->tooltip.isEmpty() && prtkey!=par->tooltip )
-            fTrain.write(qPrintable("# "+prtkey+"  ("+par->tooltip+")"+EOL));
-        else
-            fTrain.write(qPrintable("# Enable/Disable "+prtkey+EOL));
-        if ( isena )
-            fTrain.write(qPrintable("ena_"+prtkey+"=true"+EOL));
-        else
-        {
-            fTrain.write(qPrintable("ena_"+prtkey+"="+(calcGui->isCurrentParameterVisible(key,dbg)?"true":"false")+EOL));
-            if ( dbg == "Norm" ) dbg=""; else dbg="   # "+dbg;
-        }
-    }
-    if ( val.contains("{") )
-    {   // Bei den ComboBoxen sollten nur Zahlen als Wert und der Text als Kommentar geschrieben werden
-        int p1 = val.indexOf("{");
-        int p2 = val.indexOf("}");
-        dbg = "   # "+val.left(p1-1).trimmed();
-        val = val.mid(p1+1,p2-p1-1);
-    }
-    fTrain.write(qPrintable("val_"+prtkey+"="+val+dbg+EOL+EOL));
-}
-
-void SC_MainGUI::on_butChatbotSaveConfig_clicked()
-{
-    QFile fTrain(ui->inpChatbotTrainfile->text());
-    bool isappended = true;
-    //if ( ! fTrain.open(QIODevice::Append) ) // ist zum Testen einfacher, wenn die Datei immer überschrieben wird
-    {
-        isappended = false;
-        if ( ! fTrain.open(QIODevice::WriteOnly) )
-        {
-            QMessageBox::critical(this,"Saving training configuration",fTrain.errorString(),QMessageBox::Ok);
-            return;
-        }
-    }
-
-    fTrain.write("# Please add the name of the experiment" EOL);
-    fTrain.write(qPrintable("Name of the experiment = "+ui->txtComment->text()+EOL+EOL));
-
-    QStringList allkeys = calcGui->paramsForMethod(false/*num*/, true/*glob*/, false/*fit*/ );
-    while ( allkeys.size() > 0 )
-    {
-        QString key = allkeys.first();
-        if ( key.startsWith("EditAxis") || key.startsWith("Editdom") ||
-             key.startsWith("ExpandImage") || key.startsWith("RadioButtonQ") ||
-            // TODO 1D
-             key.contains("BeamPos") || key.contains("CalcQmax") ||
-             key.contains("GridPoints") || key.contains("CenterBeam") ||
-             key.contains("CenterMidpoint") || key.startsWith("Qmax") ||
-             key.contains("EditRelDis") || key.contains("EditDist")
-            )
-        {
-            allkeys.removeAll(key);
-            continue;
-        }
-        if ( calcGui->isCurrentParameterValid(key, false/*forfit*/) )
-        {
-            chatbotSaveConfigHelper( fTrain, key, true, false );
-        }
-        allkeys.removeAll(key); // damit auch doppelte rausgehen
-    }
-
-    chatbotSaveConfigHelper( fTrain, "GridPoints", true, true );
-
-    fTrain.write("# Enable/Disable BeamPos" EOL);
-    fTrain.write("ena_BeamPos=true" EOL);
-    if ( calcGui->currentParamValueInt("CenterBeam") )
-    {   // angegebene Koordinaten
-        fTrain.write(qPrintable("val_BeamPosX="+calcGui->currentParamValueStr("BeamPosX",true/*text*/)+EOL));
-        fTrain.write(qPrintable("val_BeamPosY="+calcGui->currentParamValueStr("BeamPosY",true/*text*/)+EOL+EOL));
-    }
-    else
-    {   // Mittelpunkt ist 0 wenn es von -GridPoints bis +GridPoints geht
-        fTrain.write("val_BeamPosX=0  # -GridPoints .. +GridPoints" EOL);
-        fTrain.write("val_BeamPosY=0  # -GridPoints .. +GridPoints" EOL EOL);
-    }
-
-    //fTrain.write("# Enable/Disable Generate PNG" EOL);
-    //fTrain.write("ena_generatePNG=true" EOL EOL);
-
-    //fTrain.write("# Number of Images" EOL);     // Beispiel wohl von TPV
-    //fTrain.write("val_numimg=1" EOL EOL);
-
-    fTrain.write("# Output Path" EOL);
-    fTrain.write("val_outPath=." EOL EOL);  // Outputfile kommt dann bei der Berechnung... (TODO)
-
-    fTrain.write(EOL EOL EOL EOL);  // Trennung zwischen den Blöcken
-    fTrain.close();
-    ui->statusbar->showMessage("File "+fTrain.fileName()+(isappended?" appended.":" generated."),5000);
-}
-
-
-void SC_MainGUI::on_butChatbotReadClipboard_clicked()
-{
-    QFile f(ui->inpChatbotFile->text());
-    if ( ! f.open(QIODevice::WriteOnly) )
-    {
-        ui->statusbar->showMessage( f.fileName()+" "+f.errorString(), 5000 );
-        ui->butChatbotReadClipboard->setEnabled(false);
-        return;
-    }
-    f.write( qPrintable(qApp->clipboard()->text()) );
-    f.write(EOL);
-    f.close();
-    qApp->clipboard()->clear();
-    if ( chatbotBackProg == nullptr || ! chatbotBackProg->isOpen() )
-    {   // Jetzt läuft der Hintergrundprozess NICHT ...
-        on_butChatbotStart_clicked(); // Macht sofort die erste Berechnung
-    }
-    // Ansonsten wird der Prozess die Datei finden.
-}
-
-void SC_MainGUI::chatbotClipboardChanged(QClipboard::Mode)
-{
-    if ( chatbotConsProg.isEmpty() ) return;
-    ui->butChatbotReadClipboard->setEnabled( ! qApp->clipboard()->text().isEmpty() );
-}
-
-#endif // ChatbotDisabled
-
 
 void SC_MainGUI::on_togUseAdaptiveStep_toggled(bool checked)
 {
@@ -9081,18 +9040,24 @@ void SC_MainGUI::on_actionShow_Parameter_w_o_Tooltip_triggered()
 }
 
 
+/**
+ * @brief SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered
+ * Opens a dialog and let the user select all ComboBox values to be used in the following calculations.
+ * Then go over all selected values and try to calculate an image. If NaN values are detected, the program
+ * tries to change some parameters to minimize the amount of NaN values.
+ */
 void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
 {
-    QStringList meta = calcGui->getCalcPtr()->guiLayoutNeu();
+    QStringList meta = calcGui->getCalcPtrWrapper()->guiLayoutNeu();
     QStringList nameLType, nameCBParticle, nameOrdis, nameCBInterior, nameCBPeak;
     foreach ( QString mm, meta )
     {
         QStringList sl = mm.split(";");
-        if ( sl[1] == "LType"            ) nameLType = sl[2].split("|");
+        if ( sl[1] == "LType"            ) nameLType      = sl[2].split("|");
         if ( sl[1] == "ComboBoxParticle" ) nameCBParticle = sl[2].split("|");
-        if ( sl[1] == "Ordis"            ) nameOrdis = sl[2].split("|");
+        if ( sl[1] == "Ordis"            ) nameOrdis      = sl[2].split("|");
         if ( sl[1] == "ComboBoxInterior" ) nameCBInterior = sl[2].split("|");
-        if ( sl[1] == "ComboBoxPeak"     ) nameCBPeak = sl[2].split("|");
+        if ( sl[1] == "ComboBoxPeak"     ) nameCBPeak     = sl[2].split("|");
     }
     //qDebug() << "TEST LType" << testLType.size();       // 20
     //qDebug() << "TEST Part " << testCBParticle.size();  // 11
@@ -9108,7 +9073,7 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
     w += dlg->setValues( "Interior", nameCBInterior );
     w += dlg->setValues( "Peak",     nameCBPeak );
     dlg->setMinimumWidth( w + 5*6 + 12 );
-    //qDebug() << w + 5*6 + 12;
+    dlg->setCalcTimeLimit( ui->togLimitRuntime->isChecked() ? ui->inpLimitRuntime->value() : 0 );
     if ( dlg->exec() != QDialog::Accepted ) return;
     QList<int> idsLType      = dlg->getValueIDs( "LType" );
     QList<int> idsCBParticle = dlg->getValueIDs( "Particle" );
@@ -9122,10 +9087,22 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
     qDebug() << "Peak " << idsCBPeak;
     QString outpath = dlg->getPath();
     qDebug() << "PATH" << outpath;
+    if ( dlg->getCalcTimeLimit() > 0 )
+    {
+        ui->togLimitRuntime->setChecked(true);
+        ui->inpLimitRuntime->setValue( dlg->getCalcTimeLimit() );
+    }
+    else
+        ui->togLimitRuntime->setChecked(false);
 
-    bool genImg = dlg->getCalcDirect();
-    bool doAll  = dlg->getCalcAll();    // Calculate all selected possibilities instead only the presets from the LType
+    bool genImg   = dlg->getCalcDirect();
+    bool doAll    = dlg->getCalcAll();    // Calculate all selected possibilities instead only the presets from the LType
+    bool checkNan = dlg->getCalcNaNCheck();
+    bool genJson  = dlg->getCalcGenJson();
     QList<int> usedLType, usedCBParticle, usedOrdis, usedCBInterior, usedCBPeak;
+
+    QElapsedTimer alleZeit;
+    alleZeit.start();
 
     ui->statusbar->showMessage( "Delete old files in output directory ..." );
     qApp->processEvents();
@@ -9134,11 +9111,13 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
     bool updFlag = bIgnoreRecalc;
     bIgnoreRecalc = true;
 
+    timingTestsRunning = true; // Damit bei der Berechnung die Fehlermeldung keine MessageBox erzeugt
+
     // Leeren des Zielverzeichnisses
     localRemoveDirectory( outpath );
     QDir().mkpath(outpath);
 
-    QFile *fCombLog = new QFile(outpath+"/generate.log");
+    QFile *fCombLog = new QFile(outpath+"/_generate.log");  // Damit das File als erstes im Verzeichnis erscheint.
     if ( fCombLog->open(QIODevice::WriteOnly) )
     {
         fCombLog->write("Planned combinations:\n");
@@ -9163,7 +9142,7 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
         for ( int i=0; i<idsCBPeak.size(); i++ )
             line << QString("%1{%2}").arg(nameCBPeak.at(idsCBPeak.at(i))).arg(idsCBPeak.at(i));
         fCombLog->write(qPrintable("  CBPeak:\n    "+line.join("\n    ")+"\n"));
-        int grid   = ui->intGridPoints->value();
+        int grid = ui->intGridPoints->value();
         if ( ui->togExpandImage->isChecked() )
         {
             if ( ui->radQ1->isChecked() )
@@ -9192,7 +9171,17 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
             fCombLog->write("The GPU is used.\n");
         else
             fCombLog->write(qPrintable(QString("The CPU is used with %1 threads.\n").arg(ui->inpNumCores->value())));
-        fCombLog->write("\nGenerated files:\n");
+        if ( checkNan )
+            fCombLog->write("Try to generate images with less NaN values while changing some parameters.\n");
+        else
+            fCombLog->write("Generate no image if only NaN values are calculated.\n");
+#ifndef ChatbotDisabled
+        if ( checkNan )
+            fCombLog->write("Generate ChatBot-Trainingfiles too.\n");
+        else
+            fCombLog->write("No ChatBot-Trainingfile generated.\n");
+#endif
+        fCombLog->write(qPrintable("\nGenerated files in "+outpath+"\n"));
     }
     else
     {
@@ -9292,14 +9281,14 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
                                 //qDebug() << "SET ComboBoxPeak" << nameCBPeak.at(idsCBPeak.at(pe));
                                 if ( !usedCBPeak.contains(idsCBPeak.at(pe)) ) usedCBPeak << idsCBPeak.at(pe);
 
-                                cntIni++; if ( genIniFile_CombinationOfCBs(fCombLog,outpath,genImg) ) cntImg++;
+                                cntIni++; if ( genIniFile_CombinationOfCBs(fCombLog,outpath,genImg,checkNan,genJson) ) cntImg++;
                                 if ( _bAbbruch ) break; // Abbruch vom User
                             } // for pe
                             if ( _bAbbruch ) break; // Abbruch vom User
                         }
                         else
                         {
-                            cntIni++; if ( genIniFile_CombinationOfCBs(fCombLog,outpath,genImg) ) cntImg++;
+                            cntIni++; if ( genIniFile_CombinationOfCBs(fCombLog,outpath,genImg,checkNan,genJson) ) cntImg++;
                             if ( _bAbbruch ) break; // Abbruch vom User
                         }
                     } // for i
@@ -9316,13 +9305,13 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
                             //qDebug() << "SET ComboBoxPeak" << nameCBPeak.at(idsCBPeak.at(pe));
                             if ( !usedCBPeak.contains(idsCBPeak.at(pe)) ) usedCBPeak << idsCBPeak.at(pe);
 
-                            cntIni++; if ( genIniFile_CombinationOfCBs(fCombLog,outpath,genImg) ) cntImg++;
+                            cntIni++; if ( genIniFile_CombinationOfCBs(fCombLog,outpath,genImg,checkNan,genJson) ) cntImg++;
                             if ( _bAbbruch ) break; // Abbruch vom User
                         } // for pe
                     }
                     else
                     {
-                        cntIni++; if ( genIniFile_CombinationOfCBs(fCombLog,outpath,genImg) ) cntImg++;
+                        cntIni++; if ( genIniFile_CombinationOfCBs(fCombLog,outpath,genImg,checkNan,genJson) ) cntImg++;
                         if ( _bAbbruch ) break; // Abbruch vom User
                     }
                 }
@@ -9342,8 +9331,14 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
     qDebug() << "UsedInter" << usedCBInterior;
     qDebug() << "UsedPeak " << usedCBPeak;
     qDebug() << cntIni << "parameterfiles and" << cntImg << "images generated.";
+    qDebug() << "Running time:" << alleZeit.elapsed()/1000.0 << "sec";
+
+    QMessageBox::information(this,"Generate all combinations of CBs",
+                             QString("The generation is %3.\n%1 parameterfiles and\n%2 images generated.\nSee ")
+                             .arg(cntIni).arg(cntImg).arg(_bAbbruch?"aborted by user":"finished") + outpath);
 
     bIgnoreRecalc = updFlag;
+    timingTestsRunning = false;
 
     if ( fCombLog )
     {
@@ -9352,7 +9347,7 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
     }
 }
 
-bool SC_MainGUI::genIniFile_CombinationOfCBs( QFile *flog, QString outpath, bool genimg )
+bool SC_MainGUI::genIniFile_CombinationOfCBs(QFile *flog, QString outpath, bool genimg, bool checkNan, bool genJson)
 {
     QString fn = outpath + "/Comb";
     fn += QString("_lt%1").arg(ui->cbsLType->currentIndex(),2,10,QChar('0'));
@@ -9367,28 +9362,76 @@ bool SC_MainGUI::genIniFile_CombinationOfCBs( QFile *flog, QString outpath, bool
     else
         fn += "_pexx";
     fn += ".ini";
+    QString fnlog = fn.mid(outpath.length());  // Fürs Logfile nur den Filenamen ohne Pfad
     performSaveParamOperation(fn);
     if ( !genimg )
     {
         if ( flog != nullptr )
         {
-            flog->write(qPrintable(fn+"  -  no img\n"));
+            flog->write(qPrintable(fnlog+"  -  no img\n"));
             flog->flush();
         }
+#ifndef ChatbotDisabled
+        if ( genJson )
+        {   // Ob das Sinn macht, ist eine andere Frage...
+            fn.replace(".ini",".json");
+            chatbotSaveConfig(fn, "From CBS Tool"); // TODO
+        }
+#endif
         //qApp->processEvents();  wackelt die ganze Zeit mit der GUI, besser hier weglassen
-        return false;
+        return false; // = kein Image erstellt
     }
+    qApp->processEvents();  // um Änderungen der Parameter zu zeigen, hier ist es etwas langsamer...
 
-    local_butCalc_clicked();          // ohne speichern der Parameter im Temp-File
+    local_butCalc_clicked(false);          // ohne speichern der Parameter im Temp-File, ohne Anzeige des Imagewindows
 
     // Rechenzeiten für das Logfile
     QString msg = QString(" - PrepTime=%1 ms, CalcTime=%2 ms")
             .arg(calcGui->higResTimerElapsed(SC_CalcGUI::htimPrep),6,'f',3)
             .arg(calcGui->higResTimerElapsed(SC_CalcGUI::htimCalc),10,'f',3);
 
+    // Wenn eine Fehlermeldung generiert wurde, so sollte ein Parameter modifiziert werden
+    QString calcError = QString::fromStdString(calcGui->getCalcPtr()->getLastErrorMessage());
+    if ( checkNan && !calcError.isEmpty() && !calcError.startsWith("INV") )
+    {   // Jetzt ist in 'calcError' ein Parameter, ein Vergleich und ein Wert,
+        // damit soll jetzt ein neuer Versuch gemacht werden.
+        // Bei "INVALID" ist keine 'Heilung' möglich (durch probieren festgestellt).
+        qDebug() << fnlog << calcError;
+        QString par="";
+        double val;
+        int p;
+        if ( (p=calcError.indexOf("<=")) > 0 )
+        {   // "uca<=0.01" - Wert kleiner als, also etwas größer
+            par = calcError.left(p);
+            val = calcError.mid(p+2).toDouble() * 1.1;
+            msg += QString(", RETRY %1 <= %2").arg(par).arg(val);
+        }
+        else if ( (p=calcError.indexOf(">=")) > 0 )
+        {   // "EditRadiusi>=0.5" - Wert zu groß, also etwas verkleinern
+            par = calcError.left(p);
+            val = calcError.mid(p+2).toDouble() * 0.9;
+            msg += QString(", RETRY %1 <= %2").arg(par).arg(val);
+        }
+        if ( ! par.isEmpty() )
+        {
+            calcGui->updateParamValue( par, val, SETCOLMARK_IGNORED );
+            local_butCalc_clicked(false);          // ohne speichern der Parameter im Temp-File, ohne Anzeige des Imagewindows
+            calcError = QString::fromStdString(calcGui->getCalcPtr()->getLastErrorMessage());
+            msg += QString(" - PrepTime=%1 ms, CalcTime=%2 ms")
+                    .arg(calcGui->higResTimerElapsed(SC_CalcGUI::htimPrep),6,'f',3)
+                    .arg(calcGui->higResTimerElapsed(SC_CalcGUI::htimCalc),10,'f',3);
+        }
+    }
+
+    if ( !calcError.isEmpty() )
+    {   // Jetzt wurde eine Fehlermeldung generiert (i.d.R. falsche Parameter)
+        msg += ", Error:" + calcError;
+        _bAbbruch = false;
+    }
+
     if ( _bAbbruch )
     {   // Abbruch vom User
-        if ( flog != nullptr ) flog->write(qPrintable(fn+msg+"  -  Abort by user\n"));
+        if ( flog != nullptr ) flog->write(qPrintable(fnlog+msg+"  -  Abort by user\n"));
         lastUsedImage->close();
         return false;
     }
@@ -9402,8 +9445,22 @@ bool SC_MainGUI::genIniFile_CombinationOfCBs( QFile *flog, QString outpath, bool
         msg += QString(", %1 NaN / %2 px").arg(nanval).arg(grid*grid);
         if ( grid*grid == nanval )
         {
+            if ( checkNan )
+            {
+                qDebug() << "Check NaN" << fnlog; // TODO
+            }
             retval = false;  // Nur NaN werden nicht gespeichert
             msg += " - no image generated.";
+        }
+    }
+    if ( retval )
+    {
+        double imin, imax;
+        lastUsedImage->getVarScaling( imin, imax );
+        if ( (imin==0 && imax==0.2) || imax <= imin )
+        {
+            msg += QString(" - image scaling invalid (min=%1, max=%2)").arg(imin).arg(imax);
+            retval = false;
         }
     }
     if ( _bAbortTimer )
@@ -9413,13 +9470,138 @@ bool SC_MainGUI::genIniFile_CombinationOfCBs( QFile *flog, QString outpath, bool
     if ( retval )
     {
         fn.replace(".ini",".png");
-        lastUsedImage->saveImage(fn);
+        if ( lastUsedImage->saveImage(fn) )
+        {   // Nur, wenn das Image richtig gespeichert wurde, darf auch eine JSON Datei erzeugt werden
+#ifndef ChatbotDisabled
+            if ( genJson )
+            {
+                fn.replace(".png",".json");
+                chatbotSaveConfig(fn, "From CBS Tool"); // TODO
+                //msg += " - Gen Json";  // Mehr für mich zur Info
+            }
+#endif
+        }
+        else
+        {   // Untersuchungen, warum das Image nicht gespeichert werden kann
+            msg += " - image save failed";
+            /* - bringt keinen Erfolg
+            QFile fimg(fn);
+            if ( fimg.open(QIODevice::WriteOnly) )
+            {
+                QImage img = lastUsedImage->getCurrentImage();
+                if ( img.save( &fimg, "png" ) )
+                {
+                    msg += ", IOsave ok";
+                    fimg.close();
+                }
+                else
+                {
+                    msg += ", IOsave FAIL";
+                    fimg.close();
+                    fimg.remove();
+                }
+            }
+            else
+            {
+                msg += ", QFile FAIL";
+            }
+            */
+        }
     }
     lastUsedImage->close();
     if ( flog != nullptr )
     {
-        flog->write(qPrintable(fn+msg+"\n"));
+        flog->write(qPrintable(fnlog+msg+"\n"));
         flog->flush();
     }
     return retval;
+}
+
+void SC_MainGUI::on_butParamSearchChatbot_clicked()
+{
+    ui->butParamSearchGenerate->setEnabled(false);
+    ui->butParamSearchChatbot->setEnabled(false);
+
+    const QString logfile = "ParamSearchChatbot.log";
+
+    // Hier kommt noch die Abfrage, ob alle Outputfiles im gleichen Pfad gespeichert werden sollen
+    QDialog *dlg = new QDialog(this);
+    dlg->setWindowTitle("Chatbot Trainingfiles");
+    QVBoxLayout *lay = new QVBoxLayout;
+    QLabel *lbl = new QLabel("Select destination of the generated Chatbot Trainingfiles:");
+    QRadioButton *rb1 = new QRadioButton("same place as the input file");
+    QRadioButton *rb2 = new QRadioButton("Collect them in one folder:");
+    QLineEdit *inp = new QLineEdit();
+    QPushButton *but = new QPushButton("Save and start");
+    connect( but, SIGNAL(clicked()), dlg, SLOT(accept()) );
+    lay->addWidget(lbl);
+    lay->addWidget(rb1);
+    lay->addWidget(rb2);
+    lay->addWidget(inp);
+    lay->addWidget(but);
+    dlg->setLayout(lay);
+    QSettings sets(SETT_APP,SETT_GUI);
+    sets.beginGroup("Chatbot");
+    rb1->setChecked(  sets.value("sameplace",true).toBool() );
+    rb2->setChecked( !sets.value("sameplace",true).toBool() );
+    inp->setText( sets.value("newpath",ui->inpChatbotTrainfile->text()).toString() );
+    dlg->exec();
+    sets.setValue( "newpath", inp->text() );
+    sets.setValue( "sameplace", rb1->isChecked() );
+    sets.endGroup();
+    sets.sync();
+
+    QString inbase = ui->inpParamSearchPath->text();
+    if ( !inbase.endsWith("/") ) inbase += "/";
+    ui->lblParamSearchLog->setText("See <a href=\"file:///"+inbase+logfile+"\">"+inbase+logfile+"</a>");
+    QString outbase;
+    if ( rb1->isChecked() )
+        outbase = inbase;
+    else
+    {
+        outbase = inp->text();
+        if ( !outbase.endsWith("/") ) outbase += "/";
+    }
+    // Speichern der aktuellen Parameterwerte
+    QString myLocPar = fnTempParamFile;
+    myLocPar.replace(".ini","_psg.ini");
+    performSaveParamOperation( myLocPar );
+    // Logfile
+    QFile flog(inbase+logfile);
+    if ( !flog.open(QIODevice::WriteOnly) )
+    {
+        QMessageBox::critical( this, "Error", flog.fileName()+":"+flog.errorString(), QMessageBox::Ok );
+        return;
+    }
+    bSearchParamsRunning = true;
+    // Gang durch alle selektierten Files
+    foreach ( QListWidgetItem *item, ui->lisParamSearchResult->selectedItems() )
+    {
+        QString fninp = inbase + item->text();
+        ui->lisParamSearchResult->setCurrentItem(item,QItemSelectionModel::Deselect);
+        qApp->processEvents();
+        //qDebug() << fninp;
+        if ( !fninp.endsWith(".ini") && !fninp.endsWith(".sas_tpv") ) continue;
+        // Parameterfiles
+        if ( fninp.endsWith("ConfigParams.ini") ) continue;
+        flog.write( qPrintable("Read "+fninp+EOL) );
+        QString rv = local_Load_all_Parameters(fninp);
+        if ( !rv.isEmpty() )
+        {
+            QStringList tmp = rv.split(EOL,Qt::SkipEmptyParts);
+            foreach ( QString s, tmp )
+                flog.write( qPrintable("  "+s+EOL) );
+            if ( rv.contains("Error:") ) continue; // Jetzt kein Bild rechnen (käme nur Blödsinn raus)
+        }
+        QFileInfo fi(fninp);
+        QString fnout = outbase + fi.baseName() + ".json";
+
+        chatbotSaveConfig(fnout, ui->txtComment->text());
+
+        flog.write( qPrintable("Save "+fnout+EOL+EOL) );
+    }
+    flog.close();
+    ui->lblParamSearchLog->show();
+    bSearchParamsRunning = false;
+    local_Load_all_Parameters(myLocPar);    // Wiederherstellen der vorherigen Parameterwerte
 }

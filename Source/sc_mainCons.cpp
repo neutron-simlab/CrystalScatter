@@ -5,6 +5,9 @@
 #include <QDir>
 #include <QDateTime>
 #include <QStringList>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <thread>
 #include <iostream>
 #include "sc_postproc.h"
@@ -118,7 +121,7 @@ int main(int argc, char *argv[])
     parser.addOption(loggingOption);
 
     QCommandLineOption csvOption( "csv",
-                                  "Filepath and name of the csvfile for some statistic outputs during 2D-Fit (*.csv).",
+                                  "Filepath and name of the csv file for some statistic outputs during 2D-Fit (*.csv).",
                                   "csvfile" );
     parser.addOption(csvOption);
 
@@ -127,7 +130,7 @@ int main(int argc, char *argv[])
                                       " The parameterfile and the dataset are taken from this fit file."
                                       " Or use the -p for the parameterfile and the -i for the dataset."
                                       " Use -l for the global logfile.",
-                                      "autofit" );
+                                      "fitcfgfile" );
     parser.addOption(autofitOption);
 
     QCommandLineOption outputOption( QStringList() << "o" << "output",
@@ -182,13 +185,13 @@ int main(int argc, char *argv[])
 #endif // USEGENCOLORTBL
 
     QCommandLineOption timetestOption( "timetest",
-                                       "Start timing test. No output image is generated. Use -o to set the"
-                                       " generated output file with the statistics and -p for the parametr"
-                                       " file for the calculation. The given config file can be generated"
-                                       " with the GUI and contains the test definitions.",
+                                       "Start timing test. No output image is generated. The given config file can be generated"
+                                       " with the GUI and contains the test definitions. Use -p for the parameter file used for the"
+                                       " calculation and -o to overwrite the outputpath for the statistics from the config file.",
                                        "timetest" );
     parser.addOption(timetestOption);
 
+#ifndef ChatbotDisabled
     QCommandLineOption chatbotOption( "chatbot",
                                       "The program waits for the given input file (generated from a chatbot),"
                                       " calculates and saves the image and removes the input file.",
@@ -199,6 +202,28 @@ int main(int argc, char *argv[])
                                      "If set, the inputfile is kept and the program ends after one calculation."
                                      " This is useful during debugging, not needed in normal operations." );
     parser.addOption(cbkeepOption);
+
+
+    // --- MCP Kommunikation mit dem Chatbot via Python-MCP-Server (TODO)
+    QCommandLineOption mcpinpOption( "mcpinp",
+                                     "Internal Parameter used in MCP Communication with the Chatbot (Input parameter set).",
+                                     "file" );
+    mcpinpOption.setFlags( QCommandLineOption::HiddenFromHelp );
+    parser.addOption(mcpinpOption);
+
+    QCommandLineOption mcplogOption( "mcplog",
+                                     "Internal Parameter used in MCP Communication with the Chatbot (Logfilename).",
+                                     "file" );
+    mcplogOption.setFlags( QCommandLineOption::HiddenFromHelp );
+    parser.addOption(mcplogOption);
+
+    QCommandLineOption mcpimgOption( "mcpimg",
+                                     "Internal Parameter used in MCP Communication with the Chatbot (Image output filename).",
+                                     "file" );
+    mcpimgOption.setFlags( QCommandLineOption::HiddenFromHelp );
+    parser.addOption(mcpimgOption);
+    // --- MCP Ende (TODO)
+#endif
 
     QCommandLineOption printParOption( "prtpar",
                                     "If set, the parameter are printed before calculation (internal)." );
@@ -258,8 +283,10 @@ int main(int argc, char *argv[])
     bool nofft        = parser.isSet(nofftOption);
     noConsolOutput    = parser.isSet(noConsolOption);
     QString timetest  = parser.value(timetestOption);
+#ifndef ChatbotDisabled
     QString chatbot   = parser.value(chatbotOption);
     bool cbkeepfile   = parser.isSet(cbkeepOption);
+#endif
     doPrintParameter  = parser.isSet(printParOption);
 
     // Die TPV-Files werden hinter der Option "--tpv" geschrieben. Wenn der User
@@ -422,7 +449,11 @@ int main(int argc, char *argv[])
             std::cerr << qPrintable(logfile + " " + flog->errorString()) << std::endl;
             return 1;
         }
-        if ( onlyCalc && autofit.isEmpty() && chatbot.isEmpty() )
+        if ( onlyCalc && autofit.isEmpty()
+#ifndef ChatbotDisabled
+            && chatbot.isEmpty()
+#endif
+            )
             flog->write(qPrintable(QString("Only one image calculated.")+EOL));
 
         flog->write( qPrintable(        "AI-Calculationfile: "+aifile+EOL) );
@@ -437,8 +468,10 @@ int main(int argc, char *argv[])
         flog->write( qPrintable(QString("             Image:%1%2 Rot=%3deg, Zoom=%4, Color=%5")
                                    .arg((imgSwapH?" SwapHor,":""),(imgSwapV?" SwapVert,":""))
                                    .arg(imgRot*90).arg(imgZoom).arg(imgColorTbl)+EOL) );
+#ifndef ChatbotDisabled
         flog->write( qPrintable(        "      Chatbot file: "+chatbot+EOL) );
         flog->write( qPrintable(QString(" Chatbot debug mode: %1").arg(cbkeepfile)+EOL) );
+#endif
     }
     std::cerr << "   CALC: " << qPrintable(aifile)    << std::endl;
     std::cerr << " PARAMS: " << qPrintable(paramfile) << std::endl;
@@ -453,8 +486,10 @@ int main(int argc, char *argv[])
     std::cerr << qPrintable(QString("  Image:%1%2 Rot=%3deg, Zoom=%4, Color=%5")
                                 .arg((imgSwapH?" SwapHor,":""),(imgSwapV?" SwapVert,":""))
                                 .arg(imgRot*90).arg(imgZoom).arg(imgColorTbl)) << std::endl;
+#ifndef ChatbotDisabled
     std::cerr << "CHATBOT: " << qPrintable(chatbot)    << std::endl;
     std::cerr << "CBDebug: " << cbkeepfile << std::endl;
+#endif
     if ( doPrintParameter )
         std::cerr << " PrtPar: yes (internal)" << std::endl;
 
@@ -465,6 +500,7 @@ int main(int argc, char *argv[])
     //slCalcArt = calc->getCalcTypes();
     if ( !paramfile.isEmpty() ) calc->loadParameter( paramfile );
 
+#ifndef ChatbotDisabled
     if ( ! chatbot.isEmpty() )
     {
         void waitForChatbot( SC_CalcCons *calc, QString cbfile, /*QString param,*/ int nthreads, bool keep );
@@ -481,7 +517,9 @@ int main(int argc, char *argv[])
         // Endlos-Schleife. Wird nur durch ein Terminate unterbrochen!
         return 0;
     }
-    else if ( tpvfiles.size() > 0 )
+    else
+#endif
+        if ( tpvfiles.size() > 0 )
     {   // Generate AI files with TPV from one file ...
         void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthreads );
         if ( flog )
@@ -1008,7 +1046,7 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
         }
 
         // Berechnen
-        calc->prepareCalculation( false/*fromfit*/, false/*use1d*/ );
+        calc->prepareData( false/*fromfit*/, false/*use1d*/ );
         if ( useTPV )
         {
             if ( (factorInLine && factorInLineCount > 1) || !factorInLine )
@@ -1321,7 +1359,7 @@ void generateSingleImage( SC_CalcCons *calc, QString fnpng, int nthreads )
     iCurCalcArt = 0;
 
     // Berechnen
-    calc->prepareCalculation( false/*fromfit*/, false/*use1d*/ );
+    calc->prepareData( false/*fromfit*/, false/*use1d*/ );
     calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
     std::cerr << qPrintable(fnpng) << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
     if ( flog )
@@ -1376,7 +1414,7 @@ void printAllParameter( SC_CalcCons *calc, QFile *f )
     std::cerr << "printAllParameter - " << qPrintable(f->fileName()) << std::endl;
     f->write("------------------------------ Parameters Start" EOL);
 
-    QStringList meta = calc->getCalcPtr()->guiLayoutNeu();
+    QStringList meta = calc->getCalcPtrWrapper()->guiLayoutNeu();
     for ( int m=0; m<meta.size(); m++ )
     {
         QStringList sl = meta[m].split(";");
@@ -1439,7 +1477,7 @@ double doFitStart( SC_CalcCons *calc, widImage *img, int nthreads,
                             img->getFileInfos()->centerX, img->getFileInfos()->centerY,
                             img->dataPtr() );
 
-    calc->prepareCalculation( true/*fromfit*/, false/*use1d*/ );
+    calc->prepareData( true/*fromfit*/, false/*use1d*/ );
 
     QHash<QString,_fitLimits*>::const_iterator it;
 
@@ -1473,6 +1511,7 @@ double doFitStart( SC_CalcCons *calc, widImage *img, int nthreads,
                                   tolerance,
                                   inpFitBorder,
                                   inpFitBStop,  // or -1 to use the masking
+                                  false, // TODO: 1D in der Console fitten ???
                                   static_cast<progressLogging>(&myProgressLogging),
                                   &p2f, retinfo );
         timeForAll += fitClass->higResTimerElapsed;
@@ -2177,7 +2216,7 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
              usedImages.size() > 0 )
         {
             QString tmpfn = basePath + QFileInfo(usedImages.first()).baseName() + "_out";
-            calc->prepareCalculation( true/*fromfit*/, false/*use1d*/ );
+            calc->prepareData( true/*fromfit*/, false/*use1d*/ );
             calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
             widImage *img = new widImage();
             img->setConfig(imgColorTbl, imgSwapH, imgSwapV, imgRot, imgZoom, false);
@@ -2260,7 +2299,7 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
 
     if ( ! imgfile.isEmpty() )
     {   // Einzelfile, also jetzt erst das generierte Bild speichern
-        calc->prepareCalculation( true/*fromfit*/, false/*use1d*/ );
+        calc->prepareData( true/*fromfit*/, false/*use1d*/ );
         calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
         std::cerr << qPrintable(fnpng) << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
         if ( flog )
@@ -2395,7 +2434,7 @@ void performTimeTest( QString par, QString cfg, QString out )
                     for ( int i=0; i<numLoops; i++ )
                     {
                         // Berechnen
-                        calc->prepareCalculation( false/*fromfit*/, false/*use1d*/ );
+                        calc->prepareData( false/*fromfit*/, false/*use1d*/ );
                         calc->doCalculation( threads[t], nswcurr == swOld );
 
                         double c = calc->higResTimerElapsed(SC_CalcCons::htimCalc);
@@ -2437,10 +2476,83 @@ void performTimeTest( QString par, QString cfg, QString out )
 } /* performTimeTest() */
 
 
+#ifndef ChatbotDisabled
+QString jsval2str( QString key, QJsonValue val )
+{
+    switch ( val.type() )
+    {
+    case QJsonValue::Null:
+        return "NULL";
+    case QJsonValue::Bool:
+        return val.toBool() ? "true" : "false";
+    case QJsonValue::Double:
+        return QString::number(val.toDouble());
+    case QJsonValue::String:
+        return val.toString();
+    case QJsonValue::Array:
+    {
+        QJsonArray arr = val.toArray();
+        QString rv = "[ " + jsval2str(key+"[0]", arr[0]);
+        for ( int i=1; i<arr.size(); i++ )
+        {
+            rv += ", " + jsval2str(key+QString("[%1]").arg(i), arr[i]);
+        }
+        return rv+" ]";
+    }
+    case QJsonValue::Object:
+        return "obj";
+    case QJsonValue::Undefined:
+        return "NULL";
+    }
+    return "";
+}
+
 void waitForChatbot(SC_CalcCons *calc, QString cbfile, /*QString param,*/ int nthreads, bool keep)
 {
     iCurCalcArt = 0;
     QString basepath = QFileInfo(cbfile).absolutePath();
+
+    // ANF Kopie von: void SC_MainGUI::generateKeyHash()
+    QHash<QString,QString> paramkey2jsonkey;
+    paramkey2jsonkey.clear();
+    QStringList allkeys = calc->paramsForMethod(false/*num*/, true/*glob*/, false/*fit*/ );
+    if ( calc->currentParamValue("CenterMidpoint") != 0 )
+    {   // Jetzt ist Beamcenter = Mittelpunkt gesetzt, nehme BeamposX/y raus
+        allkeys.removeAll("CenterMidpoint");
+        allkeys.removeAll("BeamPosX");
+        allkeys.removeAll("BeamPosY");
+    }
+    while ( allkeys.size() > 0 )
+    {
+        QString key = allkeys.first();
+        if (key.startsWith("EditAxis")     || key.startsWith("Editdom")        ||
+            key.startsWith("ExpandImage")  || key.startsWith("RadioButtonQ")   ||
+            key.contains("EditQsteps")     || key.contains("EditQmin")         ||
+            key.startsWith("P1")           || key.contains("EditBFactor")      ||
+            key.contains("CheckBoxWAXS")   || key.contains("CalcQmax")         ||
+            key.startsWith("EditQmaxData") || key.startsWith("EditQmaxPreset") ||
+            key.contains("CenterBeam")     || key.contains("CenterMidpoint")   ||
+            key.contains("EditRelDis")     || key.contains("EditDist")
+            )
+        {
+            allkeys.removeAll(key);
+            continue;
+        }
+        if ( calc->isCurrentParameterValid(key) )
+        {
+            QString prtkey;
+            if ( key.startsWith("VAx")  ) prtkey = key.mid(1); // Das 'V' stört bei der Ausgabe
+            else if ( key.startsWith("Edit") ) prtkey = key.mid(4); // Das 'Edit' stört auch
+            else if ( key.startsWith("CheckBox") ) prtkey = key.mid(8);
+            else if ( key.startsWith("ComboBox") ) prtkey = "CB"+key.mid(8);
+            else if ( key.startsWith("RadBut") ) prtkey = key.mid(6);
+            else if ( key.startsWith("RadioButton") ) prtkey = "RB"+key.mid(11);
+            else prtkey = key;
+            paramkey2jsonkey.insert( key, prtkey.toLower() );
+        }
+        allkeys.removeAll(key); // damit auch doppelte rausgehen
+    } // while ( allkeys.size() > 0 )
+    // END Kopie von: void SC_MainGUI::generateKeyHash()
 
     while ( true )
     {   // Endlosschleife. Wird vom rufenden Programm via Terminate beendet
@@ -2449,133 +2561,82 @@ void waitForChatbot(SC_CalcCons *calc, QString cbfile, /*QString param,*/ int nt
             QThread::sleep( 2 /*sec*/ );
             continue;
         }
-        // default-Parameter laden - wurde schon vor dem Aufruf gemacht.
-        //if ( !param.isEmpty() ) calc->loadParameter( param );
-        // cbfile einlesen ...
-        QString fnpng="";
         QFile fcb(cbfile);
-        if ( fcb.open(QIODevice::ReadOnly) )
+        if ( ! fcb.open(QIODevice::ReadOnly) )
+        {   // Warten...
+            QThread::sleep( 2 /*sec*/ );
+            continue;
+        }
+        QJsonDocument jsInputFile = QJsonDocument::fromJson( fcb.readAll() );
+        fcb.close();
+
+        // Kopie von: void SC_MainGUI::loadChatbotParamFile(QString fn, bool logLoading)
+
+        QJsonObject jsAllObj = jsInputFile.object();
+
+        QJsonObject jsObjParticle = jsAllObj.take("particle_type").toObject();  // jetzt ist jsAllObj leer!
+        QString expDescr = jsval2str( "description", jsObjParticle.value("description") );
+
+        QJsonObject jsObjParams = jsObjParticle.take("parameters").toObject();
+        QJsonObject jsObjExpNam = jsObjParams.take("Experiment_name").toObject();
+        if ( expDescr == "NULL" )
+            expDescr = jsval2str( "description", jsObjExpNam.value("description") );
+
+        //ui->inpChatbotExpDescr->setText(expDescr);
+
+        QJsonObject::const_iterator it;
+        for ( it=jsObjParams.constBegin(); it != jsObjParams.constEnd(); ++it )
         {
-            // TODO: im cbfile sollte ein Filename für das Image sein
-            while ( true )
-            {
-                QString line = fcb.readLine().trimmed();
-                if ( line.isEmpty() )
-                {
-                    if ( fcb.atEnd() ) break;
-                    continue;
-                }
-                int pos;
-                if ( (pos=line.indexOf('#')) >= 0 )
-                {   // Kommentare sind erlaubt
-                    line.truncate(pos);
-                    line = line.trimmed();
-                    if ( line.isEmpty() ) continue;
-                }
+            QJsonObject jobj = it.value().toObject();
+            QJsonValue joval = jobj.value("value");
+            if ( joval.isUndefined() )
+                joval = jobj.value("default_value");
+            QString val = jsval2str( it.key(), joval );
+            //qDebug() << it.key() << "==>" << val << paramkey2jsonkey.key(it.key(),"?");
+            // val: <zahl oder -> / "NULL" / "False" / "True" / combobox-wert
 
-                QStringList sl = line.split("=");
-                if ( sl.size() != 2 ) continue;         // Kein '=' bedeutet falsche Syntax, ignorieren
+            QString pkey = paramkey2jsonkey.key(it.key(),"?");
 
-                if ( sl[0].startsWith("ena_") ) continue;
-                // Diese Flags brauche ich hier nicht (mehr)
-
-                if ( ! sl[0].startsWith("val_") ) continue; // Falsche Syntax
-
-                sl[1].replace("\"", "");
-
-                if ( keep )
-                    std::cerr << "READ '" << qPrintable(sl[0]) << "' = '" << qPrintable(sl[1]) << "'" << std::endl;
-
-                if ( sl[0].startsWith("val_numimg",Qt::CaseInsensitive) ) continue;
-                // Erstmal ignorieren ...
-
-                if ( sl[0].contains("Dist",Qt::CaseInsensitive) ) continue; // war von früher
-
-                if ( sl[0].startsWith("val_outPath",Qt::CaseInsensitive) )
-                {   // Jetzt wird der Pfad angegeben, eventuell auch das File.
-
-                    fnpng = sl[1].trimmed();
-                    if ( fnpng.length() < 4 )
-                    {   // Jetzt ist wohl nur ein '.' angegeben
-                        fnpng = basepath + "/" + QFileInfo(cbfile).baseName() + ".png";
-                    }
-                    if ( fnpng.contains("[path]") )
-                    {
-                        fnpng.replace( "[path]", QFileInfo(cbfile).baseName()+".png" );
-                    }
-                    if ( fnpng.startsWith("/home/user/") )
-                    {
-                        fnpng = basepath + "/" + QFileInfo(cbfile).baseName() + ".png";
-                    }
-                    std::cerr << "OUTfile: (" << QFileInfo(fnpng).isRelative() << ") "
-                              << qPrintable(QFileInfo(fnpng).absolutePath()) << std::endl;
-                    if ( QFileInfo(fnpng).isRelative() )
-                    {
-                        fnpng = QFileInfo(basepath+"/"+fnpng).absoluteFilePath();
-                        //std::cerr << "OUTfile: neu " << qPrintable(fnpng) << std::endl;
-                    }
-                    std::cerr << "OUTfile: " << qPrintable(fnpng) << std::endl;
-                }
-                else if ( sl[1][0] != '[' )
-                {   // Wenn im Chatbot nichts angegeben war, dann wird der Wert "[value]" geschrieben,
-                    // dann sollte der Default bleiben, sonst gibt es kein Image.
-                    // Die Keys wurden zm Schreiben etwas modifiziert, das muss wieder rückgängig gemacht werden.
-                    //+ if ( key.startsWith("VAx")  ) prtkey = key.mid(1); // Das 'V' stört bei der Ausgabe
-                    //- else if ( key.startsWith("Edit") ) prtkey = key.mid(4); // Das 'Edit' stört auch
-                    //- else if ( key.startsWith("CheckBox") ) prtkey = key.mid(8);
-                    //+ else if ( key.startsWith("ComboBox") ) prtkey = "CB"+key.mid(8);
-                    //- else if ( key.startsWith("RadBut") ) prtkey = key.mid(6);
-                    //+ else if ( key.startsWith("RadioButton") ) prtkey = "RB"+key.mid(11);
-
-                    double val = sl[1].trimmed().toDouble();
-                    if ( sl[1].contains("false",Qt::CaseInsensitive) ) val = 0;
-                    else if ( sl[1].contains("true",Qt::CaseInsensitive) ) val = 1;
-
-                    QString key = sl[0].mid(4).trimmed();
-                    if ( key.startsWith("Ax") ) key = "V"+key;
-                    else if ( key.startsWith("CB") ) key = "ComboBox"+key.mid(2);
-                    else if ( key.startsWith("RB") ) key = "RadioButton"+key.mid(2);
-                    bool rv = calc->updateParamValue( key, val );
-                    if ( !rv ) rv = calc->updateParamValue( "Edit"+key, val );
-                    if ( !rv ) rv = calc->updateParamValue( "CheckBox"+key, val );
-                    if ( !rv ) rv = calc->updateParamValue( "RadBut"+key, val );
-                    // Bei return false ist der Parameter unbekannt
-                    if ( !rv && flog != nullptr )
-                    {
-                        flog->open(QIODevice::Append);
-                        flog->write(qPrintable("Parameter "+sl[0].mid(4)+" unknown."+EOL));
-                        flog->close();
-                    }
-                }
-            } // while true -> bis eof lesen
-            fcb.close();
-            if ( fnpng.isEmpty() )
-            {
-                fnpng = cbfile + ".png"; // Default, falls nichts angegeben wird
-                if ( flog )
-                {
-                    flog->open(QIODevice::Append);
-                    flog->write(qPrintable("No outputfile given, use same name as inputfile: "+fnpng+EOL));
-                    flog->close();
-                }
-            }
-        } // if open ok
-        else
-        {   // Lesefehler, obwohl Datei vorhanden ist...
-            std::cerr << qPrintable(cbfile) << " -> " << qPrintable(fcb.errorString()) << std::endl;
-            std::cerr << "Program exits." << std::endl;
-            if ( flog )
+            /*if ( flog )
             {
                 flog->open(QIODevice::Append);
-                flog->write(qPrintable(cbfile+" -> "+fcb.errorString()+EOL));
-                flog->write("Program exits." EOL);
+                flog->write(qPrintable("READ "+pkey+" = "+val+EOL));
                 flog->close();
+            }*/
+
+            if ( val.at(0).isNumber() || val.at(0) == '-' || val.at(0) == '+' )
+            {   // Zahlen
+                calc->updateParamValue( pkey, val.toDouble() );
+                if ( keep )
+                    std::cerr << "READ num  '" << qPrintable(pkey) << "' = '" << qPrintable(val) << "'" << std::endl;
             }
-            if ( !keep ) fcb.remove(); // Versuch, wird aber wahrscheinlich scheitern ....
-            break; // Jetzt nicht mehr weiter machen
-        }
+            else if ( val.at(0) == 'F' || val.at(0) == 'T' )
+            {   // Boolsche Werte
+                calc->updateParamValue( pkey, val.at(0)=='T' );
+                if ( keep )
+                    std::cerr << "READ bool '" << qPrintable(pkey) << "' = '" << qPrintable(val) << "'" << std::endl;
+            }
+            else if ( val == "NULL" )
+            {   // Beim Default undefiniert und somit bei mienem Test auch...
+                val = jsval2str( it.key(), jobj.value("default_value_number") );    // Mehr für mich ohne reale Daten vom Chatbot
+                calc->updateParamValue( pkey, val.toDouble() );
+                if ( keep )
+                    std::cerr << "READ null '" << qPrintable(pkey) << "' = '" << qPrintable(val) << "'" << std::endl;
+            }
+            else
+            {   // ComboBox
+                calc->updateParamValue( pkey, val.toDouble() );
+                if ( keep )
+                    std::cerr << "READ cbs '" << qPrintable(pkey) << "' = '" << qPrintable(val) << "'" << std::endl;
+            }
+        } // for it
+
+        // Outputfile im Moment noch neben dem Inputfile plus Datum/Uhrzeit
+        QString fnpng = basepath + "/" + QFileInfo(cbfile).baseName() + QDateTime::currentDateTime().toString("yyyyMMdd-hhmmss") + ".png";
+        std::cerr << "OUTfile: " << qPrintable(fnpng) << std::endl;
+
         // Berechnen
-        calc->prepareCalculation( false/*fromfit*/, false/*use1d*/ );
+        calc->prepareData( false/*fromfit*/, false/*use1d*/ );
         calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
         if ( flog )
         {
@@ -2624,6 +2685,7 @@ void waitForChatbot(SC_CalcCons *calc, QString cbfile, /*QString param,*/ int nt
         }
     } // endless
 } /* waitForChatbot() */
+#endif
 
 
 /*

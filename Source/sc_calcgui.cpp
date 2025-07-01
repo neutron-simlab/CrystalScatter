@@ -24,9 +24,10 @@ QHash<QString,paramHelper*> SC_CalcGUI::params;
  */
 SC_CalcGUI::SC_CalcGUI() : QObject()
 {
-    calcGeneric = new SC_Calc_GENERIC();
+    calcGeneric = new SasCalc_GENERIC_calculation();
+    calcGenericWrapper = new SC_Calc_GENERIC(calcGeneric);
 
-    QStringList meta = calcGeneric->guiLayoutNeu();
+    QStringList meta = calcGenericWrapper->guiLayoutNeu();
     for ( int m=0; m<meta.size(); m++ )
     {
         // Each element must be in the form "type;kenn;typespec;tooltip;default" with:
@@ -46,6 +47,7 @@ SC_CalcGUI::SC_CalcGUI() : QObject()
         e->value.number = 0;
         e->value.flag   = false;
         e->gui.w = nullptr;
+        e->enabled = true;  // es wird nur explizit auf false gesetzt, alles andere ist freigegeben
         switch ( sl[0][0].toLatin1() )
         {
         case 'N':
@@ -77,7 +79,11 @@ SC_CalcGUI::SC_CalcGUI() : QObject()
 void SC_CalcGUI::saveParameter( QString fn )
 {
     QSettings sets( fn, QSettings::IniFormat );
-    sets.beginGroup( calcGeneric->methodName() );
+    if ( sets.childGroups().contains(calcGenericWrapper->methodNameOld()) )
+    {   // Die alte Gruppe löschen
+        sets.remove(calcGenericWrapper->methodNameOld());
+    }
+    sets.beginGroup( calcGenericWrapper->methodNameNew() );
     sets.remove(""); // Remove all previous keys in this group to save only the current settings
     QHash<QString,paramHelper*>::iterator ip = params.begin();
     while ( ip != params.end() )
@@ -132,20 +138,20 @@ void SC_CalcGUI::saveParameter( QString fn )
 
 
 
-void SC_CalcGUI::loadParamLogmessage( QSettings &sets, QString key, QString msg )
+void SC_CalcGUI::loadParamLogmessage(QString grp, QString val, QString key, QString msg )
 {
-    QString line;
+    QString line = QDateTime::currentDateTime().toString("dd.MM.yy hh:mm:ss> ");
     if ( key.isEmpty() )
-        line = "LogLoad: " + msg;
+        line += msg;
     else
     {
-        line = "LogLoad:  ["+sets.group()+"] "+key;
+        line += "["+grp+"] "+key;
         if ( msg.isEmpty() )
         {
-            if ( sets.value(key).toString().isEmpty() )
+            if ( val.isEmpty() )
                 line += " = ''";
             else
-                line += " = " + sets.value(key).toString();
+                line += " = " + val;
         }
         else
             line += ": "+msg;
@@ -154,12 +160,14 @@ void SC_CalcGUI::loadParamLogmessage( QSettings &sets, QString key, QString msg 
     static QFile f;
     if ( msg.startsWith("START") )
     {   // Die erste Meldung, das File neu erstellen
-        f.setFileName(sets.fileName()+".log");
+        //f.setFileName(sets.fileName()+".log");
+        f.setFileName(msg.mid(6).trimmed()+".log");
         if ( !f.open(QIODevice::WriteOnly) )
         {
             qDebug() << f.fileName() << f.errorString();
             return;
         }
+        qDebug() << "Open ParamLog:" << f.fileName();
     }
     if ( f.isOpen() )
     {
@@ -168,6 +176,7 @@ void SC_CalcGUI::loadParamLogmessage( QSettings &sets, QString key, QString msg 
         if ( msg.startsWith("FIN") )
         {   // Die letzte Meldung, Datei schließen
             f.close();
+            qDebug() << "Close ParamLog";
         }
     }
 }
@@ -177,14 +186,11 @@ bool SC_CalcGUI::loadparamWithLog(QSettings &sets, QString key, bool def, bool d
     if ( dolog )
     {
         if ( sets.contains(key) )
-            loadParamLogmessage( sets, key, "" );
-            //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "=" << sets.value(key).toBool();
+            loadParamLogmessage( sets.group(), sets.value(key).toString(), key, "" );
         else if ( oldkey )
-            loadParamLogmessage( sets, key, "not longer supported." );
-            //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "not longer supported.";
+            loadParamLogmessage( sets.group(), sets.value(key).toString(), key, "not longer supported." );
         else
-            loadParamLogmessage( sets, key, "not found, use default "+QString(def?"true":"false") );
-            //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "not found, use default" << def;
+            loadParamLogmessage( sets.group(), sets.value(key).toString(), key, "not found, use default "+QString(def?"true":"false") );
     }
     return sets.value(key,def).toBool();
 }
@@ -193,13 +199,13 @@ int SC_CalcGUI::loadparamWithLog(QSettings &sets, QString key, int def, bool dol
     if ( dolog )
     {
         if ( sets.contains(key) )
-            loadParamLogmessage( sets, key, "" );
+            loadParamLogmessage( sets.group(), sets.value(key).toString(), key, "" );
             //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "=" << sets.value(key).toInt();
         else if ( oldkey )
-            loadParamLogmessage( sets, key, "not longer supported." );
+            loadParamLogmessage( sets.group(), sets.value(key).toString(), key, "not longer supported." );
             //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "not longer supported.";
         else
-            loadParamLogmessage( sets, key, "not found, use default "+QString::number(def) );
+            loadParamLogmessage( sets.group(), sets.value(key).toString(), key, "not found, use default "+QString::number(def) );
             //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "not found, use default" << def;
     }
     return sets.value(key,def).toInt();
@@ -209,13 +215,13 @@ double SC_CalcGUI::loadparamWithLog(QSettings &sets, QString key, double def, bo
     if ( dolog )
     {
         if ( sets.contains(key) )
-            loadParamLogmessage( sets, key, "" );
+            loadParamLogmessage( sets.group(), sets.value(key).toString(), key, "" );
             //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "=" << sets.value(key).toDouble();
         else if ( oldkey )
-            loadParamLogmessage( sets, key, "not longer supported." );
+            loadParamLogmessage( sets.group(), sets.value(key).toString(), key, "not longer supported." );
             //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "not longer supported.";
         else
-            loadParamLogmessage( sets, key, "not found, use default "+QString::number(def) );
+            loadParamLogmessage( sets.group(), sets.value(key).toString(), key, "not found, use default "+QString::number(def) );
             //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "not found, use default" << def;
     }
     return sets.value(key,def).toDouble();
@@ -225,13 +231,13 @@ QString SC_CalcGUI::loadparamWithLog(QSettings &sets, QString key, QString def, 
     if ( dolog )
     {
         if ( sets.contains(key) )
-            loadParamLogmessage( sets, key, "" );
+            loadParamLogmessage( sets.group(), sets.value(key).toString(), key, "" );
             //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "=" << sets.value(key).toString();
         else if ( oldkey )
-            loadParamLogmessage( sets, key, "not longer supported." );
+            loadParamLogmessage( sets.group(), sets.value(key).toString(), key, "not longer supported." );
             //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "not longer supported.";
         else
-            loadParamLogmessage( sets, key, "not found, use default "+def );
+            loadParamLogmessage( sets.group(), sets.value(key).toString(), key, "not found, use default "+def );
             //qDebug() << "LogLoad: ["+sets.group()+"]" << key << "not found, use default" << def;
     }
     return sets.value(key,def).toString();
@@ -258,7 +264,12 @@ QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, boo
     if ( !onlyMethod.isEmpty() && onlyMethod[0] == '@' )
         infile.beginGroup( onlyMethod.mid(1) );
     else
-        infile.beginGroup( calcGeneric->methodName() );
+    {
+        if ( infile.childGroups().contains(calcGenericWrapper->methodNameOld()) )
+            infile.beginGroup( calcGenericWrapper->methodNameOld() );
+        else
+            infile.beginGroup( calcGenericWrapper->methodNameNew() );
+    }
     QStringList slKeysFile = infile.allKeys();
     //qDebug() << "LOAD PARAM anf" << slKeysFile;
     if ( slKeysFile.isEmpty() )
@@ -325,7 +336,10 @@ QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, boo
                 par->value.number = 12; // 30=Generic --> None
             }
             if ( par->gui.w )
+            {
+                //qDebug() << "Select" << par->key << par->value.number << par->gui.cbs; // ->currentIndex();
                 par->gui.cbs->setCurrentIndex( par->value.number );
+            }
             break;
         case paramHelper::toggle:
             par->value.flag = loadparamWithLog( infile, par->key, par->value.flag, logload );
@@ -419,7 +433,24 @@ QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, boo
 
 void SC_CalcGUI::saveFitFlags( QSettings &sets )
 {
-    sets.beginGroup( calcGeneric->methodName() );
+    if ( sets.childGroups().contains(calcGenericWrapper->methodNameOld()) )
+    {   // Erst alle Flags aus der alten Gruppe löschen
+        sets.beginGroup( calcGenericWrapper->methodNameOld() );
+        QStringList k = sets.allKeys();
+        //qDebug() << "saveFitFlags - oldkey" << k;
+        foreach ( QString s, k )
+            if ( s.startsWith("FITFLAG_") )
+                sets.remove(s);
+        if ( sets.allKeys().size() == 0 )
+        {   // Jetzt ist die Gruppe leer, also diese auch löschen
+            sets.endGroup();
+            qDebug() << "saveFitFlags - oldkey - remove group";
+            sets.remove( calcGenericWrapper->methodNameOld() );
+        }
+        else
+            sets.endGroup();
+    }
+    sets.beginGroup( calcGenericWrapper->methodNameNew() );
     QHash<QString,paramHelper*>::iterator ip = params.begin();
     while ( ip != params.end() )
     {
@@ -442,7 +473,10 @@ void SC_CalcGUI::saveFitFlags( QSettings &sets )
 void SC_CalcGUI::loadFitFlags( QSettings &sets )
 {
     DT( qDebug() << "loadFitFlags()" );
-    sets.beginGroup( calcGeneric->methodName() );
+    if ( sets.childGroups().contains(calcGenericWrapper->methodNameOld()) )
+        sets.beginGroup( calcGenericWrapper->methodNameOld() );
+    else
+        sets.beginGroup( calcGenericWrapper->methodNameNew() );
     QHash<QString,paramHelper*>::iterator ip = params.begin();
     while ( ip != params.end() )
     {
@@ -481,7 +515,10 @@ void SC_CalcGUI::updateToolTipForCompare( QWidget *w, QString txt )
 
 void SC_CalcGUI::compareParameter(QSettings &sets, QHash<QString,_CompValues*> &compWerte, QStringList tbign)
 {
-    sets.beginGroup( calcGeneric->methodName() );
+    if ( sets.childGroups().contains(calcGenericWrapper->methodNameOld()) )
+        sets.beginGroup( calcGenericWrapper->methodNameOld() );
+    else
+        sets.beginGroup( calcGenericWrapper->methodNameNew() );
     QHash<QString,paramHelper*>::iterator ip = params.begin();
     while ( ip != params.end() )
     {
@@ -623,12 +660,13 @@ QStringList SC_CalcGUI::paramsForMethod(bool num, bool glob, bool fit )
 }
 
 /**
- * @brief SC_CalcGUI::currentParamValue
+ * @brief SC_CalcGUI::currentParamValueStr, Dbl, Int
  * @param m    - current metod to use
  * @param p    - parameter name to read
  * @param text - if true and in GUI mode then the ComboBox values are returned
- *               as text, else as index
- * @return String of the current value of this parameter, "?" if not known.
+ *               as text, else as index (only *Str)
+ * @return String / Doublevalue / Integervalue of the current value of this parameter,
+ *               "?"/0 if not known.
  */
 QString SC_CalcGUI::currentParamValueStr(QString p, bool text )
 {
@@ -991,20 +1029,29 @@ SC_CalcGUI::_numericalParams SC_CalcGUI::allNumericalParams()
     return rv;
 }
 
-bool SC_CalcGUI::isCurrentParameterVisible(QString p, QString &dbg)
+bool SC_CalcGUI::isCurrentParameterVisible(QString p)
 {
     if ( params.contains(p) )
     {
-        dbg = "Norm";
-        //if ( params[p]->gui.w == nullptr ) return false;
+        if (p.startsWith("SigX") ||
+            p.startsWith("SigY") ||
+            p.startsWith("SigZ") ||
+            p.startsWith("VAx") ||
+            p.startsWith("Ay") ||
+            p.startsWith("Az"))
+        {
+            //dbg = "Norm";
+            return myGuiParam::isEnabled("SigX");   // ui->grpAniso ist hier nicht verfügbar
+        }
+        //dbg = "Norm";
         return params[p]->enabled; // gui.w->isVisible();
     }
     // Globaler Wert?
-    if ( inpValues.contains(p) ) { dbg="Inp"; return true; }
+    if ( inpValues.contains(p) ) { /*dbg="Inp";*/ return true; }
     // Globaler Vektor-Wert?
-    if ( inpVectors.contains(p) ) { dbg="Vec"; return true; }
+    if ( inpVectors.contains(p) ) { /*dbg="Vec";*/ return true; }
     // Globaler Vektor-Wert als Einzelwert?
-    if ( inpSingleValueVectors.contains(p) ) { dbg="VecSingle"; return true; }
+    if ( inpSingleValueVectors.contains(p) ) { /*dbg="VecSingle";*/ return true; }
     // Nicht gefunden
     return false;
 }
@@ -1033,24 +1080,24 @@ bool SC_CalcGUI::isCurrentParameterValid(QString p, bool forfit )
 
 
 /**
- * @brief SC_CalcGUI::prepareCalculation
+ * @brief SC_CalcGUI::prepareData
  * @param fromFit - if true called from the 2d-fit (use other dataGetter)
- * @param getData - if true call the method specific prepare function
+ * @param only1d  - this is passed to the prepareData() function
  */
-void SC_CalcGUI::prepareCalculation(bool fromFit, bool only1d)
+void SC_CalcGUI::prepareData(bool fromFit, bool only1d)
 {
-    //qDebug() << "prepareCalculation: 1D" << only1d;
+    //qDebug() << "prepareData: 1D" << only1d;
     if ( fromFit )
     {   // Special call during 2D-Fit to update the parameters
-        calcGeneric->prepareData( &dataGetterForFit, only1d );
+        calcGenericWrapper->prepareData( &dataGetterForFit, only1d );
         return;
     }
-    calcGeneric->prepareData( &dataGetter, only1d );
+    calcGenericWrapper->prepareData( &dataGetter, only1d );
 }
 
 void SC_CalcGUI::updateOutputData()
 {
-    calcGeneric->updateOutputData( &dataSetter );
+    calcGenericWrapper->updateOutputData( &dataSetter );
 }
 
 
@@ -1277,7 +1324,8 @@ void SC_CalcGUI::dataGetterForFit( QString p, _valueTypes &v )
  */
 void SC_CalcGUI::doCalculation( int numThreads, bool bIgnoreNewSwitch )
 {
-    calcGeneric->doCalculation( numThreads, bIgnoreNewSwitch );
+    //qDebug() << "SC_CalcGUI::doCalculation";  wird vom Thread und beim 2d-Fit aufgerufen
+    calcGeneric->doCalculation( numThreads, bIgnoreNewSwitch, false/*ignCbs*/ );
 }
 
 /**
@@ -1308,12 +1356,12 @@ double SC_CalcGUI::higResTimerElapsed( whichHigResTimer f )
     switch ( f )
     {
     case htimPrep:
-        return calcGeneric->higResTimerElapsedPrep();
+        return calcGeneric->higResTimerElapsedPrep;
     case htimCalc:
-        return calcGeneric->higResTimerElapsedCalc();
+        return calcGeneric->higResTimerElapsedCalc;
     case htimBoth:
-        return calcGeneric->higResTimerElapsedPrep() +
-               calcGeneric->higResTimerElapsedCalc();
+        return calcGeneric->higResTimerElapsedPrep +
+               calcGeneric->higResTimerElapsedCalc;
     }
     return 0;
 }

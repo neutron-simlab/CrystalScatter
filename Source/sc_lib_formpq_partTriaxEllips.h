@@ -50,7 +50,7 @@ double SasCalc_GENERIC_calculation::formpq_partTriaxEllips(double qxs, double qy
                         pq = params.por/(q*q*q*q);  //Z=18181
                     else
                     {/*6*/  //Z=18182
-                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,0,qxs,qys,qz,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,3,7,14,7,0,0,params.CR->carr1p,pql);  //Z=18183
+                        qrombdeltac(params.p1,params.sigma,params.alphash1,params.polTheta,0,qxs,qys,qz,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,3,*/7,14,7,0,0,params.CR->carr1p,pql);  //Z=18183
                         pq = pql/(M_PI/2.0);  //Z=18184
                     }/*6*/  //Z=18185
                     /*formpq:=*/ return pq;  //Z=18186

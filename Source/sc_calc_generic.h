@@ -24,53 +24,56 @@ typedef void (*_dataSetter)( QString, _valueTypes& );
 class SC_Calc_GENERIC
 {
 public:
-    SC_Calc_GENERIC();
+    SC_Calc_GENERIC(SasCalc_GENERIC_calculation*c);
 
-    QString methodName() { return "FCC Spheres"; }
-    // This name has historical reasons and might be changed in the future (then change all parameter files too)
+    static const QString methodNameOld() { return "FCC Spheres"; }  // Historical, can be read
+    static const QString methodNameNew() { return "CalcData"; }     // New, used for writing
 
     QStringList guiLayoutNeu();
 
     void prepareData( _dataGetter, bool );
     void updateOutputData( _dataSetter );
 
-    void doCalculation( int numThreads, bool bIgnoreNewSwitch )
-    { calc->doCalculation( numThreads, bIgnoreNewSwitch ); } //230512//
+    //void doCalculation( int numThreads, bool bIgnoreNewSwitch )
+    //{ calc->doCalculation( numThreads, bIgnoreNewSwitch ); } //230512//
 
-    double doFitCalculation( int numThreads, int bstop, int border, long &cnt, long &nancnt )
-    { return calc->doFitCalculation( numThreads, bstop, border, cnt, nancnt ); }
+    //double doFitCalculation( int numThreads, int bstop, int border, long &cnt, long &nancnt )
+    //{ return calc->doFitCalculation( numThreads, bstop, border, cnt, nancnt ); }
 
-    std::string tpvPerformRandom(std::list<std::string> ids) { return calc->tpvPerformRandom(ids); }
+    //std::string tpvPerformRandom(std::list<std::string> ids) { return calc->tpvPerformRandom(ids); }
 
-    double higResTimerElapsedPrep() { return calc->higResTimerElapsedPrep; }
-    double higResTimerElapsedCalc() { return calc->higResTimerElapsedCalc; }
+    //double higResTimerElapsedPrep() { return calc->higResTimerElapsedPrep; }
+    //double higResTimerElapsedCalc() { return calc->higResTimerElapsedCalc; }
 
-    void endThread() { calc->endThread(); }
+    //std::string lastCalcErrorMessage() { return calc->getLastErrorMessage(); }
+    //std::string getEditSG_Text() { if ( calc == nullptr ) return "NULL"; return calc->getEditSG_Text(); }
 
-    void cleanup() { calc->cleanup(); }
-    bool gpuAvailable() { return calc->gpuAvailable(); }
-    int minX() { return calc->minX(); }
-    int maxX() { return calc->maxX(); }
-    int minY() { return calc->minY(); }
-    int maxY() { return calc->maxY(); }
-    double *data() { return calc->data(); }
-    void scaleIntensity( bool linlog ) { calc->scaleIntensity(linlog); }
-    double xyIntensity( int x, int y ) { return calc->xyIntensity(x,y); }
-    int lastX() { return calc->lastX(); }
-    int lastY() { return calc->lastY(); }
+    //void endThread() { calc->endThread(); }
 
-    bool newSwitchUsed() { return calc->newSwitchUsed(); }
+    //void cleanup() { calc->cleanup(); }
+    //bool gpuAvailable() { return calc->gpuAvailable(); }
+    //int minX() { return calc->minX(); }
+    //int maxX() { return calc->maxX(); }
+    //int minY() { return calc->minY(); }
+    //int maxY() { return calc->maxY(); }
+    //double *data() { return calc->data(); }
+    //void scaleIntensity( bool linlog ) { calc->scaleIntensity(linlog); }
+    //double xyIntensity( int x, int y ) { return calc->xyIntensity(x,y); }
+    //int lastX() { return calc->lastX(); }
+    //int lastY() { return calc->lastY(); }
 
-#ifdef FITDATA_IN_GPU  // real func
-    bool setFitData( int sx, int sy, const double *data ) { return calc->setFitData(sx,sy,data); }
-#endif
-    void setNoFitRect( int id, int x0, int y0, int x1, int y1 )
-    {
-        calc->setNoFitRect( id, x0, y0, x1, y1 );
-    }
+    //bool newSwitchUsed() { return calc->newSwitchUsed(); }
+
+//#ifdef FITDATA_IN_GPU  // real func
+//    bool setFitData( int sx, int sy, const double *data ) { return calc->setFitData(sx,sy,data); }
+//#endif
+    //void setNoFitRect( int id, int x0, int y0, int x1, int y1 )
+    //{
+    //    calc->setNoFitRect( id, x0, y0, x1, y1 );
+    //}
 
 private:
-    SasCalc_GENERIC_calculation *calc;
+    SasCalc_GENERIC_calculation *calc = nullptr;
 
 };
 

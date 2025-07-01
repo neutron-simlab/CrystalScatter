@@ -180,7 +180,7 @@ double SasCalc_GENERIC_calculation::formpq_partDisk(double limql, double qx, dou
             {/*5*/  //Z=17122
                 /*  disk: length = disk radius  */  //Z=17123
                 /*  always use Bessel function approximation  */  //Z=17124
-                qrombdeltac(params.p1,params.sigmal,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/ordis,2,6,params.orcase+7,0,0,0,params.CR->carr2p,pql);  //Z=17125
+                qrombdeltac(params.p1,params.sigmal,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,*/6,params.orcase+7,0,0,0,params.CR->carr2p,pql);  //Z=17125
                 pql = pql/params.norm;  //Z=17126
             }/*5*/  //Z=17127
         }/*4*/  //Z=17128
@@ -227,7 +227,7 @@ double SasCalc_GENERIC_calculation::formpq_partDisk(double limql, double qx, dou
             {/*5*/  //Z=17163
                 /*  disk: length = disk radius  */  //Z=17164
                 /*  always use Bessel function approximation  */  //Z=17165
-                qrombdeltac(params.p1,params.sigmal,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/ordis,2,6,params.orcase+7,0,0,0,params.CR->carr2p,pql);  //Z=17166
+                qrombdeltac(params.p1,params.sigmal,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,*/6,params.orcase+7,0,0,0,params.CR->carr2p,pql);  //Z=17166
                 pql = pql/params.norm;  //Z=17167
                 /* pql:=pq/1e-5;  //Z=17168 */
                 /* pql:=0.5;  //Z=17169 */
@@ -276,7 +276,7 @@ double SasCalc_GENERIC_calculation::formpq_partDisk(double limql, double qx, dou
             {/*5*/  //Z=17206
                 /*  disk: length = disk radius  */  //Z=17207
                 /*  always use Bessel function approximation  */  //Z=17208
-                qrombdeltac(params.p1,params.sigmal,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/ordis,2,6,params.orcase+7,0,0,0,params.CR->carr2p,pql);  //Z=17209
+                qrombdeltac(params.p1,params.sigmal,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,*/6,params.orcase+7,0,0,0,params.CR->carr2p,pql);  //Z=17209
                 pql = pql/params.norm;  //Z=17210
             }/*5*/  //Z=17211
         }/*4*/  //Z=17212
@@ -303,7 +303,7 @@ double SasCalc_GENERIC_calculation::formpq_partDisk(double limql, double qx, dou
             {/*5*/  //Z=17229
                 /*  disk: length = disk radius  */  //Z=17230
                 /*  always use Bessel function approximation  */  //Z=17231
-                qrombdeltac(params.p1,params.sigmal,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/ordis,2,6,params.orcase+7,0,0,0,params.CR->carr2p,pql);  //Z=17232
+                qrombdeltac(params.p1,params.sigmal,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,*/6,params.orcase+7,0,0,0,params.CR->carr2p,pql);  //Z=17232
                 pql = pql/params.norm;  //Z=17233
             }/*5*/  //Z=17234
         }/*4*/  //Z=17235

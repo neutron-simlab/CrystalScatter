@@ -3,8 +3,9 @@ include(sas_scatter2.pri)
 # ----- User configuration ends here.
 
 
-QT       += core gui xml
+QT       += core gui xml network
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+# "network" ist für die ChatBot Rest-Api Kommunikation
 
 TARGET = sas_scatter2
 TEMPLATE = app
@@ -43,6 +44,7 @@ SOURCES += \
     sc_calc_generic_cpu.cpp \
     sc_calcgui.cpp \
     sc_main.cpp \
+    sc_mainChatbot.cpp \
     sc_maingui.cpp \
     sc_postproc.cpp \
     sc_readdata.cpp \
@@ -248,7 +250,7 @@ win32: {
 } # win32
 
 
-unix: {     # no static !
+unix|macx: {     # no static !
 
     # ----- FFTW3 Library
     exists($$FFTW3_PATH/fftw3.h) {

@@ -182,7 +182,7 @@ double SasCalc_GENERIC_calculation::formfq_partDisk( /*double limql,*/ double qx
                     /* qrombdeltac(length,radius,p1,sigmal,dbeta,theta,phi,qx,qy,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,orcase+7,0,1,0,carr2p,pql);  //Z=19358 */
                     /*  P(q)  */  //Z=19359
                     qrombdeltac(params.p1,params.sigmal,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz, // 9,9,
-                                9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,2,6,params.orcase+7,0,0,0,params.CR->carr2f,pql);  //Z=19360
+                                9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,2,*/6,params.orcase+7,0,0,0,params.CR->carr2f,pql);  //Z=19360
                     pql = pql/params.norm;  //Z=19361
                 }/*5*/  //Z=19362
             }/*4*/  //Z=19363
@@ -233,7 +233,7 @@ double SasCalc_GENERIC_calculation::formfq_partDisk( /*double limql,*/ double qx
                     /* qrombdeltac(length,radius,p1,sigmal,dbeta,theta,phi,qx,qy,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,orcase+7,0,1,0,carr2p,pql);  //Z=19402 */
                     /*  P(q)  */  //Z=19403
                     qrombdeltac(params.p1,params.sigmal,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz, // 9,9,
-                                9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,2,6,params.orcase+7,0,0,0,params.CR->carr2f,pql);  //Z=19404
+                                9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,2,*/6,params.orcase+7,0,0,0,params.CR->carr2f,pql);  //Z=19404
                     pql = pql/params.norm;  //Z=19405
                 }/*5*/  //Z=19406
             }/*4*/  //Z=19407
@@ -284,7 +284,7 @@ double SasCalc_GENERIC_calculation::formfq_partDisk( /*double limql,*/ double qx
                     /* qrombdeltac(length,radius,p1,sigmal,dbeta,theta,phi,qx,qy,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,orcase+7,0,1,0,carr2p,pql);  //Z=19446 */
                     /*  P(q)  */  //Z=19447
                     qrombdeltac(params.p1,params.sigmal,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz, // 9,9,
-                                9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,2,6,params.orcase+7,0,0,0,params.CR->carr2f,pql);  //Z=19448
+                                9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,2,*/6,params.orcase+7,0,0,0,params.CR->carr2f,pql);  //Z=19448
                     pql = pql/params.norm;  //Z=19449
                 }/*5*/  //Z=19450
             }/*4*/  //Z=19451
@@ -315,7 +315,7 @@ double SasCalc_GENERIC_calculation::formfq_partDisk( /*double limql,*/ double qx
                     /* qrombdeltac(length,radius,p1,sigmal,dbeta,theta,phi,qx,qy,qz,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,ordis,2,6,orcase+7,0,1,0,carr2p,pql);  //Z=19472 */
                     /*  P(q)  */  //Z=19473
                     qrombdeltac(params.p1,params.sigmal,params.alphash1,params.polTheta,params.polPhi,qx,qy,qz, // 9,9,
-                                9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,*/params.ordis,2,6,params.orcase+7,0,0,0,params.CR->carr2f,pql);  //Z=19474
+                                9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,2,*/6,params.orcase+7,0,0,0,params.CR->carr2f,pql);  //Z=19474
                     pql = pql/params.norm;  //Z=19475
                 }/*5*/  //Z=19476
             }/*4*/  //Z=19477

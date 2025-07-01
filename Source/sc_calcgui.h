@@ -96,12 +96,12 @@ public:
     QString loadparamWithLog( QSettings &sets, QString key, const char *def, bool dolog, bool oldkey=false )
     { return loadparamWithLog(sets,key,QString(def),dolog,oldkey); }
 
-    void loadParamLogmessage(QSettings &sets, QString key, QString msg );
+    void loadParamLogmessage(QString grp, QString val, QString key, QString msg );
 
     void saveFitFlags( QSettings &sets );
     void loadFitFlags( QSettings &sets );
 
-    void prepareCalculation( bool fromFit, bool only1d );
+    void prepareData( bool fromFit, bool only1d );
     // Globale Inputs für die Berechnungen
     static QHash<QString,Double3> inpVectors;
     static QHash<QString,double>  inpValues;
@@ -123,7 +123,7 @@ public:
     _numericalParams allNumericalParams();
     bool isCurrentParameterValid( QString p, bool forfit );
     void resetParamColorMarker( QColor col );
-    bool isCurrentParameterVisible(QString p, QString &dbg);
+    bool isCurrentParameterVisible(QString p);
 
     void doCalculation(int numThreads, bool bIgnoreNewSwitch);
     double doFitCalculation(int numThreads, int bstop, int border, long &cnt, long &nancnt);
@@ -137,7 +137,8 @@ public:
     int minY() { return (calcGeneric!=nullptr) ? calcGeneric->minY() : 0; }
     int maxY() { return (calcGeneric!=nullptr) ? calcGeneric->maxY() : 0; }
     double *data() { return (calcGeneric!=nullptr) ? calcGeneric->data() : nullptr; }
-    SC_Calc_GENERIC *getCalcPtr() { return calcGeneric; }
+    SC_Calc_GENERIC *getCalcPtrWrapper() { return calcGenericWrapper; }
+    SasCalc_GENERIC_calculation *getCalcPtr() { return calcGeneric; }
     bool getLastXY( int &x, int &y );
 
     paramHelper *getParamPtr( QString p );
@@ -151,7 +152,8 @@ public:
     void updateToolTipForCompare( QWidget *w, QString txt );
 
 private:
-    SC_Calc_GENERIC *calcGeneric;
+    SC_Calc_GENERIC *calcGenericWrapper = nullptr;
+    SasCalc_GENERIC_calculation *calcGeneric = nullptr;
 
     static void dataGetter( QString p, _valueTypes &v );
     static void dataGetterForFit( QString p, _valueTypes &v );
