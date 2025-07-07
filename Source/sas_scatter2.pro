@@ -278,7 +278,7 @@ unix|macx: {     # no static !
     }
 
     # ----- QWT Library
-    exists($$QWT_BASE/lib/libqwt.a) {
+    exists($$QWT_BASE/lib/libqwt.so) {
         LIBS += -L$$QWT_BASE/lib -lqwt
         INCLUDEPATH += $$QWT_BASE/include
         #include ( $$QWT_BASE/features/qwt.prf )

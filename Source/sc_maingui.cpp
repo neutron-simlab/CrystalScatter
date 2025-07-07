@@ -2286,7 +2286,7 @@ void SC_MainGUI::on_butOpenMeasFile_clicked()
     data.setValue("LastImage",fn);
     lastDataFile = fn;
     // Beim butCalc_clicked wird das 1D Flag immer neu gesetzt, je nach Tab-Stellung
-    // Hier werden (z.Zt. nur 2d Daten gelesen, also werden die Flags fest gesetzt.
+    // Hier werden (z.Zt. nur 2d Daten gelesen, also werden die Flags fest gesetzt).
     ui->tab1D2D->setCurrentIndex(1);
     _is1Dused = false;
     if ( ! local_OpenMeasFile(fn,nullptr) )

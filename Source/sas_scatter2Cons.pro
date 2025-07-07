@@ -2,8 +2,11 @@
 include(sas_scatter2.pri)
 # ----- User configuration ends here.
 
-FFTW3_PATH = ""
+# In the current case this console program is used only to calculate the images.
+FFTW3_PATH = ""  # There is no fft calculation done, so these definitions can be deleted.
 FFTW3_LIBS = ""
+HDF5_BASE  = ""  # There is no hdf file reading, so this definition can be deleted.
+QWT_BASE   = ""  # There is no GUI here, so this definition can be deleted.
 
 
 QT       += core
@@ -208,7 +211,7 @@ unix: {     # no static !
     }
     else {
         DEFINES += USE_COMPLEX_WEB
-        message("No FFTW-Lib (not found) " $$FFTW3_PATH)
+        message("No FFTW-Lib found in " $$FFTW3_PATH)
     }
 
     # HDF5 Library
