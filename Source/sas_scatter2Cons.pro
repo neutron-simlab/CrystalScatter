@@ -2,6 +2,9 @@
 include(sas_scatter2.pri)
 # ----- User configuration ends here.
 
+FFTW3_PATH = ""
+FFTW3_LIBS = ""
+
 
 QT       += core
 #QT       -= gui  wird für QImage und QColor gebraucht um die Images zu erzeugen

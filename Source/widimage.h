@@ -165,6 +165,7 @@ public:
     bool saveImage( QString fn, QSize siz );
     void saveImageGray( QString fn, QSize siz );
     void saveImageBinary( QString fn, QSize siz );
+    QString saveImageBase64();
 
     void calculateHistogram( QPixmap coltbl, QImage src );
 

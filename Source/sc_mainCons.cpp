@@ -70,6 +70,54 @@ QStringList strColTblNames = {"grey", // 0="Greyscale"
 };
 
 
+#ifndef ChatbotDisabled
+QHash<QString,QString> paramkey2jsonkey;
+
+void generateJsonKeyList(SC_CalcCons *calc)
+{
+    // ANF Kopie von: void SC_MainGUI::generateKeyHash()
+    paramkey2jsonkey.clear();
+    QStringList allkeys = calc->paramsForMethod(false/*num*/, true/*glob*/, false/*fit*/ );
+    if ( calc->currentParamValue("CenterMidpoint") != 0 )
+    {   // Jetzt ist Beamcenter = Mittelpunkt gesetzt, nehme BeamposX/y raus
+        allkeys.removeAll("CenterMidpoint");
+        allkeys.removeAll("BeamPosX");
+        allkeys.removeAll("BeamPosY");
+    }
+    while ( allkeys.size() > 0 )
+    {
+        QString key = allkeys.first();
+        if (key.startsWith("EditAxis")     || key.startsWith("Editdom")        ||
+            key.startsWith("ExpandImage")  || key.startsWith("RadioButtonQ")   ||
+            key.contains("EditQsteps")     || key.contains("EditQmin")         ||
+            key.startsWith("P1")           || key.contains("EditBFactor")      ||
+            key.contains("CheckBoxWAXS")   || key.contains("CalcQmax")         ||
+            key.startsWith("EditQmaxData") || key.startsWith("EditQmaxPreset") ||
+            key.contains("CenterBeam")     || key.contains("CenterMidpoint")   ||
+            key.contains("EditRelDis")     || key.contains("EditDist")
+            )
+        {
+            allkeys.removeAll(key);
+            continue;
+        }
+        if ( calc->isCurrentParameterValid(key) )
+        {
+            QString prtkey;
+            if ( key.startsWith("VAx")  ) prtkey = key.mid(1); // Das 'V' stört bei der Ausgabe
+            else if ( key.startsWith("Edit") ) prtkey = key.mid(4); // Das 'Edit' stört auch
+            else if ( key.startsWith("CheckBox") ) prtkey = key.mid(8);
+            else if ( key.startsWith("ComboBox") ) prtkey = "CB"+key.mid(8);
+            else if ( key.startsWith("RadBut") ) prtkey = key.mid(6);
+            else if ( key.startsWith("RadioButton") ) prtkey = "RB"+key.mid(11);
+            else prtkey = key;
+            paramkey2jsonkey.insert( key, prtkey.toLower() );
+        }
+        allkeys.removeAll(key); // damit auch doppelte rausgehen
+    } // while ( allkeys.size() > 0 )
+    // END Kopie von: void SC_MainGUI::generateKeyHash()
+}
+#endif
+
 
 static widImage *addImage( int x0, int x1, int y0, int y1, double *d, QString /*title*/ )
 {
@@ -87,7 +135,7 @@ int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
 
-    QCoreApplication::setApplicationName("sas-scatter2");
+    QCoreApplication::setApplicationName("CrystalScatterCons");
     QCoreApplication::setApplicationVersion("Version " MYVERSION);
 
     QCommandLineParser parser;
@@ -206,23 +254,32 @@ int main(int argc, char *argv[])
 
     // --- MCP Kommunikation mit dem Chatbot via Python-MCP-Server (TODO)
     QCommandLineOption mcpinpOption( "mcpinp",
-                                     "Internal Parameter used in MCP Communication with the Chatbot (Input parameter set).",
+                                     "Internal Parameter used in MCP Communication with the Chatbot (Input parameter file).",
                                      "file" );
-    mcpinpOption.setFlags( QCommandLineOption::HiddenFromHelp );
-    parser.addOption(mcpinpOption);
-
+    QCommandLineOption mcpvalOption( "mcpval",
+                                    "Internal Parameter used in MCP Communication with the Chatbot (Parameter as 'key=value' pairs).",
+                                    "list" );
     QCommandLineOption mcplogOption( "mcplog",
                                      "Internal Parameter used in MCP Communication with the Chatbot (Logfilename).",
                                      "file" );
-    mcplogOption.setFlags( QCommandLineOption::HiddenFromHelp );
-    parser.addOption(mcplogOption);
-
     QCommandLineOption mcpimgOption( "mcpimg",
-                                     "Internal Parameter used in MCP Communication with the Chatbot (Image output filename).",
-                                     "file" );
-    mcpimgOption.setFlags( QCommandLineOption::HiddenFromHelp );
+                                    "Internal Parameter used in MCP Communication with the Chatbot (Image output filename).",
+                                    "file" );
+    QCommandLineOption mcpi64Option( "mcpimg64",
+                                    "Internal Parameter used in MCP Communication with the Chatbot (Image output as Base64 Text)." );
+
+    //mcpinpOption.setFlags( QCommandLineOption::HiddenFromHelp );
+    //mcpvalOption.setFlags( QCommandLineOption::HiddenFromHelp );
+    //mcplogOption.setFlags( QCommandLineOption::HiddenFromHelp );
+    //mcpimgOption.setFlags( QCommandLineOption::HiddenFromHelp );
+    //mcpi64Option.setFlags( QCommandLineOption::HiddenFromHelp );
+
+    parser.addOption(mcpinpOption);
+    parser.addOption(mcpvalOption);
+    parser.addOption(mcplogOption);
     parser.addOption(mcpimgOption);
-    // --- MCP Ende (TODO)
+    parser.addOption(mcpi64Option);
+// --- MCP Ende (TODO)
 #endif
 
     QCommandLineOption printParOption( "prtpar",
@@ -286,6 +343,29 @@ int main(int argc, char *argv[])
 #ifndef ChatbotDisabled
     QString chatbot   = parser.value(chatbotOption);
     bool cbkeepfile   = parser.isSet(cbkeepOption);
+
+    // Internal Parameter used in MCP Communication with the Chatbot:
+    QString cbmcpInput = parser.value(mcpinpOption); // Input parameter set
+    QString cbmcpValue = parser.value(mcpvalOption); // Parameter as 'key=value' pairs
+    QString cbmcpLogfn = parser.value(mcplogOption); // Logfilename
+    QString cbmcpImgfn = parser.value(mcpimgOption); // Image output filename
+    bool    cbmcpImg64 = parser.isSet(mcpi64Option); // Image output as Base64 Text
+
+    if ( !cbmcpLogfn.isEmpty() ) logfile = cbmcpLogfn; // Vereinfachung
+    if ( !cbmcpInput.isEmpty() ) paramfile = cbmcpInput; // ob das gut ist? TODO
+    if ( !cbmcpInput.isEmpty() || !cbmcpValue.isEmpty() )
+    {   // Jetzt sind wir im MCP-Modus, lösche alle anderen Parameter, damit es keine Konflikte gibt
+        aifile     = "";
+        imgfile    = "";
+        csvfile    = "";
+        autofit    = "";
+        af_output  = "";
+        nofft      = true;
+        noConsolOutput = true;
+        timetest   = "";
+        chatbot    = "";
+        cbkeepfile = false;
+    }
 #endif
     doPrintParameter  = parser.isSet(printParOption);
 
@@ -470,7 +550,12 @@ int main(int argc, char *argv[])
                                    .arg(imgRot*90).arg(imgZoom).arg(imgColorTbl)+EOL) );
 #ifndef ChatbotDisabled
         flog->write( qPrintable(        "      Chatbot file: "+chatbot+EOL) );
-        flog->write( qPrintable(QString(" Chatbot debug mode: %1").arg(cbkeepfile)+EOL) );
+        flog->write( qPrintable(QString("Chatbot debug mode: %1").arg(cbkeepfile)+EOL) );
+        flog->write( qPrintable(        " Chatbot MCP Input: "+cbmcpInput+EOL) );
+        flog->write( qPrintable(        "Chatbot MCP Values: "+cbmcpValue+EOL) );
+        flog->write( qPrintable(        " Chatbot MCP Logfn: "+cbmcpLogfn+EOL) );
+        flog->write( qPrintable(        " Chatbot MCP Image: "+cbmcpImgfn+EOL) );
+        flog->write( qPrintable(QString(" Chatbot MCP Img64: %1").arg(cbmcpImg64)+EOL) );
 #endif
     }
     std::cerr << "   CALC: " << qPrintable(aifile)    << std::endl;
@@ -487,8 +572,13 @@ int main(int argc, char *argv[])
                                 .arg((imgSwapH?" SwapHor,":""),(imgSwapV?" SwapVert,":""))
                                 .arg(imgRot*90).arg(imgZoom).arg(imgColorTbl)) << std::endl;
 #ifndef ChatbotDisabled
-    std::cerr << "CHATBOT: " << qPrintable(chatbot)    << std::endl;
-    std::cerr << "CBDebug: " << cbkeepfile << std::endl;
+    std::cerr << "CHATBOT: " << qPrintable(chatbot)   << std::endl;
+    std::cerr << "CBDebug: " <<         cbkeepfile    << std::endl;
+    std::cerr << "CBMCP  Input: " << qPrintable(cbmcpInput)  << std::endl;
+    std::cerr << "CBMCP Values: " << qPrintable(cbmcpValue)  << std::endl;
+    std::cerr << "CBMCP  Logfn: " << qPrintable(cbmcpLogfn)  << std::endl;
+    std::cerr << "CBMCP  Image: " << qPrintable(cbmcpImgfn)  << std::endl;
+    std::cerr << "CBMCP  Img64: " <<            cbmcpImg64   << std::endl;
 #endif
     if ( doPrintParameter )
         std::cerr << " PrtPar: yes (internal)" << std::endl;
@@ -516,6 +606,84 @@ int main(int argc, char *argv[])
         waitForChatbot( calc, chatbot, /*paramfile,*/ nthreads, cbkeepfile );
         // Endlos-Schleife. Wird nur durch ein Terminate unterbrochen!
         return 0;
+    }
+    else if ( !cbmcpInput.isEmpty() )
+    {   // Parameter über ein Eingabefile
+        // if ( !paramfile.isEmpty() ) calc->loadParameter( paramfile ); - ist oben schon gemacht
+        iCurCalcArt = 0;
+        // Berechnen
+        calc->prepareData( false/*fromfit*/, false/*use1d*/ );
+
+        calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
+        std::cerr << qPrintable(cbmcpInput) << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
+        if ( flog )
+            flog->write(qPrintable(QString("%1 -> %2ms").arg(cbmcpInput).arg(calc->higResTimerElapsed(SC_CalcCons::htimBoth))+EOL));
+
+        widImage *img = new widImage();
+        img->setConfig(imgColorTbl, imgSwapH, imgSwapV, imgRot, imgZoom, false);
+        img->setData( calc->minX(), calc->maxX(), calc->minY(), calc->maxY(), calc->data() );
+        if ( cbmcpImg64 )
+        {
+            QString retval = img->saveImageBase64();
+            std::cout << qPrintable(retval) << std::endl;
+        }
+        else if ( !cbmcpImgfn.isEmpty() )
+        {
+            img->saveImage( cbmcpImgfn );
+        }
+    }
+    else if ( !cbmcpValue.isEmpty() )
+    {   // Parameter als Key=Value Liste
+        generateJsonKeyList(calc);
+
+        QStringList kvlist = cbmcpValue.split(";");
+        foreach ( QString kv, kvlist )
+        {
+            int p = kv.indexOf("=");
+            if ( p < 0 ) continue;
+            QString val  = kv.mid(p+1).trimmed();
+            QString pkey = paramkey2jsonkey.key(kv.left(p),"?");
+            //qDebug() << "KeyValList" << kv << pkey << val;
+            if ( val.at(0).isNumber() || val.at(0) == '-' || val.at(0) == '+' )
+            {   // Zahlen
+                calc->updateParamValue( pkey, val.toDouble() );
+            }
+            else if ( val.at(0) == 'F' || val.at(0) == 'T' )
+            {   // Boolsche Werte
+                calc->updateParamValue( pkey, val.at(0)=='T' );
+            }
+            else if ( val == "NULL" )
+            {   // Beim Default undefiniert und somit bei mienem Test auch...
+                //val = jsval2str( it.key(), jobj.value("default_value_number") );    // Mehr für mich ohne reale Daten vom Chatbot
+                //calc->updateParamValue( pkey, val.toDouble() );
+            }
+            else
+            {   // ComboBox
+                calc->updateParamValue( pkey, val );
+            }
+        } // foreach
+
+        iCurCalcArt = 0;
+        // Berechnen
+        calc->prepareData( false/*fromfit*/, false/*use1d*/ );
+
+        calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
+        std::cerr << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
+        if ( flog )
+            flog->write(qPrintable(QString(" -> %1ms").arg(calc->higResTimerElapsed(SC_CalcCons::htimBoth))+EOL));
+
+        widImage *img = new widImage();
+        img->setConfig(imgColorTbl, imgSwapH, imgSwapV, imgRot, imgZoom, false);
+        img->setData( calc->minX(), calc->maxX(), calc->minY(), calc->maxY(), calc->data() );
+        if ( cbmcpImg64 )
+        {
+            QString retval = img->saveImageBase64();
+            std::cout << qPrintable(retval) << std::endl;
+        }
+        else if ( !cbmcpImgfn.isEmpty() )
+        {
+            img->saveImage( cbmcpImgfn );
+        }
     }
     else
 #endif
@@ -2512,47 +2680,7 @@ void waitForChatbot(SC_CalcCons *calc, QString cbfile, /*QString param,*/ int nt
     iCurCalcArt = 0;
     QString basepath = QFileInfo(cbfile).absolutePath();
 
-    // ANF Kopie von: void SC_MainGUI::generateKeyHash()
-    QHash<QString,QString> paramkey2jsonkey;
-    paramkey2jsonkey.clear();
-    QStringList allkeys = calc->paramsForMethod(false/*num*/, true/*glob*/, false/*fit*/ );
-    if ( calc->currentParamValue("CenterMidpoint") != 0 )
-    {   // Jetzt ist Beamcenter = Mittelpunkt gesetzt, nehme BeamposX/y raus
-        allkeys.removeAll("CenterMidpoint");
-        allkeys.removeAll("BeamPosX");
-        allkeys.removeAll("BeamPosY");
-    }
-    while ( allkeys.size() > 0 )
-    {
-        QString key = allkeys.first();
-        if (key.startsWith("EditAxis")     || key.startsWith("Editdom")        ||
-            key.startsWith("ExpandImage")  || key.startsWith("RadioButtonQ")   ||
-            key.contains("EditQsteps")     || key.contains("EditQmin")         ||
-            key.startsWith("P1")           || key.contains("EditBFactor")      ||
-            key.contains("CheckBoxWAXS")   || key.contains("CalcQmax")         ||
-            key.startsWith("EditQmaxData") || key.startsWith("EditQmaxPreset") ||
-            key.contains("CenterBeam")     || key.contains("CenterMidpoint")   ||
-            key.contains("EditRelDis")     || key.contains("EditDist")
-            )
-        {
-            allkeys.removeAll(key);
-            continue;
-        }
-        if ( calc->isCurrentParameterValid(key) )
-        {
-            QString prtkey;
-            if ( key.startsWith("VAx")  ) prtkey = key.mid(1); // Das 'V' stört bei der Ausgabe
-            else if ( key.startsWith("Edit") ) prtkey = key.mid(4); // Das 'Edit' stört auch
-            else if ( key.startsWith("CheckBox") ) prtkey = key.mid(8);
-            else if ( key.startsWith("ComboBox") ) prtkey = "CB"+key.mid(8);
-            else if ( key.startsWith("RadBut") ) prtkey = key.mid(6);
-            else if ( key.startsWith("RadioButton") ) prtkey = "RB"+key.mid(11);
-            else prtkey = key;
-            paramkey2jsonkey.insert( key, prtkey.toLower() );
-        }
-        allkeys.removeAll(key); // damit auch doppelte rausgehen
-    } // while ( allkeys.size() > 0 )
-    // END Kopie von: void SC_MainGUI::generateKeyHash()
+    generateJsonKeyList(calc);
 
     while ( true )
     {   // Endlosschleife. Wird vom rufenden Programm via Terminate beendet

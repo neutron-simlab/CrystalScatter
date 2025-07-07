@@ -1,6 +1,6 @@
 #include "sc_calcCons.h"
 
-//#include <QDebug>  funktioniert nicht
+//#include <QDebug>  funktioniert nicht, weil MessageHandler nicht da ist (siehe sc_main.cpp)
 #include <QSettings>
 #include <iostream>
 
@@ -13,7 +13,7 @@ QHash<QString,paramConsHelper*> SC_CalcCons::params;
 #include "sc_calc_generic.h"
 
 
-#define D(x) // x // Debuging... ACHTUNG: das qDebug() sollte durch std::cerr ersetzt werden!
+#define D(x) // x // Debuging...
 
 
 
@@ -25,6 +25,7 @@ SC_CalcCons::SC_CalcCons()
 {
     calcGeneric = new SasCalc_GENERIC_calculation();
     calcGenericWrapper = new SC_Calc_GENERIC(calcGeneric);
+    _calcTimeout = 0; // Ohne Timeout
     QStringList meta = calcGenericWrapper->guiLayoutNeu();
     for ( int m=0; m<meta.size(); m++ )
     {
@@ -563,8 +564,8 @@ bool SC_CalcCons::limitsOfParamValue( QString p, double &min, double &max, bool 
         default:
             break;
         }
-        return false;
     }
+    // Bei den Globalen Werten nicht verfügbar
     return false;
 }
 
@@ -606,6 +607,19 @@ bool SC_CalcCons::updateParamValue( QString p, double v )
     }
     return false;
 }
+bool SC_CalcCons::updateParamValue( QString p, QString v ) // Für ComboBoxen
+{
+    if ( params.contains(p) )
+    {
+        paramConsHelper *par = params.value(p);
+        if ( par->type != paramConsHelper::select )
+            return false;
+        int pos = par->slSelectValues.indexOf(v);
+        par->value.number = pos;
+        return true;
+    }
+    return false;
+}
 
 
 bool SC_CalcCons::isCurrentParameterValid( QString p )
@@ -624,29 +638,37 @@ bool SC_CalcCons::isCurrentParameterValid( QString p )
 
 
 /**
- * @brief SC_CalcCons::prepareData
- * @param getData - if true call the method specific prepare function (not in fit)
- */
-void SC_CalcCons::prepareData( bool fromFit, bool use1d )
-{
-    if ( fromFit )
-    {   // Special call during 2D-Fit to update the parameters
-        calcGenericWrapper->prepareData( &dataGetter, use1d );    // Cons noch ohne 1D
-        return;
-    }
-    calcGenericWrapper->prepareData( &dataGetter, use1d );
-}
-
-
-/**
- * @brief SC_CalcCons::dataGetter [static]
- * @param p - parameter name to retrieve (method is set globally)
+ * @brief SC_CalcCons::dataGetter
+ * @param p - parameter name to retrieve
  * @param v - value structure to return
  * @return true if the parameter was found, false in case of error
  * If in GUI mode the internal values are updated before returning.
  */
 void SC_CalcCons::dataGetter( QString p, _valueTypes &v )
 {
+    if ( ! inpValues.contains("ExpandImage") )
+    {   // Jetzt noch ein paar Defaultwerte eintragen, kommen vom Chatbot nicht mit
+        inpValues.insert( "RadioButtonQ1", false );
+        inpValues.insert( "RadioButtonQ2", false );
+        inpValues.insert( "RadioButtonQ4",  true );
+        inpValues.insert( "ExpandImage",   false );
+        inpVectors.insert( "Ax1", Double3(1,0,0) );
+        inpVectors.insert( "Ax2", Double3(0,1,0) );
+        inpVectors.insert( "Ax3", Double3(0,0,1) );
+        inpVectors.insert( "SigXYZ", Double3(40,40,40) );
+        inpSingleValueVectors.insert( "EditAxis1x",  inpVectors["Ax1"].x() );
+        inpSingleValueVectors.insert( "EditAxis1y",  inpVectors["Ax1"].y() );
+        inpSingleValueVectors.insert( "EditAxis1z",  inpVectors["Ax1"].z() );
+        inpSingleValueVectors.insert( "EditAxis2x",  inpVectors["Ax2"].x() );
+        inpSingleValueVectors.insert( "EditAxis2y",  inpVectors["Ax2"].y() );
+        inpSingleValueVectors.insert( "EditAxis2z",  inpVectors["Ax2"].z() );
+        inpSingleValueVectors.insert( "EditAxis3x",  inpVectors["Ax3"].x() );
+        inpSingleValueVectors.insert( "EditAxis3y",  inpVectors["Ax3"].y() );
+        inpSingleValueVectors.insert( "EditAxis3z",  inpVectors["Ax3"].z() );
+        inpSingleValueVectors.insert( "Editdom1",    inpVectors["SigXYZ"].x() );
+        inpSingleValueVectors.insert( "Editdom2",    inpVectors["SigXYZ"].y() );
+        inpSingleValueVectors.insert( "Editdom3",    inpVectors["SigXYZ"].z() );
+    }
     if ( params.contains(p) )
     {
         paramConsHelper *par = params[p];
@@ -655,15 +677,15 @@ void SC_CalcCons::dataGetter( QString p, _valueTypes &v )
         case paramConsHelper::numdbl:
         case paramConsHelper::numint:
             v.value = par->value.number;
-            D(qDebug() << "paramHelper::number" << p << v.value;)
+            D(std::cerr << "paramHelper::number '" << qPrintable(p) << "' = " << v.value << std::endl;)
             break;
         case paramConsHelper::select:
             v.select = par->value.number;
-            D(qDebug() << "paramHelper::select" << p << v.select;)
+            D(std::cerr << "paramHelper::select '" << qPrintable(p) << "' = " << v.select << std::endl;)
             break;
         case paramConsHelper::toggle:
             v.checked = par->value.flag;
-            D(qDebug() << "paramHelper::toggle" << p << v.checked;)
+            D(std::cerr << "paramHelper::toggle '" << qPrintable(p) << "' = " << v.checked << std::endl;)
             break;
         default:
             break;
@@ -673,13 +695,13 @@ void SC_CalcCons::dataGetter( QString p, _valueTypes &v )
     if ( inpValues.contains(p) )
     {
         v.value = inpValues[p];
-        D(qDebug() << "inpValues" << p << v.value;)
+        D(std::cerr << "inpValues '" << qPrintable(p) << "' = " << v.value << std::endl;)
         return;
     }
     if ( inpVectors.contains(p) )
     {
         v.vec = inpVectors[p];
-        D(qDebug() << "inpVectors" << p << v.vec.toString();)
+        D(std::cerr << "inpVectors '" << qPrintable(p) << "' = " << qPrintable(v.vec.toString()) << std::endl;)
         return;
     }
     std::cerr << "dataGetter: '" << qPrintable(p) << "' not found" << std::endl;
@@ -687,7 +709,7 @@ void SC_CalcCons::dataGetter( QString p, _valueTypes &v )
 
 
 /**
- * @brief SC_CalcCons::doCalculation
+ * @brief SC_CalcCons::doCalculation / doFitCalculation
  * @param numThreads - number of used threads (ignored in GPU mode)
  * @param pa         - function to show the progress and get the abort flag
  * Starts the calculation of the current method.
@@ -722,106 +744,3 @@ double SC_CalcCons::higResTimerElapsed( whichHigResTimer f )
     }
     return 0;
 }
-
-
-
-
-
-#ifdef undef
-/**
- * @brief calcHelper::calcHelper
- * @param c   - Calculation class pointer
- */
-calcConsHelper::calcConsHelper(SC_Calc_GENERIC *c )
-{
-    /* Daten aus dem Config-File zum Überschreiben der Werte aus dem Code:
-    # [ <methode> ]
-    #
-    # Wenn der Parameter fittable ist gilt:
-    #
-    # <paramname> = <a> : <b> : <c>
-    #    <a> ist der Defaultwert
-    #    <b> ist der Minimalwert beim Fit
-    #    <c> ist der Maximalwert beim Fit
-    #
-    # Wenn der Parameter nicht zum Fit geeignet ist gilt:
-    #
-    # <paramname> = <a>
-    #    <a> ist der Defaultwert
-    */
-
-    // TODO
-
-    subCalc = c;
-    QStringList meta = c->guiLayout();
-    for ( int m=0; m<meta.size(); m++ )
-    {
-        QStringList sl = meta[m].split(";");
-        if ( sl.size() < 4 ) continue;  // x;y;prompt;type müssen immer da sein
-        while ( sl.size() < 6 ) sl << " ";  // tooltip;default sind optional
-        // "x;y;prompt;type;tooltip;default" with:  ==> sc_calc.h for details
-        //  x;y     = index in the grid (0,1,2,....)
-        //  prompt  = prompting text label left of the inputfield
-        //  type    = Selection : "cbs|...|...|..."
-        //             Fittable : "cbsfit|...|...|..."
-        //obsolete:            Textinput : "txt|len"
-        //            Numericals: "inp|frac|min|max|unit"
-        //              Fittable: "inpfit|frac|min|max|unit"
-        //            CheckBox  : "tog"
-        //            Infolabel : "lbl"
-        //  tooltip = this is the tooltip set to both prompt label and inputfield (optional)
-        //  default = the default value (optional)
-        paramConsHelper *e = new paramConsHelper;
-        e->fitparam = sl[3].mid(3,3) == "fit";
-        e->key = sl[2].trimmed();
-        //e->value.text   = "";
-        e->value.number = 0;
-        e->value.flag   = false;
-        e->minNum       = 0;
-        e->maxNum       = 0;
-        QStringList typval = sl[3].mid(e->fitparam?7:4).split("|",Qt::SkipEmptyParts);
-        if ( sl[3].startsWith("cbs") )
-        {   // ComboBox  : "cbs|...|...|..." mit den jeweiligen Werten
-            e->type = paramConsHelper::select;
-            if ( !sl[5].isEmpty() )
-            {   // set default in local variable
-                e->value.number = typval.indexOf(sl[5]);
-            }
-            e->maxNum = typval.size();
-        }
-        else if ( sl[3].startsWith("inp") )
-        {   // Zahlenwert: "inp|frac|min|max" mit Nachkommastellen und Grenzwerten (optional)
-            e->type = paramConsHelper::number;
-            if ( typval.size() > 1 )
-                e->minNum = typval[1].toDouble();
-            else
-                e->minNum = -10000.0;
-            if ( typval.size() > 2 )
-                e->maxNum = typval[2].toDouble();
-            else
-                e->maxNum =  10000.0;
-            if ( !sl[5].isEmpty() )
-            {   // set default in local variable
-                e->value.number = sl[5].toDouble();
-            }
-        }
-        else if ( sl[3].startsWith("tog") )
-        {   // CheckBox  : "tog"
-            e->type = paramConsHelper::toggle;
-            if ( !sl[5].isEmpty() )
-            {   // set default in local variable
-                e->value.flag = sl[5].toInt() != 0;
-            }
-            e->maxNum = 1;
-        }
-        else if ( sl[3].startsWith("lbl") )
-        {   // Infolabel : "lbl" (hier wird der Prompt-Text über beide Spalten gezogen)
-            // und es wird nicht in der Parameter-Struktur gespeichert.
-            continue;
-        }
-        else
-            continue;
-        params.insert( e->key, e );
-    }
-}
-#endif

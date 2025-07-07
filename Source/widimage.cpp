@@ -15,6 +15,7 @@
 
 #endif
 #include <QFile>
+#include <QBuffer>
 #include <QDebug>
 #include <math.h>
 #include <iostream>
@@ -740,6 +741,18 @@ void widImage::saveImageBinary( QString fn, QSize siz )
         f.write("\n");
     }
     f.close();
+}
+
+QString widImage::saveImageBase64()
+{
+    QByteArray ba;
+    QBuffer buffer(&ba);
+    buffer.open(QIODevice::WriteOnly);
+    if ( noGUI )
+        imgNoGUI.save(&buffer, "PNG");
+    else
+        imgNormal.save(&buffer, "PNG");
+    return ba.toBase64();
 }
 
 

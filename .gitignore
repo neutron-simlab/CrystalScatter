@@ -7,3 +7,6 @@ TempParamSave.ini
 *.out
 *.synctex.gz
 *.toc
+
+Docker-Tests
+Mcp/imgtest.py

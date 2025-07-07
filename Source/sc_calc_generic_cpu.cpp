@@ -1278,7 +1278,6 @@ void SasCalc_GENERIC_calculation::doCalculation( int numThreads, bool bIgnNewSwi
 /**
  * @brief endThread
  * Helper function to cancel all calculation threads.
- * The QtCreator marks many undefined symbols because this is an include. It compiles without errors.
  */
 void SasCalc_GENERIC_calculation::endThread()
 {

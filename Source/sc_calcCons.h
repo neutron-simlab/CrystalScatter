@@ -23,15 +23,6 @@ typedef struct
 // Ähnliche Struktur wie in sc_calcgui.h (paramHelper) nur hier ohne Qt-GUI-Elemente
 
 
-/*
-class calcConsHelper
-{
-public:
-    calcConsHelper( SC_Calc_GENERIC *c );
-    SC_Calc_GENERIC *subCalc;
-    QHash<QString,paramConsHelper*> params;
-};*/
-
 
 class SC_CalcCons
 {
@@ -45,7 +36,10 @@ public:
     void loadParameter( QString fn );
     void saveParameter( QString fn );
 
-    void prepareData(bool fromFit, bool use1d);
+    inline void prepareData(bool fromFit, bool use1d)
+    {   Q_UNUSED(fromFit) // called from SimplexFit (routine used also in GUI)
+        calcGenericWrapper->prepareData( &dataGetter, use1d );
+    }
     // Globale Inputs für die Berechnungen
     static QHash<QString,Double3> inpVectors;
     static QHash<QString,double>  inpValues;
@@ -58,7 +52,9 @@ public:
     bool isCurrentParameterValid( QString p );
 
     bool updateParamValue( QString p, double v );
+    bool updateParamValue( QString p, QString v ); // ComboBox
 
+    void setCalculationTimeout( int ms );
     void doCalculation( int numThreads, bool ignNewSwitch );
     double doFitCalculation(int numThreads, int bstop, int border, long &cnt, long &nancnt);
     typedef enum { htimPrep, htimCalc, htimBoth } whichHigResTimer;
@@ -95,6 +91,8 @@ public:
 private:
     SC_Calc_GENERIC *calcGenericWrapper = nullptr;
     SasCalc_GENERIC_calculation *calcGeneric = nullptr;
+
+    int _calcTimeout;
 
     static void dataGetter( QString p, _valueTypes &v );
 
