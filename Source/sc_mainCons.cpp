@@ -254,7 +254,7 @@ int main(int argc, char *argv[])
 
     // --- MCP Kommunikation mit dem Chatbot via Python-MCP-Server (TODO)
     QCommandLineOption mcpinpOption( "mcpinp",
-                                     "Internal Parameter used in MCP Communication with the Chatbot (Input parameter file).",
+                                     "Internal Parameter used in MCP Communication with the Chatbot (Input parameter file, inifile or key=val text file).",
                                      "file" );
     QCommandLineOption mcpvalOption( "mcpval",
                                     "Internal Parameter used in MCP Communication with the Chatbot (Parameter as 'key=value' pairs).",
@@ -345,14 +345,13 @@ int main(int argc, char *argv[])
     bool cbkeepfile   = parser.isSet(cbkeepOption);
 
     // Internal Parameter used in MCP Communication with the Chatbot:
-    QString cbmcpInput = parser.value(mcpinpOption); // Input parameter set
+    QString cbmcpInput = parser.value(mcpinpOption); // Input parameter file in ini format
     QString cbmcpValue = parser.value(mcpvalOption); // Parameter as 'key=value' pairs
     QString cbmcpLogfn = parser.value(mcplogOption); // Logfilename
     QString cbmcpImgfn = parser.value(mcpimgOption); // Image output filename
     bool    cbmcpImg64 = parser.isSet(mcpi64Option); // Image output as Base64 Text
 
     if ( !cbmcpLogfn.isEmpty() ) logfile = cbmcpLogfn; // Vereinfachung
-    if ( !cbmcpInput.isEmpty() ) paramfile = cbmcpInput; // ob das gut ist? TODO
     if ( !cbmcpInput.isEmpty() || !cbmcpValue.isEmpty() )
     {   // Jetzt sind wir im MCP-Modus, lösche alle anderen Parameter, damit es keine Konflikte gibt
         aifile     = "";
@@ -609,81 +608,41 @@ int main(int argc, char *argv[])
     }
     else if ( !cbmcpInput.isEmpty() )
     {   // Parameter über ein Eingabefile
-        // if ( !paramfile.isEmpty() ) calc->loadParameter( paramfile ); - ist oben schon gemacht
-        iCurCalcArt = 0;
-        // Berechnen
-        calc->prepareData( false/*fromfit*/, false/*use1d*/ );
+        void calculateFromChatbotKeyValList( SC_CalcCons *calc, QString cbmcpValue, QString cbmcpImgfn, int nthreads );
 
-        calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
-        std::cerr << qPrintable(cbmcpInput) << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
-        if ( flog )
-            flog->write(qPrintable(QString("%1 -> %2ms").arg(cbmcpInput).arg(calc->higResTimerElapsed(SC_CalcCons::htimBoth))+EOL));
-
-        widImage *img = new widImage();
-        img->setConfig(imgColorTbl, imgSwapH, imgSwapV, imgRot, imgZoom, false);
-        img->setData( calc->minX(), calc->maxX(), calc->minY(), calc->maxY(), calc->data() );
-        if ( cbmcpImg64 )
-        {
-            QString retval = img->saveImageBase64();
-            std::cout << qPrintable(retval) << std::endl;
+        if ( cbmcpInput.endsWith(".ini",Qt::CaseInsensitive) )
+        {   // Normales INI-File
+            calc->loadParameter( cbmcpInput );
+            calculateFromChatbotKeyValList( calc, "", cbmcpImg64 ? "" : cbmcpImgfn, nthreads );
         }
-        else if ( !cbmcpImgfn.isEmpty() )
-        {
-            img->saveImage( cbmcpImgfn );
+        else
+        {   // Jetzt wieder die Key=Val Liste vom Chatbot als Datei
+            QFile fpar(cbmcpInput);
+            if ( !fpar.open(QIODevice::ReadOnly) )
+            {
+                std::cerr << qPrintable(cbmcpInput + " " + fpar.errorString()) << std::endl;
+                if ( flog )
+                    flog->write(qPrintable(cbmcpInput + " " + fpar.errorString() + EOL));
+            }
+            else
+            {
+                cbmcpValue = "";
+                while ( ! fpar.atEnd() )
+                {
+                    QString line = fpar.readLine().trimmed();
+                    if ( line.isEmpty() ) continue;
+                    cbmcpValue += ";" + line;
+                }
+                fpar.close();
+                calculateFromChatbotKeyValList( calc, cbmcpValue, cbmcpImg64 ? "" : cbmcpImgfn, nthreads );
+            }
         }
     }
     else if ( !cbmcpValue.isEmpty() )
     {   // Parameter als Key=Value Liste
-        generateJsonKeyList(calc);
+        void calculateFromChatbotKeyValList( SC_CalcCons *calc, QString cbmcpValue, QString cbmcpImgfn, int nthreads );
 
-        QStringList kvlist = cbmcpValue.split(";");
-        foreach ( QString kv, kvlist )
-        {
-            int p = kv.indexOf("=");
-            if ( p < 0 ) continue;
-            QString val  = kv.mid(p+1).trimmed();
-            QString pkey = paramkey2jsonkey.key(kv.left(p),"?");
-            //qDebug() << "KeyValList" << kv << pkey << val;
-            if ( val.at(0).isNumber() || val.at(0) == '-' || val.at(0) == '+' )
-            {   // Zahlen
-                calc->updateParamValue( pkey, val.toDouble() );
-            }
-            else if ( val.at(0) == 'F' || val.at(0) == 'T' )
-            {   // Boolsche Werte
-                calc->updateParamValue( pkey, val.at(0)=='T' );
-            }
-            else if ( val == "NULL" )
-            {   // Beim Default undefiniert und somit bei mienem Test auch...
-                //val = jsval2str( it.key(), jobj.value("default_value_number") );    // Mehr für mich ohne reale Daten vom Chatbot
-                //calc->updateParamValue( pkey, val.toDouble() );
-            }
-            else
-            {   // ComboBox
-                calc->updateParamValue( pkey, val );
-            }
-        } // foreach
-
-        iCurCalcArt = 0;
-        // Berechnen
-        calc->prepareData( false/*fromfit*/, false/*use1d*/ );
-
-        calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
-        std::cerr << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
-        if ( flog )
-            flog->write(qPrintable(QString(" -> %1ms").arg(calc->higResTimerElapsed(SC_CalcCons::htimBoth))+EOL));
-
-        widImage *img = new widImage();
-        img->setConfig(imgColorTbl, imgSwapH, imgSwapV, imgRot, imgZoom, false);
-        img->setData( calc->minX(), calc->maxX(), calc->minY(), calc->maxY(), calc->data() );
-        if ( cbmcpImg64 )
-        {
-            QString retval = img->saveImageBase64();
-            std::cout << qPrintable(retval) << std::endl;
-        }
-        else if ( !cbmcpImgfn.isEmpty() )
-        {
-            img->saveImage( cbmcpImgfn );
-        }
+        calculateFromChatbotKeyValList( calc, cbmcpValue, cbmcpImg64 ? "" : cbmcpImgfn, nthreads );
     }
     else
 #endif
@@ -893,6 +852,65 @@ double zuf()
 {
     return ((static_cast<double>(rand())/RAND_MAX * 200.0) - 100.0) / 100.0; // -1 .. 1
 }
+
+
+#ifndef ChatbotDisabled
+void calculateFromChatbotKeyValList( SC_CalcCons *calc, QString cbmcpValue, QString cbmcpImgfn, int nthreads )
+{
+    if ( !cbmcpValue.isEmpty() )
+    {
+        generateJsonKeyList(calc);
+
+        QStringList kvlist = cbmcpValue.split(";",Qt::SkipEmptyParts);
+        foreach ( QString kv, kvlist )
+        {
+            int p = kv.indexOf("=");
+            if ( p < 0 ) continue;
+            QString val  = kv.mid(p+1).trimmed();
+            QString pkey = paramkey2jsonkey.key(kv.left(p),"?");
+            //qDebug() << "KeyValList" << kv << pkey << val;
+            if ( val.at(0).isNumber() || val.at(0) == '-' || val.at(0) == '+' )
+            {   // Zahlen
+                calc->updateParamValue( pkey, val.toDouble() );
+            }
+            else if ( val.at(0) == 'F' || val.at(0) == 'T' )
+            {   // Boolsche Werte
+                calc->updateParamValue( pkey, val.at(0)=='T' );
+            }
+            else if ( val == "NULL" )
+            {   // Beim Default undefiniert und somit bei mienem Test auch...
+                //val = jsval2str( it.key(), jobj.value("default_value_number") );    // Mehr für mich ohne reale Daten vom Chatbot
+                //calc->updateParamValue( pkey, val.toDouble() );
+            }
+            else
+            {   // ComboBox
+                calc->updateParamValue( pkey, val );
+            }
+        } // foreach
+    }
+    iCurCalcArt = 0;
+    // Berechnen
+    calc->prepareData( false/*fromfit*/, false/*use1d*/ );
+
+    calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
+    std::cerr << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
+    if ( flog )
+        flog->write(qPrintable(QString(" -> %1ms").arg(calc->higResTimerElapsed(SC_CalcCons::htimBoth))+EOL));
+
+    widImage *img = new widImage();
+    img->setConfig(imgColorTbl, imgSwapH, imgSwapV, imgRot, imgZoom, false);
+    img->setData( calc->minX(), calc->maxX(), calc->minY(), calc->maxY(), calc->data() );
+    if ( !cbmcpImgfn.isEmpty() )
+    {
+        img->saveImage( cbmcpImgfn );
+    }
+    else // if ( cbmcpImg64 )
+    {
+        QString retval = img->saveImageBase64();
+        std::cout << qPrintable(retval) << std::endl;
+    }
+}
+#endif
 
 
 void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthreads )

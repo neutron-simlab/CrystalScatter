@@ -1,20 +1,22 @@
-# Testroutine to call the CrystalScatter with MCP parameters
+#!/usr/bin/python3.8
 
-# Current working directory:
-#print(os.getcwd())
-#C:\SimLab\CrystalScatter\Mcp
+# Will not work with python3.6 or less !
+
+
+# Testroutine to call the CrystalScatter with MCP parameters
+# Adapted to the iff1585 linux system (07. Jul. 2025)
 
 # Definition of the CrystalScatter executable
-# Final version:
-#crystalscatter = "..\\build-sas_scatter2Cons-Desktop_Qt_6_7_2_MinGW_64_bit-Debug\\debug\\sas_scatter2Cons.exe"
-# Development:
-crystalscatter = "..\\..\\sas-crystal\\build-sas_scatter2Cons-Desktop_Qt_6_7_2_MinGW_64_bit-Debug\\debug\\sas_scatter2Cons.exe"
-#crystalscatter =  "C:\\SimLab\\sas-crystal\\build-sas_scatter2Cons-Desktop_Qt_6_7_2_MinGW_64_bit-Debug\\debug\\sas_scatter2Cons.exe"
+#crystalscatter = "/opt/sas_scatter2/bin/sas_scatter2Cons"
+crystalscatter = r"C:\SimLab\sas-crystal\build-sas_scatter2Cons-Desktop_Qt_6_7_2_MinGW_64_bit-Debug\debug\sas_scatter2Cons.exe"
+
+parfile = r"C:\SimLab\CrystalScatter\Mcp\testmcppar.txt"
+imgfile = r"C:\SimLab\CrystalScatter\Mcp\testmcpout.png"
 
 import subprocess
 
 
-# Output from the Chatbot:
+# Output from the Chatbot as a list of strings:
 keyval = [
     "Experiment_name=Disks",
     "base=0.0",
@@ -62,16 +64,33 @@ keyval = [
 # Convert it in a single string without blanks (use ; as separator)
 kvstr = ';'.join(keyval)
 
-args = [ crystalscatter, "--mcpval", kvstr, "--mcpimg64" ]
-#args = [ crystalscatter, "--help" ]
+# Setup the argument array
+args = [ crystalscatter,      # executable
+         #"--mcpval", kvstr,  # (inp) list of values from chatbot
+         "--mcpinp", parfile, # (inp) filename for the input
+         #"--mcpimg64",       # (out) output Base64 image string
+         "--mcpimg", imgfile, # (out) filename for the generated output image
+         "--threads", "0"     # use the GPU if available (remove to use all cpu cores and no gpu)
+         ]
+# call the executable with "--help" to get all parameter informations
 
+
+# Call it
 cp = subprocess.run(args, capture_output=True, text=True)
 if cp.returncode != 0:
+    # This is an error
     print("Returncode:", cp.returncode)
+    print(cp.stderr)  # for more explanations
     exit(0)
 else:
+    # Normal finish...
     print("--- Output ---")
     print(cp.stderr) # Logging to console, I use stderr because there is no buffering
+    #      -> 105.381                                    is the runtime in ms
+    #     Done in 0 sec =00:00:00
+    
     print("--- Image ---")
-    print(cp.stdout) # Base64 Image
+    tmp = cp.stdout # Base64 Image string output
+    print(len(tmp))  # in this example:  26285
+    print(tmp)
 
