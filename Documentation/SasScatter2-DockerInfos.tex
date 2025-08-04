@@ -1,0 +1,224 @@
+% !TEX TS-program = pdflatex
+% !TEX encoding = UTF-8 Unicode
+
+% Author: Michael Wagener
+
+\documentclass[11pt]{article} % use larger type; default would be 10pt
+
+\usepackage{pgf}
+\usepackage{tikz}
+\usetikzlibrary{arrows,automata,shapes}
+\usetikzlibrary{decorations.pathmorphing} % LATEX and plain TEX when using Tik Z
+
+\usepackage[utf8]{inputenc} % set input encoding (not needed with XeLaTeX)
+\usepackage{geometry} % to change the page dimensions
+\geometry{a4paper} % or letterpaper (US) or a5paper or....
+\geometry{margin=15mm} % for example, change the margins to 2 inches all round
+%\usepackage[ngerman]{babel}
+
+\usepackage{booktabs} % for much better looking tables
+\usepackage{array} % for better arrays (eg matrices) in maths
+\usepackage{paralist} % very flexible & customisable lists (eg. enumerate/itemize, etc.)
+\usepackage{verbatim} % adds environment for commenting out blocks of text & for better verbatim
+\usepackage{subfig} % make it possible to include more than one captioned figure/table in a single float
+\usepackage{listings}
+\usepackage[obeyspaces,spaces]{url} % https://tex.stackexchange.com/questions/164446/how-to-typeset-a-file-path
+
+\usepackage{float}  % https://en.wikibooks.org/wiki/LaTeX/Floats,_Figures_and_Captions
+%\floatstyle{boxed} 
+\restylefloat{figure}
+
+\usepackage{graphicx}  % https://www.namsu.de/Extra/pakete/Wrapfig.html
+\usepackage{wrapfig}   % https://mirror.clientvps.com/CTAN/macros/latex/contrib/wrapfig/wrapfig-doc.pdf
+
+\usepackage{scrextend} % für addmargin
+\usepackage{color}
+\definecolor{mark}{rgb}{0.8,0.2,0.2} % 1=weiß, 0=schwarz
+\definecolor{rowcolor}{rgb}{0.94, 0.97, 1.00}
+\definecolor{rowkeycol}{rgb}{0.99, 0.97, 0.80}
+
+\author{Michael Wagener, JCNS-1}
+\title{SAS Scatter2 \\[1ex] {\large Docker usage documentation}}
+
+\usepackage{fancyhdr} % This should be set AFTER setting up the page geometry
+\pagestyle{fancy} % options: empty , plain , fancy
+\renewcommand{\headrulewidth}{0pt} % customise the layout...
+\lhead{}\chead{\textbf{SAS Scatter2 Docker usage}}\rhead{\today}
+\lfoot{Michael Wagener}\cfoot{\thepage}\rfoot{JCNS-1}
+
+\usepackage{sectsty}
+\allsectionsfont{\sffamily\mdseries\upshape} % (See the fntguide.pdf for font help)
+% (This matches ConTeXt defaults)
+
+%%% ToC (table of contents) APPEARANCE
+\usepackage[nottoc,notlof,notlot]{tocbibind} % Put the bibliography in the ToC
+\usepackage[titles,subfigure]{tocloft} % Alter the style of the Table of Contents
+\renewcommand{\cftsecfont}{\rmfamily\mdseries\upshape}
+\renewcommand{\cftsecpagefont}{\rmfamily\mdseries\upshape} % No bold!
+
+\usepackage{longtable} % Tabellen über mehrere Seiten
+\usepackage{multirow} % multirow/multicolumn
+\usepackage{colortbl} % farbige Tabellenzellen
+%\setlength{\LTpre}{0pt} % Remove whitespace befor and after longtables
+%\setlength{\LTpost}{0pt}
+
+\usepackage{tabularx}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}} % linksbündig mit Breitenangabe
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}} % zentriert mit Breitenangabe
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}} % rechtsbündig mit Breitenangabe
+\newcommand{\ltab}{\raggedright\arraybackslash} % Tabellenabschnitt linksbündig
+\newcommand{\ctab}{\centering\arraybackslash} % Tabellenabschnitt zentriert
+\newcommand{\rtab}{\raggedleft\arraybackslash} % Tabellenabschnitt rechtsbündig
+% https://de.wikibooks.org/wiki/LaTeX-W%C3%B6rterbuch:_tabular
+
+\usepackage[colorlinks, linkcolor = black, citecolor = black, filecolor = black, urlcolor = blue]{hyperref}
+% https://de.wikibooks.org/wiki/LaTeX-W%C3%B6rterbuch:_hyperref
+
+
+\setlength{\tabcolsep}{1mm} % Setzt den Längenwert von {Abstand zwischen den Spalten einer Tabelle} auf den Wert 1mm
+\setcounter{tocdepth}{3} % Tiefe des Inhaltsverzeichnisses
+
+\begin{document}
+
+\maketitle
+\tableofcontents % toc anzeigen
+
+%\clearpage
+\begin{figure}[b] % die History Tabelle am unteren[b] Seitenrand der ersten Seite anzeigen...
+\begin{longtable}{|p{3cm}|p{12cm}|}
+\caption{Document revision history} \\
+\hline
+\rowcolor{rowcolor}{\bf Date} & {\bf Short description} \\
+\endfirsthead
+\hline
+04. Aug 2021 & Start. \\ \hline
+\end{longtable}
+
+\centerline{Snapshots on \url{https://github.com/neutron-simlab/CrystalScatter} with global access}
+\end{figure}
+
+\clearpage % neue Seite beginnen
+
+
+\section{Preface}
+
+During the development of the Chatbot with a special command line interface to the sas\_scatter2Cons program, this program must be available from everywhere. So the best way is to put it into a docker image.
+
+In this short documentation all steps are described to generate this docker image.
+
+
+\section{Base image}
+
+The sas\_scatter2Cons program is written in C++ with the Qt library. So, the first base docker image must be one with Qt 6 support. In the docker hub I found the images {\it g76r/qt6-builder} and {\it g76r/qt6-runner} with the version Qt 6.8.3 and a debug option.
+
+The builder image contains everything to compile the source and generate the executable needed. The runner image contains only the Qt runtime libraries.
+
+
+\section{Do the compilation} % docker-1-compile.bat
+
+For the compilation we start a docker container based on the builder image and do the compilation. Inside this docker container we generate a virtual directory pointing to a real directory on the host system. This directory contains the complete source code. All intermediate files and the executable are generated also here. This docker container will not be saved because it is not needed later.
+
+\begin{lstlisting}[frame=single]
+docker run --rm -v "%cd%:/home/user/project" g76r/qt6-builder:qt-6.8.3-debug \
+       sh -c "cd /home/user/project; rm -rf build; mkdir build; cd build; \
+       qmake ../sas_scatter2Cons.pro; make"
+\end{lstlisting}
+The parameters for the {\it docker run} command are:
+\begin{itemize}\itemsep0pt
+\item -{}-rm \\
+	This container will be deleted after exit
+\item -v "\%cd\%:/home/user/project" \\
+	Is the virtual directory: \%cd\% means the current directoy (Windows notation) and can be changed to the absolute source path, the part after the colon is the path inside the docker container
+\item g76r/qt6-builder:qt-6.8.3-debug \\
+	Is the image name to run
+\item sh -c \\
+	Opens a shell and perform the following commands:
+	\begin{itemize}[*]\itemsep0pt
+	\item cd /home/user/project {\it - go to the source directory on the host}
+	\item rm -rf build {\it - delete the old build directory}
+	\item mkdir build {\it - make the build directory}
+	\item cd build {\it - go to this build directory}
+	\item qmake ../sas\_scatter2Cons.pro {\it - generate the makefile}
+	\item make {\it - compile the source and generate the executable}
+	\end{itemize}
+	Some warnings from the compilation can be ignored. These parts are under development and they have no impact to the execution.
+\end{itemize}
+
+
+\section{Generate the runtime image} % docker-2-generate.bat
+
+The generation of the runtime image consists of multiple steps.
+
+{\bf First} run a temporary container, install two libraries and copy the executable from above into the containers filesystem:
+\begin{lstlisting}[frame=single]
+docker run -t --name scattercons-tmp  -v "%cd%:/home/user/project" \
+       g76r/qt6-runner:qt-6.8.3-debug sh -c "apt install -y libxkbcommon-dev \
+       libgl-dev; cp /home/user/project/build/sas_scatter2Cons /bin"
+\end{lstlisting}
+The parameters for the {\it docker run} command are:
+\begin{itemize}\itemsep0pt
+\item -t \\
+	Generates a tty terminal connection, so you can see progress bars (can be omitted)
+\item -{}-name scattercons-tmp \\
+	This container must be named to be referenced later
+\item -v "\%cd\%:/home/user/project" \\
+	Is the virtual directory and must be the same as above for the compilation
+\item g76r/qt6-runner:qt-6.8.3-debug \\
+	Is the image name to run
+\item sh -c \\
+	Opens a shell and perform the following commands:
+	\begin{itemize}[*]\itemsep0pt
+	\item apt install -y libxkbcommon-dev libgl-dev {\it - install two libraries}
+	\item cp /home/user/project/build/sas\_scatter2Cons /bin {\it - copy the executable into the container}
+	\end{itemize}
+\end{itemize}
+
+{\bf Second} remove the old destination image and generate it again with the same name:
+\begin{lstlisting}[frame=single]
+docker image rm crystalscattercons-run
+docker container commit -m "ConsExec" scattercons-tmp crystalscattercons-run
+\end{lstlisting}
+The parameter -m with the text is the commit message for documentation inside the image layers and can be changed. If you want, you can add the author with -a "...".
+
+{\bf Last}, remove the temorary container:
+\begin{lstlisting}[frame=single]
+docker container rm scattercons-tmp
+\end{lstlisting}
+The resultant image (here named {\it scattercons-run}) can be published to docker hub.
+
+
+\section{Use the runtime image} % docker-4-runCalc.bat
+
+The generated image can be used to calculate some CrystalScatter images. In the following example the host path is specified absolutly to my development file structure and some Chatbot parameters are used:
+\begin{lstlisting}[frame=single]
+docker run --rm -v "C:\SimLab\CrystalScatter\Mcp:/home/user/project" \
+       crystalscattercons-run sh -c "cd /home/user/project; sas_scatter2Cons \
+       --mcpinp testmcppar.txt --mcplog testdocker.log \
+       --mcpimg testdockerout.png"
+\end{lstlisting}
+The parameters for this {\it docker run} command are:
+\begin{itemize}\itemsep0pt
+\item -{}-rm \\
+	This container will be deleted after exit
+\item -v "C:{\textbackslash}SimLab{\textbackslash}CrystalScatter{\textbackslash}Mcp{\bf :}/home/user/project" \\
+	Is the virtual directory (Windows notation in this example)
+\item crystalscattercons-run \\
+	Is the image name to run
+\item sh -c \\
+	Opens a shell and perform the following commands:
+	\begin{itemize}[*]\itemsep0pt
+	\item cd /home/user/project {\it - go to the directory on the host for the data}
+	\item sas\_scatter2Cons {\it - start the executable}
+	\item -{}-mcpinp testmcppar.txt {\it - input parameter file in Chatbot notation}
+	\item -{}-mcplog testdocker.log {\it - Logfile, can be omitted}
+	\item -{}-mcpimg testdockerout.png {\it - output image filename}
+	\end{itemize}
+\end{itemize}
+
+If you want to see all possible parameters fo the sas\_scatter2Cons program, use: % docker-3-runHelp.bat
+\begin{lstlisting}[frame=single]
+docker run --rm crystalscattercons-run sh -c "sas_scatter2Cons --help"
+\end{lstlisting}
+
+
+\end{document}

@@ -215,7 +215,7 @@ unix: {     # no static !
     }
 
     # HDF5 Library
-    exists($$HDF5_BASE/bin) {
+    exists($$HDF5_BASE/lib/libhdf5_cpp.so) {
         INCLUDEPATH += $$HDF5_BASE/include
         LIBS += -L$$HDF5_BASE/lib -lhdf5_cpp -lhdf5_hl_cpp -lhdf5 -lhdf5_hl
     }
