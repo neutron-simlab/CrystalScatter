@@ -61,6 +61,7 @@
 \usepackage{colortbl} % farbige Tabellenzellen
 %\setlength{\LTpre}{0pt} % Remove whitespace befor and after longtables
 %\setlength{\LTpost}{0pt}
+\setlength{\parindent}{0pt} % Remove indention
 
 \usepackage{tabularx}
 \newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}} % linksbündig mit Breitenangabe
@@ -114,7 +115,9 @@ The sas\_scatter2Cons program is written in C++ with the Qt library. So, the fir
 The builder image contains everything to compile the source and generate the executable needed. The runner image contains only the Qt runtime libraries.
 
 
-\section{Do the compilation} % docker-1-compile.bat
+\section{Do the compilation}
+
+\centerline{\it See docker-1-compile.bat (windows)}
 
 For the compilation we start a docker container based on the builder image and do the compilation. Inside this docker container we generate a virtual directory pointing to a real directory on the host system. This directory contains the complete source code. All intermediate files and the executable are generated also here. This docker container will not be saved because it is not needed later.
 
@@ -145,11 +148,13 @@ The parameters for the {\it docker run} command are:
 \end{itemize}
 
 
-\section{Generate the runtime image} % docker-2-generate.bat
+\section{Generate the runtime image}
+
+\centerline{\it See docker-2-generate.bat (windows)}
 
 The generation of the runtime image consists of multiple steps.
 
-{\bf First} run a temporary container, install two libraries and copy the executable from above into the containers filesystem:
+{\bf First} run a temporary container, install two libraries and the python interpreter and then copy the executable from above into the containers filesystem:
 \begin{lstlisting}[frame=single]
 docker run -t --name scattercons-tmp  -v "%cd%:/home/user/project" \
        g76r/qt6-runner:qt-6.8.3-debug sh -c "apt install -y libxkbcommon-dev \
@@ -168,8 +173,10 @@ The parameters for the {\it docker run} command are:
 \item sh -c \\
 	Opens a shell and perform the following commands:
 	\begin{itemize}[*]\itemsep0pt
-	\item apt install -y libxkbcommon-dev libgl-dev {\it - install two libraries}
+	\item apt-get update {\it - update the internal package database}
+	\item apt install -y libxkbcommon-dev libgl-dev python3 {\it - install two libraries and python}
 	\item cp /home/user/project/build/sas\_scatter2Cons /bin {\it - copy the executable into the container}
+	\item {\it TODO: copy the mcp server script}
 	\end{itemize}
 \end{itemize}
 
@@ -187,7 +194,9 @@ docker container rm scattercons-tmp
 The resultant image (here named {\it scattercons-run}) can be published to docker hub.
 
 
-\section{Use the runtime image} % docker-4-runCalc.bat
+\section{Use the runtime image}
+
+\centerline{\it See docker-4-runCalc.bat (windows)}
 
 The generated image can be used to calculate some CrystalScatter images. In the following example the host path is specified absolutly to my development file structure and some Chatbot parameters are used:
 \begin{lstlisting}[frame=single]
@@ -215,9 +224,21 @@ The parameters for this {\it docker run} command are:
 	\end{itemize}
 \end{itemize}
 
-If you want to see all possible parameters fo the sas\_scatter2Cons program, use: % docker-3-runHelp.bat
+Because there is a python3 interpreter inside, you can start an MCP server to connect to the Chatbot and use the sas\_scatter2Cons for calculations in the background.
+
+
+\section{Help}
+
+\centerline{\it See docker-3-runHelp.bat (windows)}
+
+If you want to see all possible parameters fo the sas\_scatter2Cons program, use:
 \begin{lstlisting}[frame=single]
 docker run --rm crystalscattercons-run sh -c "sas_scatter2Cons --help"
+\end{lstlisting}
+
+If you only want a shell inside the container, use:
+\begin{lstlisting}[frame=single]
+docker run -it --rm crystalscattercons-run sh
 \end{lstlisting}
 
 
