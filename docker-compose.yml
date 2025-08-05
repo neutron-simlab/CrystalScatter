@@ -1,0 +1,66 @@
+services:
+  # Crystal Scatter MCP Server
+  crystal-scatter-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: crystal-scatter-mcp:latest
+    container_name: crystal-scatter-mcp-server
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    volumes:
+      - simulation-data:/app/data
+      - simulation-cache:/app/cache
+    environment:
+      - PYTHONPATH=/app
+      - MCP_SERVER_HOST=0.0.0.0
+      - MCP_SERVER_PORT=8000
+      - SIMULATION_TIMEOUT=60
+    networks:
+      - crystal-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/mcp"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Demo client using your existing mcp_client.py
+  mcp-demo-client:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: crystal-scatter-mcp:latest
+    container_name: crystal-scatter-demo-client
+    depends_on:
+      crystal-scatter-mcp:
+        condition: service_healthy
+    volumes:
+      - simulation-data:/app/data
+    environment:
+      - PYTHONPATH=/app
+    networks:
+      - crystal-network
+    profiles:
+      - demo
+    command: >
+      sh -c "echo 'MCP Server is ready, running demo...' &&
+             sleep 2 &&
+             uv run python -m crystal_scatter_mcp.client.mcp_client quick-test --host crystal-scatter-mcp --port 8000"
+
+volumes:
+  simulation-data:
+    driver: local
+
+  simulation-cache:
+    driver: local
+
+networks:
+  crystal-network:
+    driver: bridge
