@@ -1,54 +1,94 @@
-# Multi-stage Dockerfile: Crystal Scatter CLI + MCP Server
-FROM g76r/qt6-builder:qt-6.8.3-debug AS sas_scatter-builder
+# Multi-stage Dockerfile for SAS Scatter2 Console Application with MCP Server
+# Based on the docker commands from the documentation
 
-# Build SAS Scatter CLI from Source directory
-WORKDIR /sas_scatter
-COPY Source/ /sas_scatter/
+# Stage 1: Build stage for the Qt application
+FROM g76r/qt6-builder:qt-6.8.3-debug AS builder
 
-# Clean build
+# Set working directory
+WORKDIR /home/user/project
+
+# Copy source code into the container
+COPY Source/ .
+
+# Build the application
 RUN rm -rf build && \
     mkdir build && \
     cd build && \
     qmake ../sas_scatter2Cons.pro && \
-    make -j$(nproc) && \
-    strip sas_scatter2Cons
+    make
 
-# Final runtime stage - use official uv image
-FROM ghcr.io/astral-sh/uv:python3.13-alpine
+# Stage 2: MCP Server build stage
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm AS mcp-builder
 
-# Install system dependencies (Qt runtime + utilities)
-RUN apk add --no-cache \
-    qt6-qtbase \
-    curl \
-    ca-certificates
-
-# Create app directory and user
-RUN addgroup -S mcpuser && adduser -S mcpuser -G mcpuser -u 1000
-WORKDIR /app
-
-# Copy SAS Scatter executable from builder
-COPY --from=sas_scatter-builder /sas_scatter/build/sas_scatter2Cons /usr/local/bin/sas_scatter2Cons
-RUN chmod +x /usr/local/bin/sas_scatter2Cons
+# Set working directory
+WORKDIR /app/crystal_scatter_mcp
 
 # Copy MCP server source code
-COPY crystal_scatter_mcp/ ./
+COPY crystal_scatter_mcp/ .
 
-# Install the package and dependencies
-RUN uv pip install --system -e .
+# Install dependencies using uv
+RUN uv sync --frozen
 
-# Create necessary directories
-RUN mkdir -p data cache logs && \
-    chown -R mcpuser:mcpuser /app
+# Stage 3: Runtime stage
+FROM g76r/qt6-runner:qt-6.8.3-debug AS runtime
 
-# Switch to non-root user
-USER mcpuser
+# Update package database and install required libraries including uv
+RUN apt-get update && \
+    apt-get install -y \
+    libxkbcommon-dev \
+    libgl-dev \
+    python3 \
+    python3-venv \
+    curl \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Expose MCP server port
+# Copy the compiled executable from build stage
+COPY --from=builder /home/user/project/build/sas_scatter2Cons /bin/sas_scatter2Cons
+
+# Make the executable runnable
+RUN chmod +x /bin/sas_scatter2Cons
+
+# Copy MCP server files from mcp-builder stage
+COPY --from=mcp-builder /app/crystal_scatter_mcp /app/crystal_scatter_mcp
+
+# Set working directory for runtime
+WORKDIR /app
+
+# Create a startup script for the MCP server
+COPY <<EOF /app/start-mcp.sh
+#!/bin/bash
+set -e
+
+# ASCII art banner
+cat << 'BANNER'
+ ____              _   _             __  __  ____ ____  
+/ ___|  __ _  ___ | |_| |_ ___ _ __ |  \/  |/ ___|  _ \ 
+\___ \ / _` |/ _ \| __| __/ _ \ '__|| |\/| | |   | |_) |
+ ___) | (_| | (_) | |_| ||  __/ |   | |  | | |___|  __/ 
+|____/ \__,_|\___/ \__|\__\___|_|   |_|  |_|\____|_|    
+                                                        
+Crystal Scatter MCP Server                              
+BANNER
+
+echo "🚀 Starting MCP server..."
+echo "📍 Working directory: /app/crystal_scatter_mcp"
+echo "🔧 SAS Scatter2 Console: /bin/sas_scatter2Cons"
+echo "🌐 Server will be available on port 8000"
+echo ""
+
+# Change to MCP server directory
+cd /app/crystal_scatter_mcp
+
+# Start the MCP server
+exec uv run python server/mcp_server.py
+EOF
+
+RUN chmod +x /app/start-mcp.sh
+
+# Expose port for MCP server (adjust if needed)
 EXPOSE 8000
 
-# Health check endpoint
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/mcp || exit 1
-
-# Default command
-CMD ["python", "-m", "server.mcp_server", "http", "--host", "0.0.0.0", "--port", "8000"]
+# Default command runs the MCP server
+CMD ["/app/start-mcp.sh"]
