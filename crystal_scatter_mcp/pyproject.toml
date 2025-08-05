@@ -18,6 +18,3 @@ packages = ["client", "server"]
 mcp-server = "server.mcp_server:main"
 mcp-client = "client.mcp_client:main"
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
