@@ -167,37 +167,32 @@ python crystal_scatter_mcp/client/mcp_client.py quick-test
 python crystal_scatter_mcp/client/mcp_client.py health
 ```
 
-**Or use the provided test client:**
-```bash
-# From repository root
-python crystal_scatter_mcp/client/mcp_client.py quick-test
-python crystal_scatter_mcp/client/mcp_client.py health
-```
-
 ### LLM Integration
 The MCP server is designed to work with LLM chatbots that support tool calling:
 
+#### OpenAI
 ```python
-# Example with OpenAI
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "run_crystal_scatter_simulation",
-            "description": "Run crystal scatter simulation",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "parameters": {"type": "string", "description": "Simulation parameters"}
-                }
-            }
-        }
-    }
-]
+from openai import OpenAI
+url= ... # URL to localhost of MCP Server
+client = OpenAI()
 
-# LLM can now call crystal scatter simulations based on natural language
+resp = client.responses.create(
+    model="gpt-4.1",
+    tools=[
+        {
+            "type": "mcp",
+            "server_label": "crystal_scatter_mcp",
+            "server_url": f"{url}/mcp/",
+            "require_approval": "never",
+        },
+    ],
+    input="",
+)
+
+print(resp.output_text)
 ```
 
+#### Langchain
 ```python
 # Example with Langchain + Langchain MCP adapter
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -207,14 +202,12 @@ client = MultiServerMCPClient(
     {
         "crystal_scatter_cli_tools": {
             "command": "python",
-            # Make sure to update to the full absolute path to your math_server.py file
             "args": ["/crystal_scatter_mcp/server/mcp_server.py", "http"],
             "transport": "http",
 )
 tools = await client.get_tools()
 llm = ChatOpenAI(model=...).bind_tools(tools)
 ```
-
 
 
 ## Configuration
