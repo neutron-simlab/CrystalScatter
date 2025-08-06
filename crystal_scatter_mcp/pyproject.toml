@@ -1,0 +1,20 @@
+[project]
+name = "crystal-scatter-mcp"
+version = "0.1.0"
+description = "Crystal Scatter Model Context Protocol (MCP) Server and Client"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.116.0",
+    "fastmcp>=2.10.2",
+    "pydantic>=2.11.7",
+    "typer>=0.16.0",
+    "uvicorn>=0.35.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["client", "server"]
+
+[project.scripts]
+mcp-server = "server.mcp_server:main"
+mcp-client = "client.mcp_client:main"
+
