@@ -40,6 +40,7 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
                 info = QString("MAX Index:%1=%2>%3").arg(indVec[j]).arg(params[j]).arg(minVals[j]);
                 return 1e20;
             }
+            //qDebug() << "fqs" << j << indVec[j] << params[j];
         }
     }
     for ( int j=0; j<mmax && j<indVec.size(); j++ ) // all params
@@ -54,7 +55,6 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
     calc->prepareData( true, _use1D );     // to transfer parameter values into the calculation class
 
     // Berechne das Image...
-#ifdef FITDATA_IN_GPU  // fqs
     if ( !_use1D && useGpuFit )
     {   // Neuer Algorithmus (Juli 2022), damit die FQS auf der GPU berechnet wird
         long   cnt = 0;     // Pixelcounter for Debug
@@ -65,10 +65,9 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
         if ( nancnt > 0 ) info += QString(" NaN:%1").arg(nancnt);
         return summe;
     }
-#endif
-    // Der folgende Code wird i.d.R. nicht mehr ablaufen (siehe #define FITDATA_IN_GPU in sc_globalConfig.h)
+    // Der folgende Code wird nur noch bei 1D ablaufen, sonst nicht mehr (siehe #define FITDATA_IN_GPU in sc_globalConfig.h)
     // Außer es konnte kein Speicher für die Fit-Daten angelegt werden. Aber dann haben wir auch andere Probleme.
-    calc->doCalculation(numThreads,false);
+    calc->doCalculation(numThreads, false/*bIgnoreNewSwitch*/, false/*bIgnoreParamCheck*/);
     numImgCalc++;
     // TODO qApp->processEvents();
 
@@ -94,9 +93,9 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
                               fitData(i,0) );
             if ( std::isnan(calc->getCalcPtr()->xyIntensity(i,0)) )
                 nancnt++;
-            if ( cnt < 20 ) qDebug() << "FQS" << i << calc->getCalcPtr()->xyIntensity(i,0) << fitData(i,0);
+            //if ( cnt < 20 ) qDebug() << "FQS" << i << calc->getCalcPtr()->xyIntensity(i,0) << fitData(i,0);
         } // for i
-        qDebug() << "FQS" << summe << "----------------------";
+        //qDebug() << "FQS" << summe << "---------------------- 1d";
     }
     else if ( _borderPixel > 0 || _bstoppixel > 0 )
     {   // Ausblendungen über Pixelangaben an Rand und Mitte
@@ -190,6 +189,7 @@ double SasCalc_SimplexFit2D::fehlerquadratsumme( int numThreads, double *params,
     info = QString("(%1px/%2px)").arg(cnt).arg((_xmax-_xmin)*(_ymax-_ymin));
     if ( nancnt > 0 ) info += QString(" NaN:%1").arg(nancnt);
     if ( nullcnt > 0 ) info += QString(" NULL:%1").arg(nullcnt);
+    if ( _use1D ) info += " [1d]";
     return summe;
 }
 
@@ -259,6 +259,12 @@ void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit,
     retinfo = "";
     _use1D  = use1d;
 
+    //qDebug() << "---------------------------------------------------------";
+    //qDebug() << "doSimplexFit2D(" << numThreads << stp << maxit << ftol
+    //         << borderpix << bstoppix << use1d << "pl"
+    //         << "*vals" << "&retinfo )";
+    //qDebug() << "---------------------------------------------------------";
+
     parVals = vals;
     //typedef enum { fitNone, fitNumeric, fitCbs } _fitTypes;
     //typedef struct
@@ -292,7 +298,7 @@ void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit,
             values[i]  = fl->fitstart; // it.value()->fitstart;
             minVals[i] = fl->min;      // it.value()->min;
             maxVals[i] = fl->max;      // it.value()->max;
-            qDebug() << "Var" << i << k << values[i] << minVals[i] << maxVals[i];
+            //qDebug() << "Var" << i << k << values[i] << minVals[i] << maxVals[i];
             if ( ++i >= nap ) break;
         }
     }
@@ -310,7 +316,7 @@ void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit,
             values[i]  = fl->fitstart; // it.value()->fitstart;
             minVals[i] = fl->min;      // it.value()->min;
             maxVals[i] = fl->max;      // it.value()->max;
-            qDebug() << "Fix" << i << k << values[i] << minVals[i] << maxVals[i];
+            //qDebug() << "Fix" << i << k << values[i] << minVals[i] << maxVals[i];
             if ( ++i >= nap ) break;
         }
     }
@@ -324,10 +330,8 @@ void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit,
     }
     //qDebug() << "Fit: indVec=" << indVec << "mmax,numFit:" << mmax << numFit;
 
-#ifdef FITDATA_IN_GPU  // init fit
     useGpuFit = calc->setFitData( _xmax - _xmin, _ymax - _ymin, intensityForFit );
     //qDebug() << "Fit: useGpu =" << useGpuFit;
-#endif
 
     QString info;   // For informations from fehlerquadratsumme()
 
@@ -337,17 +341,33 @@ void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit,
     const double beta  = 0.5; // (* simplex contraction *)
     const double gamma = 2.0; // (* simplex expansion *)
 
-    double y[nap];     // y: ArrayN;  (* ArrayN = array[1..nap=31] of extended; *)
-    double pp[map];    // pp: arrayM;
-    double q[map];     // q: arrayM;
-    double step[map];  // step: arrayM;
-    double psum[map];  // psum: ^ArrayM; (* ArrayM = RealArrayMA = array[1..map=30] of extended; *)
+    double y[nap/*31*/];     // y: ArrayN;  (* ArrayN = array[1..nap=31] of extended; *)
+    double pp[map/*30*/];    // pp: arrayM;
+    double q[map/*30*/];     // q: arrayM;
+    double step[map/*30*/];  // step: arrayM;
+    double psum[map/*30*/];  // psum: ^ArrayM; (* ArrayM = RealArrayMA = array[1..map=30] of extended; *)
     double nmax = mmax + 1.0;
-    int    ndim = mmax;
+    int    ndim = mmax;      // Number of parameters in total
     int    mpts = numFit /*ndim*/ + 1;
     // p[1,i] = pars[i] = globalParams.values[i]
-    double p[nap][map];
+    double p[nap/*31*/][map/*30*/];
     char logbuffer[300];
+
+    // Alle Felder löschen
+    for ( int i=0; i<map/*30*/; i++ )
+    {
+        psum[i] = 0.0;
+        //p[0][i] = 0.0;
+        step[i] = 0.0;
+        pp[i]   = 0.0;
+        q[i]    = 0.0;
+    }
+    for ( int i=0; i<nap/*31*/; i++ )
+    {
+        y[i] = 0.0;
+        for ( int j=0; i<map/*30*/; i++ )
+            p[i][j] = 0.0;
+    }
 
     double rootn1 = sqrt(nmax) - 1.0; // (* Schrittweite *)
     double mroot2 = 1.0 / (mmax*sqrt(2.0));
@@ -373,22 +393,8 @@ void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit,
         pp[i]   = step[i] * (rootn1+mmax)*mroot2;
         q[i]    = step[i] * rootn1*mroot2;
         //if ( enabled[i] )
-        //    qDebug() << indVec[i] << "Val" << values[i] << "Step" << step[i]
-        //                << "pp,q,psum" << pp[i] << q[i] << psum[i];
-    }
-    for ( int i=mmax; i<map; i++ )
-    {
-        psum[i] = 0.0;
-        p[0][i] = 0.0;
-        step[i] = 0.0;
-        pp[i]   = 0.0;
-        q[i]    = 0.0;
-    }
-    for ( int i=0; i<nap; i++ )
-    {
-        y[i] = 0.0;
-        for ( int j=0; i<map; i++ )
-            p[i][j] = 0.0;
+        //    qDebug() << i << indVec[i] << "Val" << values[i] << "Step" << step[i]
+        //             << "pp,q,psum" << pp[i] << q[i] << psum[i] << "stp"<<stp;
     }
 
     DBGMODIFY( qDebug() << "Fit: 0 fqs"; )
@@ -609,3 +615,66 @@ void SasCalc_SimplexFit2D::doSimplexFit2D(int numThreads, double stp, int maxit,
     auto calc_time = std::chrono::duration_cast<std::chrono::duration<float>>(end-start);
     higResTimerElapsed = calc_time.count()*1000.0;
 }
+
+
+
+/*
+    Routinen aus 20250627 - crystal1.pas:
+
+procedure TFormCrystal.Fit2Click(Sender: TObject);  Z=6974
+
+(* function Fehlerquadratsumme (Simplex) *)     Z=7023 (wie oben)
+function fqs(ndata: integer;
+     xydata,xybdata: ArrayXY;
+               pars: ArrayM;
+               diff: IntegerArrayMFIT): extended;
+
+(* function amotry (Simplex) *)                 Z=713 (wie oben)
+function amotry(ma: integer;
+                var p: ArrayNM;
+                var y: ArrayN;
+                var sum: ArrayM;
+                   diff: IntegerArrayMFIT;
+         xydata,xybdata: ArrayXY;
+                ndim,ihi: integer;
+                fac: extended): extended;
+
+(* procedure simplexfit *)                      Z=7167 (wie oben)
+procedure simplex(mmax,ma,ndata: integer;
+                  schritt: extended;
+                  xydata,xybdata: ArrayXY;
+              var pars: ArrayM;
+                  diff: IntegerArrayMFIT);
+
+(*** Implementation of Fit-function ***)        Z=7313
+procedure funcs(x,s,qqx,qqy,qqz: real;
+            var a: RealArrayMA;
+            var y: real;
+         var dyda: RealArrayMA;
+               ma: integer);
+
+(*** Covarianz-Matrix ***)                      Z=7481
+procedure covsrt(var covar: RealArrayMAbyMA;
+                        ma: integer;
+                 var lista: IntegerArrayMFIT;
+                       mfit: integer);
+
+(*** Gauss-Jordan-Algorithmus ***)              Z=7510
+procedure gaussj(var a: RealArrayNPbyNP;
+                     n: integer;
+                 var b: RealArrayNPbyMP;
+                     m: integer);
+
+(*** Levenberg-Marquardt-Algorithmus ***)       Z=7589
+procedure mrqmin(var x,y,s,sig,qx,qy,qz: RealArrayNDATA;
+                       ndata: integer;
+                       var a: RealArrayMA;
+                          ma: integer;
+                   var lista: IntegerArrayMFIT;
+                        mfit: integer;
+             var covar,alpha: RealArrayMAbyMA;
+            var chisq,alamda: real);
+
+MAIN FIT ROUTINE ab Z=7703
+
+*/

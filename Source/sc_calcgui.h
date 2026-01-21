@@ -28,6 +28,7 @@
 #define SETCOLMARK_CHGIMG    Qt::cyan           // on_actionFind_parameters_changing_image_triggered
 #define SETCOLMARK_OLDPARAM  QColor(150,220,255)// mark parameters not set by reading old parameter files
 #define SETCOLMARK_NOTOOLTIP QColor(250,150,100)// mark parameters without tool tips
+#define SETCOLMARK_CHATBOT   QColor(150,255,220)// mark parameters set by Chatbot (copy from clipboard and calc in main)
 #define SETCOLMARK_IGNORED   Qt::black          // updateParamValue(?) ignored
 #define SETCOLMARK_CLEARED   Qt::white          // clear color mark
 
@@ -125,12 +126,22 @@ public:
     void resetParamColorMarker( QColor col );
     bool isCurrentParameterVisible(QString p);
 
-    void doCalculation(int numThreads, bool bIgnoreNewSwitch);
+    std::string checkAllParameters(bool ignCbs);
+    std::string isCbsValid(int lt, int pa, int od, int in, int pk);
+    void doCalculation(int numThreads, bool bIgnoreNewSwitch, bool bIgnoreParamCheck);
     double doFitCalculation(int numThreads, int bstop, int border, long &cnt, long &nancnt);
     void endThread() { calcGeneric->endThread(); }
 
     typedef enum { htimPrep, htimCalc, htimBoth } whichHigResTimer;
     double higResTimerElapsed( whichHigResTimer f );
+
+    double dbgZeitInit() { return calcGeneric->zeitInit; }
+    double dbgZeitCoef() { return calcGeneric->zeitCoef; }
+    double dbgZeitHKL() { return calcGeneric->zeitHKL; }
+    double dbgZeitCorot() { return calcGeneric->zeitCorot; }
+    double dbgZeitIsoPeak() { return calcGeneric->zeitIsoPeak; }
+    double dbgZeitAnisoPeak() { return calcGeneric->zeitAnisoPeak; }
+    double dbgZeitQromb() { return calcGeneric->zeitQromb; }
 
     int minX() { return (calcGeneric!=nullptr) ? calcGeneric->minX() : 0; }
     int maxX() { return (calcGeneric!=nullptr) ? calcGeneric->maxX() : 0; }
@@ -143,10 +154,8 @@ public:
 
     paramHelper *getParamPtr( QString p );
 
-#ifdef FITDATA_IN_GPU  // real func außen
     bool setFitData( int sx, int sy, const double *data )
     { return (calcGeneric!=nullptr) ? calcGeneric->setFitData(sx,sy,data) : false; }
-#endif
     void setNoFitRect( int id, int x0, int y0, int x1, int y1 );
 
     void updateToolTipForCompare( QWidget *w, QString txt );

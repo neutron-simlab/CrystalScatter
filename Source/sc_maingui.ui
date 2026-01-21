@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1245</width>
-    <height>1131</height>
+    <width>1243</width>
+    <height>1300</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -52,7 +52,7 @@
        <enum>QTabWidget::TabShape::Triangular</enum>
       </property>
       <property name="currentIndex">
-       <number>6</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="tabCalc">
        <attribute name="title">
@@ -61,48 +61,9 @@
        <layout class="QVBoxLayout" name="verticalLayout_20">
         <item>
          <layout class="QHBoxLayout" name="horizontalLayout_8">
-          <item>
-           <widget class="QGroupBox" name="grpDataFile">
-            <property name="title">
-             <string>Datafile</string>
-            </property>
-            <layout class="QGridLayout" name="gridLayout_45">
-             <item row="0" column="0" colspan="2">
-              <widget class="QPushButton" name="butOpenMeasFile">
-               <property name="text">
-                <string>Open data file</string>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="0" colspan="2">
-              <widget class="QTableWidget" name="tblHeaderData">
-               <property name="selectionMode">
-                <enum>QAbstractItemView::SelectionMode::NoSelection</enum>
-               </property>
-               <property name="cornerButtonEnabled">
-                <bool>false</bool>
-               </property>
-               <attribute name="horizontalHeaderStretchLastSection">
-                <bool>true</bool>
-               </attribute>
-               <attribute name="verticalHeaderMinimumSectionSize">
-                <number>29</number>
-               </attribute>
-               <attribute name="verticalHeaderDefaultSectionSize">
-                <number>30</number>
-               </attribute>
-              </widget>
-             </item>
-             <item row="2" column="0" colspan="2">
-              <widget class="QPushButton" name="butCopyHdrdata2Params">
-               <property name="text">
-                <string>Copy values to calculation parameter</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </widget>
-          </item>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
           <item>
            <widget class="QGroupBox" name="grpLattice">
             <property name="title">
@@ -112,31 +73,33 @@
              <property name="verticalSpacing">
               <number>5</number>
              </property>
-             <item row="12" column="1">
-              <widget class="QDoubleSpinBox" name="inpreff"/>
+             <item row="6" column="1">
+              <widget class="QDoubleSpinBox" name="inpucc"/>
              </item>
-             <item row="7" column="2">
-              <widget class="QCheckBox" name="fitucbeta">
+             <item row="6" column="0">
+              <widget class="QLabel" name="lblucc">
                <property name="text">
-                <string/>
+                <string>ucc:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
-             <item row="8" column="2">
-              <widget class="QCheckBox" name="fitucgamma">
+             <item row="9" column="0">
+              <widget class="QLabel" name="lblucgamma">
                <property name="text">
-                <string/>
+                <string>ucgamma:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
-             <item row="6" column="2">
-              <widget class="QCheckBox" name="fitucalpha">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
+             <item row="8" column="1">
+              <widget class="QDoubleSpinBox" name="inpucbeta"/>
              </item>
-             <item row="15" column="0">
+             <item row="16" column="0">
               <widget class="QLabel" name="lblifluc">
                <property name="text">
                 <string>ifluc:</string>
@@ -146,47 +109,160 @@
                </property>
               </widget>
              </item>
-             <item row="5" column="2">
-              <widget class="QCheckBox" name="fitucc">
-               <property name="text">
-                <string/>
+             <item row="11" column="1">
+              <widget class="QCheckBox" name="togCheckBoxTwinned"/>
+             </item>
+             <item row="4" column="1">
+              <widget class="QDoubleSpinBox" name="inpuca">
+               <property name="buttonSymbols">
+                <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                </property>
               </widget>
              </item>
-             <item row="14" column="2">
-              <widget class="QCheckBox" name="fitbcpl">
+             <item row="13" column="1">
+              <widget class="QDoubleSpinBox" name="inpreff"/>
+             </item>
+             <item row="17" column="0">
+              <widget class="QLabel" name="lblrfluc">
                <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="5" column="1">
-              <widget class="QDoubleSpinBox" name="inpucc"/>
-             </item>
-             <item row="6" column="1">
-              <widget class="QDoubleSpinBox" name="inpucalpha"/>
-             </item>
-             <item row="14" column="0">
-              <widget class="QLabel" name="lblbcpl">
-               <property name="text">
-                <string>bcpl:</string>
+                <string>rfluc:</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
-             <item row="4" column="2">
-              <widget class="QCheckBox" name="fitucb">
+             <item row="17" column="2">
+              <widget class="QCheckBox" name="fitrfluc">
                <property name="text">
                 <string/>
                </property>
               </widget>
              </item>
-             <item row="2" column="0" colspan="3">
-              <widget class="QLabel" name="lblucabc">
+             <item row="13" column="0">
+              <widget class="QLabel" name="lblreff">
                <property name="text">
-                <string>unit cell definition</string>
+                <string>reff:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="14" column="2">
+              <widget class="QCheckBox" name="fitacpl">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="14" column="1">
+              <widget class="QDoubleSpinBox" name="inpacpl"/>
+             </item>
+             <item row="15" column="1">
+              <widget class="QDoubleSpinBox" name="inpbcpl"/>
+             </item>
+             <item row="9" column="2">
+              <widget class="QCheckBox" name="fitucgamma">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="0">
+              <widget class="QLabel" name="lblucb">
+               <property name="text">
+                <string>ucb:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="16" column="1">
+              <widget class="QDoubleSpinBox" name="inpifluc"/>
+             </item>
+             <item row="10" column="1">
+              <widget class="QDoubleSpinBox" name="inpEditCeff"/>
+             </item>
+             <item row="13" column="2">
+              <widget class="QCheckBox" name="fitreff">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="2">
+              <widget class="QCheckBox" name="fitucalpha">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="15" column="2">
+              <widget class="QCheckBox" name="fitbcpl">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="10" column="0">
+              <widget class="QLabel" name="lblEditCeff">
+               <property name="text">
+                <string>TwRatio:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="1">
+              <widget class="QDoubleSpinBox" name="inpucalpha"/>
+             </item>
+             <item row="8" column="2">
+              <widget class="QCheckBox" name="fitucbeta">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="0">
+              <widget class="QLabel" name="lblucalpha">
+               <property name="text">
+                <string>ucalpha:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="12" column="0">
+              <widget class="QLabel" name="lblEditCeffcyl">
+               <property name="text">
+                <string>Ceffcyl:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="11" column="0">
+              <widget class="QLabel" name="lblCheckBoxTwinned">
+               <property name="text">
+                <string>Twinned:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="14" column="0">
+              <widget class="QLabel" name="lblacpl">
+               <property name="text">
+                <string>acpl:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
@@ -200,83 +276,17 @@
                </property>
               </widget>
              </item>
-             <item row="7" column="1">
-              <widget class="QDoubleSpinBox" name="inpucbeta"/>
+             <item row="1" column="1" colspan="2">
+              <widget class="QComboBox" name="cbsLType"/>
              </item>
-             <item row="9" column="2">
-              <widget class="QCheckBox" name="fitEditCeff">
+             <item row="16" column="2">
+              <widget class="QCheckBox" name="fitifluc">
                <property name="text">
                 <string/>
                </property>
               </widget>
              </item>
              <item row="4" column="0">
-              <widget class="QLabel" name="lblucb">
-               <property name="text">
-                <string>ucb:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="9" column="1">
-              <widget class="QDoubleSpinBox" name="inpEditCeff"/>
-             </item>
-             <item row="15" column="1">
-              <widget class="QDoubleSpinBox" name="inpifluc"/>
-             </item>
-             <item row="1" column="1" colspan="2">
-              <widget class="QComboBox" name="cbsLType"/>
-             </item>
-             <item row="3" column="2">
-              <widget class="QCheckBox" name="fituca">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="16" column="2">
-              <widget class="QCheckBox" name="fitrfluc">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="10" column="0">
-              <widget class="QLabel" name="lblCheckBoxTwinned">
-               <property name="text">
-                <string>Twinned:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="13" column="2">
-              <widget class="QCheckBox" name="fitacpl">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="13" column="0">
-              <widget class="QLabel" name="lblacpl">
-               <property name="text">
-                <string>acpl:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="10" column="1">
-              <widget class="QCheckBox" name="togCheckBoxTwinned"/>
-             </item>
-             <item row="8" column="1">
-              <widget class="QDoubleSpinBox" name="inpucgamma"/>
-             </item>
-             <item row="3" column="0">
               <widget class="QLabel" name="lbluca">
                <property name="text">
                 <string>uca:</string>
@@ -286,73 +296,14 @@
                </property>
               </widget>
              </item>
-             <item row="13" column="1">
-              <widget class="QDoubleSpinBox" name="inpacpl"/>
-             </item>
-             <item row="12" column="0">
-              <widget class="QLabel" name="lblreff">
-               <property name="text">
-                <string>reff:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="14" column="1">
-              <widget class="QDoubleSpinBox" name="inpbcpl"/>
-             </item>
-             <item row="4" column="1">
-              <widget class="QDoubleSpinBox" name="inpucb"/>
-             </item>
-             <item row="7" column="0">
-              <widget class="QLabel" name="lblucbeta">
-               <property name="text">
-                <string>ucbeta:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="15" column="2">
-              <widget class="QCheckBox" name="fitifluc">
+             <item row="5" column="2">
+              <widget class="QCheckBox" name="fitucb">
                <property name="text">
                 <string/>
                </property>
               </widget>
              </item>
-             <item row="3" column="1">
-              <widget class="QDoubleSpinBox" name="inpuca"/>
-             </item>
-             <item row="12" column="2">
-              <widget class="QCheckBox" name="fitreff">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="5" column="0">
-              <widget class="QLabel" name="lblucc">
-               <property name="text">
-                <string>ucc:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="8" column="0">
-              <widget class="QLabel" name="lblucgamma">
-               <property name="text">
-                <string>ucgamma:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="17" column="0">
+             <item row="18" column="0">
               <spacer name="verticalSpacer_3">
                <property name="orientation">
                 <enum>Qt::Orientation::Vertical</enum>
@@ -365,53 +316,80 @@
                </property>
               </spacer>
              </item>
-             <item row="16" column="0">
-              <widget class="QLabel" name="lblrfluc">
-               <property name="text">
-                <string>rfluc:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="11" column="2">
+             <item row="12" column="2">
               <widget class="QCheckBox" name="fitEditCeffcyl">
                <property name="text">
                 <string/>
                </property>
               </widget>
              </item>
-             <item row="6" column="0">
-              <widget class="QLabel" name="lblucalpha">
+             <item row="3" column="0" colspan="3">
+              <widget class="QLabel" name="lblucabc">
                <property name="text">
-                <string>ucalpha:</string>
+                <string>unit cell definition</string>
+               </property>
+              </widget>
+             </item>
+             <item row="6" column="2">
+              <widget class="QCheckBox" name="fitucc">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="0">
+              <widget class="QLabel" name="lblucbeta">
+               <property name="text">
+                <string>ucbeta:</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
-             <item row="11" column="1">
-              <widget class="QDoubleSpinBox" name="inpEditCeffcyl"/>
-             </item>
-             <item row="9" column="0">
-              <widget class="QLabel" name="lblEditCeff">
-               <property name="text">
-                <string>TwRatio:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="16" column="1">
+             <item row="17" column="1">
               <widget class="QDoubleSpinBox" name="inprfluc"/>
              </item>
-             <item row="11" column="0">
-              <widget class="QLabel" name="lblEditCeffcyl">
+             <item row="12" column="1">
+              <widget class="QDoubleSpinBox" name="inpEditCeffcyl"/>
+             </item>
+             <item row="10" column="2">
+              <widget class="QCheckBox" name="fitEditCeff">
                <property name="text">
-                <string>Ceffcyl:</string>
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="15" column="0">
+              <widget class="QLabel" name="lblbcpl">
+               <property name="text">
+                <string>bcpl:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="1">
+              <widget class="QDoubleSpinBox" name="inpucb"/>
+             </item>
+             <item row="4" column="2">
+              <widget class="QCheckBox" name="fituca">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="9" column="1">
+              <widget class="QDoubleSpinBox" name="inpucgamma"/>
+             </item>
+             <item row="2" column="1" colspan="2">
+              <widget class="QComboBox" name="cbsLType1d"/>
+             </item>
+             <item row="2" column="0">
+              <widget class="QLabel" name="lblLType1d">
+               <property name="text">
+                <string>LType:</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
@@ -427,30 +405,152 @@
              <string>Particle</string>
             </property>
             <layout class="QGridLayout" name="gridLayout_32">
-             <item row="3" column="2">
-              <widget class="QCheckBox" name="fitEditRadius">
-               <property name="text">
-                <string/>
+             <item row="4" column="1">
+              <widget class="QDoubleSpinBox" name="inpEditRadius"/>
+             </item>
+             <item row="1" column="1" colspan="2">
+              <widget class="QComboBox" name="cbsOrdis">
+               <property name="autoFillBackground">
+                <bool>true</bool>
                </property>
               </widget>
              </item>
-             <item row="0" column="1" colspan="2">
-              <widget class="QComboBox" name="cbsComboBoxParticle"/>
-             </item>
-             <item row="8" column="0">
-              <widget class="QLabel" name="lblSigmaL">
+             <item row="11" column="0">
+              <widget class="QLabel" name="lblEditRho">
                <property name="text">
-                <string>SigmaL:</string>
+                <string>EditRho:</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
-             <item row="14" column="0">
-              <widget class="QLabel" name="lblEditDist">
+             <item row="7" column="2">
+              <widget class="QCheckBox" name="fitEditDbeta">
                <property name="text">
-                <string>Dist:</string>
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="12" column="1">
+              <widget class="QDoubleSpinBox" name="inpRotAlpha"/>
+             </item>
+             <item row="4" column="2">
+              <widget class="QCheckBox" name="fitEditRadius">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="lblOrdis">
+               <property name="text">
+                <string>Ordis:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="1">
+              <widget class="QDoubleSpinBox" name="inpEditDbeta"/>
+             </item>
+             <item row="8" column="0">
+              <widget class="QLabel" name="lblLength">
+               <property name="text">
+                <string>Length:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="10" column="0">
+              <widget class="QLabel" name="lblAlpha">
+               <property name="text">
+                <string>Alpha:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="6" column="0">
+              <widget class="QLabel" name="lblEditSigma">
+               <property name="text">
+                <string>EditSigma:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="1">
+              <widget class="QDoubleSpinBox" name="inpEditRadiusi"/>
+             </item>
+             <item row="9" column="2">
+              <widget class="QCheckBox" name="fitSigmaL">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="12" column="0">
+              <widget class="QLabel" name="lblRotAlpha">
+               <property name="text">
+                <string>RotAlpha:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="6" column="1">
+              <widget class="QDoubleSpinBox" name="inpEditSigma"/>
+             </item>
+             <item row="4" column="0">
+              <widget class="QLabel" name="lblEditRadius">
+               <property name="text">
+                <string>EditRadius:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="1">
+              <widget class="QDoubleSpinBox" name="inpLength"/>
+             </item>
+             <item row="0" column="0">
+              <widget class="QLabel" name="lblComboBoxParticle">
+               <property name="text">
+                <string>ComboBoxParticle:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1" colspan="2">
+              <widget class="QComboBox" name="cbsComboBoxParticle"/>
+             </item>
+             <item row="2" column="0">
+              <widget class="QLabel" name="lblComboBoxInterior">
+               <property name="text">
+                <string>ComboBoxInterior:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1" colspan="2">
+              <widget class="QComboBox" name="cbsComboBoxInterior"/>
+             </item>
+             <item row="5" column="0">
+              <widget class="QLabel" name="lblEditRadiusi">
+               <property name="text">
+                <string>EditRadiusi:</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
@@ -458,13 +558,64 @@
               </widget>
              </item>
              <item row="10" column="2">
+              <widget class="QCheckBox" name="fitAlpha">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="2">
+              <widget class="QCheckBox" name="fitLength">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="12" column="2">
+              <widget class="QCheckBox" name="fitRotAlpha">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="2">
+              <widget class="QCheckBox" name="fitEditRadiusi">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="10" column="1">
+              <widget class="QDoubleSpinBox" name="inpAlpha"/>
+             </item>
+             <item row="7" column="0">
+              <widget class="QLabel" name="lblEditDbeta">
+               <property name="text">
+                <string>EditDBeta:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="11" column="2">
               <widget class="QCheckBox" name="fitEditRho">
                <property name="text">
                 <string/>
                </property>
               </widget>
              </item>
-             <item row="15" column="0">
+             <item row="11" column="1">
+              <widget class="QDoubleSpinBox" name="inpEditRho"/>
+             </item>
+             <item row="6" column="2">
+              <widget class="QCheckBox" name="fitEditSigma">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="13" column="0">
               <spacer name="verticalSpacer">
                <property name="orientation">
                 <enum>Qt::Orientation::Vertical</enum>
@@ -477,242 +628,29 @@
                </property>
               </spacer>
              </item>
-             <item row="1" column="0">
-              <widget class="QLabel" name="lblOrdis">
+             <item row="9" column="1">
+              <widget class="QDoubleSpinBox" name="inpSigmaL"/>
+             </item>
+             <item row="9" column="0">
+              <widget class="QLabel" name="lblSigmaL">
                <property name="text">
-                <string>Ordis:</string>
+                <string>SigmaL:</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
               </widget>
              </item>
-             <item row="6" column="2">
-              <widget class="QCheckBox" name="fitEditDbeta">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
+             <item row="3" column="1" colspan="2">
+              <widget class="QComboBox" name="cbsComboBoxInterior1d"/>
              </item>
-             <item row="2" column="0">
-              <widget class="QLabel" name="lblComboBoxInterior">
+             <item row="3" column="0">
+              <widget class="QLabel" name="lblComboBoxInterior1d">
                <property name="text">
                 <string>ComboBoxInterior:</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="5" column="1">
-              <widget class="QDoubleSpinBox" name="inpEditSigma"/>
-             </item>
-             <item row="0" column="0">
-              <widget class="QLabel" name="lblComboBoxParticle">
-               <property name="text">
-                <string>ComboBoxParticle:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="4" column="0">
-              <widget class="QLabel" name="lblEditRadiusi">
-               <property name="text">
-                <string>EditRadiusi:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="14" column="1">
-              <widget class="QLineEdit" name="outEditDist">
-               <property name="maximumSize">
-                <size>
-                 <width>80</width>
-                 <height>16777215</height>
-                </size>
-               </property>
-               <property name="readOnly">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="1">
-              <widget class="QDoubleSpinBox" name="inpEditRadius"/>
-             </item>
-             <item row="8" column="1">
-              <widget class="QDoubleSpinBox" name="inpSigmaL"/>
-             </item>
-             <item row="6" column="1">
-              <widget class="QDoubleSpinBox" name="inpEditDbeta"/>
-             </item>
-             <item row="13" column="1">
-              <widget class="QLineEdit" name="outEditRelDis">
-               <property name="maximumSize">
-                <size>
-                 <width>80</width>
-                 <height>16777215</height>
-                </size>
-               </property>
-               <property name="readOnly">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-             <item row="5" column="2">
-              <widget class="QCheckBox" name="fitEditSigma">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="1" colspan="2">
-              <widget class="QComboBox" name="cbsOrdis">
-               <property name="autoFillBackground">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-             <item row="5" column="0">
-              <widget class="QLabel" name="lblEditSigma">
-               <property name="text">
-                <string>EditSigma:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="6" column="0">
-              <widget class="QLabel" name="lblEditDbeta">
-               <property name="text">
-                <string>EditDBeta:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="7" column="2">
-              <widget class="QCheckBox" name="fitLength">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="0">
-              <widget class="QLabel" name="lblEditRadius">
-               <property name="text">
-                <string>EditRadius:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="8" column="2">
-              <widget class="QCheckBox" name="fitSigmaL">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="12" column="0" colspan="3">
-              <widget class="Line" name="line_4">
-               <property name="orientation">
-                <enum>Qt::Orientation::Horizontal</enum>
-               </property>
-              </widget>
-             </item>
-             <item row="4" column="2">
-              <widget class="QCheckBox" name="fitEditRadiusi">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="9" column="1">
-              <widget class="QDoubleSpinBox" name="inpAlpha"/>
-             </item>
-             <item row="13" column="0">
-              <widget class="QLabel" name="lblEditRelDis">
-               <property name="text">
-                <string>RelDis:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="9" column="0">
-              <widget class="QLabel" name="lblAlpha">
-               <property name="text">
-                <string>Alpha:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="7" column="0">
-              <widget class="QLabel" name="lblLength">
-               <property name="text">
-                <string>Length:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="10" column="1">
-              <widget class="QDoubleSpinBox" name="inpEditRho"/>
-             </item>
-             <item row="10" column="0">
-              <widget class="QLabel" name="lblEditRho">
-               <property name="text">
-                <string>EditRho:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="9" column="2">
-              <widget class="QCheckBox" name="fitAlpha">
-               <property name="text">
-                <string/>
-               </property>
-              </widget>
-             </item>
-             <item row="7" column="1">
-              <widget class="QDoubleSpinBox" name="inpLength"/>
-             </item>
-             <item row="4" column="1">
-              <widget class="QDoubleSpinBox" name="inpEditRadiusi"/>
-             </item>
-             <item row="2" column="1" colspan="2">
-              <widget class="QComboBox" name="cbsComboBoxInterior"/>
-             </item>
-             <item row="11" column="0">
-              <widget class="QLabel" name="lblRotAlpha">
-               <property name="text">
-                <string>RotAlpha:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="11" column="1">
-              <widget class="QDoubleSpinBox" name="inpRotAlpha"/>
-             </item>
-             <item row="11" column="2">
-              <widget class="QCheckBox" name="fitRotAlpha">
-               <property name="text">
-                <string/>
                </property>
               </widget>
              </item>
@@ -1175,6 +1113,22 @@
             </layout>
            </widget>
           </item>
+          <item>
+           <spacer name="horizontalSpacer_4">
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Policy::MinimumExpanding</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
          </layout>
         </item>
         <item>
@@ -1208,19 +1162,39 @@
              <string>Usage</string>
             </property>
             <layout class="QGridLayout" name="gridLayout_7">
-             <item row="1" column="0" colspan="2">
-              <widget class="QLabel" name="lblLoadPrompt">
-               <property name="maximumSize">
-                <size>
-                 <width>16777215</width>
-                 <height>45</height>
-                </size>
-               </property>
+             <item row="4" column="0">
+              <widget class="QPushButton" name="butLoadParams">
                <property name="text">
-                <string>Loaded parameter file:</string>
+                <string>Load all parameter</string>
                </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignBottom|Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft</set>
+              </widget>
+             </item>
+             <item row="6" column="0" colspan="2">
+              <widget class="QGroupBox" name="grpChgImgCurParam">
+               <property name="title">
+                <string>Current parameter tested</string>
+               </property>
+               <layout class="QGridLayout" name="gridLayout_51">
+                <property name="topMargin">
+                 <number>2</number>
+                </property>
+                <property name="bottomMargin">
+                 <number>2</number>
+                </property>
+                <item row="0" column="0">
+                 <widget class="QLabel" name="lblChgImgCurParam">
+                  <property name="text">
+                   <string>TextLabel</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item row="4" column="1">
+              <widget class="QPushButton" name="butSaveParams">
+               <property name="text">
+                <string>Save all parameter</string>
                </property>
               </widget>
              </item>
@@ -1234,17 +1208,10 @@
                </property>
               </widget>
              </item>
-             <item row="4" column="0">
-              <widget class="QPushButton" name="butLoadParams">
-               <property name="text">
-                <string>Load all parameter</string>
-               </property>
-              </widget>
-             </item>
              <item row="5" column="0" colspan="2">
               <widget class="QGroupBox" name="grpColorMarker">
                <property name="title">
-                <string>Color marker meaning:</string>
+                <string>Colored input background meaning:</string>
                </property>
                <layout class="QGridLayout" name="gridLayout_40">
                 <property name="leftMargin">
@@ -1262,29 +1229,40 @@
                 <property name="spacing">
                  <number>3</number>
                 </property>
-                <item row="5" column="0">
-                 <spacer name="horizontalSpacer_6">
-                  <property name="orientation">
-                   <enum>Qt::Orientation::Horizontal</enum>
-                  </property>
-                  <property name="sizeType">
-                   <enum>QSizePolicy::Policy::Minimum</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>0</width>
-                    <height>0</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-                <item row="1" column="0" colspan="3">
-                 <widget class="QLabel" name="lblColMarkParDiff">
+                <item row="0" column="0" colspan="3">
+                 <widget class="QLabel" name="lblColMarkTrainTbl">
                   <property name="autoFillBackground">
                    <bool>true</bool>
                   </property>
                   <property name="text">
-                   <string>Values differs (local set to parameter file)</string>
+                   <string>Values read from Training image table</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="0" colspan="3">
+                 <widget class="QLabel" name="lblColMarkChgImg">
+                  <property name="autoFillBackground">
+                   <bool>true</bool>
+                  </property>
+                  <property name="text">
+                   <string>These values changes the current image</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="6" column="1">
+                 <widget class="QPushButton" name="butResetColorMarker">
+                  <property name="text">
+                   <string>Reset color marker</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="4" column="0" colspan="3">
+                 <widget class="QLabel" name="lblColMarkNoToolTip">
+                  <property name="autoFillBackground">
+                   <bool>true</bool>
+                  </property>
+                  <property name="text">
+                   <string>Values without tool tips</string>
                   </property>
                  </widget>
                 </item>
@@ -1298,7 +1276,17 @@
                   </property>
                  </widget>
                 </item>
-                <item row="5" column="2">
+                <item row="1" column="0" colspan="3">
+                 <widget class="QLabel" name="lblColMarkParDiff">
+                  <property name="autoFillBackground">
+                   <bool>true</bool>
+                  </property>
+                  <property name="text">
+                   <string>Values differs (local set to parameter file)</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="6" column="2">
                  <spacer name="horizontalSpacer_7">
                   <property name="orientation">
                    <enum>Qt::Orientation::Horizontal</enum>
@@ -1314,50 +1302,42 @@
                   </property>
                  </spacer>
                 </item>
-                <item row="2" column="0" colspan="3">
-                 <widget class="QLabel" name="lblColMarkChgImg">
+                <item row="6" column="0">
+                 <spacer name="horizontalSpacer_6">
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="sizeType">
+                   <enum>QSizePolicy::Policy::Minimum</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>0</width>
+                    <height>0</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+                <item row="5" column="0" colspan="3">
+                 <widget class="QLabel" name="lblColMarkChatbot">
                   <property name="autoFillBackground">
                    <bool>true</bool>
                   </property>
                   <property name="text">
-                   <string>These values changes the current image</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="5" column="1">
-                 <widget class="QPushButton" name="butResetColorMarker">
-                  <property name="text">
-                   <string>Reset color marker</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="0" column="0" colspan="3">
-                 <widget class="QLabel" name="lblColMarkTrainTbl">
-                  <property name="autoFillBackground">
-                   <bool>true</bool>
-                  </property>
-                  <property name="text">
-                   <string>Values read from Training image table</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="4" column="0" colspan="3">
-                 <widget class="QLabel" name="lblColMarkNoToolTip">
-                  <property name="autoFillBackground">
-                   <bool>true</bool>
-                  </property>
-                  <property name="text">
-                   <string>Values without tool tips</string>
+                   <string>Values read from Chatbot session</string>
                   </property>
                  </widget>
                 </item>
                </layout>
               </widget>
              </item>
-             <item row="7" column="1">
+             <item row="8" column="1">
               <spacer name="verticalSpacer_15">
                <property name="orientation">
                 <enum>Qt::Orientation::Vertical</enum>
+               </property>
+               <property name="sizeType">
+                <enum>QSizePolicy::Policy::MinimumExpanding</enum>
                </property>
                <property name="sizeHint" stdset="0">
                 <size>
@@ -1367,10 +1347,19 @@
                </property>
               </spacer>
              </item>
-             <item row="4" column="1">
-              <widget class="QPushButton" name="butSaveParams">
+             <item row="1" column="0" colspan="2">
+              <widget class="QLabel" name="lblLoadPrompt">
+               <property name="maximumSize">
+                <size>
+                 <width>16777215</width>
+                 <height>45</height>
+                </size>
+               </property>
                <property name="text">
-                <string>Save all parameter</string>
+                <string>Loaded parameter file:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignBottom|Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft</set>
                </property>
               </widget>
              </item>
@@ -1393,20 +1382,95 @@
                </property>
               </widget>
              </item>
-             <item row="6" column="0" colspan="2">
-              <widget class="QGroupBox" name="grpChgImgCurParam">
-               <property name="title">
-                <string>Current parameter tested</string>
+             <item row="7" column="0" colspan="2">
+              <widget class="QLabel" name="lblGenCbsInfo">
+               <property name="minimumSize">
+                <size>
+                 <width>0</width>
+                 <height>40</height>
+                </size>
                </property>
-               <layout class="QGridLayout" name="gridLayout_51">
-                <item row="0" column="0">
-                 <widget class="QLabel" name="lblChgImgCurParam">
-                  <property name="text">
-                   <string>TextLabel</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
+               <property name="palette">
+                <palette>
+                 <active>
+                  <colorrole role="WindowText">
+                   <brush brushstyle="SolidPattern">
+                    <color alpha="255">
+                     <red>255</red>
+                     <green>255</green>
+                     <blue>255</blue>
+                    </color>
+                   </brush>
+                  </colorrole>
+                  <colorrole role="Window">
+                   <brush brushstyle="SolidPattern">
+                    <color alpha="255">
+                     <red>255</red>
+                     <green>0</green>
+                     <blue>0</blue>
+                    </color>
+                   </brush>
+                  </colorrole>
+                 </active>
+                 <inactive>
+                  <colorrole role="WindowText">
+                   <brush brushstyle="SolidPattern">
+                    <color alpha="255">
+                     <red>255</red>
+                     <green>255</green>
+                     <blue>255</blue>
+                    </color>
+                   </brush>
+                  </colorrole>
+                  <colorrole role="Window">
+                   <brush brushstyle="SolidPattern">
+                    <color alpha="255">
+                     <red>255</red>
+                     <green>0</green>
+                     <blue>0</blue>
+                    </color>
+                   </brush>
+                  </colorrole>
+                 </inactive>
+                 <disabled>
+                  <colorrole role="Base">
+                   <brush brushstyle="SolidPattern">
+                    <color alpha="255">
+                     <red>255</red>
+                     <green>0</green>
+                     <blue>0</blue>
+                    </color>
+                   </brush>
+                  </colorrole>
+                  <colorrole role="Window">
+                   <brush brushstyle="SolidPattern">
+                    <color alpha="255">
+                     <red>255</red>
+                     <green>0</green>
+                     <blue>0</blue>
+                    </color>
+                   </brush>
+                  </colorrole>
+                 </disabled>
+                </palette>
+               </property>
+               <property name="font">
+                <font>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="autoFillBackground">
+                <bool>true</bool>
+               </property>
+               <property name="text">
+                <string>TextLabel</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignCenter</set>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
               </widget>
              </item>
             </layout>
@@ -1422,6 +1486,9 @@
               <spacer name="verticalSpacer_14">
                <property name="orientation">
                 <enum>Qt::Orientation::Vertical</enum>
+               </property>
+               <property name="sizeType">
+                <enum>QSizePolicy::Policy::MinimumExpanding</enum>
                </property>
                <property name="sizeHint" stdset="0">
                 <size>
@@ -1487,6 +1554,9 @@
               <spacer name="verticalSpacer_16">
                <property name="orientation">
                 <enum>Qt::Orientation::Vertical</enum>
+               </property>
+               <property name="sizeType">
+                <enum>QSizePolicy::Policy::MinimumExpanding</enum>
                </property>
                <property name="sizeHint" stdset="0">
                 <size>
@@ -1565,221 +1635,16 @@
              <string>Calculation</string>
             </property>
             <layout class="QGridLayout" name="gridLayout_36">
-             <property name="verticalSpacing">
-              <number>5</number>
+             <property name="topMargin">
+              <number>3</number>
              </property>
-             <item row="1" column="1">
-              <widget class="QSpinBox" name="intHKLmax">
-               <property name="minimum">
-                <number>1</number>
-               </property>
-               <property name="maximum">
-                <number>9</number>
-               </property>
-              </widget>
-             </item>
+             <property name="bottomMargin">
+              <number>3</number>
+             </property>
+             <property name="verticalSpacing">
+              <number>3</number>
+             </property>
              <item row="6" column="0" colspan="2">
-              <widget class="QGroupBox" name="grpCalcDestCalc">
-               <property name="toolTip">
-                <string>Same settings as in the Configuration tab</string>
-               </property>
-               <property name="title">
-                <string>Calculation destination</string>
-               </property>
-               <layout class="QVBoxLayout" name="verticalLayout_21">
-                <property name="spacing">
-                 <number>3</number>
-                </property>
-                <property name="topMargin">
-                 <number>5</number>
-                </property>
-                <property name="bottomMargin">
-                 <number>5</number>
-                </property>
-                <item>
-                 <widget class="QRadioButton" name="radNewImageCal">
-                  <property name="toolTip">
-                   <string>Same settings as in the Configuration tab</string>
-                  </property>
-                  <property name="text">
-                   <string>New image window</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QRadioButton" name="radLastImageCal">
-                  <property name="toolTip">
-                   <string>Same settings as in the Configuration tab</string>
-                  </property>
-                  <property name="text">
-                   <string>Last image window</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </widget>
-             </item>
-             <item row="1" column="0">
-              <widget class="QLabel" name="lblHKLmax">
-               <property name="text">
-                <string>HKLmax:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="0" colspan="2">
-              <widget class="QTabWidget" name="tab1D2D">
-               <property name="tabShape">
-                <enum>QTabWidget::TabShape::Triangular</enum>
-               </property>
-               <property name="currentIndex">
-                <number>0</number>
-               </property>
-               <widget class="QWidget" name="tab1D">
-                <attribute name="title">
-                 <string>1D</string>
-                </attribute>
-                <layout class="QGridLayout" name="gridLayout_50">
-                 <item row="3" column="0">
-                  <spacer name="verticalSpacer_7">
-                   <property name="orientation">
-                    <enum>Qt::Orientation::Vertical</enum>
-                   </property>
-                   <property name="sizeHint" stdset="0">
-                    <size>
-                     <width>20</width>
-                     <height>40</height>
-                    </size>
-                   </property>
-                  </spacer>
-                 </item>
-                 <item row="0" column="0">
-                  <widget class="QLabel" name="label_64">
-                   <property name="text">
-                    <string>Qmin:</string>
-                   </property>
-                   <property name="alignment">
-                    <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="2" column="0" colspan="2">
-                  <widget class="QLabel" name="label_65">
-                   <property name="font">
-                    <font>
-                     <italic>true</italic>
-                    </font>
-                   </property>
-                   <property name="text">
-                    <string>If this is visible and the Calculate button is clicked, only a 1D vector and no matrix is calculated.</string>
-                   </property>
-                   <property name="wordWrap">
-                    <bool>true</bool>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="0" column="1">
-                  <widget class="QDoubleSpinBox" name="inpEditQmin"/>
-                 </item>
-                 <item row="1" column="1">
-                  <widget class="QSpinBox" name="intEditQsteps"/>
-                 </item>
-                 <item row="1" column="0">
-                  <widget class="QLabel" name="label_66">
-                   <property name="text">
-                    <string>number of steps (q):</string>
-                   </property>
-                   <property name="alignment">
-                    <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </widget>
-               <widget class="QWidget" name="tab2D">
-                <attribute name="title">
-                 <string>2D</string>
-                </attribute>
-                <layout class="QGridLayout" name="gridLayout_49">
-                 <item row="0" column="1">
-                  <widget class="QSpinBox" name="intGridPoints">
-                   <property name="minimum">
-                    <number>16</number>
-                   </property>
-                   <property name="maximum">
-                    <number>2048</number>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="0" column="0">
-                  <widget class="QLabel" name="lblGridPoints">
-                   <property name="text">
-                    <string>Grid points:</string>
-                   </property>
-                   <property name="alignment">
-                    <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="1" column="0" colspan="2">
-                  <widget class="QGroupBox" name="grpQuadrants">
-                   <property name="title">
-                    <string>Quadrants</string>
-                   </property>
-                   <layout class="QGridLayout" name="gridLayout_35">
-                    <property name="topMargin">
-                     <number>5</number>
-                    </property>
-                    <property name="bottomMargin">
-                     <number>5</number>
-                    </property>
-                    <property name="verticalSpacing">
-                     <number>3</number>
-                    </property>
-                    <item row="0" column="1">
-                     <widget class="QRadioButton" name="radQ2">
-                      <property name="text">
-                       <string>2</string>
-                      </property>
-                     </widget>
-                    </item>
-                    <item row="0" column="2">
-                     <widget class="QRadioButton" name="radQ4">
-                      <property name="text">
-                       <string>4</string>
-                      </property>
-                      <property name="checked">
-                       <bool>true</bool>
-                      </property>
-                     </widget>
-                    </item>
-                    <item row="0" column="0">
-                     <widget class="QRadioButton" name="radQ1">
-                      <property name="text">
-                       <string>1</string>
-                      </property>
-                     </widget>
-                    </item>
-                    <item row="1" column="0" colspan="3">
-                     <widget class="QCheckBox" name="togExpandImage">
-                      <property name="toolTip">
-                       <string>use point symetry</string>
-                      </property>
-                      <property name="text">
-                       <string>Expand to full image</string>
-                      </property>
-                     </widget>
-                    </item>
-                   </layout>
-                  </widget>
-                 </item>
-                </layout>
-               </widget>
-              </widget>
-             </item>
-             <item row="2" column="0" colspan="2">
               <widget class="QGroupBox" name="grpEditQmaxGroup">
                <property name="title">
                 <string>Qmax</string>
@@ -1825,6 +1690,181 @@
                  </widget>
                 </item>
                </layout>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QSpinBox" name="intEditQsteps"/>
+             </item>
+             <item row="10" column="0" colspan="2">
+              <widget class="QGroupBox" name="grpCalcDestCalc">
+               <property name="toolTip">
+                <string>Same settings as in the Configuration tab</string>
+               </property>
+               <property name="title">
+                <string>Calculation destination</string>
+               </property>
+               <layout class="QHBoxLayout" name="horizontalLayout_2">
+                <property name="spacing">
+                 <number>3</number>
+                </property>
+                <property name="topMargin">
+                 <number>5</number>
+                </property>
+                <property name="bottomMargin">
+                 <number>5</number>
+                </property>
+                <item>
+                 <widget class="QRadioButton" name="radLastImageCal">
+                  <property name="toolTip">
+                   <string>Same settings as in the Configuration tab</string>
+                  </property>
+                  <property name="text">
+                   <string>Last image window</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QRadioButton" name="radNewImageCal">
+                  <property name="toolTip">
+                   <string>Same settings as in the Configuration tab</string>
+                  </property>
+                  <property name="text">
+                   <string>New image window</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QDoubleSpinBox" name="inpEditQmin"/>
+             </item>
+             <item row="2" column="0">
+              <widget class="QLabel" name="lblEditQsteps">
+               <property name="text">
+                <string>number of steps (q):</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="0">
+              <widget class="QLabel" name="lblGridPoints">
+               <property name="text">
+                <string>Grid points:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QSpinBox" name="intGridPoints">
+               <property name="minimum">
+                <number>16</number>
+               </property>
+               <property name="maximum">
+                <number>2048</number>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="1">
+              <widget class="QSpinBox" name="intHKLmax">
+               <property name="minimum">
+                <number>1</number>
+               </property>
+               <property name="maximum">
+                <number>9</number>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0">
+              <widget class="QLabel" name="lblHKLmax">
+               <property name="text">
+                <string>HKLmax:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="0" colspan="2">
+              <widget class="QGroupBox" name="grpQuadrants">
+               <property name="title">
+                <string>Quadrants calculated for 2d image</string>
+               </property>
+               <layout class="QGridLayout" name="gridLayout_35">
+                <property name="sizeConstraint">
+                 <enum>QLayout::SizeConstraint::SetMinimumSize</enum>
+                </property>
+                <property name="topMargin">
+                 <number>3</number>
+                </property>
+                <property name="bottomMargin">
+                 <number>3</number>
+                </property>
+                <property name="verticalSpacing">
+                 <number>3</number>
+                </property>
+                <item row="0" column="1">
+                 <widget class="QRadioButton" name="radQ2">
+                  <property name="text">
+                   <string>2</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="0" column="2">
+                 <widget class="QRadioButton" name="radQ4">
+                  <property name="text">
+                   <string>4</string>
+                  </property>
+                  <property name="checked">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+                <item row="0" column="0">
+                 <widget class="QRadioButton" name="radQ1">
+                  <property name="text">
+                   <string>1</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="0" colspan="3">
+                 <widget class="QCheckBox" name="togExpandImage">
+                  <property name="toolTip">
+                   <string>use point symetry</string>
+                  </property>
+                  <property name="text">
+                   <string>Expand to full image</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="lblEditQmin">
+               <property name="text">
+                <string>Qmin:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="1">
+              <widget class="QDoubleSpinBox" name="inpEditqz"/>
+             </item>
+             <item row="4" column="0">
+              <widget class="QLabel" name="lblEditqz">
+               <property name="text">
+                <string>Editqz:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
               </widget>
              </item>
             </layout>
@@ -1877,6 +1917,9 @@
               <spacer name="verticalSpacer_13">
                <property name="orientation">
                 <enum>Qt::Orientation::Vertical</enum>
+               </property>
+               <property name="sizeType">
+                <enum>QSizePolicy::Policy::MinimumExpanding</enum>
                </property>
                <property name="sizeHint" stdset="0">
                 <size>
@@ -2022,62 +2065,10 @@
       </widget>
       <widget class="QWidget" name="tabData">
        <attribute name="title">
-        <string>Windows</string>
+        <string>Datafile / Windows</string>
        </attribute>
        <layout class="QGridLayout" name="gridLayout">
-        <item row="0" column="0">
-         <widget class="QGroupBox" name="grpWindows">
-          <property name="title">
-           <string>List of image windows:</string>
-          </property>
-          <layout class="QVBoxLayout" name="verticalLayout_9">
-           <item>
-            <widget class="QLabel" name="label_4">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="font">
-              <font>
-               <italic>true</italic>
-              </font>
-             </property>
-             <property name="text">
-              <string>Klick to bring window in front of all other windows</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QListWidget" name="lisDataWindows">
-             <property name="toolTip">
-              <string>Select to raise the window</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="butDataFindCenter">
-             <property name="text">
-              <string>Find beam center in image</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="butDataSetMask">
-             <property name="text">
-              <string>Set Mask to all other images</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="butDataCopyScaling">
-             <property name="text">
-              <string>Copy Min/Max to other images as fixed scale</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item row="0" column="1">
+        <item row="0" column="2">
          <layout class="QVBoxLayout" name="verticalLayout_16">
           <item>
            <widget class="QGroupBox" name="grpExtractImage">
@@ -2306,18 +2297,367 @@
           </item>
          </layout>
         </item>
-        <item row="0" column="2">
+        <item row="0" column="3">
          <spacer name="horizontalSpacer">
           <property name="orientation">
            <enum>Qt::Orientation::Horizontal</enum>
           </property>
+          <property name="sizeType">
+           <enum>QSizePolicy::Policy::MinimumExpanding</enum>
+          </property>
           <property name="sizeHint" stdset="0">
            <size>
-            <width>40</width>
+            <width>10</width>
             <height>20</height>
            </size>
           </property>
          </spacer>
+        </item>
+        <item row="0" column="1">
+         <widget class="QGroupBox" name="grpWindows">
+          <property name="title">
+           <string>List of image windows:</string>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_9">
+           <item>
+            <widget class="QLabel" name="label_4">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="font">
+              <font>
+               <italic>true</italic>
+              </font>
+             </property>
+             <property name="text">
+              <string>Klick to bring window in front of all other windows</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QListWidget" name="lisDataWindows">
+             <property name="toolTip">
+              <string>Select to raise the window</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="butDataFindCenter">
+             <property name="text">
+              <string>Find beam center in image</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="butDataSetMask">
+             <property name="text">
+              <string>Set Mask to all other images</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="butDataCopyScaling">
+             <property name="text">
+              <string>Copy Min/Max to other images as fixed scale</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="0" column="0">
+         <widget class="QGroupBox" name="grpDataFile">
+          <property name="title">
+           <string>Datafile</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_56">
+           <item row="6" column="1">
+            <widget class="QDoubleSpinBox" name="inpDFilePixHeight">
+             <property name="readOnly">
+              <bool>true</bool>
+             </property>
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+             </property>
+             <property name="suffix">
+              <string> mm</string>
+             </property>
+             <property name="decimals">
+              <number>5</number>
+             </property>
+            </widget>
+           </item>
+           <item row="12" column="0" colspan="2">
+            <widget class="QLabel" name="label_86">
+             <property name="font">
+              <font>
+               <italic>true</italic>
+              </font>
+             </property>
+             <property name="text">
+              <string>Copy above values to the corresponding calculation parameters</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignCenter</set>
+             </property>
+             <property name="wordWrap">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="13" column="0" colspan="2">
+            <widget class="QPushButton" name="butCopyHdrdata2Params">
+             <property name="text">
+              <string>Copy values</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QDoubleSpinBox" name="inpDFileDetDist">
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+             </property>
+             <property name="suffix">
+              <string> m</string>
+             </property>
+             <property name="decimals">
+              <number>4</number>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="0">
+            <widget class="QLabel" name="label_81">
+             <property name="text">
+              <string>No of Pixelrows</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="1">
+            <widget class="QDoubleSpinBox" name="inpDFilePixWidth">
+             <property name="readOnly">
+              <bool>true</bool>
+             </property>
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+             </property>
+             <property name="suffix">
+              <string> mm</string>
+             </property>
+             <property name="decimals">
+              <number>5</number>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="label_77">
+             <property name="text">
+              <string>Wavelength</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="8" column="1">
+            <widget class="QSpinBox" name="inpDFilePixCols">
+             <property name="readOnly">
+              <bool>true</bool>
+             </property>
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <number>9999</number>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="0">
+            <widget class="QLabel" name="label_80">
+             <property name="text">
+              <string>Pixel Height</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="9" column="1">
+            <widget class="QDoubleSpinBox" name="inpDFileBSX">
+             <property name="readOnly">
+              <bool>true</bool>
+             </property>
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+             </property>
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="maximum">
+              <double>9999.989999999999782</double>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="1">
+            <widget class="QSpinBox" name="inpDFilePixRows">
+             <property name="readOnly">
+              <bool>true</bool>
+             </property>
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+             </property>
+             <property name="maximum">
+              <number>9999</number>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0" colspan="2">
+            <widget class="QLabel" name="label_85">
+             <property name="font">
+              <font>
+               <italic>true</italic>
+              </font>
+             </property>
+             <property name="text">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Special values extracted from&lt;br/&gt;the header of the datafile used&lt;br/&gt;to calculate the Qmax&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignCenter</set>
+             </property>
+             <property name="wordWrap">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="8" column="0">
+            <widget class="QLabel" name="label_82">
+             <property name="text">
+              <string>No of Pixelcols</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QDoubleSpinBox" name="inpDFileWavelen">
+             <property name="readOnly">
+              <bool>true</bool>
+             </property>
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+             </property>
+             <property name="suffix">
+              <string> nm</string>
+             </property>
+             <property name="decimals">
+              <number>5</number>
+             </property>
+             <property name="maximum">
+              <double>999.990000000000009</double>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="0" colspan="2">
+            <widget class="QPushButton" name="butOpenMeasFile">
+             <property name="minimumSize">
+              <size>
+               <width>0</width>
+               <height>40</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>Open data file</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_87">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="10" column="1">
+            <widget class="QDoubleSpinBox" name="inpDFileBSY">
+             <property name="readOnly">
+              <bool>true</bool>
+             </property>
+             <property name="buttonSymbols">
+              <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+             </property>
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="maximum">
+              <double>9999.989999999999782</double>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="label_78">
+             <property name="text">
+              <string>Dist Sample-Det</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="9" column="0">
+            <widget class="QLabel" name="label_83">
+             <property name="text">
+              <string>Beamcenter X</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="14" column="0">
+            <spacer name="verticalSpacer_20">
+             <property name="orientation">
+              <enum>Qt::Orientation::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>40</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item row="5" column="0">
+            <widget class="QLabel" name="label_79">
+             <property name="text">
+              <string>Pixel Width</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="10" column="0">
+            <widget class="QLabel" name="label_84">
+             <property name="text">
+              <string>Beamcenter Y</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="11" column="0">
+            <widget class="QLabel" name="label_88">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
         </item>
        </layout>
       </widget>
@@ -2741,7 +3081,7 @@
       </widget>
       <widget class="QWidget" name="tabFit">
        <attribute name="title">
-        <string>Simplex 2D Fit</string>
+        <string>Simplex 1D/2D Fit</string>
        </attribute>
        <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="1,0,1">
         <item>
@@ -2867,7 +3207,7 @@
               </widget>
              </item>
              <item row="8" column="0">
-              <widget class="QLabel" name="label_10">
+              <widget class="QLabel" name="prmFitBStop">
                <property name="text">
                 <string>Beamstop half-size:</string>
                </property>
@@ -2900,7 +3240,7 @@
               </widget>
              </item>
              <item row="7" column="0">
-              <widget class="QLabel" name="label_2">
+              <widget class="QLabel" name="prmFitBorder">
                <property name="toolTip">
                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;This number of pixels is ignored at each border.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
@@ -3061,7 +3401,7 @@
               </widget>
              </item>
              <item row="6" column="0">
-              <widget class="QLabel" name="label_41">
+              <widget class="QLabel" name="prmShowResiduen">
                <property name="toolTip">
                 <string>This is an experimental implementation</string>
                </property>
@@ -3352,8 +3692,8 @@ with file definitions</string>
                </property>
               </widget>
              </item>
-             <item row="2" column="1">
-              <widget class="QPushButton" name="butFitStart">
+             <item row="3" column="1">
+              <widget class="QPushButton" name="butFitStart2d">
                <property name="minimumSize">
                 <size>
                  <width>0</width>
@@ -3378,6 +3718,43 @@ with file definitions</string>
                <property name="alignment">
                 <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                </property>
+              </widget>
+             </item>
+             <item row="3" column="0">
+              <widget class="QPushButton" name="butFitStart1d">
+               <property name="minimumSize">
+                <size>
+                 <width>0</width>
+                 <height>35</height>
+                </size>
+               </property>
+               <property name="font">
+                <font>
+                 <bold>true</bold>
+                </font>
+               </property>
+               <property name="text">
+                <string>Start 1d-Fit</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0" colspan="2">
+              <widget class="QComboBox" name="comboBox">
+               <item>
+                <property name="text">
+                 <string>Simplex (1d/2d)</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Levenberg-Marquardt (1d)</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Gauss-Jordan (1d)</string>
+                </property>
+               </item>
               </widget>
              </item>
             </layout>
@@ -4906,6 +5283,55 @@ with file definitions</string>
         </item>
         <item row="0" column="0">
          <widget class="QTabWidget" name="tabCBCommSel">
+          <property name="palette">
+           <palette>
+            <active>
+             <colorrole role="Window">
+              <brush brushstyle="SolidPattern">
+               <color alpha="255">
+                <red>248</red>
+                <green>253</green>
+                <blue>255</blue>
+               </color>
+              </brush>
+             </colorrole>
+            </active>
+            <inactive>
+             <colorrole role="Window">
+              <brush brushstyle="SolidPattern">
+               <color alpha="255">
+                <red>248</red>
+                <green>253</green>
+                <blue>255</blue>
+               </color>
+              </brush>
+             </colorrole>
+            </inactive>
+            <disabled>
+             <colorrole role="Base">
+              <brush brushstyle="SolidPattern">
+               <color alpha="255">
+                <red>248</red>
+                <green>253</green>
+                <blue>255</blue>
+               </color>
+              </brush>
+             </colorrole>
+             <colorrole role="Window">
+              <brush brushstyle="SolidPattern">
+               <color alpha="255">
+                <red>248</red>
+                <green>253</green>
+                <blue>255</blue>
+               </color>
+              </brush>
+             </colorrole>
+            </disabled>
+           </palette>
+          </property>
+          <property name="autoFillBackground">
+           <bool>true</bool>
+          </property>
           <property name="tabPosition">
            <enum>QTabWidget::TabPosition::West</enum>
           </property>
@@ -4913,7 +5339,7 @@ with file definitions</string>
            <enum>QTabWidget::TabShape::Triangular</enum>
           </property>
           <property name="currentIndex">
-           <number>1</number>
+           <number>0</number>
           </property>
           <widget class="QWidget" name="tabCBCommFile">
            <attribute name="title">
@@ -5139,6 +5565,9 @@ with file definitions</string>
            </layout>
           </widget>
           <widget class="QWidget" name="tabCBCommInter">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
            <attribute name="title">
             <string>Interactive (this on top)</string>
            </attribute>
@@ -5347,6 +5776,9 @@ with file definitions</string>
            </layout>
           </widget>
           <widget class="QWidget" name="tabCBCommMCP">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
            <attribute name="title">
             <string>Interactive (Chatbot on top)</string>
            </attribute>
@@ -6064,7 +6496,7 @@ with file definitions</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1245</width>
+     <width>1243</width>
      <height>26</height>
     </rect>
    </property>
@@ -6086,21 +6518,45 @@ with file definitions</string>
     <addaction name="separator"/>
     <addaction name="actionHide_unused_values"/>
     <addaction name="actionShow_Parameter_w_o_Tooltip"/>
+    <addaction name="actionShow_longer_Tooltips_from_Chatbot"/>
+    <addaction name="separator"/>
+    <addaction name="actionActivate_parameter_value_check"/>
    </widget>
    <widget class="QMenu" name="menuTools">
     <property name="title">
      <string>Tools</string>
     </property>
+    <widget class="QMenu" name="menuAutoprocessing_file">
+     <property name="title">
+      <string>Autoprocessing file</string>
+     </property>
+     <addaction name="actionAutoProcStart"/>
+     <addaction name="separator"/>
+     <addaction name="actionAutoProcTrain"/>
+     <addaction name="actionAutoProcTraining_finished"/>
+    </widget>
+    <widget class="QMenu" name="menuColored_label_background">
+     <property name="title">
+      <string>Colored label background</string>
+     </property>
+     <addaction name="actionNo_colors"/>
+     <addaction name="action1d_2d_marker"/>
+     <addaction name="actionparameter_classification_colors"/>
+     <addaction name="separator"/>
+     <addaction name="actionCustomize_colored_background"/>
+    </widget>
     <addaction name="actionTest_10_Calculate"/>
     <addaction name="actionTest_Compare_data_files"/>
     <addaction name="separator"/>
     <addaction name="actionCompare_current_parameters_with_file"/>
     <addaction name="actionFind_parameters_changing_image"/>
     <addaction name="separator"/>
-    <addaction name="actionStart_autoprocessing_file"/>
+    <addaction name="menuAutoprocessing_file"/>
     <addaction name="actionSave_current_values_as_text"/>
     <addaction name="separator"/>
     <addaction name="actionGenerate_all_combinations_of_CBs"/>
+    <addaction name="separator"/>
+    <addaction name="menuColored_label_background"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -6179,11 +6635,6 @@ with file definitions</string>
     <string>About Qt</string>
    </property>
   </action>
-  <action name="actionStart_autoprocessing_file">
-   <property name="text">
-    <string>Start autoprocessing file</string>
-   </property>
-  </action>
   <action name="actionLog_loading">
    <property name="checkable">
     <bool>true</bool>
@@ -6205,6 +6656,66 @@ with file definitions</string>
   <action name="actionGenerate_all_combinations_of_CBs">
    <property name="text">
     <string>Generate all combinations of CBOX</string>
+   </property>
+  </action>
+  <action name="actionAutoProcStart">
+   <property name="text">
+    <string>Start ...</string>
+   </property>
+  </action>
+  <action name="actionAutoProcTrain">
+   <property name="text">
+    <string>Train ...</string>
+   </property>
+  </action>
+  <action name="actionAutoProcTraining_finished">
+   <property name="text">
+    <string>Training finished</string>
+   </property>
+  </action>
+  <action name="actionCustomize_colored_background">
+   <property name="text">
+    <string>Customize colored background</string>
+   </property>
+  </action>
+  <action name="actionNo_colors">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>No colors</string>
+   </property>
+  </action>
+  <action name="action1d_2d_marker">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>1d / 2d usage colors</string>
+   </property>
+  </action>
+  <action name="actionparameter_classification_colors">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>parameter classification colors</string>
+   </property>
+  </action>
+  <action name="actionShow_longer_Tooltips_from_Chatbot">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Show longer Tooltips (from Chatbot)</string>
+   </property>
+  </action>
+  <action name="actionActivate_parameter_value_check">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Activate parameter value check</string>
    </property>
   </action>
  </widget>
@@ -6243,7 +6754,7 @@ with file definitions</string>
   <tabstop>butShowResiduen</tabstop>
   <tabstop>butFitUseResult</tabstop>
   <tabstop>butFitAutomatic</tabstop>
-  <tabstop>butFitStart</tabstop>
+  <tabstop>butFitStart2d</tabstop>
   <tabstop>butSaveLog</tabstop>
   <tabstop>lisFitLog</tabstop>
   <tabstop>cbsVariables</tabstop>

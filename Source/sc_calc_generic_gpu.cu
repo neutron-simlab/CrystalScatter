@@ -375,14 +375,12 @@ void SasCalc_GENERIC_calculation::initMemory()
 {
     arrXYIntensity = nullptr;
     arrXYsize      = 0;
-#ifdef FITDATA_IN_GPU
     arrFitData  = nullptr;
     arrFitFqs   = nullptr;
     _fitWidth   = 0;
     _fitHeight  = 0;
     _arrFitSize = 0;
     _fitEnabled = false;
-#endif
     _xmin=0;
     _xmax=0;
     _ymin=0;

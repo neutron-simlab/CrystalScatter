@@ -90,9 +90,22 @@
 #include <unistd.h>
 #include <signal.h>
 
+//#pragma once          // hypergeometric_1F2
+#include <cmath>        // hypergeometric_1F2
+#include <cstdint>      // hypergeometric_1F2
+#include <limits>       // hypergeometric_1F2
+#include <type_traits>  // hypergeometric_1F2
+
 
 #define myacos(x) ((x)<-1)?0.0:(((x)>+1)?M_PI:acos((x)))
 
+
+
+#define HighResTimerVal(val) auto val = std::chrono::high_resolution_clock::now();
+
+#define HighResTimerDur(anf,res) { auto end1 = std::chrono::high_resolution_clock::now(); \
+                                   auto calc_time1 = std::chrono::duration_cast<std::chrono::duration<float>>(end1-anf); \
+                                   res = calc_time1.count()*1000.0; }
 
 
 SasCalc_GENERIC_calculation *SasCalc_GENERIC_calculation::inst = nullptr;
@@ -116,32 +129,47 @@ SasCalc_GENERIC_calculation::SasCalc_GENERIC_calculation()
 }
 
 
+/**
+ * @brief SasCalc_GENERIC_calculation::isCbsValid
+ * @param lt - Wert von CBS LType
+ * @param pa - Wert von CBS ComboBoxParticle
+ * @param od - Wert von CBS Ordis (params.ordis)
+ * @param in - Wert von CBS ComboBoxInterior
+ * @param pk - Wert von CBS Peak Shape (shp) - ACHTUNG: Wertebereich beginnt bei 1 und nicht bei 0 wie die anderen!
+ * @return Leerstring = alles ok mit dieser Kombination
+ *         sonst = Fehlermeldung und diese Kombination liefert kein Bild
+ */
 std::string SasCalc_GENERIC_calculation::isCbsValid( int lt, int pa, int od, int in, int pk )
 {
     // ltype = aus CBS
     // --- typedef enum { lattLamellae, lattHexPacCyl, lattSquPacCyl, lattRecCenCyl, lattBCC, lattFCC, lattHCP, lattSC, lattBCT, lattGyroid,
     //                    lattOBDD, lattPlumNight, lattNone=12, lattCPLayers, latt2DHex, latt2DSquare, latt1DLam, lattFd3m, lattOrtho,
     //                    lattLDQ12 } _latticeType;
-    if ( (lt < MinLType) || (lt > MaxLType) ) return "INVALID ltype value";
+    if ( (lt < MinLType) || (lt > MaxLType) )
+        return "INVALID ltype value: "+std::to_string(lt)+" ("+std::to_string(MinLType)+" .. "+std::to_string(MaxLType)+")";
     // ComboBoxParticle = aus CBS
     // --- typedef enum { cbpartSphere, cbpartCylinder, cbpartDisk, cbpartVesicle, cbpartCube, cbpartEllipsoide,
     //                    cbpartTriaxEllips, cbpartSuperEllips, cbpartSuperball, cbpartChain, cbpartkpchain } _cbParticle;
-    if ( (pa < MinParticle) || (pa > MaxParticle) ) return "INVALID Particle value";
+    if ( (pa < MinParticle) || (pa > MaxParticle) )
+        return "INVALID Particle value: "+std::to_string(pa)+" ("+std::to_string(MinParticle)+" .. "+std::to_string(MaxParticle)+")";
     // params.ordis = aus CBS
     // --- typedef enum { ordis_Gaussian, ordis_Exponential, ordis_Onsager, ordis_Maier_Saupe, ordis_CutOff, ordis_Laguerre,
     //                    ordis_ZDir, ordis_Isotropic, ordis_mirrored_Gaussian, ordis_mirrored_Exponential, ordis_mirrored_Onsager,
     //                    ordis_mirrored_Maier_Saupe, ordis_mirrored_CutOff, ordis_FiberPattern } _ordistype;
-    if ( (od < MinOrdis) || (od > MaxOrdis) ) return "INVALID Ordis value";
+    if ( (od < MinOrdis) || (od > MaxOrdis) )
+        return "INVALID Ordis value: "+std::to_string(od)+" ("+std::to_string(MinOrdis)+" .. "+std::to_string(MaxOrdis)+")";
     // ComboBoxInterior = aus CBS
     // --- typedef enum { cbintHomogeneous, cbintCoreShell, cbintCoreInShell, cbintMultiShell, cbintMyelin } _cbInterior;
-    if ( (in < MinInterior) || (in > MaxInterior) ) return "INVALID Interior value";
+    if ( (in < MinInterior) || (in > MaxInterior) )
+        return "INVALID Interior value: "+std::to_string(in)+" ("+std::to_string(MinInterior)+" .. "+std::to_string(MaxInterior)+")";
     // shp = aus CBS + 1
     // --- typedef enum { cbpeakLorentzian=1, cbpeakGaussian, cbpeakMod1Lorentzian, cbpeakMod2Lorentzian,
     //                    cbpeakPseudoVoigt, cbpeakPearsonVII, cbpeakGamma, cbpeakAnisotropicGaussian } _cbPeak;
-    if ( (pk < MinPeak) || (pk > MaxPeak) ) return "INVALID Peak value";
+    if ( (pk < MinPeak) || (pk > MaxPeak) )
+        return "INVALID Peak value: "+std::to_string(pk)+" ("+std::to_string(MinPeak)+" .. "+std::to_string(MaxPeak)+")";
 
     int  cbpartFixed=-1, cbpeakFixed=-1;
-    switch ( ltype )
+    switch ( lt )
     {
     case  0: cbpartFixed=cbpartDisk;     break;
     case  1: cbpartFixed=cbpartCylinder; break;
@@ -164,42 +192,384 @@ std::string SasCalc_GENERIC_calculation::isCbsValid( int lt, int pa, int od, int
     case 18: cbpartFixed=cbpartSphere;   break;
     case 19: cbpartFixed=cbpartSphere; cbpeakFixed=cbpeakGamma/*7*/; break;
     } // switch ltype
-    if ( cbpartFixed != -1 && ComboBoxParticle != cbpartFixed ) return "INVALID CBParticle due to LatticeType";
-
-    //bool cbintEna = (ComboBoxParticle<cbpartVesicle) || (ComboBoxParticle>cbpartCube);
-    /*switch ( ComboBoxParticle )
-    {
-    case  0: cbintEna=true;  break;
-    case  1: cbintEna=true;  break;
-    case  2: cbintEna=true;  break;
-    case  3: cbintEna=false; break;
-    case  4: cbintEna=false; break;
-    case  5: cbintEna=true;  break;
-    case  6: cbintEna=true;  break;
-    case  7: cbintEna=true;  break;
-    case  8: cbintEna=true;  break;
-    case  9: cbintEna=true;  break;
-    case 10: cbintEna=true;  break;
-    } // switch ComboBoxParticle
-    */
+    if ( cbpartFixed != -1 && pa != cbpartFixed ) return "INVALID CBParticle due to LatticeType";
 
     if ( lt != lattNone /*cbpeakEna*/ )
     {
-        if ( cbpeakFixed != -1 && shp != cbpeakFixed ) return "INVALID CBPeak due to LatticeType";
+        if ( cbpeakFixed != -1 && pk != cbpeakFixed ) return "INVALID CBPeak due to LatticeType";
     }
-    return "";
+
+    /*
+    // Zum Schluss noch testen, ob das coefficient() nichts berechnen würde ...
+    //Error:coefficients (cs=0, cdim=1, ordis=1, orcase=1) invalid combination, no calculation done.
+    //     cs: params.cs = CBInterior
+    //   cdim: 1,2,3,4,5,6,7,8 aus CBParticle bestimmt
+    //  ordis: params.ordis = CBOrdis
+    // orcase: 0(general), 1(Xaxis), 2(Yaxis), 3(Zaxis) aus params.polPhi und params.polTheta bestimmt
+
+    int cdim=pa;
+    switch ( pa )
+    {
+    case cbpartSphere:   cdim=3; break;
+    case cbpartCylinder: cdim=1; break;
+    case cbpartDisk:     cdim=2; break;
+    }
+    if ( (cdim!=9) && (cdim!=10) )
+    {   // Jetzt würde coefficients() aufgerufen
+
+    }
+    */
+
+    return ""; // Keine Fehler
 }
 
 /**
  * @brief SasCalc_GENERIC_calculation::checkAllParameters
+ * @param ignCbs - Flag, wenn true dann werden die CBS-Kombinationen (siehe isCbsValid) nicht geprüft
  * @return empty string: all parameters are valid
  *         else: one or some parameter(s) are not in a valid range, the string gives a hint to the error
  */
 std::string SasCalc_GENERIC_calculation::checkAllParameters(bool ignCbs)
 {
-    // ********************************
-    // Prüfung einzelner Parameterwerte
-    // ********************************
+    if ( !ignCbs )
+    {   // Es gibt die Möglichkeit, beim Gang durch alle CBS-Kombinationen, alle Werte zu nutzen
+        // und nicht nur die vorgegebenen. Daher muss dieser Test abschaltbar sein.
+        std::string rv = isCbsValid( ltype, ComboBoxParticle, params.ordis, ComboBoxInterior, shp );
+        if ( rv.length() > 0 ) return rv;
+    }
+
+    // Hier werden jetzt nur die Parameterwerte überprüft, die bei den jeweils aktiven
+    // Combox-Einstellungen verfügbar sind.
+
+    // switch ( ltype ) schaltet die folgenden Parameter frei oder sperrt diese, z.T. werden auch feste Werte gesetzt:
+    //   "uca", "ucb", "ucc", "EditDomainSize", "EditAzi", "EditDebyeWaller", ("CheckBoxTwinned"), "HKLmax",
+    //   "acpl", "bcpl", "ComboBoxPeak", "EditCeffcyl", "iso"
+    //   "ComboBoxParticle"=<wert>, "Length"=<wert>
+    //   "EditRadius", "Phi" mit Vorberechnungen (aus uca, nur bei ltype=10)
+    //   "SigX"=<wert>, "SigY"=<wert>, "SigZ"=<wert> (nur bei ltype=13,19)
+
+    //if ( CheckBoxTwinned != false        ) return "CheckBoxTwinned invalid"; // macht aber (noch) Probleme, daher immer ignorieren
+
+    // Optimierung der Abfragen (Versuch)
+    if ( iso < 0                        ) return "iso<0"; // Offset, darf auch Null sein
+    if ( ltype != 12 )
+    {
+        if ( params.uca <= 0.01             ) return "uca<=0.01";
+        if ( params.hklmax <= 32            ) return "HKLmax<=32";
+        if ( displacement <= 0.01           ) return "DebyeWaller<=0.01";
+    }
+    if ( ltype != 12 && ltype != 13 && ltype != 19 )
+    {
+        if ( params.domainsize <= 0.01      ) return "DomainSize<=0.01";
+    }
+    if ( ltype != 19 && ((ltype < 12) || (ltype > 16)) )
+    {
+        if ( aziwidth <= 0.01               ) return "Azi<=0.01";
+    }
+
+    switch ( ltype )
+    {
+    case  0:    // Lamellae
+        if ( ComboBoxParticle != 2          ) return "CBParticle!=disk";
+        if ( fabs(params.length - 250) < 1  ) return "Length!=250";
+        break;
+
+    case  1:   // Hexagonally packed cylinders (P6/mm)
+        if ( ComboBoxParticle != 1          ) return "CBParticle!=cylinder";
+        if ( fabs(params.length - 500) < 1  ) return "Length!=500";
+        break;
+
+    case  2:   // Square packed cylinders (P4/mm)
+        if ( ComboBoxParticle != 1          ) return "CBParticle!=cylinder";
+        if ( fabs(params.length - 500) < 1  ) return "Length!=500";
+        break;
+
+    case  3:  /*  rectangular centered cylinders  */
+        if ( params.ucb <= 0.01             ) return "ucb<=0.01";
+        if ( ComboBoxParticle != 1          ) return "CBParticle!=1";
+        if ( fabs(params.length - 500) < 1  ) return "Length!=500";
+        break;
+
+    case  4:  /*  bcc  */
+        if ( ComboBoxParticle != 0          ) return "CBParticle!=sphere";
+        break;
+
+    case  5:  /*  fcc  */
+        if ( ComboBoxParticle != 0          ) return "CBParticle!=sphere";
+        break;
+
+    case  6:  /*  hcp  */
+        if ( ComboBoxParticle != 0          ) return "CBParticle!=sphere";
+        break;
+
+    case  7:  /*  sc  */
+        if ( ComboBoxParticle != 0          ) return "CBParticle!=sphere";
+        break;
+
+    case  8:  /*  tetragonal centered spheres  */
+        if ( params.ucb <= 0.01             ) return "ucb<=0.01";
+        if ( ComboBoxParticle != 0          ) return "CBParticle!=sphere";
+        break;
+
+    case  9:  /*  gyroid  */
+        if ( ComboBoxParticle != 3          ) return "CBParticle!=vesicle";
+        break;
+
+    case 10:  /*  OBDD  */
+        if ( ComboBoxParticle != 3          ) return "CBParticle!=vesicle";
+        // Weitere Abfragen mit Vorberechnungen
+        {   const double b = 0.5484;
+            const double c = 0.6200;
+            const double n = 2;
+            double Ro = c*params.uca;
+            double Ri = b*Ro;
+            double phi = n*4*M_PI*c*c*c*(1-b*b*b)/3.0;
+            if ( fabs(params.radius - Ri ) < 1  ) return "Radius not as calculated";
+            if ( fabs(params.length - Ro ) < 1  ) return "Length not as calculated";
+            if ( fabs(params.polPhi - phi) < 1  ) return "Phi not as calculated";
+        }
+        break;
+
+    case 11:  /*  Im3m  */
+        if ( ComboBoxParticle != 3          ) return "CBParticle!=vesicle";
+        break;
+
+    case 12:  /*  none  */
+        if ( epsilon <= 0.01                ) return "Ceffcyl<=0.01";
+        if ( ComboBoxParticle != 0          ) return "CBParticle!=sphere";
+        break;
+
+    case 13:  /*  cpl  */
+        if ( acpl < 0.01                    ) return "acpl<=0.01";
+        if ( bcpl < 0.01                    ) return "bcpl<=0.01";
+        if ( shp != 7+1                     ) return "CBPeak!=AnisotropicGaussian";
+        if ( ComboBoxParticle != 0          ) return "CBParticle!=sphere";
+        // void setSigXYZ( Double3 par ) { params.sig = 4.0 / par; }
+        if ( fabs(params.sig.x() - 4.0/200.0) < 1 ) return "SigX (Editdom1)!=200";
+        if ( fabs(params.sig.y() - 4.0/200.0) < 1 ) return "SigY (Editdom2)!=200";
+        if ( fabs(params.sig.z() - 4.0/200.0) < 1 ) return "SigZ (Editdom3)!=200";
+        break;
+
+    case 14:  /*  2D-Hex-GiSAXS  */
+        if ( ComboBoxParticle != 0          ) return "CBParticle!=sphere";
+        break;
+
+    case 15:  /*  2D-Square-GiSAXS  */
+        if ( ComboBoxParticle != 0          ) return "CBParticle!=sphere";
+        break;
+
+    case 16:  /*  1D-Lam-GiSAXS  */
+        if ( epsilon <= 0.01                ) return "Ceffcyl<=0.01";
+        if ( ComboBoxParticle != 2          ) return "CBParticle!=disk";
+        break;
+
+    case 17:  /*  fd3m  */
+        if ( ComboBoxParticle != 0          ) return "CBParticle!=sphere";
+        break;
+
+    case 18:  /*  orthogonal centered spheres  */
+        if ( params.ucb <= 0.01             ) return "ucb<=0.01";
+        if ( params.ucc <= 0.01             ) return "ucc<=0.01";
+        if ( ComboBoxParticle != 0          ) return "CBParticle!=sphere";
+        break;
+
+    case 19:  /*  quasicrystal  */
+        if ( acpl < 0.01                    ) return "acpl<=0.01";
+        if ( bcpl < 0.01                    ) return "bcpl<=0.01";
+        if ( shp != 7+1                     ) return "CBPeak!=AnisotropicGaussian";
+        if ( ComboBoxParticle != 0          ) return "CBParticle!=sphere";
+        // void setSigXYZ( Double3 par ) { params.sig = 4.0 / par; }
+        if ( fabs(params.sig.x() - 4.0/200.0) < 1 ) return "SigX (Editdom1)!=200";
+        if ( fabs(params.sig.y() - 4.0/200.0) < 1 ) return "SigY (Editdom2)!=200";
+        if ( fabs(params.sig.z() - 4.0/200.0) < 1 ) return "SigZ (Editdom3)!=200";
+        break;
+
+    default:
+        return "LType unknown";
+    } // switch index
+
+
+#ifdef undefSpecialCheck
+        //on_cbsComboBoxPeak_currentIndexChanged( ui->cbsComboBoxPeak->currentIndex() );
+        //on_cbsComboBoxParticle_currentIndexChanged( ui->cbsComboBoxParticle->currentIndex() );
+
+
+    //void SC_MainGUI::on_cbsComboBoxParticle_currentIndexChanged(int index)
+        //myGuiParam::setEnabled( "EditRadius",  true,  "a [nm]:", "*" );   /*  radius  */  //Z=37662
+        //myGuiParam::setEnabled( "EditSigma",   true,  "sigma(a):"      );   /*  sigma R  */
+        //myGuiParam::setEnabled( "Length",      true,  "b [nm]:"        );   /*  length, semiaxis b  */
+        //myGuiParam::setEnabled( "SigmaL",      true,  "sigma(c):"      );   /*  sigma L  */
+        //myGuiParam::setEnabled( "EditRadiusi", true,  "c [nm]:"        );   /*  semiaxis c  */  //Z=37675 <<< NEU <<<<<<<<<<<<<<<<<<<<
+        //myGuiParam::setEnabled( "ShellNo",     false, "no. of shells:" );   /*  no. of shells  */
+        //myGuiParam::setEnabled( "Alpha",       false, "Alpha:", "*"         );   /*  DEFAULT  */
+        //myGuiParam::setEnabled( "ComboBoxInterior", true );
+        //myGuiParam::setEnabled( ui->grpOrientation, true );
+        switch ( ComboBoxParticle )
+        {
+        case 0:   /*  sphere  */
+            myGuiParam::setEnabled( "EditRadius",  true,  "Rc [nm]:", "Sphere radius" );   /*  radius  */  //Z=37532
+            myGuiParam::setEnabled( "EditSigma",   true,  "sigma(R):"      );   /*  sigma R  */
+            myGuiParam::setEnabled( "ComboBoxInterior", true );
+            break;
+        case 1:   /*  cylinder  */
+            myGuiParam::setEnabled( "EditRadius",  true,  "Rc [nm]:", "Cross-sectional radius" );   /*  radius  */  //Z=37553
+            myGuiParam::setEnabled( "EditSigma",   true,  "sigma(R):"      );   /*  sigma R  */
+            myGuiParam::setEnabled( "Length",      true,  "L [nm]:"        );   /*  length  */
+            myGuiParam::setEnabled( "SigmaL",      true,  "sigma(L):"      );   /*  sigma L  */
+            myGuiParam::setEnabled( "ComboBoxInterior", true );
+            break;
+        case 2:    /*  disk  */
+            myGuiParam::setEnabled( "EditRadius",  true,  "d/2 [nm]:", "Thickness" );   /*  radius  */  //Z=37574
+            myGuiParam::setEnabled( "EditSigma",   true,  "sigma(d):"      );   /*  sigma R  */
+            myGuiParam::setEnabled( "Length",      true,  "R [nm]:"        );   /*  length  */
+            myGuiParam::setEnabled( "SigmaL",      true,  "sigma(R):"      );   /*  sigma L  */
+            myGuiParam::setEnabled( "ComboBoxInterior", true );
+            break;
+        case 3:   /*  vesicle  */
+            myGuiParam::setEnabled( "EditRadius",  true,  "Ri [nm]:", "*" );   /*  radius  */
+            myGuiParam::setEnabled( "EditSigma",   true,  "sigma(R):"      );   /*  sigma R  */
+            myGuiParam::setEnabled( "Length",      true,  "Ro [nm]:"       );   /*  length  */
+            myGuiParam::setEnabled( "SigmaL",      true,  "sigma(d):"      );   /*  sigma L  */
+            break;
+        case 4:  /*  cube  */
+            myGuiParam::setEnabled( "EditRadius",  true,  "a [nm]:", "*" );   /*  radius  */  //Z=37618
+            myGuiParam::setEnabled( "EditSigma",   true,  "sigma(a):"      );   /*  sigma R  */
+            break;
+        case 5:   /*  ellipsoid  */
+            myGuiParam::setEnabled( "EditRadius",  true,  "a [nm]:", "*" );   /*  radius  */  //Z=37641
+            myGuiParam::setEnabled( "EditSigma",   true,  "sigma(a):"      );   /*  sigma R  */
+            myGuiParam::setEnabled( "Length",      true,  "c [nm]:"        );   /*  length  */
+            myGuiParam::setEnabled( "SigmaL",      true,  "sigma(c):"      );   /*  sigma L  */
+            myGuiParam::setEnabled( "ComboBoxInterior", true );
+            //myGuiParam::setEnabled( ui->grpOrientation, true );
+            break;
+        case 6:   /*  triaxial ellipsoid  */
+            myGuiParam::setEnabled( "EditRadius",  true,  "a [nm]:", "*" );   /*  radius  */  //Z=37662
+            myGuiParam::setEnabled( "EditSigma",   true,  "sigma(a):"      );   /*  sigma R  */
+            myGuiParam::setEnabled( "Length",      true,  "b [nm]:"        );   /*  length, semiaxis b  */
+            myGuiParam::setEnabled( "SigmaL",      true,  "sigma(c):"      );   /*  sigma L  */
+            myGuiParam::setEnabled( "EditRadiusi", true,  "c [nm]:"        );   /*  semiaxis c  */  //Z=37675 <<< NEU <<<<<<<<<<<<<<<<<<<<
+            myGuiParam::setEnabled( "ComboBoxInterior", true );
+            //myGuiParam::setEnabled( ui->grpOrientation, true );
+            break;
+        case 7:   /*  super ellipsoid  */
+            myGuiParam::setEnabled( "EditRadius",  true,  "R [nm]:", "*" );   /*  radius  */  //Z=37686
+            myGuiParam::setEnabled( "EditSigma",   true,  "sigma(R):"      );   /*  sigma R  */
+            myGuiParam::setEnabled( "Length",      true,  "L [nm]:"        );   /*  length  */
+            myGuiParam::setEnabled( "SigmaL",      true,  "sigma(L):"      );   /*  sigma L  */
+            myGuiParam::setEnabled( "EditRadiusi", true,  "c [nm]:"        );   /*  semiaxis c  */  // <<< NEU <<<<<<<<<<<<<<<<<<<<
+            myGuiParam::setEnabled( "Alpha",       true,  "k:", "*"             );   /*  k-parameter  */  //Z=37704 <<< NEU <<<<<<<<<<<<<<<<<<<<
+            myGuiParam::setEnabled( "ComboBoxInterior", true );
+            //myGuiParam::setEnabled( ui->grpOrientation, true );
+            break;
+        case 8:   /*  superball  */
+            myGuiParam::setEnabled( "EditRadius",  true,  "R [nm]:", "*" );   /*  radius  */  //Z=37713
+            myGuiParam::setEnabled( "EditSigma",   true,  "sigma(R):"      );   /*  sigma R  */
+            myGuiParam::setEnabled( "Length",      true,  "L [nm]:"        );   /*  length  */
+            myGuiParam::setEnabled( "SigmaL",      true,  "sigma(L):"      );   /*  sigma L  */
+            myGuiParam::setEnabled( "EditRadiusi", true,  "c [nm]:"        );   /*  semiaxis c  */  // <<< NEU <<<<<<<<<<<<<<<<<<<<
+            myGuiParam::setEnabled( "Alpha",       true,  "k:", "*"             );   /*  k-parameter  */  //Z=37704 <<< NEU <<<<<<<<<<<<<<<<<<<<
+            myGuiParam::setEnabled( "ComboBoxInterior", true );
+            //myGuiParam::setEnabled( ui->grpOrientation, true );
+            break;
+        case 9:   /*  excluded volume chain  */
+            myGuiParam::setEnabled( "EditRadius",  true,  "Rc [nm]:", "*" );   /*  radius  */  //Z=37740
+            myGuiParam::setEnabled( "EditSigma",   true,  "sigma(R):"      );   /*  sigma R  */
+            myGuiParam::setEnabled( "Length",      true,  "L [nm]:"        );   /*  length  */
+            myGuiParam::setEnabled( "SigmaL",      true,  "sigma(L):"      );   /*  sigma L  */
+            myGuiParam::setEnabled( "ComboBoxInterior", true );
+            //myGuiParam::setEnabled( ui->grpOrientation, true );
+            break;
+        case 10:   /*  Kratky Porod chain  */
+            myGuiParam::setEnabled( "EditRadius",  true,  "Rc [nm]:", "*" );   /*  radius  */  //Z=37761
+            myGuiParam::setEnabled( "EditSigma",   true,  "sigma(R):"      );   /*  sigma R  */
+            myGuiParam::setEnabled( "Length",      true,  "L [nm]:"        );   /*  length  */
+            myGuiParam::setEnabled( "SigmaL",      true,  "Lp:"            );   /*  sigma L  */
+            myGuiParam::setEnabled( "ComboBoxInterior", true );
+            //myGuiParam::setEnabled( ui->grpOrientation, true );
+            break;
+        } // switch index
+
+
+    //void SC_MainGUI::on_cbsOrdis_currentIndexChanged(int index)
+        myGuiParam::setEnabled( "ifluc", index==6/*z-dir*/  );
+        myGuiParam::setEnabled( "rfluc", index==6/*z-dir*/ );
+
+
+    //void SC_MainGUI::on_cbsComboBoxInterior_currentIndexChanged(int index)
+        //myGuiParam::setEnabled( "EditRadius",  true,  "*" );   /*  Rm     */  //Z=41006
+        //myGuiParam::setEnabled( "EditRadiusi", false, "*" );   /*  DEFAULT  */
+        //myGuiParam::setEnabled( "Alpha",       false, "*" );   /*  alpha  */  //Z=41008 - unklar, ob es der richtige Parameter ist (EditAlpha)
+        //myGuiParam::setEnabled( "EditRho",     false, "*" );   /*  rho    */  //Z=41010
+        switch ( ComboBoxInterior )
+        {
+        case 0:   /*  homogeneous core */  //Z=41005
+            myGuiParam::setEnabled( "EditRadius",  true,  "*" );   /*  Rm     */  //Z=41006
+            break;
+
+        case 1:   /*  homogeneous core/shell */  //Z=41014
+            myGuiParam::setEnabled( "EditRadius",  true,  "*" );   /*  Rm     */  //Z=41015
+            myGuiParam::setEnabled( "EditRadiusi", true,  "*" );   //Z=41017  <<<NEU<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            myGuiParam::setEnabled( "EditRho",     true,  "*" );   /*  rho    */  //Z=41020
+            break;
+
+        case 2:   /*  inhomogeneous core/shell */  //Z=41024
+            myGuiParam::setEnabled( "EditRadius",  true,  "*" );   /*  Rm     */  //Z=41025
+            myGuiParam::setEnabled( "EditRadiusi", true,  "*" );   //Z=41027  <<<NEU<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            myGuiParam::setEnabled( "Alpha",       true,  "*" );   /*  alpha  */  //Z=41028 - unklar, ob es der richtige Parameter ist (EditAlpha)
+            myGuiParam::setEnabled( "EditRho",     true,  "*" );   /*  rho    */  //Z=41030
+            break;
+
+        case 3:   // multi-shell
+        case 4:   /*  myelin  */  //Z=41034
+            gp=myGuiParam::setEnabled( "EditRadius",  true, "n:"        );   /*  Rm  */  //Z=41037   Label="n:", Value=200
+            if ( !bNoUpdateFromCBS )
+                if(gp) gp->inp()->setValue(200);
+            gp=myGuiParam::setEnabled( "EditRadiusi", true, "*"         );   // Value=1
+            if ( !bNoUpdateFromCBS )
+                if(gp) gp->inp()->setValue(1);
+            gp=myGuiParam::setEnabled( "Alpha",       true, "l_ex[nm]:" );   /*  alpha  */  //Z=41043  Label="l_ex(nm):", Value=3.5
+            if ( !bNoUpdateFromCBS )
+                if(gp) gp->inp()->setValue(3.5);
+            gp=myGuiParam::setEnabled( "EditRho",     true, "l_in(nm):" );   /*  rho  */  //Z=41047   Label="l_in(nm):", Value=3.5
+            if ( !bNoUpdateFromCBS )
+                if(gp) gp->inp()->setValue(3.5);
+            break;
+        }
+
+    //void SC_MainGUI::on_cbsComboBoxPeak_currentIndexChanged(int index)
+        //myGuiParam::setEnabled( "EditPeakPar", false );     /*  peak par  */  //Z=37788
+        //myGuiParam::setEnabled( "SigX", false );
+        //myGuiParam::setEnabled( ui->grpAniso, false );  //Z=37790
+        switch ( index )
+        {
+        case 0:     /*  Gaussian  */  //Z=37787
+            break;
+        case 1:    /*  Lorentzian  */  //Z=37793
+            break;
+        case 2:     /*  Lorentzian I  */  //Z=37799
+            break;
+        case 3:     /*  Lorentzian II  */  //Z=37805
+            break;
+        case 4:     /*  Pseudo-Voigt  */  //Z=37811
+            myGuiParam::setEnabled( "EditPeakPar", true  );     /*  peak par  */  //Z=37812
+            break;
+        case 5:     /*  Pearson  */  //Z=37817
+            myGuiParam::setEnabled( "EditPeakPar", true  );     /*  peak par  */  //Z=37818
+            break;
+        case 6:    /*  gamma  */  //Z=37823
+            myGuiParam::setEnabled( "EditPeakPar", true  );     /*  peak par  */  //Z=37824
+            break;
+        case 7:     /*  anisotropic  */  //Z=37829
+            myGuiParam::setEnabled( "EditPeakPar", true  );     /*  peak par  */  //Z=37830
+            myGuiParam::setEnabled( "SigX", myGuiParam::isEnabled("ComboBoxPeak") );
+            myGuiParam::setEnabled( ui->grpAniso, myGuiParam::isEnabled("ComboBoxPeak") );  //Z=37832
+            break;
+        }
+#endif // undefSpecialCheck
+
+
+
     // --- PARAMETER: Lattice group
     // ltype = aus CBS
     if ( params.uca <= 0.01 ) return "uca<=0.01";
@@ -282,12 +652,6 @@ std::string SasCalc_GENERIC_calculation::checkAllParameters(bool ignCbs)
     // **********************************
     // Prüfung von ComboBox-Kombinationen
     // **********************************
-    if ( !ignCbs )
-    {   // Es gibt die Möglichkeit, beim Gang durch alle CBS-Kombinationen, alle Werte zu nutzen
-        // und nicht nur die vorgegebenen. Daher muss dieser Test abschaltbar sein.
-        std::string rv = isCbsValid( ltype, ComboBoxParticle, params.ordis, ComboBoxInterior, shp );
-        if ( rv.length() > 0 ) return rv;
-    }
 
     // Comb_lt00_pa02_or00_in00_pe06.png - PrepTime=37.844 ms, CalcTime=  2065.576 ms ==> Schwarzbild, keine Chance auf Änderung.
     if ( ltype==lattLamellae && ComboBoxParticle==cbpartDisk && params.ordis==ordis_Gaussian && ComboBoxInterior==cbintHomogeneous &&
@@ -319,6 +683,8 @@ std::string SasCalc_GENERIC_calculation::getEditSG_Text()
 bool SasCalc_GENERIC_calculation::prepareCalculation()
 {
     /* ******* main program for calculation **** */  //Z=20012
+    zeitInit=0; zeitCoef=0; zeitHKL=0; zeitCorot=0; zeitIsoPeak=0; zeitAnisoPeak=0; zeitQromb=0;
+    HighResTimerVal(startall)
 
     // Clear all internal flags
     //generic = true;  //Z=20055 ==> in der GUI ist kein Toggle dafür, ist aber immer gesetzt
@@ -771,9 +1137,12 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
     //? xycur = sqrt(xcur*xcur+ycur*ycur);  //Z=20771
     //? anglecur = 2*M_PI*StrToFloat(EditAnglexy.Text)/360.0;    /*  angle of cursor  */  //Z=20772
 
+    HighResTimerDur(startall,zeitInit);
+
     if ( (cdim!=9) && (cdim!=10) )
     {   //Z=21015
         if ( ! coefficients() ) return false;  // Wenn keine Faktoren berechnet wurden, macht der Rest keinen Sinn
+        HighResTimerDur(startall,zeitCoef);
     }   //Z=21020
 
     zz = (1-sqr(params.sigma))/(sqr(params.sigma));  //Z=21028
@@ -800,6 +1169,7 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
             _lastErrorMessage = "PrepareCalculation ERROR peakmax2 " + std::to_string(peakmax2) + " (max " + std::to_string(latparlen) + ")";
             peakmax2 = 0;
         }
+        HighResTimerDur(startall,zeitHKL);
 
         corotations(params.uca,params.ucb,params.ucc,params.ucalpha_deg,params.ucbeta_deg,params.ucgamma_deg,
                     ucn1,ucn2,ucn3,ucpsi,lat1d,lat2d,lat3d,ri11,ri12,ri13,ri21,ri22,ri23,ri31,ri32,ri33,  //Z=21049
@@ -813,6 +1183,7 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
         //                 double &mtw11=rt11, double &mtw12, double &mtw13, double &mtw21, double &mtw22, double &mtw23, double &mtw31, double &mtw32, double &mtw33, double &vvol,
         //                 double &nuvwx, double &nuvwy, double &nuvwz, double &uuvwx, double &uuvwy, double &uuvwz, double &vuvwx, double &vuvwy, double &vuvwz,
         //                 double &nhklx, double &nhkly, double &nhklz, double &uhklx, double &uhkly, double &uhklz, double &vhklx, double &vhkly, double &vhklz )
+        HighResTimerDur(startall,zeitCorot);
 
         //? rimp^[1][1] = ri11;    rimp^[1][2] = ri12;    rimp^[1][3] = ri13;  //Z=21106
         //? rimp^[2][1] = ri21;    rimp^[2][2] = ri22;    rimp^[2][3] = ri23;  //Z=21107
@@ -855,6 +1226,7 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
             latpar[2]=1;
             latpar[3]=dwfactor;
         }
+        HighResTimerDur(startall,zeitIsoPeak);
 
         /*  anisotropic peak list  */  //Z=21143
 
@@ -952,6 +1324,7 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
             //20240301 raus: setLatpar3(peakct2,16, peaknorm1t);  //ZN=21417
 
         }/*4*/  //Z=21294
+        HighResTimerDur(startall,zeitAnisoPeak);
     }/*3*/  /*  of test or ltype=30  */  //20240301-Z=20692
 
     /*Z=24607 Der folgende Code ist direkt vor den ihex/i Schleifen */
@@ -970,6 +1343,7 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
         qrombdeltac( params.p1, params.sigma, params.alpha, params.polTheta, params.polPhi, 1,1,1,9,9,9,9,/*9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,params.ordis,3,*/
                      2, 0, 0, 0, 0, params.CR->carr1p, params.norm );  //Z=25221
         D8( qDebug() << "prepCalc qrombdeltac fertig" );
+        HighResTimerDur(startall,zeitQromb);
     }
 
     // global init to avoid same calculations every time
@@ -983,7 +1357,7 @@ bool SasCalc_GENERIC_calculation::prepareCalculation()
     else
     {   // Es wird ein kleinerer Speicher genutzt
         checkArrays( zzmin, zzmax, iimin, iimax );
-    }
+    }       
     return true;
 }
 
@@ -996,7 +1370,6 @@ void SasCalc_GENERIC_calculation::cleanup()
                   << params.CR->latparMaxCheckCount[1] << ", " << params.CR->latparMaxCheckCount[2] << std::endl;
 
     std::cerr << "memcleanup:";
-#ifdef FITDATA_IN_GPU  // cleanup
     if ( arrFitFqs != nullptr )
     {
         memcleanup( arrFitFqs );   arrFitFqs = nullptr;   std::cerr << " arrFitFqs";
@@ -1005,7 +1378,6 @@ void SasCalc_GENERIC_calculation::cleanup()
     {
         memcleanup( arrFitData );   arrFitData = nullptr;   std::cerr << " arrFitData";
     }
-#endif
     memcleanup( arrXYIntensity );   arrXYIntensity = nullptr;   std::cerr << " xyIntensity";
     memcleanup( params.CR );        params.CR = nullptr;        std::cerr << " CR";
     memcleanup( latpar3ptr );       latpar3ptr = nullptr;       std::cerr << " latpar3";
@@ -1148,19 +1520,25 @@ std::string SasCalc_GENERIC_calculation::tpvPerformRandom(std::list<std::string>
  * @param numThreads - number of threads to use
  * All other parameters must be stored in global variables before calling this procedure.
  */
-void SasCalc_GENERIC_calculation::doCalculation( int numThreads, bool bIgnNewSwitch, bool bIgnoreCbs )
+void SasCalc_GENERIC_calculation::doCalculation(int numThreads, bool bIgnNewSwitch, bool bIgnoreCbs, bool bIgnoreParamCheck)
 {
     numberOfThreads = numThreads;
     bIgnoreNewSwitch = bIgnNewSwitch;
+    _lastErrorMessage = "";
 
-    _lastErrorMessage = checkAllParameters(bIgnoreCbs);
-    if ( _lastErrorMessage.length() > 0 )
-    {   // used for the Chatbot, testing here.
-        std::cerr << "checkAllParameters: " << _lastErrorMessage << std::endl;
-        _xmin = _xmax = _ymin = _ymax = 0;      // Damit beim widImage nichts angezeigt wird
-        return;
+    if ( !bIgnoreParamCheck )
+    {
+        _lastErrorMessage = checkAllParameters(bIgnoreCbs);   // TODO: Warnungen (Parameter Check)
+        if ( _lastErrorMessage.length() > 0 )
+        {   // used for the Chatbot, testing here.
+            std::cerr << "checkAllParameters: " << _lastErrorMessage << std::endl;
+            _xmin = _xmax = _ymin = _ymax = 0;      // Damit beim widImage nichts angezeigt wird
+            return;
+        }
     }
 
+    higResTimerElapsedPrep = 0;
+    higResTimerElapsedCalc = 0;
     auto start1 = std::chrono::high_resolution_clock::now();
     if ( !prepareCalculation() ) return;
     // Der Speicher wird erst am Ende von prepareCalculation angelegt
@@ -8037,8 +8415,9 @@ bool SasCalc_GENERIC_calculation::coefficients()
 
     if ( ! calcdone_label99 )
     {
-        qDebug() << "***** coefficients: cs=" << params.cs << "cdim=" << cdim << "ordis=" << params.ordis
-                 << "orcase=" << params.orcase;
+        _lastErrorMessage = "coefficients (cs=" + std::to_string(params.cs) + ", cdim=" + std::to_string(cdim)
+                + ", ordis=" + std::to_string(params.ordis) + ", orcase=" + std::to_string(params.orcase)
+                + ") invalid combination, no calculation done.";
         qDebug() << "***** coefficients: no calculations done.";
     }
 
@@ -8216,7 +8595,6 @@ void SasCalc_GENERIC_calculation::checkArrays( int minx, int maxx, int miny, int
 }
 
 
-#ifdef FITDATA_IN_GPU  // real func prog
 bool SasCalc_GENERIC_calculation::setFitData( int sx, int sy, const double *data )
 {
     _fitWidth  = sx;
@@ -8235,11 +8613,10 @@ bool SasCalc_GENERIC_calculation::setFitData( int sx, int sy, const double *data
     if ( _fitEnabled )
         memcpy( arrFitData, data, arrFitDSize );
 
-    std::cerr << "Fit-Craete: " << sx << "x" << sy << "=" << _arrFitSize << std::endl;
+    //std::cerr << "Fit-Craete: " << sx << "x" << sy << "=" << _arrFitSize << ", 1d=" << use1d << std::endl;
 
     return _fitEnabled;
 }
-#endif
 
 
 // Nur in prepareCalculation
@@ -8251,8 +8628,8 @@ std::string SasCalc_GENERIC_calculation::ButtonHKLClick(int ltype, bool nurtext)
     std::string retval = "?";
 
     int /*i,j,*/ii/*,jj*/,h,k,l,hmax,kmax,lmax;//,index,xpos,ypos,image1width,image1height;
-    int /*c0,*/c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,mult,/*multmax,hlev,klev,llev,zlev,zvar,*/ct1;
-    // Unbenutzte Variablen: c3, c5, c9, c11, c12, c14 - sie werden aber hier gelassen, da ich sie nicht aus den Zuweisungs-case rausnehmen will
+    int /*c0,*/c1,c2,/*c3,*/c4,/*c5,*/c6,c7,c8,/*c9,*/c10,/*c11,c12,*/c13,/*c14,*/mult,/*multmax,hlev,klev,llev,zlev,zvar,*/ct1;
+    // Unbenutzte Variablen: c3, c5, c9, c11, c12, c14 - siehe #define SETCX(...)
     int ccase=0,c1case,c2case/*,c3case*/,c4case/*,c5case*/,c6case,c7case,c8case/*,c9case*/,c10case;//,c11case,c12case;
     float a,b,c,alf,gam; //,xmin,xmax,wave,ttheta,sinarg;
 #ifdef UseStringGrid12
@@ -8439,6 +8816,8 @@ std::string SasCalc_GENERIC_calculation::ButtonHKLClick(int ltype, bool nurtext)
     //Q_UNUSED(c3); Q_UNUSED(c5); Q_UNUSED(c9); Q_UNUSED(c11); Q_UNUSED(c12); Q_UNUSED(c14);
 #define SETCX(a,b,c,d,e,f,g,h,i,j,k,l,m,n) { c1=a; c2=b; /*c3=c;*/ c4=d; /*c5=e;*/ c6=f; c7=g; c8=h; /*c9=i;*/ \
                                              c10=j; /*c11=k; c12=l;*/ c13=m; /*c14=n;*/ }
+    // SETCX(...) to eliminate all warnings (unused variable)
+
 
     /* ***** 1D systems **** */  //Z=43550
     if ( RadioButtonSys1D )
@@ -8864,457 +9243,457 @@ std::string SasCalc_GENERIC_calculation::ButtonHKLClick(int ltype, bool nurtext)
         {
             /*  primitive  */  //Z=43899
         case   0: /*  P--- |  */  //Z=43900
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43901
+            SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=43901
             retval = "P222(16),Pmm2(25),Pm2m(25),P2mm(25),Pmmm(47)";/*3*/  //Z=43902
             break;
         case   1: /*  P--21 | 00l:l  */  //Z=43903
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43904
+            SETCX(-1,-1,-1,-1,-1,-1, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=43904
             retval = "P2221(17)";/*3*/  //Z=43905
             break;
         case   2: /*  P-21- | 0k0:k  */  //Z=43906
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43907
+            SETCX(-1,-1,-1,-1,-1, 0,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=43907
             retval = "P2212(17)";/*3*/  //Z=43908
             break;
         case   3: /*  P-2121 | 0k0:k, 00l:l  */  //Z=43909
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43910
+            SETCX(-1,-1,-1,-1,-1, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=43910
             retval = "P22121(18)";/*3*/  //Z=43911
             break;
         case   4: /*  P21-- | h00:h  */  //Z=43912
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = 0; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43913
+            SETCX(-1,-1,-1,-1, 0,-1,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=43913
             retval = "P2122(17)";/*3*/  //Z=43914
             break;
         case   5: /*  P21-21 | h00:h, 00l:l  */  //Z=43915
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43916
+            SETCX(-1,-1,-1,-1, 0,-1, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=43916
             retval = "P21221(18)";/*3*/  //Z=43917
             break;
         case   6: /*  P2121- | h00:h, 0k0:k  */  //Z=43918
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43919
+            SETCX(-1,-1,-1,-1, 0, 0,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=43919
             retval = "P21212(18)";/*3*/  //Z=43920
             break;
         case   7: /*  P212121 | h00:h, 0k0:k, 00l:l  */  //Z=43921
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43922
+            SETCX(-1,-1,-1,-1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=43922
             retval = "P212121(19)";/*3*/  //Z=43923
             break;
         case   8: /*  P--a | hk0:h, h00:h  */  //Z=43924
-            c1 = -1; c2 = -1; c3 = -1; c4 = 1; c5 = 0; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43925
+            SETCX(-1,-1,-1, 1, 0,-1,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=43925
             retval = "Pm2a(28),P21ma(26),Pmma(51)";/*3*/  //Z=43926
             break;
         case   9: /*  P--b | hk0:k, 0k0:k  */  //Z=43927
-            c1 = -1; c2 = -1; c3 = -1; c4 = 2; c5 = -1; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43928
+            SETCX(-1,-1,-1, 2,-1, 0,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=43928
             retval = "Pm21b(26),P2mb(28),Pmmb(51)";/*3*/  //Z=43929
             break;
         case  10: /*  P--n | hk0:h+k, h00:h, 0k0:k  */  //Z=43930
-            c1 = -1; c2 = -1; c3 = -1; c4 = 0; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43931
+            SETCX(-1,-1,-1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=43931
             retval = "Pm21n(31),P21mn(31),Pmmn(59)";/*3*/  //Z=43932
             break;
         case  11: /*  P-a- | h0l:h, h00:h  */  //Z=43933
-            c1 = -1; c2 = -1; c3 = 1; c4 = -1; c5 = 0; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43934
+            SETCX(-1,-1, 1,-1, 0,-1,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=43934
             retval = "Pma2(28),P21am(26),Pmam(51)";/*3*/  //Z=43935
             break;
         case  12: /*  P-aa | h0l:h, hk0:h, h00:h  */  //Z=43936
-            c1 = -1; c2 = -1; c3 = 1; c4 = 1; c5 = 0; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43937
+            SETCX(-1,-1, 1, 1, 0,-1,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=43937
             retval = "P2aa(27),Pmaa(49)";/*3*/  //Z=43938
             break;
         case  13: /*  P-ab | h0l:h, hk0:k, h00:h, 0k0:k  */  //Z=43939
-            c1 = -1; c2 = -1; c3 = 1; c4 = 1; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43940
+            SETCX(-1,-1, 1, 1, 0, 0,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=43940
             retval = "P21ab(29),Pmab(57)";/*3*/  //Z=43941
             break;
         case  14: /*  P-an | h0l:h, hk0:h+k, h00:h, 0k0:k  */  //Z=43942
-            c1 = -1; c2 = -1; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43943
+            SETCX(-1,-1, 1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=43943
             retval = "P2an(30),Pman(53)";/*3*/  //Z=43944
             break;
         case  15: /*  P-c- | h0l:l, 00l:l  */  //Z=43945
-            c1 = -1; c2 = -1; c3 = 2; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43946
+            SETCX(-1,-1, 2,-1,-1,-1, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=43946
             retval = "Pmc21(26),P2cm(28),Pmcm(51)";/*3*/  //Z=43947
             break;
         case  16: /*  P-ca | h0l:l, hk0:h, h00:h, 00l:l  */  //Z=43948
-            c1 = -1; c2 = -1; c3 = 2; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43949
+            SETCX(-1,-1, 2, 1, 0,-1, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=43949
             retval = "P21ca(29),Pmca(57)";/*3*/  //Z=43950
             break;
         case  17: /*  P-cb | h0l:l, hk0:k, 0k0:k, 00l:l  */  //Z=43951
-            c1 = -1; c2 = -1; c3 = 2; c4 = 2; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43952
+            SETCX(-1,-1, 2, 2,-1, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=43952
             retval = "P2cb(32),Pmcb(55)";/*3*/  //Z=43953
             break;
         case  18: /*  P-cn | h0l:l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=43954
-            c1 = -1; c2 = -1; c3 = 2; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43955
+            SETCX(-1,-1, 2, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=43955
             retval = "P21cn(33),Pmcn(62)";/*3*/  //Z=43956
             break;
         case  19: /*  P-n- | h0l:h+l, h00:h, 00l:l  */  //Z=43957
-            c1 = -1; c2 = -1; c3 = 0; c4 = -1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43958
+            SETCX(-1,-1, 0,-1, 0,-1, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=43958
             retval = "Pmn21(31),P21nm(31),Pmnm(59)";/*3*/  //Z=43959
             break;
         case  20: /*  P-na | h0l:h+l, hk0:h, h00:h, 00l:l  */  //Z=43960
-            c1 = -1; c2 = -1; c3 = 0; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43961
+            SETCX(-1,-1, 0, 1, 0,-1, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=43961
             retval = "P2na(30),Pmna(53)";/*3*/  //Z=43962
             break;
         case  21: /*  P-nb | h0l:h+l, hk0:k, h00:h, 0k0:k, 00l:l  */  //Z=43963
-            c1 = -1; c2 = -1; c3 = 0; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43964
+            SETCX(-1,-1, 0, 2, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=43964
             retval = "P21nb(33),Pmnb(62)";/*3*/  //Z=43965
             break;
         case  22: /*  P-nn | h0l:h+l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=43966
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43967
+            SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=43967
             retval = "P2nn(34),Pmnn(58)";/*3*/  //Z=43968
             break;
         case  23: /*  Pb-- | 0kl:k, 0k0:k  */  //Z=43969
-            c1 = -1; c2 = 1; c3 = -1; c4 = -1; c5 = -1; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43970
+            SETCX(-1, 1,-1,-1,-1, 0,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=43970
             retval = "Pbm2(28),Pb21m(26),Pbmm(51)";/*3*/  //Z=43971
             break;
         case  24: /*  Pb-a | 0kl:k, hk0:h, h00:h, 0k0:k  */  //Z=43972
-            c1 = -1; c2 = 1; c3 = -1; c4 = 1; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43973
+            SETCX(-1, 1,-1, 1, 0, 0,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=43973
             retval = "Pb21a(29),Pbma(57)";/*3*/  //Z=43974
             break;
         case  25: /*  Pb-b | 0kl:k, hk0:k, 0k0:k  */  //Z=43975
-            c1 = -1; c2 = 1; c3 = -1; c4 = 2; c5 = -1; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43976
+            SETCX(-1, 1,-1, 2,-1, 0,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=43976
             retval = "Pb2b(27),Pbmb(49)";/*3*/  //Z=43977
             break;
         case 26: /*  Pb-n | 0kl:k, hk0:h+k, h00:h, 0k0:k  */  //Z=43978
-            c1 = -1; c2 = 1; c3 = -1; c4 = 0; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43979
+            SETCX(-1, 1,-1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=43979
             retval = "Pb2n(30),Pbmn(53)";/*3*/  //Z=43980
             break;
         case 27: /*  Pba- | 0kl:k, h0l:h, h00:h, 0k0:k  */  //Z=43981
-            c1 = -1; c2 = 1; c3 = 1; c4 = -1; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43982
+            SETCX(-1, 1, 1,-1, 0, 0,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=43982
             retval = "Pba2(32),Pbam(55)";/*3*/  //Z=43983
             break;
         case 28: /*  Pbaa | 0kl:k, h0l:h, hk0:h, h00:h, 0k0:k  */  //Z=43984
-            c1 = -1; c2 = 1; c3 = 1; c4 = 1; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43985
+            SETCX(-1, 1, 1, 1, 0, 0,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=43985
             retval = "Pbaa(54)";/*3*/  //Z=43986
             break;
         case 29: /*  Pbab | 0kl:k, h0l:h, hk0:k, h00:h, 0k0:k  */  //Z=43987
-            c1 = -1; c2 = 1; c3 = 1; c4 = 2; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43988
+            SETCX(-1, 1, 1, 2, 0, 0,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=43988
             retval = "Pbab(54)";/*3*/  //Z=43989
             break;
         case 30: /*  Pban | 0kl:k, h0l:h, hk0:h+k, h00:h, 0k0:k  */  //Z=43990
-            c1 = -1; c2 = 1; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43991
+            SETCX(-1, 1, 1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=43991
             retval = "Pban(50)";/*3*/  //Z=43992
             break;
         case 31: /*  Pbc- | 0kl:k, h0l:l, 0k0:k, 00l:l  */  //Z=43993
-            c1 = -1; c2 = 1; c3 = 2; c4 = -1; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43994
+            SETCX(-1, 1, 2,-1,-1, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=43994
             retval = "Pbc21(29),Pbcm(57)";/*3*/  //Z=43995
             break;
         case 32: /*  Pbca | 0kl:k, h0l:l, hk0:h, h00:h, 0k0:k, 00l:l  */  //Z=43996
-            c1 = -1; c2 = 1; c3 = 2; c4 = 1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=43997
+            SETCX(-1, 1, 2, 1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=43997
             retval = "Pbca(61)";/*3*/  //Z=43998
             break;
         case 33: /*  Pbcb | 0kl:k, h0l:l, hk0:k, 0k0:k, 00l:l  */  //Z=43999
-            c1 = -1; c2 = 1; c3 = 2; c4 = 2; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44000
+            SETCX(-1, 1, 2, 2,-1, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44000
             retval = "Pbcb(54)";/*3*/  //Z=44001
             break;
         case 34: /*  Pbcn | 0kl:k, h0l:l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44002
-            c1 = -1; c2 = 1; c3 = 2; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44003
+            SETCX(-1, 1, 2, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44003
             retval = "Pbcn(60)";/*3*/  //Z=44004
             break;
         case 35: /*  Pbn- | 0kl:k, h0l:h+l, h00:h, 0k0:k, 00l:l  */  //Z=44005
-            c1 = -1; c2 = 1; c3 = 0; c4 = -1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44006
+            SETCX(-1, 1, 0,-1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44006
             retval = "Pbn21(33),Pbnm(62)";/*3*/  //Z=44007
             break;
         case 36: /*  Pbna | 0kl:k, h0l:h+l, hk0:h, h00:h, 0k0:k, 00l:l  */  //Z=44008
-            c1 = -1; c2 = 1; c3 = 0; c4 = 1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44009
+            SETCX(-1, 1, 0, 1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44009
             retval = "Pbna(60)";/*3*/  //Z=44010
             break;
         case 37: /*  Pbnb | 0kl:k, h0l:h+l, hk0:k, h00:h, 0k0:k, 00l:l  */  //Z=44011
-            c1 = -1; c2 = 1; c3 = 0; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44012
+            SETCX(-1, 1, 0, 2, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44012
             retval = "Pbnb(56)";/*3*/  //Z=44013
             break;
         case 38: /*  Pbnn | 0kl:k, h0l:h+l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44014
-            c1 = -1; c2 = 1; c3 = 0; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44015
+            SETCX(-1, 1, 0, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44015
             retval = "Pbnn(52)";/*3*/  //Z=44016
             break;
         case 39: /*  Pc-- | 0kl:l, 00l:l  */  //Z=44017
-            c1 = -1; c2 = 2; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44018
+            SETCX(-1, 2,-1,-1,-1,-1, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44018
             retval = "Pcm21(26),Pc2m(28),Pcmm(51)";/*3*/  //Z=44019
             break;
         case 40: /*  Pc-a | 0kl:l, hk0:h, h00:h, 00l:l  */  //Z=44020
-            c1 = -1; c2 = 2; c3 = -1; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44021
+            SETCX(-1, 2,-1, 1, 0,-1, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44021
             retval = "Pc2a(32),Pcma(55)";/*3*/  //Z=44022
             break;
         case 41: /*  Pc-b | 0kl:l, hk0:k, 0k0:k, 00l:l  */  //Z=44023
-            c1 = -1; c2 = 2; c3 = -1; c4 = 2; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44024
+            SETCX(-1, 2,-1, 2,-1, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44024
             retval = "Pc21b(29),Pcmb(57)";/*3*/  //Z=44025
             break;
         case 42: /*  Pc-n | 0kl:l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44026
-            c1 = -1; c2 = 2; c3 = -1; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44027
+            SETCX(-1, 2,-1, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44027
             retval = "Pc21n(33),Pcmn(62)";/*3*/  //Z=44028
             break;
         case 43: /*  Pca- | 0kl:l, h0l:h, h00:h, 00l:l  */  //Z=44029
-            c1 = -1; c2 = 2; c3 = 1; c4 = -1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44030
+            SETCX(-1, 2, 1,-1, 0,-1, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44030
             retval = "Pca21(29),Pcam(57)";/*3*/  //Z=44031
             break;
         case 44: /*  Pcaa | 0kl:l, h0l:h, hk0:h, h00:h, 00l:l  */  //Z=44032
-            c1 = -1; c2 = 2; c3 = 1; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44033
+            SETCX(-1, 2, 1, 1, 0,-1, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44033
             retval = "Pcaa(54)";/*3*/  //Z=44034
             break;
         case 45: /*  Pcab | 0kl:l, h0l:h, hk0:k, h00:h, 0k0:k, 00l:l  */  //Z=44035
-            c1 = -1; c2 = 2; c3 = 1; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44036
+            SETCX(-1, 2, 1, 2, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44036
             retval = "Pcab(61)";/*3*/  //Z=44037
             break;
         case 46: /*  Pcan | 0kl:l, h0l:h, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44038
-            c1 = -1; c2 = 2; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44039
+            SETCX(-1, 2, 1, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44039
             retval = "Pcan(60)";/*3*/  //Z=44040
             break;
         case 47: /*  Pcc- | 0kl:l, h0l:l, 00l:l  */  //Z=44041
-            c1 = -1; c2 = 2; c3 = 2; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44042
+            SETCX(-1, 2, 2,-1,-1,-1, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44042
             retval = "Pcc2(27),Pccm(49)";/*3*/  //Z=44043
             break;
         case 48: /*  Pcca | 0kl:l, h0l:l, hk0:h, h00:h, 00l:l  */  //Z=44044
-            c1 = -1; c2 = 2; c3 = 2; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44045
+            SETCX(-1, 2, 2, 1, 0,-1, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44045
             retval = "Pcca(54)";/*3*/  //Z=44046
             break;
         case 49: /*  Pccb | 0kl:l, h0l:l, hk0:k, 0k0:k, 00l:l  */  //Z=44047
-            c1 = -1; c2 = 2; c3 = 2; c4 = 2; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44048
+            SETCX(-1, 2, 2, 2,-1, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44048
             retval = "Pccb(54)";/*3*/  //Z=44049
             break;
         case 50: /*  Pccn | 0kl:l, h0l:l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44050
-            c1 = -1; c2 = 2; c3 = 2; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44051
+            SETCX(-1, 2, 2, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44051
             retval = "Pccn(56)";/*3*/  //Z=44052
             break;
         case 51: /*  Pcn- | 0kl:l, h0l:h+l, h00:h, 00l:l  */  //Z=44053
-            c1 = -1; c2 = 2; c3 = 0; c4 = -1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44054
+            SETCX(-1, 2, 0,-1, 0,-1, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44054
             retval = "Pcn2(30),Pcnm(53)";/*3*/  //Z=44055
             break;
         case 52: /*  Pcna | 0kl:l, h0l:h+l, hk0:h, h00:h, 00l:l  */  //Z=44056
-            c1 = -1; c2 = 2; c3 = 0; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44057
+            SETCX(-1, 2, 0, 1, 0,-1, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44057
             retval = "Pcna(50)";/*3*/  //Z=44058
             break;
         case 53: /*  Pcnb | 0kl:l, h0l:h+l, hk0:k, h00:h, 0k0:k, 00l:l  */  //Z=44059
-            c1 = -1; c2 = 2; c3 = 0; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44060
+            SETCX(-1, 2, 0, 2, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44060
             retval = "Pcnb(60)";/*3*/  //Z=44061
             break;
         case 54: /*  Pcnn | 0kl:l, h0l:h+l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44062
-            c1 = -1; c2 = 2; c3 = 0; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44063
+            SETCX(-1, 2, 0, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44063
             retval = "Pcnn(52)";/*3*/  //Z=44064
             break;
         case 55: /*  Pn-- | 0kl:k+l, 0k0:k, 00l:l  */  //Z=44065
-            c1 = -1; c2 = 0; c3 = -1; c4 = -1; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44066
+            SETCX(-1, 0,-1,-1,-1, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44066
             retval = "Pnm21(31),Pn21m(31),Pnmm(59)";/*3*/  //Z=44067
             break;
         case 56: /*  Pn-a | 0kl:k+l, hk0:h, h00:h, 0k0:k, 00l:l  */  //Z=44068
-            c1 = -1; c2 = 0; c3 = -1; c4 = 1; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44069
+            SETCX(-1, 0,-1, 1,-1, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44069
             retval = "Pn21a(33),Pnma(62)";/*3*/  //Z=44070
             break;
         case 57: /*  Pn-b | 0kl:k+l, hk0:k, 0k0:k, 00l:l  */  //Z=44071
-            c1 = -1; c2 = 0; c3 = -1; c4 = 2; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44072
+            SETCX(-1, 0,-1, 2,-1, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44072
             retval = "Pn2b(30),Pnmb(53)";/*3*/  //Z=44073
             break;
         case 58: /*  Pn-n | 0kl:k+l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44074
-            c1 = -1; c2 = 0; c3 = -1; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44075
+            SETCX(-1, 0,-1, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44075
             retval = "Pn2n(34),Pnmn(58)";/*3*/  //Z=44076
             break;
         case 59: /*  Pna- | 0kl:k+l, h0l:h, h00:h, 0k0:k, 00l:l  */  //Z=44077
-            c1 = -1; c2 = 0; c3 = 1; c4 = -1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44078
+            SETCX(-1, 0, 1,-1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44078
             retval = "Pna21(33),Pnam(62)";/*3*/  //Z=44079
             break;
         case 60: /*  Pnaa | 0kl:k+l, h0l:h, hk0:h, h00:h, 0k0:k, 00l:l  */  //Z=44080
-            c1 = -1; c2 = 0; c3 = 1; c4 = 1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44081
+            SETCX(-1, 0, 1, 1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44081
             retval = "Pnaa(56)";/*3*/  //Z=44082
             break;
         case 61: /*  Pnab | 0kl:k+l, h0l:h, hk0:k, h00:h, 0k0:k, 00l:l  */  //Z=44083
-            c1 = -1; c2 = 0; c3 = 1; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44084
+            SETCX(-1, 0, 1, 2, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44084
             retval = "Pnab(60)";/*3*/  //Z=44085
             break;
         case 62: /*  Pnan | 0kl:k+l, h0l:h, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44086
-            c1 = -1; c2 = 0; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44087
+            SETCX(-1, 0, 1, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44087
             retval = "Pnan(52)";/*3*/  //Z=44088
             break;
         case 63: /*  Pnc- | 0kl:k+l, h0l:l, 0k0:k, 00l:l  */  //Z=44089
-            c1 = -1; c2 = 0; c3 = 2; c4 = -1; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44090
+            SETCX(-1, 0, 2,-1,-1, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44090
             retval = "Pnc2(30),Pncm(53)";/*3*/  //Z=44091
             break;
         case 64: /*  Pnca | 0kl:k+l, h0l:l, hk0:h, h00:h, 0k0:k, 00l:l  */  //Z=44092
-            c1 = -1; c2 = 0; c3 = 2; c4 = 1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44093
+            SETCX(-1, 0, 2, 1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44093
             retval = "Pnca(60)";/*3*/  //Z=44094
             break;
         case 65: /*  Pncb | 0kl:k+l, h0l:l, hk0:k, 0k0:k, 00l:l |   */  //Z=44095
-            c1 = -1; c2 = 0; c3 = 2; c4 = 2; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44096
+            SETCX(-1, 0, 2, 2,-1, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44096
             retval = "Pncb(50)";/*3*/  //Z=44097
             break;
         case 66: /*  Pncn | 0kl:k+l, h0l:l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44098
-            c1 = -1; c2 = 0; c3 = 2; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44099
+            SETCX(-1, 0, 2, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44099
             retval = "Pncn(52)";/*3*/  //Z=44100
             break;
         case 67: /*  Pnn- | 0kl:k+l, h0l:h+l, h00:h, 0k0:k, 00l:l  */  //Z=44101
-            c1 = -1; c2 = 0; c3 = 0; c4 = -1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44102
+            SETCX(-1, 0, 0,-1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44102
             retval = "Pnn2(34),Pnnm(58)";/*3*/  //Z=44103
             break;
         case 68: /*  Pnna | 0kl:k+l, h0l:h+l, hk0:h, h00:h, 0k0:k, 00l:l  */  //Z=44104
-            c1 = -1; c2 = 0; c3 = 0; c4 = 1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44105
+            SETCX(-1, 0, 0, 1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44105
             retval = "Pnna(52)";/*3*/  //Z=44106
             break;
         case 69: /*  Pnnb | 0kl:k+l, h0l:h+l, hk0:k, h00:h, 0k0:k, 00l:l  */  //Z=44107
-            c1 = -1; c2 = 0; c3 = 0; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44108
+            SETCX(-1, 0, 0, 2, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44108
             retval = "Pnnb(52)";/*3*/  //Z=44109
             break;
         case 70: /*  Pnnn | 0kl:k+l, h0l:h+l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44110
-            c1 = -1; c2 = 0; c3 = 0; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44111
+            SETCX(-1, 0, 0, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44111
             retval = "Pnnn(48)";/*3*/  //Z=44112
             break;
 
             /*  centered C___  */  //Z=44115
         case 71: /*  C--- | hkl:h+k, 0kl:k, h0l:h, hk0:h+k, h00:h, 0k0:k  */  //Z=44116
-            c1 = 1; c2 = 1; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44117
+            SETCX( 1, 1, 1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=44117
             retval = "C222(21),Cmm2(35),Cm2m(38),C2mm(38),Cmmm(65)";/*3*/  //Z=44118
             break;
         case 72: /*  C--21 | hkl:h+k, 0kl:k, h0l:h, hk0:h+k, h00:h, 0k0:k, 00l:.  */  //Z=44119
-            c1 = 1; c2 = 1; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44120
+            SETCX( 1, 1, 1, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44120
             retval = "C2221(20)";/*3*/  //Z=44121
             break;
         case 73: /*  C--(ab) | hkl:h+k, 0kl:k, h0l:h, hk0:h,k, h00:h, 0k0:k  */  //Z=44122
-            c1 = 1; c2 = 1; c3 = 1; c4 = 4; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44123
+            SETCX( 1, 1, 1, 4, 0, 0,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=44123
             retval = "Cm2e(39),C2me(39),Cmme(67)";/*3*/  //Z=44124
             break;
         case 74: /*  C-c- | hkl:h+k, 0kl:k, h0l:h,l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44125
-            c1 = 1; c2 = 1; c3 = 4; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44126
+            SETCX( 1, 1, 4, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44126
             retval = "Ccm21(36),C2cm(40),Cmcm(63)";/*3*/  //Z=44127
             break;
         case 75: /*  C-c(ab) | hkl:h+k, 0kl:k, h0l:h,l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44128
-            c1 = 1; c2 = 1; c3 = 4; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44129
+            SETCX( 1, 1, 4, 4, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44129
             retval = "C2ce(41),Cmce(64)";/*3*/  //Z=44130
             break;
         case 76: /*  Cc-- | hkl:h+k, 0kl:k,l, h0l:h, hk0:h+k, h00:h, 0k0:k, 001:l  */  //Z=44131
-            c1 = 1; c2 = 4; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44132
+            SETCX( 1, 4, 1, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44132
             retval = "Ccm21(36),Cc2m(40),Ccmm(63)";/*3*/  //Z=44133
             break;
         case 77: /*  Cc-(ab) | hkl:h+k, 0kl:k,l, h0l:h, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44134
-            c1 = 1; c2 = 4; c3 = 1; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44135
+            SETCX( 1, 4, 1, 4, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44135
             retval = "Cc2e(41),Ccme(64)";/*3*/  //Z=44136
             break;
         case 78: /*  Ccc- | hkl:h+k, 0kl:k,l, h0l:h,l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44137
-            c1 = 1; c2 = 4; c3 = 4; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44138
+            SETCX( 1, 4, 4, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44138
             retval = "Ccc2(37),Cccm(66)";/*3*/  //Z=44139
             break;
         case 79: /*  Ccc(ab) | hkl:h+k, 0kl:k,l, h0l:h,l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44140
-            c1 = 1; c2 = 4; c3 = 4; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44141
+            SETCX( 1, 4, 4, 4, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44141
             retval = "Ccce(68)";/*3*/  //Z=44142
             break;
 
             /*  centered B___  */  //Z=44145
         case 80: /*  B--- | hkl:h+l, 0kl:l, h0l:h+l, hk0:h, h00:h, 00l:l  */  //Z=44146
-            c1 = 3; c2 = 2; c3 = 0; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44147
+            SETCX( 3, 2, 0, 1, 0,-1, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44147
             retval = "B222(21),Bmm2(38),Bm2m(35),B2mm(38),Bmmm(65)";/*3*/  //Z=44148
             break;
         case 81: /*  B-21- | hkl:h+l, 0kl:l, h0l:h+l, hk0:h, h00:h, 0k0:k, 00l:l  */  //Z=44149
-            c1 = 3; c2 = 2; c3 = 0; c4 = 1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44150
+            SETCX( 3, 2, 0, 1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44150
             retval = "B2212(20)";/*3*/  //Z=44151
             break;
         case 82: /*  B--b | hkl:h+l, 0kl:l, h0l:h+l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44152
-            c1 = 3; c2 = 2; c3 = 0; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44153
+            SETCX( 3, 2, 0, 4, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44153
             retval = "Bm21b(36),B2mb(40),Bmmb(63)";/*3*/  //Z=44154
             break;
         case 83: /*  B-(ac)- | hkl:h+l, 0kl:l, h0l;h,l, hk0:h, h00:h, 00l:l  */  //Z=44155
-            c1 = 3; c2 = 2; c3 = 4; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44156
+            SETCX( 3, 2, 4, 1, 0,-1, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44156
             retval = "Bme2(39),B2em(39),Bmem(67)";/*3*/  //Z=44157
             break;
         case 84: /*  B-(ac)b | hkl:h+l, 0kl:l, h0l:h,l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44158
-            c1 = 3; c2 = 2; c3 = 4; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44159
+            SETCX( 3, 2, 4, 4, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44159
             retval = "B2eb(41),Bmeb(64)";/*3*/  //Z=44160
             break;
         case 85: /*  Bb-- | hkl:h+l, 0kl:k,l, h0l:h+l, hk0:h, h00:h, 0k0:k, 00l:l  */  //Z=44161
-            c1 = 3; c2 = 4; c3 = 0; c4 = 1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44162
+            SETCX( 3, 4, 0, 1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44162
             retval = "Bbm2(40),Bb21m(36),Bbmm(63)";/*3*/  //Z=44163
             break;
         case 86: /*  Bb-b | hkl:h+l, 0kl:k,l, h0l:h+l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44164
-            c1 = 3; c2 = 4; c3 = 0; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44165
+            SETCX( 3, 4, 0, 4, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44165
             retval = "Bb2b(37),Bbmb(66)";/*3*/  //Z=44166
             break;
         case 87: /*  Bb(ac)- | hkl:h+l, 0kl:k,l, h0l:h,l, hk0:h, h00:h, 0k0:k, 00l:l  */  //Z=44167
-            c1 = 3; c2 = 4; c3 = 4; c4 = 1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44168
+            SETCX( 3, 4, 4, 1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44168
             retval = "Bbe2(41),Bbem(64)";/*3*/  //Z=44169
             break;
         case 88: /*  Bb(ac)b | hkl:h+l, 0kl:k,l, h0l:h,l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44170
-            c1 = 3; c2 = 4; c3 = 4; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44171
+            SETCX( 3, 4, 4, 4, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44171
             retval = "Bbeb(68)";/*3*/  //Z=44172
             break;
 
             /*  centered A___  */  //Z=44175
         case 89: /*  A--- | hkl:k+l, 0kl:k+l, h0l:l, hk0:k, 0k0:k, 00l:l  */  //Z=44176
-            c1 = 2; c2 = 0; c3 = 2; c4 = 2; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44177
+            SETCX( 2, 0, 2, 2,-1, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44177
             retval = "A222(21),Amm2(38),Am2m(38),A2mm(35),Ammm(65)";/*3*/  //Z=44178
             break;
         case 90: /*  A21-- | hkl:k+l, 0kl:k+l, h0l:l, hk0:k, h00:h, 0k0:k, 00l:l  */  //Z=44179
-            c1 = 2; c2 = 0; c3 = 2; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44180
+            SETCX( 2, 0, 2, 2, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44180
             retval = "A2122(20)";/*3*/  //Z=44181
             break;
         case 91: /*  A--a | hkl:k+l, 0kl:k+l, h0l:l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44182
-            c1 = 2; c2 = 0; c3 = 2; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44183
+            SETCX( 2, 0, 2, 4, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44183
             retval = "Am2a(40),A21ma(36),Amma(63)";/*3*/  //Z=44184
             break;
         case 92: /*  A-a-| hkl:k+l, 0kl:k+l, h0l:h,l, hk0:k, h00:h, 0k0:k, 00l:l  */  //Z=44185
-            c1 = 2; c2 = 0; c3 = 4; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44186
+            SETCX( 2, 0, 4, 2, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44186
             retval = "Ama2(40),A21am(36),Amam(63)";/*3*/  //Z=44187
             break;
         case 93: /*  A-aa | hkl:k+l, 0kl:k+l, h0l:h,l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44188
-            c1 = 2; c2 = 0; c3 = 4; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44189
+            SETCX( 2, 0, 4, 4, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44189
             retval = "A2aa(37),Amaa(66)";/*3*/  //Z=44190
             break;
         case 94: /*  A(bc)-- | hkl:k+l, 0kl:k,l, h0l:l, hk0:k, 0k0:k, 00l:l  */  //Z=44191
-            c1 = 2; c2 = 4; c3 = 2; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44192
+            SETCX( 2, 4, 2, 2, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44192
             retval = "Aem2(39),Ae2m(39),Aemm(67)";/*3*/  //Z=44193
             break;
         case 95: /*  A(bc)-a | hkl:k+l, 0kl:k,l, h0l:l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44194
-            c1 = 2; c2 = 4; c3 = 2; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44195
+            SETCX( 2, 4, 2, 4, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44195
             retval = "Ae2a(41),Aema(64)";/*3*/  //Z=44196
             break;
         case 96: /*  A(bc)a- | hkl:k+l, 0kl:k,l, h0l:h,l, hk0:k, h00:h, 0k0:k, 00l:l  */  //Z=44197
-            c1 = 2; c2 = 4; c3 = 4; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44198
+            SETCX( 2, 4, 4, 2, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44198
             retval = "Aea2(41),Aeam(64)";/*3*/  //Z=44199
             break;
         case 97: /*  A(bc)aa | hkl:k+l, 0kl:k,l, h0l:h,l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44200
-            c1 = 2; c2 = 4; c3 = 4; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44201
+            SETCX( 2, 4, 4, 4, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44201
             retval = "Aeaa(68)";/*3*/  //Z=44202
             break;
 
             /*  centered I___  */  //Z=44205
         case 98: /*  I--- | hkl:h+k+l, 0kl:k+l, h0l:h+l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44206
-            c1 = 0; c2 = 0; c3 = 0; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44207
+            SETCX( 0, 0, 0, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44207
             retval = "I222(23),I212121(24),Imm2(44),Im2m(44),I2mm(44),Immm(71)";/*3*/  //Z=44208
             break;
         case 99: /*  I--(ab) | hkl:h+k+l, 0kl:k+l, h0l:h+l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44209
-            c1 = 0; c2 = 0; c3 = 0; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44210
+            SETCX( 0, 0, 0, 4, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44210
             retval = "Im2a(46),I2mb(46),Imma(74),Immb(74)";/*3*/  //Z=44211
             break;
         case 100: /*  I-(ac)- | hkl:h+k+l, 0kl:k+l, h0l:h,l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44212
-            c1 = 0; c2 = 0; c3 = 4; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44213
+            SETCX( 0, 0, 4, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44213
             retval = "Ima2(46),I2cm(46),Imam(74),Imcm(74)";/*3*/  //Z=44214
             break;
         case 101: /*  I-cb | hkl:h+k+l, 0kl:k+l, h0l:h,l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44215
-            c1 = 0; c2 = 0; c3 = 4; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44216
+            SETCX( 0, 0, 4, 4, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44216
             retval = "I2cb(45),Imcb(72)";/*3*/  //Z=44217
             break;
         case 102: /*  I(bc)-- | hkl:h+k+l, 0kl:k,l, h0l:h+l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44218
-            c1 = 0; c2 = 4; c3 = 0; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44219
+            SETCX( 0, 4, 0, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44219
             retval = "Iem2(46),Ie2m(46),Iemm(74)";/*3*/  //Z=44220
             break;
         case 103: /*  Ic-a | hkl:h+k+l, 0kl:k,l, h0l:h+l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44221
-            c1 = 0; c2 = 4; c3 = 0; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44222
+            SETCX( 0, 4, 0, 4, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44222
             retval = "Ic2a(45),Icma(72)";/*3*/  //Z=44223
             break;
         case 104: /*  Iba- | hkl:h+k+l, 0kl:k,l, h0l:h,l, hk0:h+k, h00:h, 0k0:k, 00l:l  */  //Z=44224
-            c1 = 0; c2 = 4; c3 = 4; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44225
+            SETCX( 0, 4, 4, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44225
             retval = "Iba2(45),Ibam(72)";/*3*/  //Z=44226
             break;
         case 105: /*  Ibca | hkl:h+k+l, 0kl:k,l, h0l:h,l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44227
-            c1 = 0; c2 = 4; c3 = 4; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44228
+            SETCX( 0, 4, 4, 4, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44228
             retval = "Ibca(73),Icab(73)";/*3*/  //Z=44229
             break;
 
             /*  centered F___  */  //Z=44232
         case 106: /*  F--- | hkl:h+k,h+l,k+l, 0kl:k,l, h0l:h,l, hk0:h,k, h00:h, 0k0:k, 00l:l  */  //Z=44233
-            c1 = 6; c2 = 4; c3 = 4; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44234
+            SETCX( 6, 4, 4, 4, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  //Z=44234
             retval = "F222(22),Fmm2(42),Fm2m(42),F2mm(42),Fmmm(69)";/*3*/  //Z=44235
             break;
         case 107: /*  F-dd | hkl:h+k,h+l,k+l, 0kl:k,l, h0l:4n,h,l, hk0:4n,h,k, h00:4n, 0k0:4n, 00l:4n  */  //Z=44236
-            c1 = 6; c2 = 4; c3 = 3; c4 = 3; c5 = 1; c6 = 1; c7 = 1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44237
+            SETCX( 6, 4, 3, 3, 1, 1, 1,-1,-1,-1,-1,-1,-1,-1);  //Z=44237
             retval = "F2dd(43)";/*3*/  //Z=44238
             break;
         case 108: /*  Fd-d | hkl:h+k,h+l,k+l, 0kl:4n,k,l, h0l:h,l, hk0:4n,h,k, h00:4n, 0k0:4n, 00l:4n  */  //Z=44239
-            c1 = 6; c2 = 3; c3 = 4; c4 = 3; c5 = 1; c6 = 1; c7 = 1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44240
+            SETCX( 6, 3, 4, 3, 1, 1, 1,-1,-1,-1,-1,-1,-1,-1);  //Z=44240
             retval = "Fd2d(43)";/*3*/  //Z=44241
             break;
         case 109: /*  Fdd- | hkl:h+k,h+l,k+l, 0kl:4n,k,l, h0l:4n,h,l, hk0:h,k, h00:4n, 0k0:4n, 00l:4n  */  //Z=44242
-            c1 = 6; c2 = 3; c3 = 3; c4 = 4; c5 = 1; c6 = 1; c7 = 1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44243
+            SETCX( 6, 3, 3, 4, 1, 1, 1,-1,-1,-1,-1,-1,-1,-1);  //Z=44243
             retval = "Fdd2(43)";/*3*/  //Z=44244
             break;
         case 110: /*  Fddd | hkl:h+k,h+l,k+l, 0kl:4n,k,l, h0l:4n,h,l, hk0:4n,h,k, h00:4n, 0k0:4n, 00l:4n  */  //Z=44245
-            c1 = 6; c2 = 3; c3 = 3; c4 = 3; c5 = 1; c6 = 1; c7 = 1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  //Z=44246
+            SETCX( 6, 3, 3, 3, 1, 1, 1,-1,-1,-1,-1,-1,-1,-1);  //Z=44246
             retval = "Fddd(70)";/*3*/  //Z=44247
             break;
         } // switch ComboBoxOrthorhombic
@@ -9331,194 +9710,194 @@ std::string SasCalc_GENERIC_calculation::ButtonHKLClick(int ltype, bool nurtext)
         {
             /*  P___ unique axis b  */  //Z=44258
         case 0: /*  P1-1  */  //Z=44259
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44260
+            SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 1,-1);  //Z=44260
             retval = "P121(3),P1m1(6),P12/m1(10);unique b-axis";/*3*/  //Z=44261
             //>>>>>> Das hier ist im Screenshot von Prof. Förster zu lesen ....
             break;
         case 1: /*  P1211 | 0k0:k  */  //Z=44262
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44263
+            SETCX(-1,-1,-1,-1,-1, 0,-1,-1,-1,-1,-1,-1, 1,-1);   //Z=44263
             retval = "P1211(4),P21/m1(11);unique b-axis";/*3*/  //Z=44264
             break;
         case 2: /*  P1a1 | h0l,h00:h  */  //Z=44265
-            c1 = -1; c2 = -1; c3 = 1; c4 = -1; c5 = 0; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44266
+            SETCX(-1,-1, 1,-1, 0,-1,-1,-1,-1,-1,-1,-1, 1,-1);  //Z=44266
             retval = "P1a1(7),P12/a1(13);unique b-axis";/*3*/  //Z=44267
             break;
         case 3: /*  P121/a1 | h0l,h00:h, 0k0:k  */  //Z=44268
-            c1 = -1; c2 = -1; c3 = 1; c4 = -1; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44269
+            SETCX(-1,-1, 1,-1, 0, 0,-1,-1,-1,-1,-1,-1, 1,-1);  //Z=44269
             retval = "P121/a1(14);unique b-axis";/*3*/  //Z=44270
             break;
         case 4: /*  P1c1 | h0l,00l:l  */  //Z=44271
-            c1 = -1; c2 = -1; c3 = 2; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44272
+            SETCX(-1,-1, 2,-1,-1,-1, 0,-1,-1,-1,-1,-1, 1,-1);  //Z=44272
             retval = "P1c1(7),P12/c1(13);unique b-axis";/*3*/  //Z=44273
             break;
         case 5: /*  P121/c1 | h0l,00l:l, 0k0:k  */  //Z=44274
-            c1 = -1; c2 = -1; c3 = 2; c4 = -1; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44275
+            SETCX(-1,-1, 2,-1,-1, 0, 0,-1,-1,-1,-1,-1, 1,-1);  //Z=44275
             retval = "P121/c1(14);unique b-axis";/*3*/  //Z=44276
             break;
         case 6: /*  P1n1 | h0l,h00,00l:h+l  */  //Z=44277
-            c1 = -1; c2 = -1; c3 = 0; c4 = -1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44278
+            SETCX(-1,-1, 0,-1, 0,-1, 0,-1,-1,-1,-1,-1, 1,-1);  //Z=44278
             retval = "P1n1(7),P12/n1(13);unique b-axis";/*3*/  //Z=44279
             break;
         case 7: /*  P121/n1 | h0l,h00,00l:h+l, 0k0:k  */  //Z=44280
-            c1 = -1; c2 = -1; c3 = 0; c4 = -1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44281
+            SETCX(-1,-1, 0,-1, 0, 0, 0,-1,-1,-1,-1,-1, 1,-1);  //Z=44281
             retval = "P121/n1(14);unique b-axis";/*3*/  //Z=44282
             break;
 
             /*  C___  */  //Z=44284
         case 8: /*  C1-1 | hkl,0kl,hk0:h+k, h0l,h00,00l:h, 0k0:k  */  //Z=44285
-            c1 = 1; c2 = 1; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44286
+            SETCX( 1, 1, 1, 0, 0, 0,-1,-1,-1,-1,-1,-1, 1,-1);  //Z=44286
             retval = "C121(5),C1m1(8),C12/m1(12);unique b-axis";/*3*/  //Z=44287
             break;
         case 9: /*  C1c1 | hkl,0kl,hk0:h+k, h0l,h00,00l:h,l, 0k0:k  */  //Z=44288
-            c1 = 1; c2 = 1; c3 = 4; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44289
+            SETCX( 1, 1, 4, 0, 0, 0, 0,-1,-1,-1,-1,-1, 1,-1);  //Z=44289
             retval = "C1c1(9),C12/c1(15);unique b-axis";/*3*/  //Z=44290
             break;
 
             /*  A___  */  //Z=44292
         case 10: /*  A1-1 | hkl,0kl,hk0:k+l, h0l,h00,00l:l, 0k0:k  */  //Z=44293
-            c1 = 2; c2 = 0; c3 = 2; c4 = 2; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44294
+            SETCX( 2, 0, 2, 2,-1, 0, 0,-1,-1,-1,-1,-1, 1,-1);  //Z=44294
             retval = "A121(15),A1m1(8),A12/m1(12);unique b-axis";/*3*/  //Z=44295
             break;
         case 11: /*  A1n1 | hkl,0kl,hk0:k+l, h0l,h00,00l:h,l, 0k0:k  */  //Z=44296
-            c1 = 2; c2 = 0; c3 = 4; c4 = 2; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44297
+            SETCX( 2, 0, 4, 2, 0, 0, 0,-1,-1,-1,-1,-1, 1,-1);  //Z=44297
             retval = "A1n1(9),A12/n1(15);unique b-axis";/*3*/  //Z=44298
             break;
 
             /*  I___  */  //Z=44300
         case 12: /*  I1-1 | hkl,0kl,hk0:h+k+l, h0l,h00,00l:h+l, 0k0:k  */  //Z=44301
-            c1 = 0; c2 = 0; c3 = 0; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44302
+            SETCX( 0, 0, 0, 0, 0, 0, 0,-1,-1,-1,-1,-1, 1,-1);  //Z=44302
             retval = "I121(5),I1m1(8),I12/m1(12)";/*3*/  //Z=44303
             break;
         case 13: /*  I1a1 | hkl,0kl,hk0:h+k+l, h0l,h00,00l:h,l, 0k0:k  */  //Z=44304
-            c1 = 0; c2 = 0; c3 = 4; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 1;  //Z=44305
+            SETCX( 0, 0, 4, 0, 0, 0, 0,-1,-1,-1,-1,-1, 1,-1);  //Z=44305
             retval = "I1a1(9),I12/a1(15);unique b-axis";/*3*/  //Z=44306
             break;
 
             /*  P___ unique axis c  */  //Z=44311
         case 14: /*  P11-  */  //Z=44312
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44313
+            SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 2,-1);  //Z=44313
             retval = "P112(3),P11m(6),P112/m(10);unique c-axis";/*3*/  //Z=44314
             break;
         case 15: /*  P1121 | 00l:l  */  //Z=44315
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44316
+            SETCX(-1,-1,-1,-1,-1,-1, 0,-1,-1,-1,-1,-1, 2,-1);  //Z=44316
             retval = "P1121(4),P1121/m(11);unique c-axis";/*3*/  //Z=44317
             break;
         case 16: /*  P11a | hk0,h00,0k0:h  */  //Z=44318
-            c1 = -1; c2 = -1; c3 = -1; c4 = 1; c5 = 0; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44319
+            SETCX(-1,-1,-1, 1, 0,-1,-1,-1,-1,-1,-1,-1, 2,-1);  //Z=44319
             retval = "P11a(7),P112/a(13);unique c-axis";/*3*/  //Z=44320
             break;
         case 17: /*  P1121/a | hk0,h00,0k0:h, 00l:l  */  //Z=44321
-            c1 = -1; c2 = -1; c3 = -1; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44322
+            SETCX(-1,-1,-1, 1, 0,-1, 0,-1,-1,-1,-1,-1,-1,-1); c13 = 2;  //Z=44322
             retval = "P1121/a(14);unique c-axis";/*3*/  //Z=44323
             break;
         case 18: /*  P11b | hk0,h00,0k0:k  */  //Z=44324
-            c1 = -1; c2 = -1; c3 = -1; c4 = 2; c5 = -1; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44325
+            SETCX(-1,-1,-1, 2,-1, 0,-1,-1,-1,-1,-1,-1,-1,-1); c13 = 2;  //Z=44325
             retval = "P11b(7),P112/b(13);unique c-axis";/*3*/  //Z=44326
             break;
         case 19: /*  P1121/b | hk0,h00,0k0:k, 00l:l  */  //Z=44327
-            c1 = -1; c2 = -1; c3 = -1; c4 = 2; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44328
+            SETCX(-1,-1,-1, 2,-1, 0, 0,-1,-1,-1,-1,-1,-1,-1); c13 = 2;  //Z=44328
             retval = "P1121/b(14);unique c-axis";/*3*/  //Z=44329
             break;
         case 20: /*  P11n | hk0,h00,0k0:h+k  */  //Z=44330
-            c1 = -1; c2 = -1; c3 = -1; c4 = 0; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44331
+            SETCX(-1,-1,-1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1,-1); c13 = 2;  //Z=44331
             retval = "P11n(7),P112/n(13);unique c-axis";/*3*/  //Z=44332
             break;
         case 21: /*  P1121/n | hk0,h00,0k0:h+k, 00l:l  */  //Z=44333
-            c1 = -1; c2 = -1; c3 = -1; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44334
+            SETCX(-1,-1,-1, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1); c13 = 2;  //Z=44334
             retval = "P1121/n(14);unique c-axis";/*3*/  //Z=44335
             break;
 
             /*  B___  */  //Z=44337
         case 22: /*  B11- | hkl,0kl,h0l:h+l, hk0,h00,0k0:h, 00l:l  */  //Z=44338
-            c1 = 3; c2 = 2; c3 = 0; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  c13 = 2;  //Z=44339
+            SETCX( 3, 2, 0, 1, 0,-1, 0,-1,-1,-1,-1,-1,-1,-1);  c13 = 2;  //Z=44339
             retval = "B112(5),B11m(8),B112/m(12);unique c-axis";/*3*/  //Z=44340
             break;
         case 23: /*  B11n | hkl,0kl,h0l:h+l, hk0,h00,0k0:h,k, 00l:l  */  //Z=44341
-            c1 = 3; c2 = 2; c3 = 0; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1;  c13 = 2;  //Z=44342
+            SETCX( 3, 2, 0, 4, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1);  c13 = 2;  //Z=44342
             retval = "B11n(9),B112/n(15);unique c-axis";/*3*/  //Z=44343
             break;
 
             /*  A___  */  //Z=44345
         case 24: /*  A11- | hkl,0kl,h0l:k+l, hk0,h00,0k0:k, 00l:l  */  //Z=44346
-            c1 = 2; c2 = 0; c3 = 2; c4 = 2; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44347
+            SETCX( 2, 0, 2, 2,-1, 0, 0,-1,-1,-1,-1,-1,-1,-1); c13 = 2;  //Z=44347
             retval = "A112(15),A11m(8),A112/m(12);unique c-axis";/*3*/  //Z=44348
             break;
         case 25: /*  A11a | hkl,0kl,h0l:k+l, hk0,h00,0k0:h,k, 00l:l  */  //Z=44349
-            c1 = 2; c2 = 0; c3 = 2; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44350
+            SETCX( 2, 0, 2, 4, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1); c13 = 2;  //Z=44350
             retval = "A11a(9),A112/a(15);unique c-axis";/*3*/  //Z=44351
             break;
 
             /*  I___  */  //Z=44353
         case 26: /*  I11- | hkl,0kl,h0l:h+k+l, hk0,h00,0k0:h+k, 00l:l  */  //Z=44354
-            c1 = 0; c2 = 0; c3 = 0; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44355
+            SETCX( 0, 0, 0, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1); c13 = 2;  //Z=44355
             retval = "I112(5),I11m(8),I112/m(12);unique c-axis";/*3*/  //Z=44356
             break;
         case 27: /*  I11b | hkl,0kl,h0l:h+k+l, hk0,h00,0k0:h,k, 00l:l  */  //Z=44357
-            c1 = 0; c2 = 0; c3 = 0; c4 = 4; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 2;  //Z=44358
+            SETCX( 0, 0, 0, 4, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1); c13 = 2;  //Z=44358
             retval = "I11b(9),I112/b(15);unique c-axis";/*3*/  //Z=44359
             break;
 
             /*  P___ unique axis a  */  //Z=44363
         case 28: /*  P-11  */  //Z=44364
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44365
+            SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1); c13 = 0;  //Z=44365
             retval = "P211(3),Pm11(6),P2/m11(10);unique a-axis";/*3*/  //Z=44366
             break;
         case 29: /*  P2111 | h00:h  */  //Z=44367
-            c1 = -1; c2 = -1; c3 = -1; c4 = -1; c5 = 0; c6 = -1; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44368
+            SETCX(-1,-1,-1,-1, 0,-1,-1,-1,-1,-1,-1,-1,-1,-1); c13 = 0;  //Z=44368
             retval = "P2111(4),P21/m11(11);unique a-axis";/*3*/  //Z=44369
             break;
         case 30: /*  Pb11 | 0kl,0k0,00l:k  */  //Z=44370
-            c1 = -1; c2 = 1; c3 = -1; c4 = -1; c5 = -1; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44371
+            SETCX(-1, 1,-1,-1,-1, 0,-1,-1,-1,-1,-1,-1,-1,-1); c13 = 0;  //Z=44371
             retval = "Pb11(7),P2/b11(13);unique a-axis";/*3*/  //Z=44372
             break;
         case 31: /*  P21/b11 | 0kl,0k0,00l:k, h00:h  */  //Z=44373
-            c1 = -1; c2 = 1; c3 = -1; c4 = -1; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44374
+            SETCX(-1, 1,-1,-1, 0, 0,-1,-1,-1,-1,-1,-1,-1,-1); c13 = 0;  //Z=44374
             retval = "P21/b11(14);unique q-axis";/*3*/  //Z=44375
             break;
         case 32: /*  Pc11 | 0kl,0k0,00l:l  */  //Z=44376
-            c1 = -1; c2 = 2; c3 = -1; c4 = -1; c5 = -1; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44377
+            SETCX(-1, 2,-1,-1,-1,-1, 0,-1,-1,-1,-1,-1,-1,-1); c13 = 0;  //Z=44377
             retval = "Pc11(7),P2/c11(13);unique a-axis";/*3*/  //Z=44378
             break;
         case 33: /*  P21/c11 | 0kl,0k0,00l:l, h00:h  */  //Z=44379
-            c1 = -1; c2 = 2; c3 = -1; c4 = -1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44380
+            SETCX(-1, 2,-1,-1, 0,-1, 0,-1,-1,-1,-1,-1,-1,-1); c13 = 0;  //Z=44380
             retval = "P21/c11(14);unique a-axis";/*3*/  //Z=44381
             break;
         case 34: /*  Pn11 | 0kl,0k0,00l:k+l  */  //Z=44382
-            c1 = -1; c2 = 0; c3 = -1; c4 = -1; c5 = -1; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44383
+            SETCX(-1, 0,-1,-1,-1, 0, 0,-1,-1,-1,-1,-1,-1,-1); c13 = 0;  //Z=44383
             retval = "Pn11(7),P2/n11(13);unique a-axis";/*3*/  //Z=44384
             break;
         case 35: /*  P21/n11 | 0kl,0k0,00l:k+l, h00:h  */  //Z=44385
-            c1 = -1; c2 = 0; c3 = -1; c4 = -1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44386
+            SETCX(-1, 0,-1,-1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1); c13 = 0;  //Z=44386
             retval = "P21/n11(14);unique c-axis";/*3*/  //Z=44387
             break;
 
             /*  C___  */  //Z=44389
         case 36: /*  C-11 | hkl,h0l,hk0:h+k, 0kl,0k0,00l:k, h00:h  */  //Z=44390
-            c1 = 1; c2 = 1; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = -1; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44391
+            SETCX( 1, 1, 1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1,-1); c13 = 0;  //Z=44391
             retval = "C211(5),Cm11(8),C2/m11(12);unique a-axis";/*3*/  //Z=44392
             break;
         case 37: /*  Cn11 | hkl,h0l,hk0:h+k, 0kl,0k0,00l:k,l, h00:h  */  //Z=44393
-            c1 = 1; c2 = 4; c3 = 1; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44394
+            SETCX( 1, 4, 1, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1); c13 = 0;  //Z=44394
             retval = "Cn11(9),C2/n11(15);unique a-axis";/*3*/  //Z=44395
             break;
 
             /*  B___  */  //Z=44397
         case 38: /*  B-11 | hkl,h0l,hk0:h+l, 0kl,0k0,00l:l, h00:h  */  //Z=44398
-            c1 = 3; c2 = 2; c3 = 0; c4 = 1; c5 = 0; c6 = -1; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44399
+            SETCX( 3, 2, 0, 1, 0,-1, 0,-1,-1,-1,-1,-1,-1,-1); c13 = 0;  //Z=44399
             retval = "B211(15),Bm11(8),B2/m11(12);unique a-axis";/*3*/  //Z=44400
             break;
         case 40: /*  Bb11 | hkl,h0l,hk0:h+l, 0kl,0k0,00l:k,l, h00:h  */  //Z=44401
-            c1 = 3; c2 = 4; c3 = 0; c4 = 1; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44402
+            SETCX( 3, 4, 0, 1, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1); c13 = 0;  //Z=44402
             retval = "Bb11(9),B2/b11(15);unique a-axis";/*3*/  //Z=44403
             break;
 
             /*  I___  */  //Z=44405
         case 41: /*  I-11 | hkl,h0l,hk0:h+k+l, 0kl,0k0,00l:k+l, h00:h  */  //Z=44406
-            c1 = 0; c2 = 0; c3 = 0; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44407
+            SETCX( 0, 0, 0, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1); c13 = 0;  //Z=44407
             retval = "I211(5),Im11(8),I2/m11(12);unique a-axis";/*3*/  //Z=44408
             break;
         case 42: /*  Ic11 | hkl,h0l,hk0:h+k+l, 0kl,0k0,00l:k,l, h00:h  */  //Z=44409
-            c1 = 0; c2 = 0; c3 = 0; c4 = 0; c5 = 0; c6 = 0; c7 = 0; c8 = -1; c9 = -1; c10 = -1; c11 = -1; c12 = -1; c13 = 0;  //Z=44410
+            SETCX( 0, 0, 0, 0, 0, 0, 0,-1,-1,-1,-1,-1,-1,-1); c13 = 0;  //Z=44410
             retval = "Ic11(9),I2/c11(15);unique a-axis";/*3*/  //Z=44411
             break;
         } // switch ComboBoxMonoclinic
@@ -9536,7 +9915,6 @@ std::string SasCalc_GENERIC_calculation::ButtonHKLClick(int ltype, bool nurtext)
         /*  P___  */  //Z=44420
         case 0: /*  P- |  */  //Z=44421
             SETCX(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);  //Z=44422
-            retval = "P1(1),P-1(2)";
             retval = "P1(1),P-1(2)";/*3*/  //Z=44423
             break;
         } // switch ComboBoxTriclinic
@@ -11234,3 +11612,78 @@ void SasCalc_GENERIC_calculation::scaleIntensity( bool linlog )
                 *p = 0;
     }
 } // scaleIntensity()
+
+
+
+
+
+
+// Computes 1F2(a; b, c; x) with optional relative tolerance 'tol' (default ~1e-16)
+double SasCalc_GENERIC_calculation::hypergeometric_1F2(double a, double b, double c, double x, double tol)
+{
+    // Poles when b or c is a non-positive integer
+    long long nb = 0, nc = 0;
+    if (isNegIntegerCloseTo(b, nb) || isNegIntegerCloseTo(c, nc))
+    {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    if (x == 0.0)
+    {
+        return 1.0;
+    }
+    // Tolerance
+    const double eps = (tol > 0.0) ? std::max(tol, 1e-18) : 1e-16;
+    // Scaling guard thresholds
+    const double SCALE_UP_THRESHOLD   = 2.0e-300;
+    const double SCALE_DOWN_THRESHOLD = 5.0e+300;
+    const int    SCALE_STEP_BITS      = 600;          // large chunk reduces adjustment frequency
+    const long long MAX_ITER          = 20000000LL;   // generous safeguard
+    // Series init
+    // sum_{k=0}^\infty [(a)_k / ((b)_k (c)_k)] * x^k / k!
+    // term_{k+1} = term_k * x * (a+k) / ((b+k)(c+k)(k+1))
+    double term   = 1.0;
+    double sumVal = 1.0;
+    double csum   = 0.0; // Kahan compensation
+    long long k   = 0;
+    int scaleBits = 0;
+    while (k < MAX_ITER)
+    {
+        double denom = (b + k) * (c + k) * static_cast<double>(k + 1);
+        double r = x * (a + k) / denom;
+        term *= r;
+        // Kahan compensated summation
+        double y = term - csum;
+        double t = sumVal + y;
+        csum = (t - sumVal) - y;
+        sumVal = t;
+        ++k;
+        // Dynamic scaling
+        double asum = std::fabs(sumVal);
+        if (asum > SCALE_DOWN_THRESHOLD)
+        {
+            sumVal = std::ldexp(sumVal, -SCALE_STEP_BITS);
+            term   = std::ldexp(term,   -SCALE_STEP_BITS);
+            csum   = std::ldexp(csum,   -SCALE_STEP_BITS);
+            scaleBits += SCALE_STEP_BITS;
+        }
+        else if (asum > 0.0 && asum < SCALE_UP_THRESHOLD)
+        {
+            sumVal = std::ldexp(sumVal, +SCALE_STEP_BITS);
+            term   = std::ldexp(term,   +SCALE_STEP_BITS);
+            csum   = std::ldexp(csum,   +SCALE_STEP_BITS);
+            scaleBits -= SCALE_STEP_BITS;
+        }
+        // Convergence
+        if (std::fabs(term) <= std::fabs(sumVal) * eps)
+        {
+            break;
+        }
+        // Terminating series if a is a negative integer and (a + k) hits 0
+        // In floating-point, check exact zero after integer k increment
+        if (a + k == 0.0)
+        {
+            break;
+        }
+    }
+    return std::ldexp(sumVal, scaleBits);
+}

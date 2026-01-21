@@ -10,6 +10,8 @@ TempParamSave.ini
 
 Docker-Tests
 Mcp/imgtest.py
+Mcp/test*.png
+Mcp/*Kopie*.*
 build
 
 # Python-generated files

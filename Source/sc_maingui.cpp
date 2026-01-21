@@ -2,7 +2,7 @@
  * Program: sas_scatter2
  *  Author: Michael Wagener, FZJ, JCNS-1
  *          Stephan Förster, FZJ, JCNS-1 wrote the original Scatter in Pascal.
- *    Date: March 2023
+ *    Date: March 2023 (Start with current version)
  *    File: sc_maingui.cpp
  *          Contains all routines for the main GUI compnents.
  */
@@ -15,6 +15,7 @@
 #include "dlgconfigautofit.h"
 #include "myguiparam.h"
 #include "dlggeneratecombinations.h"
+#include "dlgcustomcolors.h"
 #include <QDebug>
 #include <QHeaderView>
 #include <QFileDialog>
@@ -63,8 +64,10 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     useFixedScaling = false;
     noFitCurRect = -1;
     autoProcessingFile = nullptr;
+    autoProcTrainFile  = nullptr;
     fitparams = nullptr;
     timingTestsRunning = false;
+    generateCbsCombinations = false;
 
     ui->setupUi(this);
     current = this;
@@ -84,6 +87,23 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     // Set menu flags to defaults
     ui->actionHide_unused_values->setChecked(true);  // true: hide unused values, false: show unused values with grey labels
     ui->actionLog_loading->setChecked(false);        // true: log loading parameters
+    ui->actionAutoProcTraining_finished->setEnabled(false);
+    ui->actionActivate_parameter_value_check->setChecked(true);  // TODO: den Zustand merken?
+
+    // Die 1D/2D Umschaltung sollte prominenter sichtbar sein, hier oben links im Menü
+    QWidget *wid1d2d = new QWidget();
+    QLayout *lay1d2d = new QHBoxLayout;
+    lay1d2d->setContentsMargins(10,0,10,0);
+    butSet1D = new QPushButton("  1D  ");
+    butSet2D = new QPushButton("  2D  ");
+    butSet1D->setCheckable(true);  butSet1D->setAutoExclusive(true);
+    butSet2D->setCheckable(true);  butSet2D->setAutoExclusive(true);
+    lay1d2d->addWidget(butSet1D);
+    lay1d2d->addWidget(butSet2D);
+    connect( butSet1D, SIGNAL(clicked()), this, SLOT(my_butSet1D_clicked()) );
+    connect( butSet2D, SIGNAL(clicked()), this, SLOT(my_butSet2D_clicked()) );
+    wid1d2d->setLayout(lay1d2d);
+    ui->menubar->setCornerWidget(wid1d2d, Qt::TopLeftCorner);
 
     // Small text in the upper right corner with the current version string
     QLabel *lblVersInfo = new QLabel(QString("Version " MYVERSION " Qt %1.%2.%3").arg(QT_VERSION_MAJOR).arg(QT_VERSION_MINOR).arg(QT_VERSION_PATCH));
@@ -146,7 +166,11 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     ui->inpParamSearchPath->setText( sets.value("ParamSearchPath",dataPath).toString() );
     ui->lisParamSearchResult->setEnabled(false);
     ui->butParamSearchGenerate->setEnabled(false);
+#ifndef ChatbotDisabled
     ui->butParamSearchChatbot->setEnabled(false);
+#else
+    ui->butParamSearchChatbot->hide();
+#endif
     ui->lblParamSearchLog->hide();
     ui->lblParamSearchLog->setText(" ");
     bSearchParamsRunning = false;
@@ -173,9 +197,11 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     // --- TAB  Calculations ----
     // --------------------------
     ui->radNewImageCal->setChecked(true);
-    ui->tab1D2D->setCurrentWidget( ui->tab2D );
 #ifdef NOQWT
-    ui->tab1D2D->tabBar()->setEnabled(false);
+    butSet1D->setEnabled(false);
+    butSet2D->setEnabled(false);
+    butSet1D->setToolTip("No 1D display avalilable");
+    butSet2D->setToolTip("No 1D display avalilable");
 #endif
     calcGui = new SC_CalcGUI;
     // Check number of threads
@@ -212,36 +238,28 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     pal.setBrush(QPalette::Window,SETCOLMARK_CHGIMG);    ui->lblColMarkChgImg->setPalette(pal);
     pal.setBrush(QPalette::Window,SETCOLMARK_OLDPARAM);  ui->lblColMarkOldPar->setPalette(pal);
     pal.setBrush(QPalette::Window,SETCOLMARK_NOTOOLTIP); ui->lblColMarkNoToolTip->setPalette(pal);
+    pal.setBrush(QPalette::Window,SETCOLMARK_CHATBOT);   ui->lblColMarkChatbot->setPalette(pal);
     showColorMarker( SETCOLMARK_CLEARED ); // Alles wegnehmen
+
+    ui->lblGenCbsInfo->hide();
 
     myGuiParam::setAllGuiParams(ui->tabCalc);
     //myGuiParam::debugGuiParams();
     calcGui->loadFitFlags(sets);
+    butSet2D->setChecked(true);
+    myGuiParam::setParamsDimUsage( paramHelper::only2d );
 
-    QStringList slverthdr;
-    slverthdr << "Wavelength [nm]" << "Sample-Det Dist [m]" << "Pix Width [mm]"
-              << "Pix Height [mm]" << "Pix Rows" << "Pix Cols" << "Beam Cent X"
-              << "Beam Cent Y";
-    ui->tblHeaderData->blockSignals(true);
-    ui->tblHeaderData->setRowCount(slverthdr.size());
-    ui->tblHeaderData->setColumnCount(1);
-    ui->tblHeaderData->setVerticalHeaderLabels(slverthdr);
-    ui->tblHeaderData->setHorizontalHeaderLabels(QStringList()<<"Value");
-    int wv = ui->tblHeaderData->fontMetrics().horizontalAdvance("  Value  ");
-    int wl = ui->tblHeaderData->fontMetrics().horizontalAdvance(slverthdr[1]);
-    ui->tblHeaderData->setColumnWidth(0,wv);
-    ui->tblHeaderData->setMinimumWidth( wl+wv+40 );
-    // Defaultwerte setzen
-    ui->tblHeaderData->setItem(tblLattNbCols,0, new QTableWidgetItem("200") );
-    ui->tblHeaderData->setItem(tblLattNbRows,0, new QTableWidgetItem("200") );
-    ui->tblHeaderData->setItem(tblLattBeamX,0, new QTableWidgetItem("100") );
-    ui->tblHeaderData->setItem(tblLattBeamY,0, new QTableWidgetItem("100") );
-    ui->tblHeaderData->setItem(tblLattWaveLen,0, new QTableWidgetItem("0.5") );
-    ui->tblHeaderData->setItem(tblLattSaDist,0, new QTableWidgetItem("4.0") );
-    ui->tblHeaderData->setItem(tblLattPixelX,0, new QTableWidgetItem("5.3") );
-    ui->tblHeaderData->setItem(tblLattPixelY,0, new QTableWidgetItem("5.3") );
-    ui->tblHeaderData->blockSignals(false);
-    on_tblHeaderData_cellChanged(0,0);  // damit die Qmax Berechnung startet
+    ui->butOpenMeasFile->setEnabled(false); // Unterbindet die Berechnung von Qmax
+    ui->inpDFilePixCols->setValue(200);
+    ui->inpDFilePixRows->setValue(200);
+    ui->inpDFileBSX->setValue(100);
+    ui->inpDFileBSY->setValue(100);
+    ui->inpDFileWavelen->setValue(0.5);
+    ui->inpDFileDetDist->setValue(4.0);
+    ui->inpDFilePixWidth->setValue(5.3);
+    ui->inpDFilePixHeight->setValue(5.3);
+    ui->butOpenMeasFile->setEnabled(true);
+    recalcQmax();
     ui->radEditQmaxPreset->setChecked(true);
 
     // --------------------------
@@ -291,7 +309,8 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     ui->lblFitRepetitions->hide();
     ui->lblPrmFitCurRep->hide();
 #endif
-    ui->butFitStart->setEnabled(false);
+    ui->butFitStart1d->hide();
+    ui->butFitStart2d->setEnabled(false);
     ui->butFitUseResult->setEnabled(false);
     ui->butShowResiduen->setEnabled(false);
     ui->butFitHistoShow->setEnabled(false);
@@ -512,6 +531,9 @@ SC_MainGUI::SC_MainGUI(QWidget *parent)
     // -------------------------
     ui->tabMain->setCurrentWidget( ui->tabCalc );
 
+    ui->actionNo_colors->setChecked(true);
+    configureCustomColorForBkg( true );
+
      myGuiParam::updateAdaptiveSteps( ui->togUseAdaptiveStep->isChecked() );
 
 /*
@@ -581,6 +603,9 @@ void SC_MainGUI::closeEvent(QCloseEvent *event)
     if ( !closeMainActive )
     {
         closeMainActive = true; // Avoid calls to imageWindowClosed()
+
+        if ( autoProcTrainFile != nullptr )
+            autoProcTrainFile->close();
 
 #ifndef ChatbotDisabled
         if ( chatbotBackProg != nullptr && chatbotBackProg->state() != QProcess::NotRunning )
@@ -836,7 +861,7 @@ void SC_MainGUI::fillDataFromInputs()
 void SC_MainGUI::prepareGuiAndData()
 {
     ui->butCalc->setEnabled(false);
-    ui->butFitStart->setEnabled(false);
+    ui->butFitStart2d->setEnabled(false); // TODO 1d
     ui->butIFFT->setEnabled(false); // Prepare Calc
     ui->butFFT->setEnabled(false); // Prepare Calc
     ui->butAbbruch->setEnabled(true);
@@ -866,7 +891,7 @@ void SC_MainGUI::finishCalculation(bool showtime)
     ui->butAbbruch->setEnabled(false);
     ui->butAbbruch->setText("Abort");
     ui->progressBar->setEnabled(false);
-    ui->butFitStart->setEnabled(oneFitParamUsed);
+    ui->butFitStart2d->setEnabled(oneFitParamUsed); // TODO 1d
     ui->butIFFT->setEnabled(true);  // Finish Calc
     ui->butFFT->setEnabled(true);  // Finish Calc
     calcGui->inpValues.insert( "_CalcTime_", calcGui->higResTimerElapsed(SC_CalcGUI::htimCalc) );
@@ -880,10 +905,16 @@ void SC_MainGUI::finishCalculation(bool showtime)
  */
 void SC_MainGUI::on_butCalc_clicked()
 {
-#ifdef FITDATA_IN_GPU  // butCalc
     if ( sender() != nullptr )
         calcGui->setFitData( 0, 0, nullptr );
-#endif
+
+    if ( autoProcTrainFile != nullptr )
+    {
+        if ( butSet1D->isChecked() )
+            autoProcTrainFile->write("DOCALC1D" EOL);
+        else
+            autoProcTrainFile->write("DOCALC2D" EOL);
+    }
 
     // Da es mir schon öfter passiert ist, dass ich Parameter ausgesucht und dann das
     // Programm einfach geschlossen hatte, ohne die Parameter zu sichern, werden bei
@@ -904,7 +935,8 @@ void SC_MainGUI::local_butCalc_clicked(bool doshow)
         _calcThread = new myCalcThread(calcGui);
     _calcThread->setThreads( ui->inpNumCores->value() );
     _calcThread->setIgnoreNewSwitch( ui->togIgnNewSwitch->isChecked() );
-    _is1Dused = ui->tab1D2D->currentIndex() == 0;
+    _calcThread->setIgnoreParamCheck( !ui->actionActivate_parameter_value_check->isChecked() );
+    _is1Dused = butSet1D->isChecked();
 
     prepareGuiAndData();
 
@@ -971,16 +1003,19 @@ void SC_MainGUI::local_butCalc_clicked(bool doshow)
     _logThreadTimer->stop();
 
     finishCalculation(true);
-    QString calcError = QString::fromStdString(calcGui->getCalcPtr()->getLastErrorMessage());
+    QString calcError = QString::fromStdString(calcGui->getCalcPtr()->getLastErrorMessage());  // TODO: Warnungen (Parameter Check)
 
     if ( ! calcError.isEmpty() )
     {
-        if ( timingTestsRunning )
-            _bAbbruch = true;
-        else
-            QMessageBox::critical( this, "Parameter-Error", "Some parameters are invalid:\n\n"+calcError);
-        if ( autoProcessingFile!=nullptr && autoProcessingFile->isOpen() )
-            closeAutoProcessingFile("Calc error");
+        if ( ! generateCbsCombinations )
+        {
+            if ( timingTestsRunning )
+                _bAbbruch = true;
+            else
+                QMessageBox::critical( this, "Parameter-Error", "Some parameters are invalid:\n\n"+calcError);
+            if ( autoProcessingFile!=nullptr && autoProcessingFile->isOpen() )
+                closeAutoProcessingFile("Calc error");
+        }
     }
     else
     {
@@ -1016,7 +1051,7 @@ myCalcThread::myCalcThread(SC_CalcGUI *cg, QObject *parent ) : QThread(parent)
  */
 void myCalcThread::run()
 {
-    calcGuiThread->doCalculation( numThreads, bIgnoreNewSwitch );
+    calcGuiThread->doCalculation( numThreads, bIgnoreNewSwitch, bIgnoreParamCheck );
 }
 
 
@@ -1036,6 +1071,7 @@ void SC_MainGUI::automaticRecalc()
     if ( bIgnoreRecalc ) return; // Werte wurden vom Programm geändert
     if ( fitIsRunning ) return; // Bei einem Fit auch nichts automatisch neu berechnen
     if ( timingTestsRunning ) return;   // Timing Tets
+    if ( generateCbsCombinations ) return;
     QObject *o = sender();
     if ( o != nullptr )
     {
@@ -1062,6 +1098,7 @@ void SC_MainGUI::automaticRecalcDoit()
     if ( fitIsRunning ) return; // Bei einem Fit auch nichts automatisch neu berechnen
     if ( bIgnoreRecalc ) return; // Werte wurden vom Programm geändert
     if ( timingTestsRunning ) return;
+    if ( generateCbsCombinations ) return;
     if ( ! ui->togAutoRecalc->isChecked() ) return; // Recalc vom User gesperrt
     if ( _calcThread != nullptr && _calcThread->isRunning() ) return; // Läuft schon
 
@@ -1131,6 +1168,7 @@ void SC_MainGUI::performTimingTests(QString out)
         f.write( "Threads & HKLmax & Quadrants & Switch & Min/ Mean/ Max (Prep) in ms" EOL );
         f.close();
     }
+    if ( autoProcTrainFile != nullptr ) autoProcTrainFile->write(qUtf8Printable("TIMETEST "+saveFilename+EOL));
 
     double c, sumCalc, minCalc, maxCalc, p, sumPrep, minPrep, maxPrep;
     QStringList latex;
@@ -1162,7 +1200,7 @@ void SC_MainGUI::performTimingTests(QString out)
         if ( quadr > 0 )
         {
             // 2D
-            ui->tab1D2D->setCurrentIndex(1);
+            butSet2D->setChecked(true);
             sQuadr = QString::number(quadr);
             ui->radQ1->setChecked( quadr == 1 );
             ui->radQ2->setChecked( quadr == 2 );
@@ -1171,7 +1209,7 @@ void SC_MainGUI::performTimingTests(QString out)
         else //if ( quadr == 0 )
         {
             // 1D
-            ui->tab1D2D->setCurrentIndex(0);
+            butSet1D->setChecked(true);
             sQuadr = "1d";
         }
 
@@ -1412,7 +1450,7 @@ void SC_MainGUI::performSaveParamOperation( QString fn )
     sets.setValue( "RadioButtonQ2",  ui->radQ2->isChecked() );
     sets.setValue( "RadioButtonQ4",  ui->radQ4->isChecked() );
     sets.setValue( "ExpandImage",    ui->togExpandImage->isChecked() );
-    sets.setValue( "Use2D",          ui->tab1D2D->currentIndex() );
+    sets.setValue( "Use2D",          butSet2D->isChecked()?1:0 );
     sets.setValue( "EditAxis1x",     ui->inpVAx1->value() );
     sets.setValue( "EditAxis1y",     ui->inpAy1->value() );
     sets.setValue( "EditAxis1z",     ui->inpAz1->value() );
@@ -1471,6 +1509,7 @@ void SC_MainGUI::on_actionLoad_all_Parameters_triggered()
     DT( QElapsedTimer et;   et.start() );
     data.setValue("LastParam",fn);
     data.sync();
+    if ( autoProcTrainFile != nullptr ) autoProcTrainFile->write(qUtf8Printable("LOAD PARAMS "+fn+EOL));
     DT( qDebug() << "on_actionLoad_all_Parameters_triggered()" << et.elapsed() );
     on_butResetColorMarker_clicked();
     DT( qDebug() << "vor load" << et.elapsed() );
@@ -1493,6 +1532,7 @@ void SC_MainGUI::on_actionLoad_all_Parameters_triggered()
 
 void SC_MainGUI::on_actionLoad_last_calculaition_parameters_triggered()
 {
+    if ( autoProcTrainFile != nullptr ) autoProcTrainFile->write(qUtf8Printable("LOAD PARAMS DEFAULT" EOL));
     local_Load_all_Parameters(fnTempParamFile); // Hier kann kein Fehler auftreten
 }
 
@@ -1696,7 +1736,12 @@ QString SC_MainGUI::local_Load_all_Parameters(QString fn)
 
     foreach ( QWidget *w, ui->tabCalc->findChildren<QWidget*>() ) w->blockSignals(false);
 
-    ui->tab1D2D->setCurrentIndex( sel1d2d );  // 0=1D, 1=2D
+#ifndef NOQWT
+    if ( sel1d2d == 0 )  // 0=1D, 1=2D
+        butSet1D->setChecked(true);
+    else
+        butSet2D->setChecked(true);
+#endif
 
     //qDebug() << "Load END" << QTime::currentTime();
     // Zeitmessung auf Dell Laptop mit Windows 11:
@@ -1713,6 +1758,14 @@ QString SC_MainGUI::local_Load_all_Parameters(QString fn)
     bNoUpdateFromCBS = false;
     DT( qDebug() << "... local load::adjustSize ..." );
     adjustSize();   // local load
+
+#ifdef NOQWT
+    if ( sel1d2d == 0 )
+    {
+        if ( logLoading ) calcGui->loadParamLogmessage("","","","1D parameter loaded but no 1D support available.");
+        rv = "1D parameter loaded but no 1D support available."
+    }
+#endif
     return rv;
 } /* local_Load_all_Parameters() */
 
@@ -1845,8 +1898,8 @@ widImage* SC_MainGUI::addImage( bool neu, int x0, int x1, int y0, int y1, double
     if ( items.size() == 0 )
     {
         ui->lisDataWindows->addItem( img->windowTitle()+" ("+img->getMetaTitle()+")" );
-        ui->cbsFFTWindows->addItem( img->windowTitle() );
-        ui->cbsFitImageWindows->addItem( img->windowTitle() );
+        ui->cbsFFTWindows->addItem( img->windowTitle(), img->is1D() );
+        ui->cbsFitImageWindows->addItem( img->windowTitle(), img->is1D() );
     }
     return img;
 } /* addImage() */
@@ -1881,7 +1934,7 @@ void SC_MainGUI::imageWindowClosed( QObject *o )
                 // if this was the last image, disable the fit button
                 if ( ui->cbsFitImageWindows->count() == 0 )
                 {
-                    ui->butFitStart->setEnabled(false);
+                    ui->butFitStart2d->setEnabled(false); // TODO 1d
                     ui->butIFFT->setEnabled(false); // Img Window Close
                     ui->butFFT->setEnabled(false); // Img Window Close
                 }
@@ -2228,19 +2281,18 @@ void SC_MainGUI::on_intGridPoints_valueChanged(int arg1)
 }
 
 
-void SC_MainGUI::on_tblHeaderData_cellChanged(int DT(row), int /*column*/)
+void SC_MainGUI::recalcQmax()
 {
-    DT( qDebug() << "on_tblHeaderData_cellChanged()" << row );
+    if ( !ui->butOpenMeasFile->isEnabled() || bIgnoreRecalc ) return;
     // Berechne qmax (siehe sascalc_fcc_gpu.cu: doIntCalc_FCC_F)
-    // tblLattice3DValues --> tblHeaderData
-    int cols = ui->tblHeaderData->item(tblLattNbCols,0)->text().toInt();
-    int rows = ui->tblHeaderData->item(tblLattNbRows,0)->text().toInt();
-    double posx = ui->tblHeaderData->item(tblLattBeamX,0)->text().toDouble();
-    double posy = ui->tblHeaderData->item(tblLattBeamY,0)->text().toDouble();
-    double wlen_m = ui->tblHeaderData->item(tblLattWaveLen,0)->text().toDouble()*1.0E-9; /*nm->m*/
-    double dist_m = ui->tblHeaderData->item(tblLattSaDist,0)->text().toDouble();
-    double pixx_m = ui->tblHeaderData->item(tblLattPixelX,0)->text().toDouble()*1.0E-3; /*mm->m*/
-    double pixy_m = ui->tblHeaderData->item(tblLattPixelY,0)->text().toDouble()*1.0E-3; /*mm->m*/
+    int cols = ui->inpDFilePixCols->value();
+    int rows = ui->inpDFilePixRows->value();
+    double posx = ui->inpDFileBSX->value();
+    double posy = ui->inpDFileBSY->value();
+    double wlen_m = ui->inpDFileWavelen->value()*1.0E-9; /*nm->m*/
+    double dist_m = ui->inpDFileDetDist->value();
+    double pixx_m = ui->inpDFilePixWidth->value()*1.0E-3; /*mm->m*/
+    double pixy_m = ui->inpDFilePixHeight->value()*1.0E-3; /*mm->m*/
 
     int ihex_max = qMax( cols - posx, posx );
     int i_max    = qMax( rows - posy, posy );
@@ -2259,21 +2311,39 @@ void SC_MainGUI::on_butOpenMeasFile_clicked()
     // Es muss der aktuelle Filter des letzten Images bestimmt werden, dann wird dieser auch selektiert
     // und alle passenden Dateien werden angezeigt.
     QStringList filter;
-    filter << "TIFF-Images (*.tif *.tiff)"
-           << "KWS-Data (*.dat *.data)"
-           << "ESRF/Klora images (*.edf)"
-           << "Spreadsheet-Format (*.spr)";
+    QVector<_dataFileTypes> filterDT;
+    // 2d-Format
+    filter << "2d:TIFF-Images (*.tif *.tiff)"
+           << "2d:KWS-Data (*.dat *.data)"
+           << "2d:ESRF/Klora images (*.edf)"
+           << "2d:Spreadsheet-Format (*.spr)";
+    filterDT << dft2dTiff << dft2dKwsData << dft2dEsrf << dft2dSpreadsheet;
 #ifdef NOHDF5
     if ( fn.endsWith(".h5") || fn.endsWith(".hdf") || fn.endsWith(".hdf5") || fn.endsWith(".nxs") )
         fn = dataPath;
-    filter << "2D SANS (*.xml *.csv *.dat)";    // Hier kein NXS (ist HDF5, Nexus)
+    filter << "2d:2D SANS (*.xml *.csv *.dat)";    // Hier kein NXS (ist HDF5, Nexus)
+    filterDT << dft2dSans;
 #else
-    filter << "HDF5 Files (*.h5 *.hdf *.hdf5)";
-    filter << "2D SANS (*.xml *.csv *.nxs *.dat)";
+    filter << "2d:HDF5 Files (*.h5 *.hdf *.hdf5)";
+    filter << "2d:SANS (*.xml *.csv *.nxs *.dat)";
+    filterDT << dft2dHdf5 << dft2dSansNexus;
 #endif
-
-    filter << "SasCrystal (*.dat *.csv *.txt)";
+    filter << "2d:SasCrystal (*.dat *.csv *.txt)";
+    filterDT << dft2dSasCrystal;
+    // 1d-Formate
+    filter << "1d:Textual data (*.txt *.dat)"; // filetype:=1
+    filter << "1d:CSV data (*.csv)"; // filetype:=2
+    filter << "1d:Heimo-PDH-Format (*.pri *.mul *.sub *.fun *.pdh)"; // filetype:=3
+    filter << "1d:X-Ray-Format (*.asc)"; // filetype:=4
+    filter << "1d:AC-XRD-Format (*.uxd)"; // filetype:=5
+    filter << "1d:Fit2D output (*.chi)"; // filetype:=6
+    filter << "1d:ESRF-data (*.out)"; // filetype:=7
+    filter << "1d:2dim-data (*.csw)"; // filetype:=8
+    filterDT << dft1dTextual << dft1dCsv << dft1dHeimoPdh << dft1dXRay
+             << dft1dAcXrd << dft1dFit2dOut << dft1dEsrf << dft1d2DinData;
+    // Generisches Format
     filter << "All files (*.*)";
+    filterDT << dftAllFiles;
     QStringList tmp = filter.filter( "." + QFileInfo(fn).suffix(), Qt::CaseInsensitive );
     QString curFilter = "";
     if ( tmp.size() > 0 )
@@ -2285,61 +2355,112 @@ void SC_MainGUI::on_butOpenMeasFile_clicked()
     if ( fn.isEmpty() ) return;
     data.setValue("LastImage",fn);
     lastDataFile = fn;
+    int idx = filter.indexOf(curFilter);
+    _dataFileTypes dft = filterDT.at(idx);
+    qDebug() << "Read" << curFilter << dft;
     // Beim butCalc_clicked wird das 1D Flag immer neu gesetzt, je nach Tab-Stellung
     // Hier werden (z.Zt. nur 2d Daten gelesen, also werden die Flags fest gesetzt).
-    ui->tab1D2D->setCurrentIndex(1);
-    _is1Dused = false;
-    if ( ! local_OpenMeasFile(fn,nullptr) )
+    butSet2D->setChecked(true);
+    _is1Dused = false;  // Default
+    if ( ! local_OpenMeasFile(fn,nullptr,dft) )
     {
         qDebug() << fn << "unknown format";
         QMessageBox::critical( this, "Open measurement file", "Unknown file format in\n"+fn, QMessageBox::Ok );
     }
 }
 
-bool SC_MainGUI::local_OpenMeasFile( QString fn, widImage **imgout )
+bool SC_MainGUI::local_OpenMeasFile( QString fn, widImage **imgout, _dataFileTypes dt )
 {
     QElapsedTimer tt;
     tt.start();
     qApp->setOverrideCursor(Qt::WaitCursor);
     widImage *img = nullptr;
-    if ( fn.endsWith(".dat",Qt::CaseInsensitive) ||
-         fn.endsWith(".csv",Qt::CaseInsensitive) ||
-         fn.endsWith(".txt",Qt::CaseInsensitive) )
-    {   // Special Test to read back previously saved date from this program
-        int pos = fn.lastIndexOf(".");
-        QString base = fn.left(pos);
-        if ( QFileInfo::exists(base+".csv") &&
-             QFileInfo::exists(base+".dat") &&
-             QFileInfo::exists(base+".txt") )
+    if ( dt == dftAllFiles ) dt = dftFromExt;
+    if ( dt == dftFromExt )
+    {   // Jetzt ist doch die Fileextension als Referenz zu nehmen
+        if ( fn.endsWith(".dat",Qt::CaseInsensitive) ||
+             fn.endsWith(".csv",Qt::CaseInsensitive) ||
+             fn.endsWith(".txt",Qt::CaseInsensitive) )
+        {   // Special Test to read back previously saved date from this program
+            int pos = fn.lastIndexOf(".");
+            QString base = fn.left(pos);
+            if ( QFileInfo::exists(base+".csv") &&
+                 QFileInfo::exists(base+".dat") &&
+                 QFileInfo::exists(base+".txt") )
+            {
+                dt = dft2dSasCrystal;
+            }
+        }
+        if ( dt == dftFromExt )
         {
-            img = SC_ReadData::readImageSasCrystal( myAddImage, fn );
+            // Routines in sc_readdata.cpp
+            if ( fn.endsWith(".tif",Qt::CaseInsensitive) ||
+                 fn.endsWith(".tiff",Qt::CaseInsensitive) )
+                dt = dft2dTiff;
+            else if ( fn.endsWith(".dat",Qt::CaseInsensitive) ||
+                      fn.endsWith(".data",Qt::CaseInsensitive) )
+                dt = dft2dKwsData;
+            else if ( fn.endsWith(".edf",Qt::CaseInsensitive) )
+                dt = dft2dEsrf;
+            else if ( fn.endsWith(".spr",Qt::CaseInsensitive) )
+                dt = dft2dSpreadsheet;
+#ifndef NOHDF5
+            else if ( fn.endsWith(".h5",Qt::CaseInsensitive) ||
+                      fn.endsWith(".hdf",Qt::CaseInsensitive) ||
+                      fn.endsWith(".hdf5",Qt::CaseInsensitive) )
+                dt = dft2dHdf5;
+            else if ( fn.endsWith(".nxs",Qt::CaseInsensitive) )     // 2D SANS (ILL)
+                dt = dft2dSansNexus;
+#endif
+            else if ( fn.endsWith(".xml",Qt::CaseInsensitive) ||    // 2D SANS (ILL)
+                      fn.endsWith(".csv",Qt::CaseInsensitive) ||    // 2D SANS (ILL)
+                      fn.endsWith(".txt",Qt::CaseInsensitive) )     // 2D SANS (ILL)
+                dt = dft2dSans;
         }
     }
-    if ( img == nullptr )
+    switch ( dt )
     {
-        // Routines in sc_readdata.cpp
-        if ( fn.endsWith(".tif",Qt::CaseInsensitive) ||
-            fn.endsWith(".tiff",Qt::CaseInsensitive) )
-            img = SC_ReadData::readImageTiff( myAddImage, fn );
-        else if ( fn.endsWith(".dat",Qt::CaseInsensitive) ||
-                  fn.endsWith(".data",Qt::CaseInsensitive) )
-            img = SC_ReadData::readImageKWSData( myAddImage, fn );
-        else if ( fn.endsWith(".edf",Qt::CaseInsensitive) )
-            img = SC_ReadData::readImageEDF( myAddImage, fn );
-        else if ( fn.endsWith(".spr",Qt::CaseInsensitive) )
-            img = SC_ReadData::readImageSpreadsheet( myAddImage, fn );
+    case dftFromExt:         // Aus der Extension erkennen
+        break;
+    case dft2dTiff:          // "2d:TIFF-Images (*.tif *.tiff)"
+        img = SC_ReadData::readImageTiff( myAddImage, fn );
+        break;
+    case dft2dKwsData:       // "2d:KWS-Data (*.dat *.data)"
+        img = SC_ReadData::readImageKWSData( myAddImage, fn );
+        break;
+    case dft2dEsrf:          // "2d:ESRF/Klora images (*.edf)"
+        img = SC_ReadData::readImageEDF( myAddImage, fn );
+        break;
+    case dft2dSpreadsheet:   // "2d:Spreadsheet-Format (*.spr)";
+        img = SC_ReadData::readImageSpreadsheet( myAddImage, fn );
+        break;
+    case dft2dSans:          // "2d:2D SANS (*.xml *.csv *.dat)";    // Hier kein NXS (ist HDF5, Nexus)
+        img = SC_ReadData::readImage2dSans( myAddImage, fn );
+        break;
 #ifndef NOHDF5
-        else if ( fn.endsWith(".h5",Qt::CaseInsensitive) ||
-                  fn.endsWith(".hdf",Qt::CaseInsensitive) ||
-                  fn.endsWith(".hdf5",Qt::CaseInsensitive) )
-            img = SC_ReadData::readImageHDF5( myAddImage, fn, fitIsRunning, false/*swap vert*/ );
-        else if ( fn.endsWith(".nxs",Qt::CaseInsensitive) )     // 2D SANS (ILL)
-            img = SC_ReadData::readImageHDF5( myAddImage, fn, fitIsRunning, true/*swap vert*/ );
+    case dft2dHdf5:          // "2d:HDF5 Files (*.h5 *.hdf *.hdf5)";
+        img = SC_ReadData::readImageHDF5( myAddImage, fn, fitIsRunning, false/*swap vert*/ );
+        break;
+    case dft2dSansNexus:     // "2d:SANS (*.xml *.csv *.nxs *.dat)";
+        img = SC_ReadData::readImageHDF5( myAddImage, fn, fitIsRunning, true/*swap vert*/ );
+        break;
 #endif
-        else if ( fn.endsWith(".xml",Qt::CaseInsensitive) ||    // 2D SANS (ILL)
-                  fn.endsWith(".csv",Qt::CaseInsensitive) ||    // 2D SANS (ILL)
-                  fn.endsWith(".txt",Qt::CaseInsensitive) )     // 2D SANS (ILL)
-            img = SC_ReadData::readImage2dSans( myAddImage, fn );
+    case dft2dSasCrystal:    // "2d:SasCrystal (*.dat *.csv *.txt)";
+        img = SC_ReadData::readImageSasCrystal( myAddImage, fn );
+        break;
+    case dft1dTextual:       // "1d:Textual data (*.txt *.dat)"; // filetype:=1  TODO
+    case dft1dCsv:           // "1d:CSV data (*.csv)"; // filetype:=2
+    case dft1dHeimoPdh:      // "1d:Heimo-PDH-Format (*.pri *.mul *.sub *.fun *.pdh)"; // filetype:=3
+    case dft1dXRay:          // "1d:X-Ray-Format (*.asc)"; // filetype:=4
+    case dft1dAcXrd:         // "1d:AC-XRD-Format (*.uxd)"; // filetype:=5
+    case dft1dFit2dOut:      // "1d:Fit2D output (*.chi)"; // filetype:=6
+    case dft1dEsrf:          // "1d:ESRF-data (*.out)"; // filetype:=7
+    case dft1d2DinData:      // "1d:2dim-data (*.csw)"; // filetype:=8 TODO: ist das 1d oder 2d?
+        _is1Dused = true;
+        // TODO: Einlesen aller 1d Daten ...
+        break;
+    case dftAllFiles:        // "All files (*.*)";
+        break;
     }
     qApp->restoreOverrideCursor();
     //qDebug() << "ReadData (1)" << tt.elapsed();
@@ -2365,23 +2486,20 @@ void SC_MainGUI::copyMetaToLatticeTable( widImage *img )
     bool savign = bIgnoreRecalc;
     bIgnoreRecalc = true;
     // tblLattice3DValues --> tblHeaderData
-    ui->tblHeaderData->setItem( tblLattWaveLen, 0, new QTableWidgetItem(img->metaInfo("wavelength",
-                                     calcGui->currentParamValueStr("EditWavelength",true))) );
-    ui->tblHeaderData->setItem( tblLattSaDist, 0, new QTableWidgetItem(img->metaInfo("SampleDist",
-                                     calcGui->currentParamValueStr("EditDet",true))) );
-    ui->tblHeaderData->setItem( tblLattPixelX, 0, new QTableWidgetItem(img->metaInfo("Pixel_X",
-                                     QString::number(calcGui->currentParamValueDbl("EditPixelX") ))) );  // *1000.
-    ui->tblHeaderData->setItem( tblLattPixelY, 0, new QTableWidgetItem(img->metaInfo("Pixel_Y",
-                                     QString::number(calcGui->currentParamValueDbl("EditPixelY") ))) );  // *1000.
-    ui->tblHeaderData->setItem( tblLattNbRows, 0, new QTableWidgetItem(img->metaInfo("NbRows")) );
-    ui->tblHeaderData->setItem( tblLattNbCols, 0, new QTableWidgetItem(img->metaInfo("NbCols")) );
+    ui->inpDFileWavelen->setValue( img->metaInfo("wavelength",calcGui->currentParamValueStr("EditWavelength",true)).toDouble() );
+    ui->inpDFileDetDist->setValue( img->metaInfo("SampleDist",calcGui->currentParamValueStr("EditDet",true)).toDouble() );
+    ui->inpDFilePixWidth->setValue( img->metaInfo("Pixel_X",QString::number(calcGui->currentParamValueDbl("EditPixelX"))).toDouble() );  // *1000.
+    ui->inpDFilePixHeight->setValue( img->metaInfo("Pixel_Y",QString::number(calcGui->currentParamValueDbl("EditPixelY"))).toDouble() );  // *1000.
+    ui->inpDFilePixRows->setValue( img->metaInfo("NbRows").toInt() );
+    ui->inpDFilePixCols->setValue( img->metaInfo("NbCols").toInt() );
     int row = img->metaInfo("NbRows").toInt();
     int col = img->metaInfo("NbCols").toInt();
     int bsx = col/2 - ui->inpBeamPosX->value();
     int bsy = row/2 - ui->inpBeamPosY_BeamPosX->value();
-    ui->tblHeaderData->setItem( tblLattBeamX, 0, new QTableWidgetItem(img->metaInfo("BeamPosX", QString::number(bsx))) );
-    ui->tblHeaderData->setItem( tblLattBeamY, 0, new QTableWidgetItem(img->metaInfo("BeamPosY", QString::number(bsy))) );
+    ui->inpDFileBSX->setValue( img->metaInfo("BeamPosX", QString::number(bsx)).toDouble() );
+    ui->inpDFileBSY->setValue( img->metaInfo("BeamPosY", QString::number(bsy)).toDouble() );
     bIgnoreRecalc = savign;
+    recalcQmax();
 }
 
 
@@ -3629,7 +3747,7 @@ void SC_MainGUI::loadScatterParameter( QString fn )
     //outArray[110] = IntToStr(ord(RadioButtonPhase3.Checked));
 
     /* Porod Info */
-    setValue( data[111], "EditPhi" );
+    setValue( data[111], "phi" );
     //outArray[112] = EditArea.Text;
     //outArray[113] = Editlp.Text;
     checkData( data[114], "0.01" );            /* qmin */
@@ -3983,14 +4101,52 @@ bool SC_MainGUI::copyParamsToFitTable()
  */
 void SC_MainGUI::on_tabMain_currentChanged(int index)
 {
+    if ( autoProcTrainFile != nullptr ) autoProcTrainFile->write(qUtf8Printable("TAB "+ui->tabMain->tabText(index)+EOL));
+
     DT( qDebug() << "on_tabMain_currentChanged()" );
     if ( index != ui->tabMain->indexOf(ui->tabFit) ) return;
 
     if ( fitIsRunning ) return;
 
-    bool fl = copyParamsToFitTable();
+    local_switchFitStartButtons( copyParamsToFitTable() );
+}
 
-    ui->butFitStart->setEnabled( fl && ui->cbsFitImageWindows->count()>0 );
+void SC_MainGUI::local_switchFitStartButtons( bool flg )
+{
+    if ( !flg || ui->cbsFitImageWindows->count()==0)
+    {
+        ui->butFitStart1d->setEnabled(false);
+        ui->butFitStart2d->setEnabled(false);
+        return;
+    }
+    if ( ui->cbsFitImageWindows->currentData().toBool() )
+    {   // 1D
+        ui->butFitStart1d->show();
+
+        ui->butFitStart2d->hide();
+        ui->butFitStart1d->setEnabled(true);
+        ui->prmFitBorder->setEnabled(false);
+        ui->inpFitBorder->setEnabled(false);
+        ui->prmFitBStop->setEnabled(false);
+        ui->inpFitBStop->setEnabled(false);
+        ui->togFitUseMask->setEnabled(false);
+        //ui->togFitUseMask->setChecked(false); // Aktueller Wert wird nicht gesichert, also lasse ich den so. Wird bei 1d nicht verwendet
+        ui->prmShowResiduen->setEnabled(false);
+        ui->butShowResiduen->setEnabled(false);
+    }
+    else
+    {
+        ui->butFitStart1d->hide();
+        ui->butFitStart2d->show();
+        ui->butFitStart2d->setEnabled(true);
+        ui->prmFitBorder->setEnabled(true);
+        ui->inpFitBorder->setEnabled(true);
+        ui->prmFitBStop->setEnabled(true);
+        ui->inpFitBStop->setEnabled(true);
+        ui->togFitUseMask->setEnabled(true);
+        ui->prmShowResiduen->setEnabled(true);
+        ui->butShowResiduen->setEnabled(true);
+    }
 }
 
 void SC_MainGUI::tblFitUsed_toggled(bool checked)
@@ -4009,9 +4165,13 @@ void SC_MainGUI::tblFitUsed_toggled(bool checked)
         }
         oneFitParamUsed |= static_cast<tblCheckBox*>(ui->tblFitValues->cellWidget(r,0))->tog()->isChecked();
     }
-    ui->butFitStart->setEnabled( oneFitParamUsed && ui->cbsFitImageWindows->count()>0 );
+    local_switchFitStartButtons( oneFitParamUsed );
 }
 
+void SC_MainGUI::on_cbsFitImageWindows_currentIndexChanged(int)
+{
+    local_switchFitStartButtons(true);
+}
 
 void SC_MainGUI::on_tblFitValues_itemChanged(QTableWidgetItem *item)
 {
@@ -4099,9 +4259,22 @@ void SC_MainGUI::on_butSaveLog_clicked()
     }
 }
 
-void SC_MainGUI::on_butFitStart_clicked()
+void SC_MainGUI::on_butFitStart2d_clicked()
 {
-    ui->butFitStart->setEnabled(false);
+    ui->butFitStart2d->setEnabled(false);
+    local_butFitStart1d2d_clicked();
+    ui->butFitStart2d->setEnabled(true);
+}
+
+void SC_MainGUI::on_butFitStart1d_clicked()
+{
+    ui->butFitStart1d->setEnabled(false);
+    local_butFitStart1d2d_clicked();
+    ui->butFitStart1d->setEnabled(true);
+}
+
+void SC_MainGUI::local_butFitStart1d2d_clicked()
+{
     bool savAutoEna = ui->butFitAutomatic->isEnabled();
     //ui->butFitAutomatic->setEnabled(false);
     //ui->butFitUseResult->setEnabled(false);
@@ -4120,14 +4293,12 @@ void SC_MainGUI::on_butFitStart_clicked()
     if ( curFitImage == nullptr )
     {
         ui->lisFitLog->addItem("No image found '"+ui->cbsFitImageWindows->currentText()+"'");
-        ui->butFitStart->setEnabled(true);
         //ui->butFitAutomatic->setEnabled(savAutoEna);
         return;
     }
     if ( !curFitImage->is1D() && (curFitImage->myHeight() != curFitImage->myWidth()) )
     {
         ui->lisFitLog->addItem("None square 2d images not working '"+ui->cbsFitImageWindows->currentText()+"'");
-        ui->butFitStart->setEnabled(true);
         //ui->butFitAutomatic->setEnabled(savAutoEna);
         return;
     }
@@ -4151,11 +4322,11 @@ void SC_MainGUI::on_butFitStart_clicked()
 
     performFirstFitLoop( curFitImage );
 
-    ui->butFitStart->setEnabled(true);
     //ui->butFitAutomatic->setEnabled(savAutoEna);
-    ui->butFitUseResult->setEnabled(true);  // Diese 3 Buttons werden beim Start gesperrt
-    ui->butShowResiduen->setEnabled(true);  // und müssen daher nach derm ersten Fit-lauf
-    ui->butFitHistoShow->setEnabled(true);  // explizit freigegeben werden.
+    ui->butFitUseResult->setEnabled(true);
+    ui->prmShowResiduen->setEnabled( !ui->cbsFitImageWindows->currentData().toBool() );
+    ui->butShowResiduen->setEnabled( !ui->cbsFitImageWindows->currentData().toBool() );
+    ui->butFitHistoShow->setEnabled(true);
     ui->grpFitParams->setEnabled(true);
     ui->grpFitResult->setEnabled(true);
     ui->grpFitStart->setEnabled(true);
@@ -4300,7 +4471,7 @@ void SC_MainGUI::performOneFitLoop()
                                   tolerance, //ui->inpFitTolerance->text().toDouble(),
                                   ui->inpFitBorder->value(),
                                   ui->togFitUseMask->isChecked() ? -1 : ui->inpFitBStop->value(),
-                                  _is1Dused,
+                                  curFitImage->is1D(),  // nicht das globale Flag _is1Dused nutzen!
                                   static_cast<progressLogging>(&this->myProgressLogging),
                                   fitparams, retinfo );
         timeForAll += fitClass->higResTimerElapsed;
@@ -4678,7 +4849,7 @@ void SC_MainGUI::initCbsAfterStart()
 }
 
 
-void SC_MainGUI::on_actionStart_autoprocessing_file_triggered()
+void SC_MainGUI::on_actionAutoProcStart_triggered()
 {
     QSettings data(SETT_APP,SETT_PAR);
     QString fn = data.value("LastManAutoProc",".").toString();
@@ -4687,7 +4858,47 @@ void SC_MainGUI::on_actionStart_autoprocessing_file_triggered()
     data.setValue("LastManAutoProc",fn);
     data.sync();
 
-    openAutoProcessingFile(fn);
+    openAutoProcessingFile(fn); // plus Start der Abarbeitung
+}
+
+void SC_MainGUI::on_actionAutoProcTrain_triggered()
+{
+    if ( autoProcTrainFile != nullptr ) on_actionAutoProcTraining_finished_triggered();
+    QSettings data(SETT_APP,SETT_PAR);
+    QString fn = data.value("LastManAutoProc",".").toString();
+    fn = QFileDialog::getSaveFileName(this,"Autoprocessing file", fn );
+    if ( fn.isEmpty() ) return;
+    data.setValue("LastManAutoProc",fn);
+    data.sync();
+
+    autoProcTrainFile = new QFile( fn );
+    if ( ! autoProcTrainFile->open(QIODevice::Append) )
+        if ( ! autoProcTrainFile->open(QIODevice::WriteOnly) )
+        {
+            QMessageBox::critical( this, "Auto processing Training file",
+                                   autoProcTrainFile->fileName()+"\n"+autoProcTrainFile->errorString(), QMessageBox::Ok );
+            autoProcTrainFile->deleteLater();
+            autoProcTrainFile = nullptr;
+            return;
+        }
+    ui->actionAutoProcTrain->setEnabled(false);
+    ui->actionAutoProcTraining_finished->setEnabled(true);
+    autoProcTrainFile->write(qUtf8Printable("#" EOL "# Start: "+QDateTime::currentDateTime().toString("dd.MMM.yyyy hh:mm:ss")+EOL));
+}
+
+void SC_MainGUI::on_actionAutoProcTraining_finished_triggered()
+{
+    if ( autoProcTrainFile != nullptr )
+    {
+        autoProcTrainFile->write(qUtf8Printable("# Finished: "+QDateTime::currentDateTime().toString("dd.MMM.yyyy hh:mm:ss")+EOL));
+        QString fn = autoProcTrainFile->fileName();
+        autoProcTrainFile->close();
+        autoProcTrainFile->deleteLater();
+        autoProcTrainFile = nullptr;
+        QMessageBox::information( this, "Auto processing Training file", fn+"\nSaved.", QMessageBox::Ok );
+    }
+    ui->actionAutoProcTrain->setEnabled(true);
+    ui->actionAutoProcTraining_finished->setEnabled(false);
 }
 
 
@@ -4830,15 +5041,20 @@ void SC_MainGUI::autoProcessingTimer()
 
         else if ( line.startsWith("DOCALC1D") )
         {
-            ui->tab1D2D->setCurrentIndex(0);
+#ifdef NOQWT
+            closeAutoProcessingFile( "ERROR: no 1D available" );
+            QMessageBox::critical( this, "Autoprocessing ERROR", "No 1D available", QMessageBox::Ok );
+#else
+            butSet1D->setChecked(true);
             QTimer::singleShot( 100, this, SLOT(local_butCalc_clicked()) );  // ohne speichern der Parameter im Temp-File
             // Autoproc is restarted after calculation
+#endif
             return;
         }
 
         else if ( line.startsWith("DOCALC2D") || line.startsWith("DOCALC") )
         {
-            ui->tab1D2D->setCurrentIndex(1);
+            butSet2D->setChecked(true);
             QTimer::singleShot( 100, this, SLOT(local_butCalc_clicked()) );  // ohne speichern der Parameter im Temp-File
             // Autoproc is restarted after calculation
             return;
@@ -4938,6 +5154,7 @@ void SC_MainGUI::closeAutoProcessingFile( QString reason )
     autoProcessingFile = nullptr;
     bIgnoreRecalc = false;
 }
+
 
 
 void SC_MainGUI::fitAutomaticCreateFile(dlgConfigAutoFit *dlg)
@@ -5585,7 +5802,7 @@ void SC_MainGUI::on_butFitAutomatic_clicked()
                         lastFitImage->saveImage( tmpfn );
                         if ( fglobLog ) fglobLog->write(qPrintable("Data file: "+usedImages.first()+EOL) );
 
-                        // Damit beim butFitStart auch das richtige Image gefunden wird, muss dieses in der
+                        // Damit beim butFitStart2d/1d auch das richtige Image gefunden wird, muss dieses in der
                         //  ComboBox der FitWindows als Current stehen. Anscheinend ist bei der neueren
                         //  Qt-Version etwas im Handling anders, sodass ich es hier selber setze.
                         ui->cbsFitImageWindows->setCurrentText( lastFitImage->windowTitle() );
@@ -6589,7 +6806,9 @@ void SC_MainGUI::on_butParamSearchPath_clicked()
     ui->lisParamSearchResult->clear();
     ui->lisParamSearchResult->setEnabled(false);
     ui->butParamSearchGenerate->setEnabled(false);
+#ifndef ChatbotDisabled
     ui->butParamSearchChatbot->setEnabled(false);
+#endif
     ui->lblParamSearchCount->setText(" ");
     ui->lblParamSearchLog->hide();
 }
@@ -6602,7 +6821,9 @@ void SC_MainGUI::on_inpParamSearchPath_textEdited(const QString &arg1)
     ui->lisParamSearchResult->clear();
     ui->lisParamSearchResult->setEnabled(false);
     ui->butParamSearchGenerate->setEnabled(false);
+#ifndef ChatbotDisabled
     ui->butParamSearchChatbot->setEnabled(false);
+#endif
     ui->lblParamSearchCount->setText(" ");
     ui->lblParamSearchLog->hide();
 }
@@ -6651,7 +6872,9 @@ void SC_MainGUI::on_butParamSearchDoit_clicked()
     if ( !ui->inpParamSearchPath->text().endsWith("/") && !ui->inpParamSearchPath->text().endsWith("\\") ) bl++;
     ui->lblParamSearchLog->hide();
     ui->butParamSearchGenerate->setEnabled(false);
+#ifndef ChatbotDisabled
     ui->butParamSearchChatbot->setEnabled(false);
+#endif
     qApp->setOverrideCursor(Qt::WaitCursor);
     searchParameterFilesHelper(ui->inpParamSearchPath->text(),bl,"*.ini");
     searchParameterFilesHelper(ui->inpParamSearchPath->text(),bl,"*.sas_tpv");
@@ -6668,7 +6891,9 @@ void SC_MainGUI::on_butDataSearchDoit_clicked()
     if ( !ui->inpParamSearchPath->text().endsWith("/") && !ui->inpParamSearchPath->text().endsWith("\\") ) bl++;
     ui->lblParamSearchLog->hide();
     ui->butParamSearchGenerate->setEnabled(false);
+#ifndef ChatbotDisabled
     ui->butParamSearchChatbot->setEnabled(false);
+#endif
     qApp->setOverrideCursor(Qt::WaitCursor);
     searchParameterFilesHelper(ui->inpParamSearchPath->text(),bl,"*.*");
     qApp->restoreOverrideCursor();
@@ -6681,13 +6906,17 @@ void SC_MainGUI::on_lisParamSearchResult_itemSelectionChanged()
     bool ena = ui->lisParamSearchResult->count() > 0 &&
                ui->lisParamSearchResult->selectedItems().count() > 0;
     ui->butParamSearchGenerate->setEnabled( ena );
+#ifndef ChatbotDisabled
     ui->butParamSearchChatbot->setEnabled( ena );
+#endif
 }
 
 void SC_MainGUI::on_butParamSearchGenerate_clicked()
 {
     ui->butParamSearchGenerate->setEnabled(false);
+#ifndef ChatbotDisabled
     ui->butParamSearchChatbot->setEnabled(false);
+#endif
     QString base = ui->inpParamSearchPath->text();
     if ( !base.endsWith("/") ) base += "/";
     ui->lblParamSearchLog->setText("See <a href=\"file:///"+base+"ParamSearch.log\">"+base+"ParamSearch.log</a>");
@@ -7733,6 +7962,7 @@ void SC_MainGUI::showColorMarker( QColor c )
         ui->lblColMarkTrainTbl->setVisible(false);
         ui->lblColMarkOldPar->setVisible(false);
         ui->lblColMarkNoToolTip->setVisible(false);
+        ui->lblColMarkChatbot->setVisible(false);
         ui->grpColorMarker->setVisible(false);
         return;
     }
@@ -7741,6 +7971,7 @@ void SC_MainGUI::showColorMarker( QColor c )
     if ( c == SETCOLMARK_TRAINTBL  ) ui->lblColMarkTrainTbl->setVisible(true);
     if ( c == SETCOLMARK_OLDPARAM  ) ui->lblColMarkOldPar->setVisible(true);
     if ( c == SETCOLMARK_NOTOOLTIP ) ui->lblColMarkNoToolTip->setVisible(true);
+    if ( c == SETCOLMARK_CHATBOT   ) ui->lblColMarkChatbot->setVisible(true);
     ui->grpColorMarker->setVisible(true);
 }
 
@@ -8140,7 +8371,7 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
             if(gp)gp->inp()->setValue( Ri );  //Z=45893
             gp=myGuiParam::getGuiParam("EditLength");
             if(gp)gp->inp()->setValue( Ro );  //Z=45894
-            gp=myGuiParam::getGuiParam("EditPhi");
+            gp=myGuiParam::getGuiParam("phi");
             if(gp)gp->inp()->setValue( phi );  //Z=45895
             //EditArea.Text = FloatToStr(area);  //Z=45896
             //Editlp.Text = FloatToStr(lp);  //Z=45897
@@ -8547,6 +8778,1845 @@ void SC_MainGUI::on_cbsLType_currentIndexChanged(int index)
 } /* on_cbsLType_currentIndexChanged() */
 
 
+void SC_MainGUI::on_cbsLType1d_currentIndexChanged(int index)
+{
+#ifndef NOCBSCALLBACK
+    DT( qDebug() << "on_cbsLType1d_currentIndexChanged()" << index << bIgnoreRecalc; )
+    bool updFlag = bIgnoreRecalc;
+    bIgnoreRecalc = true;
+    myGuiParam *gp;
+
+    // "Neue" Variablen in der 1d Variante TODO
+    int lat;
+
+    // Ab hier aus dem File "20250627 - crystal1.pas" ab Zeile 10238
+    switch ( index )
+    {
+    case 17:        // (* none *)
+    case 28:        // if ((ComboBoxLattice.ItemIndex=17[OBDD]) or (ComboBoxLattice.ItemIndex=28[????])) then begin
+        lat=8;
+        myGuiParam::setEnabled( "uca", false, "a (nm):" );   //(* lattice constant a *)
+        myGuiParam::setEnabled( "ucb", false, "b (nm):" );   //(* lattice constant b *)
+        myGuiParam::setEnabled( "ucc", false, "c (nm):" );   //(* lattice constant c *)
+        myGuiParam::setEnabled( "EditDomainSize", false, "domain (nm):" );  //(* domain size *)
+        //if CheckBoxtwo.checked=true then begin ... azimuthal domain = false
+        myGuiParam::setEnabled( "EditAzi", false, "azi. domain:" );  //(* azimuthal domain *)
+        myGuiParam::setEnabled( "EditDebyeWaller", false, "displ. (nm):" );  //(* displacement *)
+        myGuiParam::setEnabled( "EditCeff", index == 28, "ceff:" );    //(* ceff *)
+        myGuiParam::setEnabled( "reff", false, "Reff [nm]:" );   //(* reff *)
+        myGuiParam::setEnabled( "CheckBoxTwinned", false );     //(* twin *)
+        myGuiParam::setEnabled( "acpl", false, "astack:" );  //(* astack *)
+        myGuiParam::setEnabled( "bcpl", false, "bstack" );   //(* bastack *)
+        myGuiParam::setEnabled( "HKLmax", false );  //(* hkl-max *)
+        myGuiParam::setEnabled( "Editqz", false );  //(* qz *)  TODO: diese Variable habe ich noch nicht, GUI ist aber da
+        myGuiParam::setEnabled( "ComboBoxPeak", false );    //(* Peak shape *)
+        gp=myGuiParam::getGuiParam("ComboBoxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 0 );
+        break;
+    case 27:        // (* Bimodal Size Distribution *)
+        lat=28;
+        gp=myGuiParam::setEnabled( "uca", true, "R (nm):" );    //(* lattice constant a *)
+        gp->inp()->setValue(20);                                // Editlattice.Text:='20';
+        gp=myGuiParam::setEnabled( "ucb", true, "sigma:" );     //(* lattice constant b *)
+        gp->inp()->setValue(0.1);                               // Editlatticeb.Text:='0.10';
+        gp=myGuiParam::setEnabled( "ucc", true, "phi:" );       //(* lattice constant c *)
+        gp->inp()->setValue(0.5);                               // Editlatticec.Text:='0.5';
+        myGuiParam::setEnabled( "EditDomainSize", false, "domain (nm):" );  //(* domain size *)
+        //if CheckBoxtwo.checked=true then begin ... azimuthal domain = false
+        myGuiParam::setEnabled( "EditAzi", false, "azi. domain:" );  //(* azimuthal domain *)
+        myGuiParam::setEnabled( "EditDebyeWaller", false, "displ. (nm):" );  //(* displacement *)
+        myGuiParam::setEnabled( "EditCeff", false, "ceff:" );    //(* ceff *)
+        myGuiParam::setEnabled( "reff", false, "Reff [nm]:" );   //(* reff *)
+        myGuiParam::setEnabled( "CheckBoxTwinned", false );     //(* twin *)
+        myGuiParam::setEnabled( "acpl", false, "astack:" );  //(* astack *)
+        myGuiParam::setEnabled( "bcpl", false, "bstack" );   //(* bastack *)
+        myGuiParam::setEnabled( "HKLmax", false );  //(* hkl-max *)
+        myGuiParam::setEnabled( "Editqz", false );  //(* qz *)  TODO: diese Variable habe ich noch nicht, GUI ist aber da
+        myGuiParam::setEnabled( "ComboBoxPeak", false );    //(* Peak shape *)
+        gp=myGuiParam::getGuiParam("ComboBoxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 0 );
+        break;
+    case  0:        // (*** lamellae ***)
+        lat=1;
+        myGuiParam::setEnabled( "uca", true,  "a (nm):" );   //(* lattice constant a *)
+        myGuiParam::setEnabled( "ucb", false, "b (nm):" );   //(* lattice constant b *)
+        myGuiParam::setEnabled( "ucc", false, "c (nm):" );   //(* lattice constant c *)
+        myGuiParam::setEnabled( "EditDomainSize", true, "domain (nm):" );  //(* domain size *)
+        //if CheckBoxtwo.checked=true then begin ... azimuthal domain = TRUE
+        myGuiParam::setEnabled( "EditAzi", true, "azi. domain:" );  //(* azimuthal domain *)
+        myGuiParam::setEnabled( "EditDebyeWaller", true, "displ. (nm):" );  //(* displacement *)
+        myGuiParam::setEnabled( "EditCeff", false, "ceff:" );    //(* ceff *)
+        myGuiParam::setEnabled( "reff", false, "Reff [nm]:" );   //(* reff *)
+        myGuiParam::setEnabled( "CheckBoxTwinned", false );     //(* twin *)
+        myGuiParam::setEnabled( "acpl", true, "astack:" );  //(* astack *)
+        myGuiParam::setEnabled( "bcpl", false, "bstack" );   //(* bastack *)
+        gp=myGuiParam::setEnabled( "HKLmax", true );  //(* hkl-max *)
+        if(gp)gp->intinp()->setValue(5);
+        myGuiParam::setEnabled( "Editqz", false );  //(* qz *)  TODO: diese Variable habe ich noch nicht, GUI ist aber da
+        myGuiParam::setEnabled( "ComboBoxPeak", true );    //(* Peak shape *)
+        gp=myGuiParam::getGuiParam("ComboBoxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 2 );
+        break;
+    case 1:     // (* hexagonally packed cylinders *)
+        lat=2;
+        myGuiParam::setEnabled( "uca", true,  "a (nm):" );   //(* lattice constant a *)
+        myGuiParam::setEnabled( "ucb", false, "b (nm):" );   //(* lattice constant b *)
+        myGuiParam::setEnabled( "ucc", false, "c (nm):" );   //(* lattice constant c *)
+        myGuiParam::setEnabled( "EditDomainSize", true, "domain (nm):" );  //(* domain size *)
+        //if CheckBoxtwo.checked=true then begin ... azimuthal domain = TRUE
+        myGuiParam::setEnabled( "EditAzi", true, "azi. domain:" );  //(* azimuthal domain *)
+        myGuiParam::setEnabled( "EditDebyeWaller", true, "displ. (nm):" );  //(* displacement *)
+        myGuiParam::setEnabled( "EditCeff", false, "ceff:" );    //(* ceff *)
+        myGuiParam::setEnabled( "reff", false, "Reff [nm]:" );   //(* reff *)
+        myGuiParam::setEnabled( "CheckBoxTwinned", false );     //(* twin *)
+        myGuiParam::setEnabled( "acpl", false, "astack:" );  //(* astack *)
+        myGuiParam::setEnabled( "bcpl", false, "bstack" );   //(* bastack *)
+        myGuiParam::setEnabled( "HKLmax", true );  //(* hkl-max *)
+        myGuiParam::setEnabled( "Editqz", false );  //(* qz *)  TODO: diese Variable habe ich noch nicht, GUI ist aber da
+        myGuiParam::setEnabled( "ComboBoxPeak", true );    //(* Peak shape *)
+        gp=myGuiParam::getGuiParam("ComboBoxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 1 );
+        break;
+    case 2:     // (* square packed cylinders *)
+        lat=3;
+        myGuiParam::setEnabled( "uca", true,  "a (nm):" );   //(* lattice constant a *)
+        myGuiParam::setEnabled( "ucb", false, "b (nm):" );   //(* lattice constant b *)
+        myGuiParam::setEnabled( "ucc", false, "c (nm):" );   //(* lattice constant c *)
+        myGuiParam::setEnabled( "EditDomainSize", true, "domain (nm):" );  //(* domain size *)
+        //if CheckBoxtwo.checked=true then begin ... azimuthal domain = TRUE
+        myGuiParam::setEnabled( "EditAzi", true, "azi. domain:" );  //(* azimuthal domain *)
+        myGuiParam::setEnabled( "EditDebyeWaller", true, "displ. (nm):" );  //(* displacement *)
+        myGuiParam::setEnabled( "EditCeff", false, "ceff:" );    //(* ceff *)
+        myGuiParam::setEnabled( "reff", false, "Reff [nm]:" );   //(* reff *)
+        myGuiParam::setEnabled( "CheckBoxTwinned", false );     //(* twin *)
+        myGuiParam::setEnabled( "acpl", false, "astack:" );  //(* astack *)
+        myGuiParam::setEnabled( "bcpl", false, "bstack" );   //(* bastack *)
+        gp=myGuiParam::setEnabled( "HKLmax", true );  //(* hkl-max *)
+        if(gp)gp->intinp()->setValue(5);
+        myGuiParam::setEnabled( "Editqz", false );  //(* qz *)  TODO: diese Variable habe ich noch nicht, GUI ist aber da
+        myGuiParam::setEnabled( "ComboBoxPeak", true );    //(* Peak shape *)
+        gp=myGuiParam::getGuiParam("ComboBoxParticle");
+        if(gp)gp->cbs()->setCurrentIndex( 1 );
+        break;
+/*
+    (* cpl-layers *)
+    if ComboBoxLattice.ItemIndex=12 then begin
+       lat:=13;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=true;           (* lattice constant a *)
+       Label22.caption:='a (nm):';
+       Editlattice.Visible:=true;
+       CheckBoxCell.visible:=true;
+       Label50.visible:=false;           (* lattice constant b *)
+       Label50.Caption:='b (nm):';
+       Editlatticeb.Visible:=false;
+       CheckBoxlatb.Visible:=false;
+       Label52.visible:=false;           (* lattice constant c *)
+       Label52.Caption:='c (nm):';
+       Editlatticec.Visible:=false;
+       CheckBoxlatc.Visible:=false;
+       Label2.Visible:=false;            (* domain size *)
+       Label2.caption:='domain (nm):';
+       EditDomainSize.Visible:=false;
+       CheckBoxDomain.Visible:=false;
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=false;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=false;
+          CheckBoxAzi.Visible:=false;
+       end;
+       Label15.Visible:=true;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=true;
+       CheckBoxDispl.Visible:=true;
+       Label45.Visible:=false;           (* ceff *)
+       Label45.caption:='ceff:';
+       EditCeff.Visible:=false;
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=false;           (* reff *)
+       Label46.Caption:='Reff (nm):';
+       EditReff.visible:=false;
+       CheckBoxReff.Visible:=false;
+       CheckBoxTwin.visible:=false;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=false;
+       CheckBoxTwinFit.Visible:=false;
+       Label6.visible:=true;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=true;
+       CheckBoxAstack.Visible:=true;
+       Label24.Visible:=true;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=true;
+       CheckBoxBstack.visible:=true;
+       Labelhklmax.Visible:=true;       (* hkl-max *)
+       Edithklmax.Visible:=true;
+       Label109.Visible:=false;          (* qz *)
+       Editqz.visible:=false;
+       Label1.visible:=true;            (* Peak shape *)
+       ComboBoxPeak.Visible:=true;
+       ComboBoxPeak.ItemIndex:=7;
+       ComboBoxPeakChange(Sender);
+       ComboBoxParticle.ItemIndex:=0;
+       GroupBox3.Visible:=true;
+    end;
+*/
+/*
+    (* centered rectangular cylinders *)
+    if ComboBoxLattice.ItemIndex=3 then begin
+       lat:=14;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=true;           (* lattice constant a *)
+       Label22.caption:='a (nm):';
+       Editlattice.Visible:=true;
+       CheckBoxCell.visible:=true;
+       Label50.visible:=true;           (* lattice constant b *)
+       Label50.Caption:='b (nm):';
+       Editlatticeb.Visible:=true;
+       CheckBoxlatb.Visible:=true;
+       Label52.visible:=false;           (* lattice constant c *)
+       Label52.Caption:='c (nm):';
+       Editlatticec.Visible:=false;
+       CheckBoxlatc.Visible:=false;
+       Label2.Visible:=true;            (* domain size *)
+       Label2.caption:='domain (nm):';
+       EditDomainSize.Visible:=true;
+       CheckBoxDomain.Visible:=true;
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=true;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=true;
+          CheckBoxAzi.Visible:=true;
+       end;
+       Label15.Visible:=true;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=true;
+       CheckBoxDispl.Visible:=true;
+       Label45.Visible:=false;           (* ceff *)
+       Label45.caption:='ceff:';
+       EditCeff.Visible:=false;
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=false;           (* reff *)
+       Label46.Caption:='Reff (nm):';
+       EditReff.visible:=false;
+       CheckBoxReff.Visible:=false;
+       CheckBoxTwin.visible:=false;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=false;
+       CheckBoxTwinFit.Visible:=false;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=true;       (* hkl-max *)
+       Edithklmax.Visible:=true;
+       Label109.Visible:=false;          (* qz *)
+       Editqz.visible:=false;
+       Label1.visible:=true;            (* Peak shape *)
+       ComboBoxPeak.Visible:=true;
+       ComboBoxParticle.ItemIndex:=1;
+       ComboBoxParticleChange(Sender);
+    end;
+*/
+/*
+    (* bcc-lattice *)
+    if ComboBoxLattice.ItemIndex=4 then begin
+       lat:=4;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=true;           (* lattice constant a *)
+       Label22.caption:='a (nm):';
+       Editlattice.Visible:=true;
+       CheckBoxCell.visible:=true;
+       Label50.visible:=false;           (* lattice constant b *)
+       Label50.Caption:='b (nm):';
+       Editlatticeb.Visible:=false;
+       CheckBoxlatb.Visible:=false;
+       Label52.visible:=false;           (* lattice constant c *)
+       Label52.Caption:='c (nm):';
+       Editlatticec.Visible:=false;
+       CheckBoxlatc.Visible:=false;
+       Label2.Visible:=true;            (* domain size *)
+       Label2.caption:='domain (nm):';
+       EditDomainSize.Visible:=true;
+       CheckBoxDomain.Visible:=true;
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=true;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=true;
+          CheckBoxAzi.Visible:=true;
+       end;
+       Label15.Visible:=true;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=true;
+       CheckBoxDispl.Visible:=true;
+       Label45.Visible:=false;           (* ceff *)
+       Label45.caption:='ceff:';
+       EditCeff.Visible:=false;
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=false;           (* reff *)
+       Label46.Caption:='Reff (nm):';
+       EditReff.visible:=false;
+       CheckBoxReff.Visible:=false;
+       if CheckBoxtwo.checked=true then begin
+          CheckBoxTwin.visible:=true;      (* twin *)
+          CheckBoxTwin.Checked:=false;
+          EditTwRatio.Visible:=true;
+          CheckBoxTwinFit.Visible:=true;
+       end;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=true;       (* hkl-max *)
+       Edithklmax.Visible:=true;
+       Label109.Visible:=false;          (* qz *)
+       Editqz.visible:=false;
+       Label1.visible:=true;            (* Peak shape *)
+       ComboBoxPeak.Visible:=true;
+       ComboBoxPeakChange(Sender);
+       ComboBoxParticle.ItemIndex:=0;
+       ComboBoxParticleChange(Sender);
+    end;
+*/
+/*
+    (* fcc-lattice *)
+    if ComboBoxLattice.ItemIndex=5 then begin
+       lat:=5;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=true;           (* lattice constant a *)
+       Label22.caption:='a (nm):';
+       Editlattice.Visible:=true;
+       CheckBoxCell.visible:=true;
+       Label50.visible:=false;           (* lattice constant b *)
+       Label50.Caption:='b (nm):';
+       Editlatticeb.Visible:=false;
+       CheckBoxlatb.Visible:=false;
+       Label52.visible:=false;           (* lattice constant c *)
+       Label52.Caption:='c (nm):';
+       Editlatticec.Visible:=false;
+       CheckBoxlatc.Visible:=false;
+       Label2.Visible:=true;            (* domain size *)
+       Label2.caption:='domain (nm):';
+       EditDomainSize.Visible:=true;
+       CheckBoxDomain.Visible:=true;
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=true;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=true;
+          CheckBoxAzi.Visible:=true;
+       end;
+       Label15.Visible:=true;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=true;
+       CheckBoxDispl.Visible:=true;
+       Label45.Visible:=false;           (* ceff *)
+       Label45.caption:='ceff:';
+       EditCeff.Visible:=false;
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=false;           (* reff *)
+       Label46.Caption:='Reff (nm):';
+       EditReff.visible:=false;
+       CheckBoxReff.Visible:=false;
+       CheckBoxTwin.visible:=true;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=true;
+       CheckBoxTwinFit.Visible:=true;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=true;       (* hkl-max *)
+       Edithklmax.Visible:=true;
+       Label109.Visible:=false;          (* qz *)
+       Editqz.visible:=false;
+       Label1.visible:=true;            (* Peak shape *)
+       ComboBoxPeak.Visible:=true;
+       ComboBoxPeakChange(Sender);
+       ComboBoxParticle.ItemIndex:=0;
+       ComboBoxParticleChange(Sender);
+    end;
+*/
+/*
+    (* hcp-lattice *)
+    if ComboBoxLattice.ItemIndex=6 then begin
+       lat:=7;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=true;           (* lattice constant a *)
+       Label22.caption:='a (nm):';
+       Editlattice.Visible:=true;
+       CheckBoxCell.visible:=true;
+       Label50.visible:=false;           (* lattice constant b *)
+       Label50.Caption:='b (nm):';
+       Editlatticeb.Visible:=false;
+       CheckBoxlatb.Visible:=false;
+       Label52.visible:=false;           (* lattice constant c *)
+       Label52.Caption:='c (nm):';
+       Editlatticec.Visible:=false;
+       CheckBoxlatc.Visible:=false;
+       Label2.Visible:=true;            (* domain size *)
+       Label2.caption:='domain (nm):';
+       EditDomainSize.Visible:=true;
+       CheckBoxDomain.Visible:=true;
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=true;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=true;
+          CheckBoxAzi.Visible:=true;
+       end;
+       Label15.Visible:=true;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=true;
+       CheckBoxDispl.Visible:=true;
+       Label45.Visible:=false;           (* ceff *)
+       Label45.caption:='ceff:';
+       EditCeff.Visible:=false;
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=false;           (* reff *)
+       Label46.Caption:='Reff (nm):';
+       EditReff.visible:=false;
+       CheckBoxReff.Visible:=false;
+       CheckBoxTwin.visible:=true;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=true;
+       CheckBoxTwinFit.Visible:=true;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=true;       (* hkl-max *)
+       Edithklmax.Visible:=true;
+       Label109.Visible:=false;          (* qz *)
+       Editqz.visible:=false;
+       Label1.visible:=true;            (* Peak shape *)
+       ComboBoxPeak.Visible:=true;
+       ComboBoxPeakChange(Sender);
+       ComboBoxParticle.ItemIndex:=0;
+       ComboBoxParticleChange(Sender);
+    end;
+*/
+/*
+    (* P6/mmm-lattice *)
+    if ComboBoxLattice.ItemIndex=29 then begin
+       lat:=30;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=true;           (* lattice constant a *)
+       Label22.caption:='a (nm):';
+       Editlattice.Visible:=true;
+       CheckBoxCell.visible:=true;
+       Label50.visible:=false;           (* lattice constant b *)
+       Label50.Caption:='b (nm):';
+       Editlatticeb.Visible:=false;
+       CheckBoxlatb.Visible:=false;
+       Label52.visible:=true;           (* lattice constant c *)
+       Label52.Caption:='c (nm):';
+       Editlatticec.Visible:=true;
+       CheckBoxlatc.Visible:=true;
+       Label2.Visible:=true;            (* domain size *)
+       Label2.caption:='domain (nm):';
+       EditDomainSize.Visible:=true;
+       CheckBoxDomain.Visible:=true;
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=true;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=true;
+          CheckBoxAzi.Visible:=true;
+       end;
+       Label15.Visible:=true;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=true;
+       CheckBoxDispl.Visible:=true;
+       Label45.Visible:=false;           (* ceff *)
+       Label45.caption:='ceff:';
+       EditCeff.Visible:=false;
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=false;           (* reff *)
+       Label46.Caption:='Reff (nm):';
+       EditReff.visible:=false;
+       CheckBoxReff.Visible:=false;
+       CheckBoxTwin.visible:=true;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=true;
+       CheckBoxTwinFit.Visible:=true;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=true;       (* hkl-max *)
+       Edithklmax.Visible:=true;
+       Label109.Visible:=false;          (* qz *)
+       Editqz.visible:=false;
+       Label1.visible:=true;            (* Peak shape *)
+       ComboBoxPeak.Visible:=true;
+       ComboBoxPeakChange(Sender);
+       ComboBoxParticle.ItemIndex:=0;
+       ComboBoxParticleChange(Sender);
+    end;
+*/
+/*
+    (* sc-lattice *)
+    if ComboBoxLattice.ItemIndex=7 then begin
+       lat:=6;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=true;           (* lattice constant a *)
+       Label22.caption:='a (nm):';
+       Editlattice.Visible:=true;
+       CheckBoxCell.visible:=true;
+       Label50.visible:=false;           (* lattice constant b *)
+       Label50.Caption:='b (nm):';
+       Editlatticeb.Visible:=false;
+       CheckBoxlatb.Visible:=false;
+       Label52.visible:=false;           (* lattice constant c *)
+       Label52.Caption:='c (nm):';
+       Editlatticec.Visible:=false;
+       CheckBoxlatc.Visible:=false;
+       Label2.Visible:=true;            (* domain size *)
+       Label2.caption:='domain (nm):';
+       EditDomainSize.Visible:=true;
+       CheckBoxDomain.Visible:=true;
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=true;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=true;
+          CheckBoxAzi.Visible:=true;
+       end;
+       Label15.Visible:=true;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=true;
+       CheckBoxDispl.Visible:=true;
+       Label45.Visible:=false;           (* ceff *)
+       Label45.caption:='ceff:';
+       EditCeff.Visible:=false;
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=false;           (* reff *)
+       Label46.Caption:='Reff (nm):';
+       EditReff.visible:=false;
+       CheckBoxReff.Visible:=false;
+       CheckBoxTwin.visible:=false;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=true;
+       CheckBoxTwinFit.Visible:=false;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=true;       (* hkl-max *)
+       Edithklmax.Visible:=true;
+       Label109.Visible:=false;          (* qz *)
+       Editqz.visible:=false;
+       Label1.visible:=true;            (* Peak shape *)
+       ComboBoxPeak.Visible:=true;
+       ComboBoxPeakChange(Sender);
+       ComboBoxParticle.ItemIndex:=0;
+       ComboBoxParticleChange(Sender);
+    end;
+*/
+/*
+    (* fd3m-lattice *)
+    if ComboBoxLattice.ItemIndex=19 then begin
+       lat:=5;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=true;           (* lattice constant a *)
+       Label22.caption:='a (nm):';
+       Editlattice.Visible:=true;
+       CheckBoxCell.visible:=true;
+       Label50.visible:=false;           (* lattice constant b *)
+       Label50.Caption:='b (nm):';
+       Editlatticeb.Visible:=false;
+       CheckBoxlatb.Visible:=false;
+       Label52.visible:=false;           (* lattice constant c *)
+       Label52.Caption:='c (nm):';
+       Editlatticec.Visible:=false;
+       CheckBoxlatc.Visible:=false;
+       Label2.Visible:=true;            (* domain size *)
+       Label2.caption:='domain (nm):';
+       EditDomainSize.Visible:=true;
+       CheckBoxDomain.Visible:=true;
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=true;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=true;
+          CheckBoxAzi.Visible:=true;
+       end;
+       Label15.Visible:=true;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=true;
+       CheckBoxDispl.Visible:=true;
+       Label45.Visible:=false;           (* ceff *)
+       Label45.caption:='ceff:';
+       EditCeff.Visible:=false;
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=false;           (* reff *)
+       Label46.Caption:='Reff (nm):';
+       EditReff.visible:=false;
+       CheckBoxReff.Visible:=false;
+       CheckBoxTwin.visible:=false;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=false;
+       CheckBoxTwinFit.Visible:=false;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=true;       (* hkl-max *)
+       Edithklmax.Visible:=true;
+       Label109.Visible:=false;          (* qz *)
+       Editqz.visible:=false;
+       Label1.visible:=true;            (* Peak shape *)
+       ComboBoxPeak.Visible:=true;
+       ComboBoxPeakChange(Sender);
+       ComboBoxParticle.ItemIndex:=0;
+       ComboBoxParticleChange(Sender);
+    end;
+*/
+/*
+    (* A15-lattice *)
+    if ComboBoxLattice.ItemIndex=30 then begin
+       lat:=31;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=true;           (* lattice constant a *)
+       Label22.caption:='a (nm):';
+       Editlattice.Visible:=true;
+       CheckBoxCell.visible:=true;
+       Label50.visible:=false;           (* lattice constant b *)
+       Label50.Caption:='b (nm):';
+       Editlatticeb.Visible:=false;
+       CheckBoxlatb.Visible:=false;
+       Label52.visible:=false;           (* lattice constant c *)
+       Label52.Caption:='c (nm):';
+       Editlatticec.Visible:=false;
+       CheckBoxlatc.Visible:=false;
+       Label2.Visible:=true;            (* domain size *)
+       Label2.caption:='domain (nm):';
+       EditDomainSize.Visible:=true;
+       CheckBoxDomain.Visible:=true;
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=true;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=true;
+          CheckBoxAzi.Visible:=true;
+       end;
+       Label15.Visible:=true;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=true;
+       CheckBoxDispl.Visible:=true;
+       Label45.Visible:=false;           (* ceff *)
+       Label45.caption:='ceff:';
+       EditCeff.Visible:=false;
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=false;           (* reff *)
+       Label46.Caption:='Reff (nm):';
+       EditReff.visible:=false;
+       CheckBoxReff.Visible:=false;
+       CheckBoxTwin.visible:=false;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=false;
+       CheckBoxTwinFit.Visible:=false;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=true;       (* hkl-max *)
+       Edithklmax.Visible:=true;
+       Label109.Visible:=false;          (* qz *)
+       Editqz.visible:=false;
+       Label1.visible:=true;            (* Peak shape *)
+       ComboBoxPeak.Visible:=true;
+       ComboBoxPeakChange(Sender);
+       ComboBoxParticle.ItemIndex:=0;
+       ComboBoxParticleChange(Sender);
+    end;
+*/
+/*
+    (* Percus-Yevick *)
+    if ComboBoxLattice.ItemIndex=13 then begin
+       lat:=11;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=false;           (* lattice constant a *)
+       Label22.caption:='a (nm):';
+       Editlattice.Visible:=false;
+       CheckBoxCell.visible:=false;
+       Label50.visible:=false;           (* lattice constant b *)
+       Label50.Caption:='b (nm):';
+       Editlatticeb.Visible:=false;
+       CheckBoxlatb.Visible:=false;
+       Label52.visible:=false;           (* lattice constant c *)
+       Label52.Caption:='c (nm):';
+       Editlatticec.Visible:=false;
+       CheckBoxlatc.Visible:=false;
+       Label2.Visible:=false;            (* domain size *)
+       Label2.caption:='domain (nm):';
+       EditDomainSize.Visible:=false;
+       CheckBoxDomain.Visible:=false;
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=true;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=true;
+          CheckBoxAzi.Visible:=true;
+       end;
+       Label15.Visible:=false;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=false;
+       CheckBoxDispl.Visible:=false;
+       Label45.Visible:=true;           (* ceff *)
+       Label45.caption:='ceff:';
+       EditCeff.Visible:=true;
+       CheckBoxCeff.Visible:=true;
+       Label46.Visible:=true;           (* reff *)
+       Label46.Caption:='Reff (nm):';
+       EditReff.visible:=true;
+       CheckBoxReff.Visible:=true;
+       CheckBoxTwin.visible:=false;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=false;
+       CheckBoxTwinFit.Visible:=false;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=false;       (* hkl-max *)
+       Edithklmax.Visible:=false;
+       Label109.Visible:=false;          (* qz *)
+       Editqz.visible:=false;
+       Label1.visible:=false;            (* Peak shape *)
+       ComboBoxPeak.Visible:=false;
+       ComboBoxParticle.ItemIndex:=0;
+       ComboBoxParticleChange(Sender);
+    end;
+*/
+/*
+    (* fractal aggregates *)
+    if ComboBoxLattice.ItemIndex=18 then begin
+       lat:=12;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=true;           (* no of spheres *)
+       Label22.caption:='no. of spheres:';
+       Editlattice.Visible:=true;
+       EditLattice.Text:='50';
+       CheckBoxCell.visible:=true;
+       Label50.visible:=true;           (* fractal dimension *)
+       Label50.Caption:='fractal dim.:';
+       Editlatticeb.Visible:=true;
+       Editlatticeb.Text:='3';
+       CheckBoxlatb.Visible:=true;
+       Label52.visible:=true;           (* Rg *)
+       Label52.Caption:='Rg (nm):';
+       Editlatticec.Visible:=true;
+       CheckBoxlatc.Visible:=true;
+       Label2.Visible:=false;            (* domain size *)
+       Label2.caption:='domain (nm):';
+       EditDomainSize.Visible:=false;
+       CheckBoxDomain.Visible:=false;
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=false;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=false;
+          CheckBoxAzi.Visible:=false;
+       end;
+       Label15.Visible:=false;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=false;
+       CheckBoxDispl.Visible:=false;
+       Label45.Visible:=false;           (* ceff *)
+       Label45.caption:='ceff:';
+       EditCeff.Visible:=false;
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=false;           (* reff *)
+       Label46.Caption:='Reff (nm):';
+       EditReff.visible:=false;
+       CheckBoxReff.Visible:=false;
+       CheckBoxTwin.visible:=false;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=false; //was: true (LA)
+       CheckBoxTwinFit.Visible:=false;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=false;       (* hkl-max *)
+       Edithklmax.Visible:=false;
+       Label109.Visible:=false;          (* qz *)
+       Editqz.visible:=false;
+       Label1.visible:=false;            (* Peak shape *)
+       ComboBoxPeak.Visible:=false;
+       ComboBoxPeakChange(Sender);
+       ComboBoxParticle.ItemIndex:=0;
+       ComboBoxParticleChange(Sender);
+    end;
+*/
+/*
+    (* tetragonal lattice *)
+    if ComboBoxLattice.ItemIndex=8 then begin
+       lat:=15;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=true;           (* lattice constant a *)
+       Label22.caption:='a (nm):';
+       Editlattice.Visible:=true;
+       CheckBoxCell.visible:=true;
+       Label50.visible:=true;           (* lattice constant b *)
+       Label50.Caption:='b (nm):';
+       Editlatticeb.Visible:=true;
+       CheckBoxlatb.Visible:=true;
+       Label52.visible:=false;           (* lattice constant c *)
+       Label52.Caption:='c (nm):';
+       Editlatticec.Visible:=false;
+       CheckBoxlatc.Visible:=false;
+       Label2.Visible:=true;            (* domain size *)
+       Label2.caption:='domain (nm):';
+       EditDomainSize.Visible:=true;
+       CheckBoxDomain.Visible:=true;
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=true;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=true;
+          CheckBoxAzi.Visible:=true;
+       end;
+       Label15.Visible:=true;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=true;
+       CheckBoxDispl.Visible:=true;
+       Label45.Visible:=false;           (* ceff *)
+       Label45.caption:='ceff:';
+       EditCeff.Visible:=false;
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=false;           (* reff *)
+       Label46.Caption:='Reff (nm):';
+       EditReff.visible:=false;
+       CheckBoxReff.Visible:=false;
+       CheckBoxTwin.visible:=false;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=false;
+       CheckBoxTwinFit.Visible:=false;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=true;       (* hkl-max *)
+       Edithklmax.Visible:=true;
+       Label109.Visible:=false;          (* qz *)
+       Editqz.visible:=false;
+       Label1.visible:=true;            (* Peak shape *)
+       ComboBoxPeak.Visible:=true;
+       ComboBoxPeakChange(Sender);
+       ComboBoxParticle.ItemIndex:=0;
+       ComboBoxParticleChange(Sender);
+    end;
+*/
+/*
+    (* Ia3d, gyroid *)
+    if ComboBoxLattice.ItemIndex=9 then begin
+       lat:=17;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=true;           (* lattice constant a *)
+       Label22.caption:='a (nm):';
+       Editlattice.Visible:=true;
+       CheckBoxCell.visible:=true;
+       Label50.visible:=false;           (* lattice constant b *)
+       Label50.Caption:='b (nm):';
+       Editlatticeb.Visible:=false;
+       CheckBoxlatb.Visible:=false;
+       Label52.visible:=false;           (* lattice constant c *)
+       Label52.Caption:='c (nm):';
+       Editlatticec.Visible:=false;
+       CheckBoxlatc.Visible:=false;
+       Label2.Visible:=true;            (* domain size *)
+       Label2.caption:='domain (nm):';
+       EditDomainSize.Visible:=true;
+       CheckBoxDomain.Visible:=true;
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=true;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=true;
+          CheckBoxAzi.Visible:=true;
+       end;
+       Label15.Visible:=true;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=true;
+       CheckBoxDispl.Visible:=true;
+       Label45.Visible:=false;           (* ceff *)
+       Label45.caption:='ceff:';
+       EditCeff.Visible:=false;
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=false;           (* reff *)
+       Label46.Caption:='Reff (nm):';
+       EditReff.visible:=false;
+       CheckBoxReff.Visible:=false;
+       CheckBoxTwin.visible:=false;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=false;
+       CheckBoxTwinFit.Visible:=false;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=true;       (* hkl-max *)
+       Edithklmax.Visible:=true;
+       Label109.Visible:=false;          (* qz *)
+       Editqz.visible:=false;
+       Label1.visible:=true;            (* Peak shape *)
+       ComboBoxPeak.Visible:=true;
+       ComboBoxPeakChange(Sender);
+       ComboBoxParticle.ItemIndex:=3;
+       ComboBoxParticleChange(Sender);
+       ButtonGyrVesClick(Sender);
+    end;
+*/
+/*
+    (* Pn3m, OBDD *)
+    if ComboBoxLattice.ItemIndex=10 then begin
+       lat:=18;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=true;           (* lattice constant a *)
+       Label22.caption:='a (nm):';
+       Editlattice.Visible:=true;
+       CheckBoxCell.visible:=true;
+       Label50.visible:=false;           (* lattice constant b *)
+       Label50.Caption:='b (nm):';
+       Editlatticeb.Visible:=false;
+       CheckBoxlatb.Visible:=false;
+       Label52.visible:=false;           (* lattice constant c *)
+       Label52.Caption:='c (nm):';
+       Editlatticec.Visible:=false;
+       CheckBoxlatc.Visible:=false;
+       Label2.Visible:=true;            (* domain size *)
+       Label2.caption:='domain (nm):';
+       EditDomainSize.Visible:=true;
+       CheckBoxDomain.Visible:=true;
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=true;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=true;
+          CheckBoxAzi.Visible:=true;
+       end;
+       Label15.Visible:=true;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=true;
+       CheckBoxDispl.Visible:=true;
+       Label45.Visible:=false;           (* ceff *)
+       Label45.caption:='ceff:';
+       EditCeff.Visible:=false;
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=false;           (* reff *)
+       Label46.Caption:='Reff (nm):';
+       EditReff.visible:=false;
+       CheckBoxReff.Visible:=false;
+       CheckBoxTwin.visible:=false;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=false;
+       CheckBoxTwinFit.Visible:=false;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=true;       (* hkl-max *)
+       Edithklmax.Visible:=true;
+       Label109.Visible:=false;          (* qz *)
+       Editqz.visible:=false;
+       Label1.visible:=true;            (* Peak shape *)
+       ComboBoxPeak.Visible:=true;
+       ComboBoxPeakChange(Sender);
+       ComboBoxParticle.ItemIndex:=3;
+       ComboBoxParticleChange(Sender);
+       ButtonPn3mVesClick(Sender);
+    end;
+*/
+/*
+    (* Im3m *)
+    if ComboBoxLattice.ItemIndex=11 then begin
+       lat:=19;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=true;           (* lattice constant a *)
+       Label22.caption:='a (nm):';
+       Editlattice.Visible:=true;
+       CheckBoxCell.visible:=true;
+       Label50.visible:=false;           (* lattice constant b *)
+       Label50.Caption:='b (nm):';
+       Editlatticeb.Visible:=false;
+       CheckBoxlatb.Visible:=false;
+       Label52.visible:=false;           (* lattice constant c *)
+       Label52.Caption:='c (nm):';
+       Editlatticec.Visible:=false;
+       CheckBoxlatc.Visible:=false;
+       Label2.Visible:=true;            (* domain size *)
+       Label2.caption:='domain (nm):';
+       EditDomainSize.Visible:=true;
+       CheckBoxDomain.Visible:=true;
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=true;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=true;
+          CheckBoxAzi.Visible:=true;
+       end;
+       Label15.Visible:=true;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=true;
+       CheckBoxDispl.Visible:=true;
+       Label45.Visible:=false;           (* ceff *)
+       Label45.caption:='ceff:';
+       EditCeff.Visible:=false;
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=false;           (* reff *)
+       Label46.Caption:='Reff (nm):';
+       EditReff.visible:=false;
+       CheckBoxReff.Visible:=false;
+       CheckBoxTwin.visible:=false;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=false;
+       CheckBoxTwinFit.Visible:=false;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=true;       (* hkl-max *)
+       Edithklmax.Visible:=true;
+       Label109.Visible:=false;          (* qz *)
+       Editqz.visible:=false;
+       Label1.visible:=true;            (* Peak shape *)
+       ComboBoxPeak.Visible:=true;
+       ComboBoxPeakChange(Sender);
+       ComboBoxParticle.ItemIndex:=3;
+       ComboBoxParticleChange(Sender);
+       ButtonIm3mVesClick(Sender);
+    end;
+*/
+/*
+    (* 2D-hex lattice *)
+    if ComboBoxLattice.ItemIndex=14 then begin
+       lat:=9;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=true;           (* lattice constant a *)
+       Label22.caption:='a (nm):';
+       Editlattice.Visible:=true;
+       CheckBoxCell.visible:=true;
+       Label50.visible:=false;           (* lattice constant b *)
+       Label50.Caption:='b (nm):';
+       Editlatticeb.Visible:=false;
+       CheckBoxlatb.Visible:=false;
+       Label52.visible:=false;           (* lattice constant c *)
+       Label52.Caption:='c (nm):';
+       Editlatticec.Visible:=false;
+       CheckBoxlatc.Visible:=false;
+       Label2.Visible:=true;            (* domain size *)
+       Label2.caption:='domain (nm):';
+       EditDomainSize.Visible:=true;
+       CheckBoxDomain.Visible:=true;
+       Label60.visible:=false;           (* azimuthal domain *)
+       Label60.Caption:='azi. domain:';
+       EditAzi.Visible:=false;
+       CheckBoxAzi.Visible:=false;
+       Label15.Visible:=true;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=true;
+       CheckBoxDispl.Visible:=true;
+       Label45.Visible:=false;           (* ceff *)
+       Label45.caption:='ceff:';
+       EditCeff.Visible:=false;
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=false;           (* reff *)
+       Label46.Caption:='Reff (nm):';
+       EditReff.visible:=false;
+       CheckBoxReff.Visible:=false;
+       CheckBoxTwin.visible:=false;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=false;
+       CheckBoxTwinFit.Visible:=false;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=true;       (* hkl-max *)
+       Edithklmax.Visible:=true;
+       Label109.Visible:=true;          (* qz *)
+       Editqz.visible:=true;
+       Label1.visible:=true;            (* Peak shape *)
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=false;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=false;
+          CheckBoxAzi.Visible:=false;
+          Label45.Visible:=true;           (* ceff = wavelength *)
+          Label45.caption:='wavel. (nm):';
+          EditCeff.Visible:=true;
+          EditCeff.Text:='0.154';
+          CheckBoxCeff.Visible:=false;
+          Label46.Visible:=true;           (* reff = roughness *)
+          Label46.Caption:='rough (nm):';
+          EditReff.visible:=true;
+          EditReff.Text:='2.0';
+          CheckBoxReff.Visible:=true;
+          CheckBoxTwin.visible:=true;      (* twin = absorbance *)
+          CheckBoxTwin.Caption:='absorb:';
+          CheckBoxTwin.Checked:=false;
+          EditTwRatio.Visible:=true;
+          EditTwRatio.Text:='1e-8';
+          CheckBoxTwinFit.Visible:=true;
+          Label6.visible:=true;            (* astack = alfa incident *)
+          Label6.Caption:='alfai °:';
+          EditAstack.Visible:=true;
+          EditAstack.Text:='0.6';
+          CheckBoxAstack.Visible:=false;
+          Label24.Visible:=true;           (* bastack = alfa critical *)
+          Label24.Caption:='alfac °:';
+          EditBstack.Visible:=true;
+          EditBstack.Text:='0.75';
+          CheckBoxBstack.visible:=false;
+       end;
+       ComboBoxPeak.Visible:=true;
+       ComboBoxPeakChange(Sender);
+    end;
+*/
+/*
+    (* 2D-square lattice *)
+    if ComboBoxLattice.ItemIndex=15 then begin
+       lat:=16;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=true;           (* lattice constant a *)
+       Label22.caption:='a (nm):';
+       Editlattice.Visible:=true;
+       CheckBoxCell.visible:=true;
+       Label50.visible:=false;           (* lattice constant b *)
+       Label50.Caption:='b (nm):';
+       Editlatticeb.Visible:=false;
+       CheckBoxlatb.Visible:=false;
+       Label52.visible:=false;           (* lattice constant c *)
+       Label52.Caption:='c (nm):';
+       Editlatticec.Visible:=false;
+       CheckBoxlatc.Visible:=false;
+       Label2.Visible:=true;            (* domain size *)
+       Label2.caption:='domain (nm):';
+       EditDomainSize.Visible:=true;
+       CheckBoxDomain.Visible:=true;
+       Label15.Visible:=true;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=true;
+       CheckBoxDispl.Visible:=true;
+       Label45.Visible:=false;           (* ceff *)
+       Label45.caption:='ceff:';
+       EditCeff.Visible:=false;
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=false;           (* reff *)
+       Label46.Caption:='Reff (nm):';
+       EditReff.visible:=false;
+       CheckBoxReff.Visible:=false;
+       CheckBoxTwin.visible:=false;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=false;
+       CheckBoxTwinFit.Visible:=false;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=true;       (* hkl-max *)
+       Edithklmax.Visible:=true;
+       Label109.Visible:=true;          (* qz *)
+       Editqz.visible:=true;
+       Label1.visible:=true;            (* Peak shape *)
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=false;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=false;
+          CheckBoxAzi.Visible:=false;
+          Label45.Visible:=true;           (* ceff = wavelength *)
+          Label45.caption:='wavel. (nm):';
+          EditCeff.Visible:=true;
+          EditCeff.Text:='0.154';
+          CheckBoxCeff.Visible:=false;
+          Label46.Visible:=true;           (* reff = roughness *)
+          Label46.Caption:='rough (nm):';
+          EditReff.visible:=true;
+          CheckBoxReff.Visible:=true;
+          EditReff.Text:='2.0';
+          CheckBoxTwin.visible:=true;      (* twin = absorbance *)
+          CheckBoxTwin.Caption:='absorb:';
+          CheckBoxTwin.Checked:=false;
+          EditTwRatio.Visible:=true;
+          EditTwRatio.Text:='1e-8';
+          CheckBoxTwinFit.Visible:=true;
+          Label6.visible:=true;            (* astack = alfa incident *)
+          Label6.Caption:='alfai °:';
+          EditAstack.Visible:=true;
+          EditAstack.Text:='0.6';
+          CheckBoxAstack.Visible:=false;
+          Label24.Visible:=true;           (* bastack = alfa critical *)
+          Label24.Caption:='alfac °:';
+          EditBstack.Visible:=true;
+          EditBstack.Text:='0.75';
+          CheckBoxBstack.visible:=false;
+       end;
+       ComboBoxPeak.Visible:=true;
+       ComboBoxPeakChange(Sender);
+    end;
+*/
+/*
+    (* 1D-lam lattice *)
+    if ComboBoxLattice.ItemIndex=16 then begin
+       lat:=10;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=true;           (* lattice constant a *)
+       Label22.caption:='a (nm):';
+       Editlattice.Visible:=true;
+       CheckBoxCell.visible:=true;
+       Label50.visible:=false;           (* lattice constant b *)
+       Label50.Caption:='b (nm):';
+       Editlatticeb.Visible:=false;
+       CheckBoxlatb.Visible:=false;
+       Label52.visible:=false;           (* lattice constant c *)
+       Label52.Caption:='c (nm):';
+       Editlatticec.Visible:=false;
+       CheckBoxlatc.Visible:=false;
+       Label2.Visible:=true;            (* domain size *)
+       Label2.caption:='domain (nm):';
+       EditDomainSize.Visible:=true;
+       CheckBoxDomain.Visible:=true;
+       Label15.Visible:=true;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=true;
+       CheckBoxDispl.Visible:=true;
+       Label45.Visible:=false;           (* ceff *)
+       Label45.caption:='ceff:';
+       EditCeff.Visible:=false;
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=false;           (* reff *)
+       Label46.Caption:='Reff (nm):';
+       EditReff.visible:=false;
+       CheckBoxReff.Visible:=false;
+       CheckBoxTwin.visible:=false;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=false;
+       CheckBoxTwinFit.Visible:=false;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=true;       (* hkl-max *)
+       Edithklmax.Visible:=true;
+       Label109.Visible:=true;          (* qz *)
+       Editqz.visible:=true;
+       Label1.visible:=true;            (* Peak shape *)
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=false;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=false;
+          CheckBoxAzi.Visible:=false;
+          Label45.Visible:=true;           (* ceff = wavelength *)
+          Label45.caption:='wavel. (nm):';
+          EditCeff.Visible:=true;
+          EditCeff.Text:='0.154';
+          CheckBoxCeff.Visible:=false;
+          Label46.Visible:=true;           (* reff = roughness *)
+          Label46.Caption:='rough (nm):';
+          EditReff.visible:=true;
+          EditReff.Text:='2.0';
+          CheckBoxReff.Visible:=true;
+          CheckBoxTwin.visible:=true;      (* twin = absorbance *)
+          CheckBoxTwin.Caption:='absorb:';
+          CheckBoxTwin.Checked:=false;
+          EditTwRatio.Visible:=true;
+          EditTwRatio.Text:='1e-8';
+          CheckBoxTwinFit.Visible:=true;
+          Label6.visible:=true;            (* astack = alfa incident *)
+          Label6.Caption:='alfai °:';
+          EditAstack.Visible:=true;
+          EditAstack.Text:='0.6';
+          CheckBoxAstack.Visible:=false;
+          Label24.Visible:=true;           (* bastack = alfa critical *)
+          Label24.Caption:='alfac °:';
+          EditBstack.Visible:=true;
+          EditBstack.Text:='0.75';
+          CheckBoxBstack.visible:=false;
+       end;
+       ComboBoxPeak.Visible:=true;
+       ComboBoxPeakChange(Sender);
+    end;
+*/
+/*
+    (* Havriliak-Negami*)
+    if ComboBoxLattice.ItemIndex=20 then begin
+       lat:=20;
+       GroupBox10.Visible:=true;
+       EditSets.Text:='2';
+       Label22.Visible:=true;
+       Label22.Caption:='G(1):';
+       EditLattice.visible:=true;
+       EditLattice.Text:='3e6';
+       CheckBoxCell.visible:=true;
+       Label50.Visible:=true;
+       Label50.Caption:='tau(1):';
+       EditLatticeb.Visible:=true;
+       EditLatticeb.Text:='4e-7';
+       CheckBoxLatb.Visible:=true;
+       Label52.visible:=true;
+       Label52.caption:='alpha1:';
+       EditLatticec.Visible:=true;
+       EditLatticec.Text:='0.8';
+       CheckBoxLatc.Visible:=true;
+       Label2.visible:=true;
+       Label2.caption:='gamma1:';
+       EditDomainSize.Visible:=true;
+       EditDomainSize.Text:='0.6';
+       CheckBoxDomain.Visible:=true;
+       Label60.visible:=true;
+       Label60.Caption:='G(2):';
+       EditAzi.Visible:=true;
+       EditAzi.Text:='1e8';
+       CheckBoxAzi.Visible:=true;
+       Label15.visible:=true;
+       Label15.Caption:='tau(2):';
+       EditDebyeWaller.Visible:=true;
+       EditDebyeWaller.Text:='1e-17';
+       CheckBoxDispl.visible:=true;
+       Label45.Visible:=true;
+       Label45.Caption:='alpha2:';
+       EditCeff.Visible:=true;
+       EditCeff.Text:='0.95';
+       CheckBoxCeff.Visible:=true;
+       Label46.visible:=true;
+       Label46.caption:='gamma2:';
+       EditReff.Visible:=true;
+       EditReff.Text:='1.0';
+       CheckBoxReff.Visible:=true;
+       CheckBoxTwin.Visible:=false;
+       ComboBoxPeak.Visible:=false;
+       CheckBoxHaNe.visible:=true;
+       CheckBoxdistr.Visible:=true;
+       LabelRc.Visible:=true;
+       LabelRc.Caption:='G(3):';
+       EditRadius.visible:=true;
+       EditRadius.Text:='5e5';
+       CheckBoxRc.visible:=true;
+       Label4.Visible:=true;
+       Label4.Caption:='tau(3):';
+       EditStdDev.Visible:=true;
+       EditStdDev.Text:='9';
+       CheckBoxSigma.Visible:=true;
+       Label3.visible:=true;
+       Label3.caption:='alpha3:';
+       EditLength.Visible:=true;
+       EditLength.Text:='0.2';
+       CheckBoxLen.Visible:=true;
+       Label72.visible:=true;
+       Label72.caption:='gamma3:';
+       EditSigmal.Visible:=true;
+       EditSigmal.Text:='0.04';
+       CheckBoxSigmal.Visible:=true;
+       ComboBoxInterior.Visible:=false;
+    end;
+*/
+/*
+    (* DLS Schulz-Zimm Distribution *)
+    if ComboBoxLattice.ItemIndex=21 then begin
+       lat:=21;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=true;           (* calculated relaxation time tau *)
+       Label22.caption:='tau (ms):';
+       Editlattice.Visible:=true;
+       Editlattice.Text:='0.1';
+       CheckBoxCell.visible:=false;
+       Label50.visible:=true;           (* calculated scattering vector q *)
+       Label50.Caption:='q (nm-1):';
+       Editlatticeb.Visible:=true;
+       Editlatticeb.Text:='0.1';
+       CheckBoxlatb.Visible:=false;
+       Label52.visible:=true;           (* lattice constant c *)
+       Label52.Caption:='D (m^2/s):';
+       Editlatticec.Visible:=true;
+       CheckBoxlatc.Visible:=false;
+       Label2.Visible:=true;            (* temperature *)
+       Label2.caption:='Temp. (K):';
+       EditDomainSize.Visible:=true;
+       EditDomainSize.Text:=StringGrid5.Cells[0,0];
+       CheckBoxDomain.Visible:=false;
+       Label60.visible:=true;           (* viscosity *)
+       Label60.Caption:='Visc. (mPas):';
+       EditAzi.Visible:=true;
+       EditAzi.Text:=StringGrid5.Cells[0,1];
+       CheckBoxAzi.Visible:=false;
+       Label15.Visible:=true;           (* refr. index *)
+       Label15.caption:='refr. index:';
+       EditDebyeWaller.Visible:=true;
+       EditDebyeWaller.Text:=StringGrid5.Cells[0,2];
+       CheckBoxDispl.Visible:=false;
+       Label45.Visible:=true;           (* wavelength *)
+       Label45.caption:='lambda (nm):';
+       EditCeff.Visible:=true;
+       EditCeff.Text:=StringGrid5.Cells[0,3];
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=true;           (* angle *)
+       Label46.Caption:='angle (°):';
+       EditReff.visible:=true;
+       EditReff.text:=StringGrid5.Cells[0,4];
+       CheckBoxReff.Visible:=false;
+       CheckBoxTwin.visible:=true;      (* solid/hollow *)
+       CheckBoxTwin.caption:='solid';
+       CheckBoxTwin.Checked:=true;
+       EditTwRatio.Visible:=false;
+       CheckBoxTwinFit.Visible:=false;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=false;       (* hkl-max *)
+       Edithklmax.Visible:=false;
+       Label109.Visible:=false;          (* qz *)
+       Editqz.visible:=false;
+       Label1.visible:=false;            (* Peak shape *)
+       ComboBoxPeak.Visible:=false;
+       ComboBoxParticle.ItemIndex:=0;
+       ComboBoxParticleChange(Sender);
+       EditXmin.Text:='1e-3';
+       EditXmax.Text:='100';
+       EditI0.Text:='1.0';
+
+       //RadioButtonXlog.Checked:=true;
+       //RadioButtonYlin.Checked:=true;
+    end;
+*/
+/*
+    (* Williams-Watts-Funktion *)
+    if ComboBoxLattice.ItemIndex=22 then begin
+       lat:=22;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=true;           (* relaxation time 1 *)
+       Label22.caption:='tau1 (s):';
+       EditLattice.Visible:=true;
+       EditLattice.Text:='1.0';
+       CheckBoxCell.visible:=true;
+       Label50.visible:=true;           (* beta-Parameter 1*)
+       Label50.Caption:='beta1:';
+       Editlatticeb.Visible:=true;
+       Editlatticeb.Text:='0.95';
+       CheckBoxlatb.Visible:=true;
+       Label52.visible:=true;           (* mean relaxation time 1*)
+       Label52.Caption:='beta3:';
+       Editlatticec.Visible:=true;
+       Editlatticec.Text:='1.0';
+       CheckBoxlatc.Visible:=true;
+       Label2.Visible:=true;            (* temperature *)
+       Label2.caption:='Temp. (°C):';
+       EditDomainSize.Visible:=true;
+       EditDomainSize.Text:='25.0';
+       CheckBoxDomain.Visible:=false;
+       Label60.visible:=true;           (* viscosity *)
+       Label60.Caption:='Visc. (mPas):';
+       EditAzi.Visible:=true;
+       EditAzi.Text:='1.006';
+       CheckBoxAzi.Visible:=false;
+       Label15.Visible:=true;           (* refr. index *)
+       Label15.caption:='refr. index:';
+       EditDebyeWaller.Visible:=true;
+       EditDebyeWaller.Text:='1.33';
+       CheckBoxDispl.Visible:=false;
+       Label45.Visible:=true;           (* wavelength *)
+       Label45.caption:='lambda (nm):';
+       EditCeff.Visible:=true;
+       EditCeff.Text:='632.8';
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=true;           (* angle *)
+       Label46.Caption:='angle (°):';
+       EditReff.visible:=true;
+       EditReff.text:='90';
+       CheckBoxReff.Visible:=false;
+       CheckBoxTwin.visible:=false;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=false;
+       CheckBoxTwinFit.Visible:=false;
+       Label6.visible:=true;            (* relaxation time 2 *)
+       Label6.Caption:='tau2 (s):';
+       EditAstack.Visible:=true;
+       EditAstack.Text:='1.0';
+       CheckBoxAstack.Visible:=true;
+       Label24.Visible:=true;           (* beta-Parameter 2*)
+       Label24.Caption:='beta2:';
+       EditBstack.Visible:=true;
+       EditBstack.Text:='0.95';
+       CheckBoxBstack.visible:=true;
+       Labelhklmax.Visible:=true;       (* dimension *)
+       Labelhklmax.Caption:='dim';
+       Edithklmax.Visible:=true;
+       Edithklmax.Text:='3';
+       Label109.Visible:=true;          (* mean relaxation time 2 *)
+       Label109.Caption:='tau_quer2 (ms):';
+       Editqz.visible:=true;
+       Label67.visible:=true;            (* Rel. amplitude *)
+       Label67.Caption:='tau*:';
+       EditPeakPar.Visible:=true;
+       EditPeakPar.Text:='1.0';
+       CheckBoxShfun.Visible:=true;
+       Label1.visible:=false;
+       LabelRc.Caption:='a_dec';
+       EditRadius.Text:='0.8';
+       Label4.Caption:='tau3 (s):';
+       EditStdDev.Text:='1.0';
+
+       ComboBoxPeak.Visible:=true;
+       ComboBoxParticle.ItemIndex:=0;
+       ComboBoxParticleChange(Sender);
+       EditXmin.Text:='1e-3';
+       EditXmax.Text:='100';
+       //RadioButtonXlog.Checked:=true;
+       //RadioButtonYlin.Checked:=true;
+    end;
+*/
+/*
+    (* Hayter-Penfold RMSA *)
+    if ComboBoxLattice.ItemIndex=23 then begin
+       lat:=24;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=false;           (* lattice constant a *)
+       Label22.caption:='a (nm):';
+       Editlattice.Visible:=false;
+       CheckBoxCell.visible:=false;
+       Label50.visible:=true;           (* temperature *)
+       Label50.Caption:='T (°C):';
+       Editlatticeb.Visible:=true;
+       Editlatticeb.Text:='25';
+       CheckBoxlatb.Visible:=false;
+       Label52.visible:=true;           (* salt concentration [m] *)
+       Label52.Caption:='csalt (m):';
+       Editlatticec.Visible:=true;
+       Editlatticec.Text:='0.1';
+       CheckBoxlatc.Visible:=false;
+       Label2.Visible:=true;            (* dielectric constant *)
+       Label2.caption:='dielec.const.:';
+       EditDomainSize.Visible:=true;
+       EditDomainSize.Text:='78';
+       CheckBoxDomain.Visible:=false;
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=true;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=true;
+          CheckBoxAzi.Visible:=true;
+       end;
+       Label15.Visible:=false;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=false;
+       CheckBoxDispl.Visible:=false;
+       Label45.Visible:=true;           (* ceff *)
+       Label45.caption:='phi:';
+       EditCeff.Visible:=true;
+       EditCeff.Text:='0.05';
+       CheckBoxCeff.Visible:=true;
+       Label46.Visible:=true;           (* charge *)
+       Label46.Caption:='charge:';
+       EditReff.visible:=true;
+       EditReff.Text:='20';
+       CheckBoxReff.Visible:=true;
+       CheckBoxTwin.visible:=false;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=false;
+       CheckBoxTwinFit.Visible:=false;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=false;       (* hkl-max *)
+       Edithklmax.Visible:=false;
+       Label109.Visible:=false;          (* qz *)
+       Editqz.visible:=false;
+       Label1.visible:=false;            (* Peak shape *)
+       ComboBoxPeak.Visible:=false;
+       ComboBoxParticle.ItemIndex:=0;
+       ComboBoxParticleChange(Sender);
+    end;
+*/
+/*
+    (* Teubner-Strey function *)
+    if ComboBoxLattice.ItemIndex=24 then begin
+       lat:=25;
+       GroupBox10.Visible:=false;
+       Label22.Visible:=true;           (* lattice constant a *)
+       Label22.caption:='a (nm):';
+       Editlattice.Visible:=true;
+       CheckBoxCell.visible:=true;
+       Label50.visible:=false;           (* lattice constant b *)
+       Label50.Caption:='b (nm):';
+       Editlatticeb.Visible:=false;
+       CheckBoxlatb.Visible:=false;
+       Label52.visible:=false;           (* lattice constant c *)
+       Label52.Caption:='c (nm):';
+       Editlatticec.Visible:=false;
+       CheckBoxlatc.Visible:=false;
+       Label2.Visible:=true;            (* domain size *)
+       Label2.caption:='domain (nm):';
+       EditDomainSize.Visible:=true;
+       CheckBoxDomain.Visible:=true;
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=true;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=true;
+          CheckBoxAzi.Visible:=true;
+       end;
+       Label15.Visible:=false;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=false;
+       CheckBoxDispl.Visible:=false;
+       Label45.Visible:=false;           (* ceff *)
+       Label45.caption:='ceff:';
+       EditCeff.Visible:=false;
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=false;           (* reff *)
+       Label46.Caption:='Reff (nm):';
+       EditReff.visible:=false;
+       CheckBoxReff.Visible:=false;
+       CheckBoxTwin.visible:=false;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=false;
+       CheckBoxTwinFit.Visible:=false;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=false;       (* hkl-max *)
+       Edithklmax.Visible:=false;
+       Label109.Visible:=false;          (* qz *)
+       Editqz.visible:=false;
+       Label1.visible:=false;            (* Peak shape *)
+       ComboBoxPeak.Visible:=false;
+       ComboBoxPeakChange(Sender);
+    end;
+*/
+/*
+    (* Leibler function *)
+    if ComboBoxLattice.ItemIndex=25 then begin
+       lat:=26;
+       GroupBox10.Visible:=false;
+       Label22.Visible:=true;           (* degree of polymerization N*)
+       Label22.caption:='N:';
+       Editlattice.Visible:=true;
+       Editlattice.Text:='50';
+       CheckBoxCell.visible:=true;
+       Label50.visible:=true;           (* block molar fraction *)
+       Label50.Caption:='f:';
+       Editlatticeb.Visible:=true;
+       Editlatticeb.Text:='0.5';
+       CheckBoxlatb.Visible:=true;
+       Label52.visible:=true;           (* chi-parameter *)
+       Label52.Caption:='chi:';
+       Editlatticec.Visible:=true;
+       Editlatticec.Text:='0.1';
+       CheckBoxlatc.Visible:=true;
+       Label2.Visible:=true;            (* radius of gyration *)
+       Label2.caption:='Rg (nm):';
+       EditDomainSize.Visible:=true;
+       EditDomainSize.Text:='10';
+       CheckBoxDomain.Visible:=true;
+       if CheckBoxtwo.checked=true then begin
+          Label60.visible:=true;           (* azimuthal domain *)
+          Label60.Caption:='azi. domain:';
+          EditAzi.Visible:=true;
+          CheckBoxAzi.Visible:=true;
+       end;
+       Label15.Visible:=false;           (* displacement *)
+       Label15.caption:='displ. (nm):';
+       EditDebyeWaller.Visible:=false;
+       CheckBoxDispl.Visible:=false;
+       Label45.Visible:=false;           (* ceff *)
+       Label45.caption:='ceff:';
+       EditCeff.Visible:=false;
+       CheckBoxCeff.Visible:=false;
+       Label46.Visible:=false;           (* reff *)
+       Label46.Caption:='Reff (nm):';
+       EditReff.visible:=false;
+       CheckBoxReff.Visible:=false;
+       CheckBoxTwin.visible:=false;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=false;
+       CheckBoxTwinFit.Visible:=false;
+       Label6.visible:=false;            (* astack *)
+       Label6.Caption:='astack';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=false;       (* hkl-max *)
+       Edithklmax.Visible:=false;
+       Label109.Visible:=false;          (* qz *)
+       Editqz.visible:=false;
+       Label1.visible:=false;            (* Peak shape *)
+       ComboBoxPeak.Visible:=false;
+       ComboBoxPeakChange(Sender);
+    end;
+*/
+/*
+    (* Plasmon spectrum *)
+    if ComboBoxLattice.ItemIndex=26 then begin
+       lat:=27;
+       GroupBox10.Visible:=true;
+       Label22.Visible:=true;           (* amplitude peak 1 *)
+       Label22.caption:='a1:';
+       Editlattice.Visible:=true;
+       Editlattice.Text:='180';
+       CheckBoxCell.visible:=true;
+       Label50.visible:=true;           (* peak position 1 *)
+       Label50.Caption:='v1:';
+       Editlatticeb.Visible:=true;
+       Editlatticeb.Text:='350';
+       CheckBoxlatb.Visible:=true;
+       Label52.visible:=true;           (* peak width 1 *)
+       Label52.Caption:='s1:';
+       Editlatticec.Visible:=true;
+       Editlatticec.Text:='115';
+       CheckBoxlatc.Visible:=true;
+       Label2.Visible:=true;            (* amplitude peak 2 *)
+       Label2.caption:='a2:';
+       EditDomainSize.Visible:=true;
+       EditDomainSize.Text:='94';
+       CheckBoxDomain.Visible:=true;
+       Label60.visible:=true;           (* peak position 2 *)
+       Label60.Caption:='v2:';
+       EditAzi.Visible:=true;
+       EditAzi.Text:='550';
+       CheckBoxAzi.Visible:=true;
+       Label15.Visible:=true;           (* peak width 2 *)
+       Label15.caption:='s2:';
+       EditDebyeWaller.Visible:=true;
+       EditDebyeWaller.Text:='87';
+       CheckBoxDispl.Visible:=true;
+       Label45.Visible:=true;           (* amplitude interband *)
+       Label45.caption:='a3:';
+       EditCeff.Visible:=true;
+       EditCeff.Text:='0.4';
+       CheckBoxCeff.Visible:=true;
+       Label46.Visible:=true;           (* exponent 3 *)
+       Label46.Caption:='n:';
+       EditReff.visible:=true;
+       EditReff.Text:='0.74';
+       CheckBoxReff.Visible:=true;
+       CheckBoxTwin.visible:=true;      (* twin *)
+       CheckBoxTwin.Checked:=false;
+       EditTwRatio.Visible:=false;
+       CheckBoxTwinFit.Visible:=false;
+       Label6.visible:=false;            (* peak width 3 *)
+       Label6.Caption:='lam0';
+       EditAstack.Visible:=false;
+       CheckBoxAstack.Visible:=false;
+       Label24.Visible:=false;           (* bastack *)
+       Label24.Caption:='bstack';
+       EditBstack.Visible:=false;
+       CheckBoxBstack.visible:=false;
+       Labelhklmax.Visible:=false;       (* hkl-max *)
+       Edithklmax.Visible:=false;
+       Label109.Visible:=false;          (* qz *)
+       Editqz.visible:=false;
+       Label1.visible:=false;            (* Peak shape *)
+       ComboBoxPeak.Visible:=false;
+       ComboBoxPeakChange(Sender);
+       EditI0.Text:='1.0';
+       RadioButtonYlin.Checked:=true;
+       CheckBoxAutoScale.Checked:=false;
+       EditXmin.Text:='200';
+       EditXmax.Text:='1000';
+       EditYmin.Text:='0';
+       EditYmax.Text:='2';
+       LabelRc.Visible:=true;           (* band gap *)
+       LabelRc.Caption:='lgap:';
+       EditRadius.visible:=true;
+       EditRadius.Text:='586';
+       CheckBoxRc.Visible:=true;
+       Label4.Visible:=false;
+       EditStdDev.Visible:=false;
+       CheckBoxSigma.Visible:=false;
+    end;
+*/
+    } // switch index
+
+    //on_cbsComboBoxPeak_currentIndexChanged( ui->cbsComboBoxPeak->currentIndex() );
+    //on_cbsComboBoxParticle_currentIndexChanged( ui->cbsComboBoxParticle->currentIndex() );
+
+    qDebug() << index << lat;
+
+    if ( !updFlag && sender() != nullptr )
+    {
+        DT( qDebug() << "... cbsLType1d::adjustSize ..." );
+        adjustSize();   // cbs LType1d
+    }
+    bIgnoreRecalc = updFlag;
+    if ( !updFlag && ui->togAutoRecalc->isChecked() ) automaticRecalcDoit();
+#endif
+} /* on_cbsLType1d_currentIndexChanged() */
+
+
 
 void SC_MainGUI::on_cbsComboBoxParticle_currentIndexChanged(int index)
 {
@@ -8825,12 +10895,12 @@ void SC_MainGUI::on_cbsComboBoxPeak_currentIndexChanged(int index)
     bIgnoreRecalc = true;
     switch ( index )
     {
-    case 0:     /*  Gaussian  */  //Z=37787
+    case 0:    /*  Lorentzian  */  //Z=37793
         myGuiParam::setEnabled( "EditPeakPar", false );     /*  peak par  */  //Z=37788
         myGuiParam::setEnabled( "SigX", false );
         myGuiParam::setEnabled( ui->grpAniso, false );  //Z=37790
         break;
-    case 1:    /*  Lorentzian  */  //Z=37793
+    case 1:     /*  Gaussian  */  //Z=37787
         myGuiParam::setEnabled( "EditPeakPar", false );     /*  peak par  */  //Z=37794
         myGuiParam::setEnabled( "SigX", false );
         myGuiParam::setEnabled( ui->grpAniso, false );  //Z=37796
@@ -8914,13 +10984,15 @@ void SC_MainGUI::on_actionHide_unused_values_triggered(bool checked)
 void SC_MainGUI::on_butCopyHdrdata2Params_clicked()
 {
     DT( qDebug() << "on_butCopyHdrdata2Params_clicked()" );
-    int c = ui->tblHeaderData->item(tblLattNbCols,0)->text().toInt();
-    int r = ui->tblHeaderData->item(tblLattNbRows,0)->text().toInt();
+    int c = ui->inpDFilePixCols->value();
+    int r = ui->inpDFilePixRows->value();
     int gp = qMax(r,c) / 2;
     calcGui->updateParamValue( "GridPoints", gp, SETCOLMARK_IGNORED );
+    calcGui->updateParamValue( "EditPixelNoX", c, SETCOLMARK_IGNORED );
+    calcGui->updateParamValue( "EditPixelNoY", r, SETCOLMARK_IGNORED );
 
-    double bsx = ui->tblHeaderData->item(tblLattBeamX,  0)->text().toDouble();
-    double bsy = ui->tblHeaderData->item(tblLattBeamY,  0)->text().toDouble();
+    double bsx = ui->inpDFileBSX->value();
+    double bsy = ui->inpDFileBSY->value();
     if ( bsx > 0 || bsy > 0 )
     {
         bsx = bsx - gp;
@@ -8928,11 +11000,10 @@ void SC_MainGUI::on_butCopyHdrdata2Params_clicked()
     }
     calcGui->updateParamValue( "BeamPosX",       bsx, SETCOLMARK_IGNORED );
     calcGui->updateParamValue( "BeamPosY",       bsy, SETCOLMARK_IGNORED );
-    calcGui->updateParamValue( "EditWavelength", ui->tblHeaderData->item(tblLattWaveLen,0)->text().toDouble(), SETCOLMARK_IGNORED );
-    calcGui->updateParamValue( "EditDet",        ui->tblHeaderData->item(tblLattSaDist, 0)->text().toDouble(), SETCOLMARK_IGNORED );
-    calcGui->updateParamValue( "EditPixelX",     ui->tblHeaderData->item(tblLattPixelX, 0)->text().toDouble(), SETCOLMARK_IGNORED );  //  /1000.
-    calcGui->updateParamValue( "EditPixelY",     ui->tblHeaderData->item(tblLattPixelY, 0)->text().toDouble(), SETCOLMARK_IGNORED );  //  /1000.
-    // In tblHeaderData steht die Pixelsize in [mm], im Eingabefeld in [m] ...
+    calcGui->updateParamValue( "EditWavelength", ui->inpDFileWavelen->value(), SETCOLMARK_IGNORED );
+    calcGui->updateParamValue( "EditDet",        ui->inpDFileDetDist->value(), SETCOLMARK_IGNORED );
+    calcGui->updateParamValue( "EditPixelX",     ui->inpDFilePixWidth->value(), SETCOLMARK_IGNORED );
+    calcGui->updateParamValue( "EditPixelY",     ui->inpDFilePixHeight->value(), SETCOLMARK_IGNORED );
 }
 
 
@@ -8992,10 +11063,23 @@ void SC_MainGUI::on_togUseAdaptiveStep_toggled(bool checked)
     myGuiParam::updateAdaptiveSteps(checked);
 }
 
-void SC_MainGUI::on_tab1D2D_currentChanged(int index)
+
+void SC_MainGUI::my_butSet1D_clicked()
 {
-    Q_UNUSED(index)
+    myGuiParam::setParamsDimUsage( paramHelper::only1d );
     ui->radNewImageCal->setChecked(true);
+    ui->tabAI->setEnabled(false);
+    ui->tabChatBot->setEnabled(false);
+    adjustSize();
+}
+
+void SC_MainGUI::my_butSet2D_clicked()
+{
+    myGuiParam::setParamsDimUsage( paramHelper::only2d );
+    ui->radNewImageCal->setChecked(true);
+    ui->tabAI->setEnabled(true);
+    ui->tabChatBot->setEnabled(true);
+    adjustSize();
 }
 
 
@@ -9006,6 +11090,7 @@ void SC_MainGUI::on_actionSave_current_values_as_text_triggered()
     myGuiParam::debugGuiParams(true,fn);
     qDebug() << fn << "Done.";
 }
+
 
 bool SC_MainGUI::localCheckToolTip( QWidget *w, bool &used )
 {
@@ -9039,6 +11124,13 @@ void SC_MainGUI::on_actionShow_Parameter_w_o_Tooltip_triggered()
     if ( used ) showColorMarker( SETCOLMARK_NOTOOLTIP );
 }
 
+void SC_MainGUI::on_actionShow_longer_Tooltips_from_Chatbot_toggled(bool arg1)
+{
+    myGuiParam::setTooltipFlag(arg1);
+    myGuiParam::updateLabelTooltips();
+}
+
+
 
 /**
  * @brief SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered
@@ -9048,7 +11140,7 @@ void SC_MainGUI::on_actionShow_Parameter_w_o_Tooltip_triggered()
  */
 void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
 {
-    QStringList meta = calcGui->getCalcPtrWrapper()->guiLayoutNeu();
+    QStringList meta = calcGui->getCalcPtrWrapper()->guiLayoutNeu(); // get CBS lists
     QStringList nameLType, nameCBParticle, nameOrdis, nameCBInterior, nameCBPeak;
     foreach ( QString mm, meta )
     {
@@ -9079,7 +11171,7 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
     QList<int> idsCBParticle = dlg->getValueIDs( "Particle" );
     QList<int> idsOrdis      = dlg->getValueIDs( "Ordis" );
     QList<int> idsCBInterior = dlg->getValueIDs( "Interior" );
-    QList<int> idsCBPeak     = dlg->getValueIDs( "Peak" );
+    QList<int> idsCBPeak     = dlg->getValueIDs( "Peak", 1 );   // shp geht von 1 bis 8
     qDebug() << "LType" << idsLType;
     qDebug() << "Part " << idsCBParticle;
     qDebug() << "Ordis" << idsOrdis;
@@ -9096,13 +11188,19 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
         ui->togLimitRuntime->setChecked(false);
 
     bool genImg   = dlg->getCalcDirect();
-    bool doAll    = dlg->getCalcAll();    // Calculate all selected possibilities instead only the presets from the LType
+    bool ignCbs   = dlg->getCalcAll();    // Calculate all selected possibilities instead only the presets from the LType
     bool checkNan = dlg->getCalcNaNCheck();
     bool genJson  = dlg->getCalcGenJson();
     QList<int> usedLType, usedCBParticle, usedOrdis, usedCBInterior, usedCBPeak;
 
+    bool savMenuValChk = ui->actionActivate_parameter_value_check->isChecked();
+    ui->actionActivate_parameter_value_check->setChecked( !ignCbs );
+
     QElapsedTimer alleZeit;
     alleZeit.start();
+
+    ui->lblGenCbsInfo->show();
+    ui->lblGenCbsInfo->setText( " \nCalculate all combinations of CBS:\n Remove old files ...\n " );
 
     ui->statusbar->showMessage( "Delete old files in output directory ..." );
     qApp->processEvents();
@@ -9111,7 +11209,8 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
     bool updFlag = bIgnoreRecalc;
     bIgnoreRecalc = true;
 
-    timingTestsRunning = true; // Damit bei der Berechnung die Fehlermeldung keine MessageBox erzeugt
+    timingTestsRunning = true;
+    generateCbsCombinations = true;  // Damit bei der Berechnung die Fehlermeldung nicht abbricht
 
     // Leeren des Zielverzeichnisses
     localRemoveDirectory( outpath );
@@ -9140,7 +11239,7 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
         fCombLog->write(qPrintable("  CBInterior:\n    "+line.join("\n    ")+"\n"));
         line.clear();
         for ( int i=0; i<idsCBPeak.size(); i++ )
-            line << QString("%1{%2}").arg(nameCBPeak.at(idsCBPeak.at(i))).arg(idsCBPeak.at(i));
+            line << QString("%1{%2}").arg(nameCBPeak.at(idsCBPeak.at(i)-1)).arg(idsCBPeak.at(i));
         fCombLog->write(qPrintable("  CBPeak:\n    "+line.join("\n    ")+"\n"));
         int grid = ui->intGridPoints->value();
         if ( ui->togExpandImage->isChecked() )
@@ -9163,7 +11262,7 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
             fCombLog->write(qPrintable(QString("Runtime limited to %1 sec per image.\n").arg(ui->inpLimitRuntime->value())));
         else
             fCombLog->write("Runtime is unlimited per image.\n");
-        if ( doAll )
+        if ( ignCbs )
             fCombLog->write("Calculate all selected possibilities instead only the presets from the LType\n");
         else
             fCombLog->write("Calculate only the presets from the LType\n");
@@ -9176,7 +11275,7 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
         else
             fCombLog->write("Generate no image if only NaN values are calculated.\n");
 #ifndef ChatbotDisabled
-        if ( checkNan )
+        if ( genJson )
             fCombLog->write("Generate ChatBot-Trainingfiles too.\n");
         else
             fCombLog->write("No ChatBot-Trainingfile generated.\n");
@@ -9191,9 +11290,9 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
     }
 
     if ( genImg )
-        ui->statusbar->showMessage( "Generate files and images ..." );
+        ui->lblGenCbsInfo->setText( " \nCalculate all combinations of CBS:\n Generate files and images ...\n " );
     else
-        ui->statusbar->showMessage( "Generate files without generating images ... (GUI freezed)" );
+        ui->lblGenCbsInfo->setText( " \nCalculate all combinations of CBS:\n Generate files without generating images ... (GUI freezed)\n " );
     qApp->processEvents();
     int cntImg = 0;
     int cntIni = 0;
@@ -9222,17 +11321,17 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
         case 10: cbpeakEna=true;  cbpartFixed=3; break;
         case 11: cbpeakEna=true;  cbpartFixed=3; break;
         case 12: cbpeakEna=false; cbpartFixed=0; break;
-        case 13: cbpeakEna=true;  cbpartFixed=0; cbpeakFixed=7; break;
+        case 13: cbpeakEna=true;  cbpartFixed=0; cbpeakFixed=7+1; break;
         case 14: cbpeakEna=true;  cbpartFixed=0; break;
         case 15: cbpeakEna=true;  cbpartFixed=0; break;
         case 16: cbpeakEna=true;  cbpartFixed=2; break;
         case 18: cbpeakEna=true;  cbpartFixed=0; break;
-        case 19: cbpeakEna=true;  cbpartFixed=0; cbpeakFixed=7; break;
+        case 19: cbpeakEna=true;  cbpartFixed=0; cbpeakFixed=7+1; break;
         } // switch lt
 
         for ( int pa=0; pa<idsCBParticle.size(); pa++ )
         {
-            if ( !doAll && cbpartFixed != -1 && idsCBParticle.at(pa) != cbpartFixed ) continue;
+            if ( !ignCbs && cbpartFixed != -1 && idsCBParticle.at(pa) != cbpartFixed ) continue;
 
             calcGui->updateParamValue( "ComboBoxParticle", idsCBParticle.at(pa), SETCOLMARK_IGNORED );
             on_cbsComboBoxParticle_currentIndexChanged(idsCBParticle.at(pa));
@@ -9262,7 +11361,7 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
                 //qDebug() << "SET Ordis" << nameOrdis.at(idsOrdis.at(o));
                 if ( !usedOrdis.contains(idsOrdis.at(o)) ) usedOrdis << idsOrdis.at(o);
 
-                if ( doAll || cbintEna )
+                if ( ignCbs || cbintEna )
                 {
                     for ( int i=0; i<idsCBInterior.size(); i++ )
                     {
@@ -9271,24 +11370,25 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
                         //qDebug() << "SET ComboBoxInterior" << nameCBInterior.at(idsCBInterior.at(i));
                         if ( !usedCBInterior.contains(idsCBInterior.at(i)) ) usedCBInterior << idsCBInterior.at(i);
 
-                        if ( doAll || cbpeakEna )
+                        if ( ignCbs || cbpeakEna )
                         {
                             for ( int pe=0; pe<idsCBPeak.size(); pe++ )
                             {
-                                if ( !doAll && cbpeakFixed != -1 && idsCBPeak.at(pe) != cbpeakFixed ) continue;
-                                calcGui->updateParamValue( "ComboBoxPeak", idsCBPeak.at(pe), SETCOLMARK_IGNORED );
-                                on_cbsComboBoxPeak_currentIndexChanged(idsCBPeak.at(pe));
+                                if ( !ignCbs && cbpeakFixed != -1 && idsCBPeak.at(pe) != cbpeakFixed ) continue;
+                                // Der Index der CBS ist um 1 geringer als der Zahlenwert der Variable (shp)
+                                calcGui->updateParamValue( "ComboBoxPeak", idsCBPeak.at(pe)-1, SETCOLMARK_IGNORED );
+                                on_cbsComboBoxPeak_currentIndexChanged(idsCBPeak.at(pe)-1);
                                 //qDebug() << "SET ComboBoxPeak" << nameCBPeak.at(idsCBPeak.at(pe));
                                 if ( !usedCBPeak.contains(idsCBPeak.at(pe)) ) usedCBPeak << idsCBPeak.at(pe);
 
-                                cntIni++; if ( genIniFile_CombinationOfCBs(fCombLog,outpath,genImg,checkNan,genJson) ) cntImg++;
+                                cntIni++; if ( genIniFile_CombinationOfCBs(fCombLog,outpath,genImg,checkNan,genJson,ignCbs) ) cntImg++;
                                 if ( _bAbbruch ) break; // Abbruch vom User
                             } // for pe
                             if ( _bAbbruch ) break; // Abbruch vom User
                         }
                         else
                         {
-                            cntIni++; if ( genIniFile_CombinationOfCBs(fCombLog,outpath,genImg,checkNan,genJson) ) cntImg++;
+                            cntIni++; if ( genIniFile_CombinationOfCBs(fCombLog,outpath,genImg,checkNan,genJson,ignCbs) ) cntImg++;
                             if ( _bAbbruch ) break; // Abbruch vom User
                         }
                     } // for i
@@ -9300,18 +11400,19 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
                         for ( int pe=0; pe<idsCBPeak.size(); pe++ )
                         {
                             if ( cbpeakFixed != -1 && idsCBPeak.at(pe) != cbpeakFixed ) continue;
-                            calcGui->updateParamValue( "ComboBoxPeak", idsCBPeak.at(pe), SETCOLMARK_IGNORED );
-                            on_cbsComboBoxPeak_currentIndexChanged(idsCBPeak.at(pe));
+                            // Der Index der CBS ist um 1 geringer als der Zahlenwert der Variable (shp)
+                            calcGui->updateParamValue( "ComboBoxPeak", idsCBPeak.at(pe)-1, SETCOLMARK_IGNORED );
+                            on_cbsComboBoxPeak_currentIndexChanged(idsCBPeak.at(pe)-1);
                             //qDebug() << "SET ComboBoxPeak" << nameCBPeak.at(idsCBPeak.at(pe));
                             if ( !usedCBPeak.contains(idsCBPeak.at(pe)) ) usedCBPeak << idsCBPeak.at(pe);
 
-                            cntIni++; if ( genIniFile_CombinationOfCBs(fCombLog,outpath,genImg,checkNan,genJson) ) cntImg++;
+                            cntIni++; if ( genIniFile_CombinationOfCBs(fCombLog,outpath,genImg,checkNan,genJson,ignCbs) ) cntImg++;
                             if ( _bAbbruch ) break; // Abbruch vom User
                         } // for pe
                     }
                     else
                     {
-                        cntIni++; if ( genIniFile_CombinationOfCBs(fCombLog,outpath,genImg,checkNan,genJson) ) cntImg++;
+                        cntIni++; if ( genIniFile_CombinationOfCBs(fCombLog,outpath,genImg,checkNan,genJson,ignCbs) ) cntImg++;
                         if ( _bAbbruch ) break; // Abbruch vom User
                     }
                 }
@@ -9324,6 +11425,8 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
     qApp->restoreOverrideCursor();
 
     ui->statusbar->showMessage( QString("%1 parameterfiles and %2 images generated.").arg(cntIni).arg(cntImg), 5000 );
+    ui->actionActivate_parameter_value_check->setChecked( savMenuValChk );
+    ui->lblGenCbsInfo->hide();
 
     qDebug() << "UsedLType" << usedLType;
     qDebug() << "UsedPart " << usedCBParticle;
@@ -9339,26 +11442,27 @@ void SC_MainGUI::on_actionGenerate_all_combinations_of_CBs_triggered()
 
     bIgnoreRecalc = updFlag;
     timingTestsRunning = false;
+    generateCbsCombinations = false;
 
     if ( fCombLog )
     {
-        fCombLog->write(qPrintable(QString("\n%1 parameterfiles and %2 images generated.\n").arg(cntIni).arg(cntImg)));
+        fCombLog->write(qPrintable(QString("\n%1 parameterfiles and %2 images generated.\nRunning time %3 secs.\n").arg(cntIni).arg(cntImg).arg(alleZeit.elapsed()/1000.0)));
         fCombLog->close();
     }
 }
 
-bool SC_MainGUI::genIniFile_CombinationOfCBs(QFile *flog, QString outpath, bool genimg, bool checkNan, bool genJson)
+bool SC_MainGUI::genIniFile_CombinationOfCBs(QFile *flog, QString outpath, bool genimg, bool checkNan, bool genJson, bool ignCbs)
 {
     QString fn = outpath + "/Comb";
     fn += QString("_lt%1").arg(ui->cbsLType->currentIndex(),2,10,QChar('0'));
     fn += QString("_pa%1").arg(ui->cbsComboBoxParticle->currentIndex(),2,10,QChar('0'));
     fn += QString("_or%1").arg(ui->cbsOrdis->currentIndex(),2,10,QChar('0'));
-    if ( ui->cbsComboBoxInterior->isVisible() )
+    if ( ui->cbsComboBoxInterior->isVisible() && ui->cbsComboBoxInterior->isEnabled() )
         fn += QString("_in%1").arg(ui->cbsComboBoxInterior->currentIndex(),2,10,QChar('0'));
     else
         fn += "_inxx";
-    if ( ui->cbsComboBoxPeak->isVisible() )
-        fn += QString("_pe%1").arg(ui->cbsComboBoxPeak->currentIndex(),2,10,QChar('0'));
+    if ( ui->cbsComboBoxPeak->isVisible() && ui->cbsComboBoxPeak->isEnabled() )
+        fn += QString("_pe%1").arg(ui->cbsComboBoxPeak->currentIndex()+1,2,10,QChar('0'));  // shp geht von 1 bis 8
     else
         fn += "_pexx";
     fn += ".ini";
@@ -9368,7 +11472,20 @@ bool SC_MainGUI::genIniFile_CombinationOfCBs(QFile *flog, QString outpath, bool 
     {
         if ( flog != nullptr )
         {
-            flog->write(qPrintable(fnlog+"  -  no img\n"));
+            if ( ignCbs )
+            {
+                std::string str = calcGui->isCbsValid(ui->cbsLType->currentIndex(),
+                                                      ui->cbsComboBoxParticle->currentIndex(),
+                                                      ui->cbsOrdis->currentIndex(),
+                                                      ui->cbsComboBoxInterior->isVisible()?ui->cbsComboBoxInterior->currentIndex():-1,
+                                                      ui->cbsComboBoxPeak->isVisible()?(ui->cbsComboBoxPeak->currentIndex()+1):-1);
+                if ( str.length() == 0 )
+                    flog->write(qPrintable(fnlog+"  -  no img\n"));
+                else
+                    flog->write(qPrintable(fnlog+"  -  {"+QString::fromStdString(str)+"}  -  no img\n"));
+            }
+            else
+                flog->write(qPrintable(fnlog+"  -  no img\n"));
             flog->flush();
         }
 #ifndef ChatbotDisabled
@@ -9389,7 +11506,38 @@ bool SC_MainGUI::genIniFile_CombinationOfCBs(QFile *flog, QString outpath, bool 
     QString msg = QString(" - PrepTime=%1 ms, CalcTime=%2 ms")
             .arg(calcGui->higResTimerElapsed(SC_CalcGUI::htimPrep),6,'f',3)
             .arg(calcGui->higResTimerElapsed(SC_CalcGUI::htimCalc),10,'f',3);
+    QString msg2 = ""; // Wird darunter geschrieben
+    if ( calcGui->higResTimerElapsed(SC_CalcGUI::htimPrep) > 500 )
+    {
+        double tInit  = calcGui->dbgZeitInit();
+        double tCoef  = calcGui->dbgZeitCoef();
+        double tHKL   = calcGui->dbgZeitHKL();
+        double tCorot = calcGui->dbgZeitCorot();
+        double tIsoPk = calcGui->dbgZeitIsoPeak();
+        double tAniso = calcGui->dbgZeitAnisoPeak();
+        double tQromb = calcGui->dbgZeitQromb();
 
+        if ( tQromb > 0 ) tQromb -= tAniso;
+        if ( tAniso > 0 ) tAniso -= tIsoPk;
+        if ( tIsoPk > 0 ) tIsoPk -= tCorot;
+        if ( tCorot > 0 ) tCorot -= tHKL;
+        if ( tHKL   > 0 ) tHKL   -= tCoef;
+        if ( tCoef  > 0 ) tCoef  -= tInit;
+
+        msg2 = QString("    PrepTiming: Init=%1, Coef=%2, ButHKL=%3, Corot=%4, IsoPeak=%5, AnisoPeak=%6, QRomb=%7")
+                .arg(tInit).arg(tCoef).arg(tHKL).arg(tCorot).arg(tIsoPk).arg(tAniso).arg(tQromb);
+     }
+
+    if ( ignCbs )
+    {
+        std::string str = calcGui->isCbsValid(ui->cbsLType->currentIndex(),
+                                              ui->cbsComboBoxParticle->currentIndex(),
+                                              ui->cbsOrdis->currentIndex(),
+                                              ui->cbsComboBoxInterior->isVisible()?ui->cbsComboBoxInterior->currentIndex():-1,
+                                              ui->cbsComboBoxPeak->isVisible()?(ui->cbsComboBoxPeak->currentIndex()+1):-1);
+        if ( str.length() > 0 )
+            msg += " {" + QString::fromStdString(str) + "}";
+    }
     // Wenn eine Fehlermeldung generiert wurde, so sollte ein Parameter modifiziert werden
     QString calcError = QString::fromStdString(calcGui->getCalcPtr()->getLastErrorMessage());
     if ( checkNan && !calcError.isEmpty() && !calcError.startsWith("INV") )
@@ -9410,7 +11558,7 @@ bool SC_MainGUI::genIniFile_CombinationOfCBs(QFile *flog, QString outpath, bool 
         {   // "EditRadiusi>=0.5" - Wert zu groß, also etwas verkleinern
             par = calcError.left(p);
             val = calcError.mid(p+2).toDouble() * 0.9;
-            msg += QString(", RETRY %1 <= %2").arg(par).arg(val);
+            msg += QString(", RETRY %1 >= %2").arg(par).arg(val);
         }
         if ( ! par.isEmpty() )
         {
@@ -9426,7 +11574,10 @@ bool SC_MainGUI::genIniFile_CombinationOfCBs(QFile *flog, QString outpath, bool 
     if ( !calcError.isEmpty() )
     {   // Jetzt wurde eine Fehlermeldung generiert (i.d.R. falsche Parameter)
         msg += ", Error:" + calcError;
-        _bAbbruch = false;
+        //_bAbbruch = false;
+        if ( flog != nullptr ) flog->write(qPrintable(fnlog+msg+"\n"));
+        if ( lastUsedImage != nullptr ) lastUsedImage->close();
+        return false;
     }
 
     if ( _bAbbruch )
@@ -9484,39 +11635,21 @@ bool SC_MainGUI::genIniFile_CombinationOfCBs(QFile *flog, QString outpath, bool 
         else
         {   // Untersuchungen, warum das Image nicht gespeichert werden kann
             msg += " - image save failed";
-            /* - bringt keinen Erfolg
-            QFile fimg(fn);
-            if ( fimg.open(QIODevice::WriteOnly) )
-            {
-                QImage img = lastUsedImage->getCurrentImage();
-                if ( img.save( &fimg, "png" ) )
-                {
-                    msg += ", IOsave ok";
-                    fimg.close();
-                }
-                else
-                {
-                    msg += ", IOsave FAIL";
-                    fimg.close();
-                    fimg.remove();
-                }
-            }
-            else
-            {
-                msg += ", QFile FAIL";
-            }
-            */
         }
     }
-    lastUsedImage->close();
+    if ( lastUsedImage != nullptr )
+        lastUsedImage->close();
     if ( flog != nullptr )
     {
         flog->write(qPrintable(fnlog+msg+"\n"));
+        if ( msg2.length() > 0 )
+            flog->write(qPrintable(fnlog+msg2+"\n"));
         flog->flush();
     }
     return retval;
 }
 
+#ifndef ChatbotDisabled
 void SC_MainGUI::on_butParamSearchChatbot_clicked()
 {
     ui->butParamSearchGenerate->setEnabled(false);
@@ -9605,3 +11738,128 @@ void SC_MainGUI::on_butParamSearchChatbot_clicked()
     bSearchParamsRunning = false;
     local_Load_all_Parameters(myLocPar);    // Wiederherstellen der vorherigen Parameterwerte
 }
+#endif
+
+
+/**
+ * @brief SC_MainGUI::on_actionCustomize_colored_background_triggered
+ * Set all background colors to group the parameters.
+ * Called from Tools-Menu or from the constructor at startup.
+ */
+void SC_MainGUI::on_actionCustomize_colored_background_triggered()
+{
+    dlgCustomColors *dlg = new dlgCustomColors(this);
+    dlg->exec();
+    dlg->close();
+    dlg->deleteLater();
+    configureCustomColorForBkg( true );
+}
+
+void SC_MainGUI::configureCustomColorForBkg( bool mitkey )
+{
+    getCustomColorForBkg(BGKeyLattice, ui->grpLattice);
+    getCustomColorForBkg(BGKeyParticle, ui->grpParticle);
+    getCustomColorForBkg(BGKeyPeakShape, ui->grpPeakShape);
+    getCustomColorForBkg(BGKeyOrientation, ui->grpOrientation);
+    getCustomColorForBkg(BGKeyExperiment, ui->grpExperimant);
+    getCustomColorForBkg(BGKeyExperiment, ui->grpDataFile);
+    getCustomColorForBkg(BGKeyPixelMan, ui->grpPixelManipul);
+    getCustomColorForBkg(BGKeyPixelMan, ui->grpControl);
+
+    if ( mitkey || ! myGuiParam::ColBkg1D.isValid() )
+    {
+        QSettings data(SETT_APP,SETT_PAR);
+        myGuiParam::ColBkg1D   = QColor( data.value(BGKeyOnly1D "_red",100).toInt(),
+                                         data.value(BGKeyOnly1D "_grn",200).toInt(),
+                                         data.value(BGKeyOnly1D "_blu",100).toInt() );
+        myGuiParam::ColBkg2D   = QColor( data.value(BGKEYOnly2D "_red",100).toInt(),
+                                         data.value(BGKEYOnly2D "_grn",200).toInt(),
+                                         data.value(BGKEYOnly2D "_blu",100).toInt() );
+        myGuiParam::ColBkgBoth = QColor( data.value(BGKey1Dand2D "_red",100).toInt(),
+                                         data.value(BGKey1Dand2D "_grn",200).toInt(),
+                                         data.value(BGKey1Dand2D "_blu",100).toInt() );
+        myGuiParam::ColFgDis   = QColor( data.value(BGKeyDisText "_red",100).toInt(),
+                                         data.value(BGKeyDisText "_grn",200).toInt(),
+                                         data.value(BGKeyDisText "_blu",100).toInt() );
+    }
+    myGuiParam::setColBkgFlag( myGuiParam::showColNone/*ignored*/, true/*force*/ );
+}
+
+
+/**
+ * @brief SC_MainGUI::getCustomColorForBkg
+ * @param key - internal key for the color (see dlgcustomcolors.h)
+ * @param grp - GUI element to be set
+ * Helper function to get the color from the configuration and set the GUI element background
+ */
+void SC_MainGUI::getCustomColorForBkg(QString key, QGroupBox *grp)
+{
+    static QColor oldBkgCol = QColor();
+    QSettings data(SETT_APP,SETT_PAR);
+    if ( ! data.value(key+"_tog",false).toBool() || myGuiParam::showColBkg != myGuiParam::showColParams )
+    {   // Da die Palette vererbt wird, muss diese hier auch gesetzt werden.
+        if ( oldBkgCol.isValid() )
+        {
+            QPalette pal = grp->palette();
+            pal.setBrush( QPalette::Window, oldBkgCol );
+            pal.setColor( QPalette::WindowText, Qt::black );
+            grp->setPalette(pal);
+        }
+        grp->setAutoFillBackground(false);
+        myGuiParam::colorForBkg.insert( key, QColor() );
+    }
+    else
+    {
+        QColor col = QColor( data.value(key+"_red",100).toInt(), data.value(key+"_grn",200).toInt(), data.value(key+"_blu",100).toInt() );
+        QPalette pal = grp->palette();
+        if ( !oldBkgCol.isValid() )
+            oldBkgCol = pal.brush(QPalette::Window).color();    // save the default background color
+        pal.setBrush( QPalette::Window, col );
+        if ( qGray(col.rgb()) < 150 )
+            pal.setColor( QPalette::WindowText, Qt::white );
+        else
+            pal.setColor( QPalette::WindowText, Qt::black );
+        grp->setPalette(pal);
+        grp->setAutoFillBackground(true);
+        //QHash<QString,QColor> colorForBkg;
+        myGuiParam::colorForBkg.insert( key, col );
+    }
+}
+
+
+void SC_MainGUI::on_actionNo_colors_toggled(bool arg1)
+{
+    if ( arg1 )
+    {
+        ui->action1d_2d_marker->setChecked(false);
+        ui->actionparameter_classification_colors->setChecked(false);
+        myGuiParam::setColBkgFlag( myGuiParam::showColNone );
+        configureCustomColorForBkg( false );
+    }
+}
+
+
+void SC_MainGUI::on_action1d_2d_marker_toggled(bool arg1)
+{
+    if ( arg1 )
+    {
+        ui->actionNo_colors->setChecked(false);
+        ui->actionparameter_classification_colors->setChecked(false);
+        myGuiParam::setColBkgFlag( myGuiParam::showCol1d2d );
+        configureCustomColorForBkg( false );
+    }
+}
+
+
+void SC_MainGUI::on_actionparameter_classification_colors_toggled(bool arg1)
+{
+    if ( arg1 )
+    {
+        ui->action1d_2d_marker->setChecked(false);
+        ui->actionNo_colors->setChecked(false);
+        myGuiParam::setColBkgFlag( myGuiParam::showColParams );
+        configureCustomColorForBkg( false );
+    }
+}
+
+

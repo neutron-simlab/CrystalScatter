@@ -5,6 +5,7 @@
 #include <QSettings>
 #include <QFrame>
 #include <QAbstractItemView>
+#include <QDateTime>
 #include "sc_maingui.h"
 #include "sc_calc_generic.h"
 
@@ -27,12 +28,13 @@ SC_CalcGUI::SC_CalcGUI() : QObject()
     calcGeneric = new SasCalc_GENERIC_calculation();
     calcGenericWrapper = new SC_Calc_GENERIC(calcGeneric);
 
-    QStringList meta = calcGenericWrapper->guiLayoutNeu();
+    QStringList meta = calcGenericWrapper->guiLayoutNeu(); // generates params[]
     for ( int m=0; m<meta.size(); m++ )
     {
-        // Each element must be in the form "type;kenn;typespec;tooltip;default" with:
+        // Each element must be in the form "type;kenn;typespec;tooltip;default;colbkg" with:
         //  type     = C:Selection, N:Double, I:Integer, T:Toggle, O:DoubleOut
         //             Zweites Zeichen ist 'F' für Fittable oder '-' für nicht fittable
+        //             Drittes Zeichen ist '1' für 1D-Daten, '2' für 2D-Daten oder '-' für beides
         //  kenn     = internal parameter name to connect to correct gui element
         //  typespec = C:Selection : "...|...|..."  (required)
         //             N:Double    : "frac|min|max|unit"  (optional, default: "2|-10000|+10000|")
@@ -41,13 +43,25 @@ SC_CalcGUI::SC_CalcGUI() : QObject()
         //             O:DoubleOut : (empty)
         //  tooltip  = this is the tooltip set to both prompt label and inputfield (optional)
         //  default  = the default value (optional)
+        //  colbkg   = custom color background (optional), keys in sc_globalConfig.h, see BGKey...
         QStringList sl = meta[m].split(";");
         paramHelper *e = new paramHelper;
         e->key = sl[1].trimmed();
         e->value.number = 0;
         e->value.flag   = false;
         e->gui.w = nullptr;
+        e->use1d2d = paramHelper::both;
         e->enabled = true;  // es wird nur explizit auf false gesetzt, alles andere ist freigegeben
+        e->gpFit = nullptr; // Zur Sicherheit hier setzen, falls Elemente noch nicht in der GUI enthalten sind (speziell 1d)
+        //if ( sl.size() >= 4 )
+        //    e->tooltip = sl[3]; // wird in myGuiParam::setAllGuiParams gesetzt
+        //else
+        //    e->tooltip = "";
+        //e->deflabel = ""; // wird in myGuiParam::setAllGuiParams gesetzt
+        if ( sl.size() >= 6 )
+            e->bgkey = sl[5];
+        else
+            e->bgkey = "";
         switch ( sl[0][0].toLatin1() )
         {
         case 'N':
@@ -64,6 +78,9 @@ SC_CalcGUI::SC_CalcGUI() : QObject()
             break;
         case 'O':
             e->type = paramHelper::outdbl;
+            break;
+        default:
+            e->type = paramHelper::undef;
             break;
         }
         params.insert( e->key, e );
@@ -376,7 +393,7 @@ QString SC_CalcGUI::loadParameter(QString fn, QString onlyMethod, bool &hkl, boo
                 //  Toggles in der GUI erhalten.
                 if ( s[0] == '?' )
                     s = par->gpFit->isFitUsed() ? "11" : "00";
-                par->gpFit->setFitCheck(s[0]!='0');
+                par->gpFit->setFitCheck(s[0]!='0',"LoadParam");
                 //par->fitparam = s[1]!='0';
             }
             // Lösche alle Fitflags, auch wenn kein Fit-Toggle in der GUI vorhandne ist
@@ -477,6 +494,7 @@ void SC_CalcGUI::loadFitFlags( QSettings &sets )
         sets.beginGroup( calcGenericWrapper->methodNameOld() );
     else
         sets.beginGroup( calcGenericWrapper->methodNameNew() );
+    //qDebug() << "---------- loadFitFlags() anf" << sets.group();
     QHash<QString,paramHelper*>::iterator ip = params.begin();
     while ( ip != params.end() )
     {
@@ -489,12 +507,14 @@ void SC_CalcGUI::loadFitFlags( QSettings &sets )
         if ( par->gui.w != nullptr && par->gpFit != nullptr && par->gpFit->fit() != nullptr )
         {
             QString s = sets.value( "FITFLAG_"+par->key, "00" ).toString();
-            par->gpFit->setFitCheck(s[0]!='0');
+            //qDebug() << "  FITFLAG_"+par->key << s;
+            par->gpFit->setFitCheck(s[0]!='0',"");
             //par->fitparam = s[1]!='0';
         }
         ++ip;
     }
     sets.endGroup();
+    //qDebug() << "---------- loadFitFlags() end";
 }
 
 
@@ -543,7 +563,8 @@ void SC_CalcGUI::compareParameter(QSettings &sets, QHash<QString,_CompValues*> &
                 if ( par->gui.w != nullptr )
                 {
                     SETCOL( par->gui.w, SETCOLMARK_PARDIFF );
-                    updateToolTipForCompare( par->gui.w, cv->par );
+                    myGuiParam::updateTooltip(myGuiParam::getGuiParam(par->key), "File: "+cv->par);
+                    //updateToolTipForCompare( par->gui.w, cv->par );
                 }
             }
             break;
@@ -561,7 +582,8 @@ void SC_CalcGUI::compareParameter(QSettings &sets, QHash<QString,_CompValues*> &
                 if ( par->gui.w != nullptr )
                 {
                     SETCOL( par->gui.w, SETCOLMARK_PARDIFF );
-                    updateToolTipForCompare( par->gui.w, cv->par );
+                    myGuiParam::updateTooltip(myGuiParam::getGuiParam(par->key), "File: "+cv->par);
+                    //updateToolTipForCompare( par->gui.w, cv->par );
                 }
             }
             break;
@@ -579,7 +601,8 @@ void SC_CalcGUI::compareParameter(QSettings &sets, QHash<QString,_CompValues*> &
                 if ( par->gui.w != nullptr )
                 {
                     SETCOL( par->gui.w, SETCOLMARK_PARDIFF );
-                    updateToolTipForCompare( par->gui.w, cv->par );
+                    myGuiParam::updateTooltip(myGuiParam::getGuiParam(par->key), "File: "+cv->par);
+                    //updateToolTipForCompare( par->gui.w, cv->par );
                 }
             }
             break;
@@ -597,7 +620,8 @@ void SC_CalcGUI::compareParameter(QSettings &sets, QHash<QString,_CompValues*> &
                 if ( par->gui.w != nullptr )
                 {
                     SETCOL( par->gui.w, SETCOLMARK_PARDIFF );
-                    updateToolTipForCompare( par->gui.w, cv->par );
+                    myGuiParam::updateTooltip(myGuiParam::getGuiParam(par->key), "File: "+cv->par);
+                    //updateToolTipForCompare( par->gui.w, cv->par );
                 }
             }
             break;
@@ -627,15 +651,8 @@ QStringList SC_CalcGUI::paramsForMethod(bool num, bool glob, bool fit )
     {
         if ( fit )
         {   // Fit Parameter gehen hier vor
-            //if ( ip.value()->key.startsWith("Sig") && ip.value()->gpFit != nullptr && ip.value()->gpFit->fit() != nullptr )
-            //    qDebug() << ip.value()->key << ip.value()->gpFit->isFitUsed() << ip.value()->gpFit->fit()->isChecked() << ip.value()->gpFit->fit()->isEnabled();
             if ( ip.value()->gpFit != nullptr && ip.value()->gpFit->isFitUsed() )
-            {
-                //ip.value()->fitparam = true;
                 rv << ip.value()->key;
-            }
-            //else
-            //    ip.value()->fitparam = false;
         }
         else if ( !num || (ip.value()->type == paramHelper::numdbl) || (ip.value()->type == paramHelper::numint) )
             rv << ip.value()->key;
@@ -959,10 +976,13 @@ void SC_CalcGUI::resetParamColorMarker( QColor col )
                 SETCOL(ip.value()->gui.w, col);
                 if ( col == SETCOLMARK_CLEARED )
                 {
+                    myGuiParam::updateTooltip(myGuiParam::getGuiParam(ip.key()));
+                    /*
                     QString tt = ip.value()->gui.w->toolTip();
                     int p = tt.indexOf("File:");
                     if ( p >= 0 ) tt.truncate(p);
                     ip.value()->gui.w->setToolTip( tt.trimmed() );
+                    */
                 }
             }
             ++ip;
@@ -1317,15 +1337,25 @@ void SC_CalcGUI::dataGetterForFit( QString p, _valueTypes &v )
 }
 
 
+std::string SC_CalcGUI::checkAllParameters(bool ignCbs)
+{
+    return calcGeneric->checkAllParameters(ignCbs);
+}
+
+std::string SC_CalcGUI::isCbsValid(int lt, int pa, int od, int in, int pk)
+{
+    return calcGeneric->isCbsValid(lt,pa,od,in,pk);
+}
+
 /**
  * @brief SC_CalcGUI::doCalculation
  * @param numThreads - number of used threads (ignored in GPU mode)
  * Starts the calculation of the current method.
  */
-void SC_CalcGUI::doCalculation( int numThreads, bool bIgnoreNewSwitch )
+void SC_CalcGUI::doCalculation( int numThreads, bool bIgnoreNewSwitch, bool bIgnoreParamCheck )
 {
     //qDebug() << "SC_CalcGUI::doCalculation";  wird vom Thread und beim 2d-Fit aufgerufen
-    calcGeneric->doCalculation( numThreads, bIgnoreNewSwitch, false/*ignCbs*/ );
+    calcGeneric->doCalculation( numThreads, bIgnoreNewSwitch, false/*ignCbs*/, bIgnoreParamCheck );
 }
 
 /**

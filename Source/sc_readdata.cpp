@@ -2450,3 +2450,780 @@ widImage *SC_ReadData::readImageSpreadsheet( myAddImage add, QString fn )
  * "/entry0/user/proposal  (String, Dims: 1)"
  * (237 Werte)
  */
+
+
+/*
+-->> aus dem File '20250627 - crystal1.pas' entnommen, damit 1d Daten eingelesen werden können
+procedure readdata(fileName: ansistring;
+                   datatype: integer;
+               var EditDataPoints,EditSets,EditFirst,EditLast: TEdit;
+               var EditDataSkip,EditFileInfo: TEdit;
+                   CheckBoxAToNm,CheckBoxSToQ,CheckBoxThetaToQ: TCheckBox;
+               var EditXmin,EditXmax,EditYmin,EditYmax: TEdit;
+               var StringGrid1,StringGrid5,StringGrid8: TStringGrid;
+               var CheckBoxTwo: TCheckBox);
+
+//const maxpoints = 2500;
+
+var
+  xydaten: Array of String[255];    //xydata. Was: array[1..maxpoints]
+  xywerte: Array[1..11] of Array of Extended; //xyvalues
+  xysum: Array[1..11] of Extended;
+  //was: xywerte: array[1..10,1..maxpoints] of extended
+  i,j,ii,jj,k,kk,trennz,endz,trennzd,endzd,expz,errCode,first,last,filetype,start,olddatapoints: integer;
+  dataskip,datapoints,bindatapoints,datasets,dotpos, sepPos,imin,NbRows,NbCols,zetacount: integer;
+  dummy,xdummy,ydummy,ddummy,sdummy: string[255];
+  str1,str2,str3,str4,str5: string[255];
+  FileExt: string[5]; //so as to accept '.tiff'
+  theta,expo,tmpVal,xsum,ysum,xmin,xmax,ymin,ymax: extended;
+  sep: AnsiChar;
+  RowLst, strLst, zetastrLst,id02strLst: TStringList; //tried: TStrings
+
+begin
+  //endz:=Length(fileName);
+  //dotpos:=AnsiPos('.',fileName);
+  //FileExt:=Copy(fileName,(dotpos+1),3);  //was: endz instead of 3
+  FileExt := ExtractFileExt(fileName); //ATTN: gives also the '.' (e.g. '.txt')
+  FileExt := Copy(FileExt,2,3);
+
+  filetype:=0;
+  //Note: "case FileExt of" doesn't work (string is not an ordinal type)
+  if ((FileExt='txt') or (FileExt='TXT') or
+      (FileExt='dat') or (FileExt='DAT')) then filetype:=1;
+  if ((FileExt='csv') or (FileExt='CSV')) then filetype:=2;
+  if ((FileExt='pri') or (FileExt='PRI') or
+      (FileExt='mul') or (FileExt='MUL') or
+      (FileExt='sub') or (FileExt='SUB') or
+      (FileExt='fun') or (FileExt='FUN') or
+      (FileExt='pdh') or (FileExt='PDH')) then filetype:=3;
+  if ((FileExt='uxd') or (FileExt='UXD')) then filetype:=5; {4 <-> 5}
+  if ((FileExt='asc') or (FileExt='ASC')) then filetype:=4;
+  if ((FileExt='chi') or (FileExt='CHI')) then filetype:=6; //Fit2D output
+  if ((FileExt='out') or (FileExt='OUT')) then filetype:=7;
+  if ((FileExt='csw') or (FileExt='CSW')) then filetype:=8;
+  if (filetype = 0) then begin
+    EditDataPoints.Text := '0';
+    //ShowMessage('ERR in readdata: unknown file type!');
+    ShowMessage('ERR in readdata: unknown file type: .'+FileExt);
+    Exit;
+  end;
+
+  RowLst := TStringList.Create;
+  //RowLst.Capacity := maxpoints;
+
+  strLst := TStringList.Create;
+
+  // Read data into a string list (each row is an element of the list)
+  // Info: the lines of a TMemo structure are limited to 243 chars
+  try
+    RowLst.LoadFromFile(fileName);
+    NbRows := RowLst.Count;
+
+    dataskip := StrToInt(EditDataSkip.Text);
+
+    // first line(s) can be empty
+    imin:=0;
+    while (Length(RowLst[imin]) = 0) do begin
+      Inc(imin);   // Increment imin
+      Dec(NbRows); // NbRows = nb of non-empty rows
+    end;
+
+    case filetype of
+      1..4 : NbCols := 3;
+         5 : NbCols := 3; //was: 2 (err when XYDaten is written to StringGrid1)
+      6..7 : NbCols := 3;
+         8 : NbCols := 11;
+    else
+      ShowMessage('ERR in readdata: unknown file type!') ;
+    end; //case
+
+
+    SetLength(xydaten, (NbRows+1)); //ATTN: xydaten[0] is not used
+    // SetLength(xywerte, (NbCols+1)); //ATTN: xywerte[0] is not used
+    for ii:=1 to 11 do //should be: for ii:=0 to (NbCols -1)
+      SetLength(xywerte[ii], (NbRows+1));
+
+
+    (*** Write Memo to String ***)
+    if (filetype <> 8) then begin
+      //j:=0;
+      for i:=imin to (RowLst.Count -1) do begin
+        {if ((i mod dataskip) = 0) then begin
+          j:=j+1;
+          xydaten[j] := RowLst[i];
+        end;}
+        xydaten[i-imin+1] := RowLst[i];
+      end;
+    end
+    else begin  {csw format. The first 10 lines contain specific info}
+      //j:=0;
+      for i:=imin to (imin+9) do begin
+        //j:=j+1;
+        //xydaten[j] := RowLst[i];
+        xydaten[i-imin+1] := RowLst[i];
+      end;
+      //j:=10;
+      for i:=(imin+10) to (RowLst.Count -1) do begin
+        {if ((i mod dataskip) = 0) then begin
+          j:=j+1;
+          xydaten[j] := RowLst[i];
+        end;}
+        xydaten[i-imin+1] := RowLst[i];
+      end;
+    end;
+
+    (*** txt- or dat-data ***)
+    if (filetype=1) then begin
+      dummy:=Copy(xydaten[1],1,5);
+      if dummy='0.500' then begin    (*************** Zeta-Sizer Daten ************)
+         zetastrLst:=TStringList.Create;
+         zetastrLst.Delimiter:=#09;      //Tab character
+         zetastrLst.DelimitedText:=RowLst[0];
+         zetacount:=zetastrLst.Count;
+         NbRows:=round(zetacount/2);
+         for ii:=1 to 11 do //should be: for ii:=0 to (NbCols -1)
+            SetLength(xywerte[ii], (NbRows+1));
+         for i:=0 to NbRows-1 do begin
+            xywerte[1,i]:=StrToFloat(zetastrLst[i])/1000000;
+            xywerte[2,i]:=StrToFloat(zetastrLst[NbRows+i]);
+            xywerte[3,i]:=xywerte[2,i]/100;
+         end;
+         zetastrLst.Clear;
+      end;
+
+      dummy:=Copy(xydaten[1],1,2);
+      if dummy='#S' then begin     (*** ESRF ID02 radial average date ****)
+         EditDataPoints.Text:=IntToStr(NbRows);
+         sep:=' ';
+         for i:=0 to 171 do begin
+            StringGrid5.Cells[0,i]:=IntToStr(i);
+            StringGrid5.Cells[1,i]:=xydaten[i];
+         end;
+         for i:=172 to NbRows-1 do begin
+            sepPos := AnsiPos(sep,xydaten[i]);
+            endz := length(xydaten[i]);
+            str1 := Copy(xydaten[i],sepPos+1,endz);   (* copies remaining string *)
+            sepPos := AnsiPos(sep,str1);
+            endz := length(str1);
+            str2 := Copy(str1,1,sepPos-1);            (* copies q *)
+            xywerte[1,i-171]:=StrToFloat(str2);
+            str3 := Copy(str1,sepPos+1,endz);         (* copies remaining string *)
+            sepPos := AnsiPos(sep,str3);
+            endz := length(str3);
+            str4 := Copy(str3,sepPos+1,endz);         (* copies remaining string *)
+            sepPos := AnsiPos(sep,str4);
+            str5 := Copy(str4,1,sepPos-1);            (* copies I *)
+            xywerte[2,i-171]:=StrToFloat(str5);
+            xywerte[3,i-171]:=xywerte[2,i-171]/100;
+         end;
+      end;
+
+      dummy:=Copy(xydaten[2],1,5);
+      if dummy='Date:' then begin     (*** UV/VIS-data ****)
+         sep:=#09;                      (* Tab character *)
+         for i:=3 to NbRows do begin
+            str2 := Trim(xydaten[i]); //remove leading & trailing white spaces
+            str2 := AnsiUpperCase(str2);
+            sepPos := Pos(sep,str2);
+            str3 := Copy(str2,1,(sepPos-1));
+            Val(str3, xywerte[1,i], errCode);
+
+            endz := Length(str2);
+            str3 := Copy(str2,(sepPos+1),(endz-sepPos));
+            str3 := Trim(str3); //remove possible leading space(s)
+            sepPos := Pos(sep,str3);
+            endz := Length(str3);
+
+            if (sepPos=0) then begin
+               str4 := Copy(str3,(sepPos+1),(endz-sepPos));
+               Val(str4, xywerte[2,i], errCode);
+               xywerte[3,i] := xywerte[2,i]/10.0;
+            end
+            else begin
+               str4 := Copy(str3,1,(sepPos-1));
+               Val(str4, xywerte[2,i], errCode);
+               str5 := Copy(str3,(sepPos+1),(endz-sepPos));
+               str5 := Trim(str5); //remove possible leading space(s)
+               Val(str5, xywerte[3,i], errCode);
+            end;
+         end;
+
+      dummy:=Copy(xydaten[1],1,2);
+      if dummy='##' then begin     (*** UV/VIS-data ****)
+         sep:=#09;                      (* Tab character *)
+         for i:=16 to 926 do begin
+            str2 := Trim(xydaten[i]); //remove leading & trailing white spaces
+            str2 := AnsiUpperCase(str2);
+            sepPos := Pos(sep,str2);
+            str3 := Copy(str2,1,(sepPos-1));
+            Val(str3, xywerte[1,i], errCode);
+
+            endz := Length(str2);
+            str3 := Copy(str2,(sepPos+1),(endz-sepPos));
+            str3 := Trim(str3); //remove possible leading space(s)
+            sepPos := Pos(sep,str3);
+            endz := Length(str3);
+
+            if (sepPos=0) then begin
+               str4 := Copy(str3,(sepPos+1),(endz-sepPos));
+               Val(str4, xywerte[2,i], errCode);
+               xywerte[3,i] := xywerte[2,i]/10.0;
+            end
+            else begin
+               str4 := Copy(str3,1,(sepPos-1));
+               Val(str4, xywerte[2,i], errCode);
+               str5 := Copy(str3,(sepPos+1),(endz-sepPos));
+               str5 := Trim(str5); //remove possible leading space(s)
+               Val(str5, xywerte[3,i], errCode);
+            end;
+         end;
+      end;
+
+      end
+
+      else begin    (* non-Zeta Sizer data *)
+
+      str1 := Copy(xydaten[1],1,2);
+
+      if (str1 = '#U') then begin  {was: #S}  (* Gradzielski ESRF-Datenformat *)
+        //ShowMessage(Format('%s', ['Gradzielski format']));
+        imin:=2;
+        while (AnsiPos('#UTitle',xydaten[imin]) <> 1) do
+          Inc(imin);
+        //read sample name (up to 71 chars). (was: 162)
+        EditFileInfo.Text:=Copy(xydaten[imin],9,71); //copy up to 71 chars
+        Inc(imin);
+        while (AnsiPos('#',xydaten[imin]) = 1) do
+          Inc(imin);
+        //ShowMessage(Format('imin = %d', [imin]));
+        //ShowMessage(Format('Last comment line = %s', [xydaten[imin-1]]));
+        for i := imin to NbRows do begin  //was: for i:=170 then 171
+          strLst.Clear;
+          MyProcs.ParseMultSpDelimStr(xydaten[i],strLst);
+          for jj := 0 to (strLst.Count -1) do begin
+            xywerte[jj+1,i-imin+1] := StrToFloat(strLst[jj]);
+          end;
+          xywerte[3,i-imin+1] := xywerte[2,i-imin+1]/100.0; // err estimation
+        end; //for i
+        // Initially, if Val was failing => Inc(imin) (no gap between values in
+        // xywerte), but it's not critical
+      end  (* of Gradzielski format *)
+
+      else begin                (* raw txt or tab format (no header)*)
+        str2 := Trim(xydaten[1]); //remove leading & trailing white spaces
+        sep := #09; //Tab character
+        //ATTN: if sep=#09, ParseMultSpDelimStr cannot be used
+        sepPos:=Pos(sep,str2);
+        if (sepPos=0) then  //if there's no 'Tab' in the 1st line
+          sep := ' ';
+        for i:=1 to NbRows do begin
+          str2 := Trim(xydaten[i]); //remove leading & trailing white spaces
+          str2 := AnsiUpperCase(str2);
+          sepPos := Pos(sep,str2);
+          str3 := Copy(str2,1,(sepPos-1));
+          //str3 := AnsiUpperCase(str3); //for values like 1.7877e-005
+          Val(str3, xywerte[1,i], errCode);
+
+          endz := Length(str2);
+          str3 := Copy(str2,(sepPos+1),(endz-sepPos));
+          str3 := Trim(str3); //remove possible leading space(s)
+          sepPos := Pos(sep,str3);
+          endz := Length(str3);
+
+          if (sepPos=0) then begin
+            str4 := Copy(str3,(sepPos+1),(endz-sepPos));
+            //str4 := AnsiUpperCase(str4);
+            Val(str4, xywerte[2,i], errCode);
+            xywerte[3,i] := xywerte[2,i]/10.0; (* assumes 10% error *)
+          end
+          else begin
+            str4 := Copy(str3,1,(sepPos-1));
+            //str4 := AnsiUpperCase(str4);
+            Val(str4, xywerte[2,i], errCode);
+            str5 := Copy(str3,(sepPos+1),(endz-sepPos));
+            str5 := Trim(str5); //remove possible leading space(s)
+            Val(str5, xywerte[3,i], errCode);
+          end;
+        end; //for
+      end; (* of non-Zeta-sizer data *)
+      end; (* raw txt or tab format *)
+    end; //if (filetype=1)
+
+    (*** *.csv (comma separated values) data ***)
+    if (filetype=2) then begin
+      sep := ','; //ParseMultSpDelimStr cannot be used here
+      for i:=1 to NbRows do begin
+        str2 := Trim(xydaten[i]); //remove leading & trailing white spaces
+        str2 := AnsiUpperCase(str2);
+        sepPos := Pos(sep,str2);
+        str3 := Copy(str2,1,(sepPos-1));
+        Val(str3, xywerte[1,i], errCode);
+
+        endz := Length(str2);
+        str3 := Copy(str2,(sepPos+1),(endz-sepPos));
+        str3 := Trim(str3); //remove possible leading space(s)
+        sepPos := Pos(sep,str3);
+        endz := Length(str3);
+
+        if (sepPos=0) then begin
+          str4 := Copy(str3,(sepPos+1),(endz-sepPos));
+          Val(str4, xywerte[2,i], errCode);
+          xywerte[3,i] := xywerte[2,i]/10.0;
+        end
+        else begin
+          str4 := Copy(str3,1,(sepPos-1));
+          Val(str4, xywerte[2,i], errCode);
+          str5 := Copy(str3,(sepPos+1),(endz-sepPos));
+          str5 := Trim(str5); //remove possible leading space(s)
+          Val(str5, xywerte[3,i], errCode);
+        end;
+      end; {for}
+    end; {if (filetype=2)}
+
+    (*** Heimo-PDH-Format: x=q ***)
+    { *.pri, *.PRI, *.mul, *.MUL, *.sub, *.SUB, *.fun, *.FUN, *.pdh, *.PDH }
+    if (filetype=3) then begin
+      //sep := ' ';
+      for i:=(imin+5) to NbRows do begin //was: 6 (why?)
+        strLst.Clear;
+        MyProcs.ParseMultSpDelimStr(xydaten[i],strLst);
+        if (strLst.Count > 0) then begin
+          if (AnsiPos('<',strLst[0]) = 1) then Break;
+          for jj := 0 to (strLst.Count -1) do begin
+            xywerte[jj+1,i-imin-4] := StrToFloat(strLst[jj]); //was: i-5
+          end;
+        end; //if strLst.Count
+      end; //for i
+    end; //if (filetype=3)
+
+    (*** X-Ray-Format (*.asc): x=s ***) //ATTN: Confusion with *.uxd format
+    if (filetype=4) then begin
+      dummy:=Copy(xydaten[1],1,8);
+      if dummy='ALV-5000' then begin    (* ALV-5000 Daten *)
+         dummy:=copy(xydaten[15],24,9);
+         StringGrid5.Cells[0,0]:=dummy;        (* Temperature in [K] *)
+         dummy:=copy(xydaten[16],26,7);
+         StringGrid5.Cells[0,1]:=dummy;        (* Viscosity in [cP] *)
+         dummy:=copy(xydaten[17],26,7);
+         StringGrid5.Cells[0,2]:=dummy;        (* refractive index *)
+         dummy:=copy(xydaten[18],24,9);
+         StringGrid5.Cells[0,3]:=dummy;        (* wavelength in [nm] *)
+         dummy:=copy(xydaten[19],24,7);
+         StringGrid5.Cells[0,4]:=dummy;        (* angle in [°] *)
+         for i:=27 to 219 do begin
+           str2 := Trim(xydaten[i]); //remove leading & trailing white spaces
+           //str2 := AnsiUpperCase(str2);
+           //sepPos := Pos(sep,str2);
+           //str3 := Copy(str2,1,(sepPos-1));
+           str3 := Copy(str2,1,12);
+           Val(str3, xywerte[1,i-1], errCode);
+           xywerte[1,i-1]:=xywerte[1,i-1]/1000;
+
+           //endz := Length(str2); //in principle, all lines have 26 chars
+           //str3 := Copy(str2,(sepPos+1),(endz-sepPos));
+           //str3 := Trim(str3); //remove possible leading space(s)
+           str3 := Copy(str2,15,13);
+           Val(str3, xywerte[2,i-1], errCode);
+
+           xywerte[3,i-1]:=xywerte[2,i-1]/100.0;
+         end;
+      end
+      else begin
+        sep := #09; //Tab character
+        for i:=2 to NbRows do begin
+           str2 := Trim(xydaten[i]); //remove leading & trailing white spaces
+           str2 := AnsiUpperCase(str2);
+           sepPos := Pos(sep,str2);
+           str3 := Copy(str2,1,(sepPos-1));
+           Val(str3, xywerte[1,i-1], errCode);
+
+           endz := Length(str2); //in principle, all lines have 26 chars
+           str3 := Copy(str2,(sepPos+1),(endz-sepPos));
+           str3 := Trim(str3); //remove possible leading space(s)
+           Val(str3, xywerte[2,i-1], errCode);
+
+           //endz:=26;
+           //xdummy:=Copy(xydaten[i],1,8);
+           //Val(xdummy,xywerte[1,i-1],errCode);
+           //ydummy:=Copy(xydaten[i],10,8);
+           //Val(ydummy,xywerte[2,i-1],errCode);
+           xywerte[1,i-1]:=2*pi*xywerte[1,i-1];
+           //xywerte[2,i-1]:=xywerte[2,i-1];
+           xywerte[3,i-1]:=xywerte[2,i-1]/100.0;
+        end;
+      end;
+    end;
+
+    (*** AC-XRD-Format (*.uxd): x=2*theta ***)  //ATTN: Confusion with *.asc
+    if (filetype=5) then begin
+      //sep := ' ';
+      //ATTN: comparisons (str1 = #3B) and (str1 = #5F) are not accepted
+      //imin := 1;
+      //str1 := Copy(xydaten[imin],1,1);
+      //while (str1 = #3B) or (str1 = #5F) do begin //i.e. ';' or '_'
+      //  Inc(imin);
+      //  str1 := Copy(xydaten[imin],1,1);
+      //end;
+      imin := 58; //header: 57 lines
+      for i := imin to NbRows do begin //was i:=58
+        strLst.Clear;
+        MyProcs.ParseMultSpDelimStr(xydaten[i],strLst);
+        for jj := 0 to (strLst.Count -1) do begin
+          xywerte[jj+1,i-imin+1] := StrToFloat(strLst[jj]);
+        end;
+        theta := xywerte[1,i-imin+1]*pi/360;
+        xywerte[1,i-imin+1] := 4*pi*sin(theta/2)/0.154;
+      end; //for i
+    end;
+
+   (*** Fit2D-Format (*.chi): x=q ***)
+    if (filetype=6) then begin
+      //sep := ' ';
+      imin := 5; //header: 4 lines
+      for i := imin to NbRows do begin
+        strLst.Clear;
+        MyProcs.ParseMultSpDelimStr(xydaten[i],strLst);
+        for jj := 0 to (strLst.Count -1) do begin
+          xywerte[jj+1,i-imin+1] := StrToFloat(strLst[jj]);
+        end;
+        xywerte[3,i-imin+1] := xywerte[2,i-imin+1]/100.0;
+      end; //for i
+    end;
+
+    (*** ESRF-data (*.out) ***)
+    if (filetype=7) then begin
+      EditFileInfo.Text:=xydaten[1]; {???}
+      sep := #09; //Tab character
+      for i:=1 to NbRows do begin
+        str2 := Trim(xydaten[i]); //remove leading & trailing white spaces
+        str2 := AnsiUpperCase(str2);
+        sepPos := Pos(sep,str2);
+        str3 := Copy(str2,1,(sepPos-1));
+        Val(str3, xywerte[1,i-1], errCode);
+
+        endz := Length(str2); //line length is variable
+        str3 := Copy(str2,(sepPos+1),(endz-sepPos));
+        str3 := Trim(str3); //remove possible leading space(s)
+        Val(str3, xywerte[2,i-1], errCode);
+
+        //trennz:=Pos('.',xydaten[i]);
+        //endz:=Length(xydaten[i]);
+        //ddummy:=Copy(xydaten[i],trennz+1,endz-trennz+1);
+        //trennzd:=Pos('.',ddummy);
+        //endzd:=Length(ddummy);
+        //ydummy:=Copy(ddummy,trennzd-1,endzd-trennzd+3);
+        //Val(ydummy,xywerte[2,i-1],errCode);
+
+        //endz:=trennzd-4+2;
+        //xdummy:=Copy(xydaten[i],1,endz);
+        //Val(xdummy,xywerte[1,i-1],errCode);
+
+        xywerte[3,i-1]:=xywerte[2,i-1]/10.0;
+      end;
+    end;
+
+    (*** 2dim - data (*.csw) ***)
+    if (filetype=8) then begin
+      CheckBoxTwo.Checked:=true;
+      ddummy:=RowLst[0];
+      trennz:=Pos(',',ddummy);
+      endz:=Length(ddummy);
+      xdummy:=Copy(ddummy,1,trennz-1);
+      StringGrid8.Cells[0,0]:=xdummy;              (* u1 *)
+      ddummy:=Copy(ddummy,trennz+1,endz);
+      trennz:=Pos(',',ddummy);
+      endz:=Length(ddummy);
+      xdummy:=Copy(ddummy,1,trennz-1);
+      StringGrid8.Cells[1,0]:=xdummy;              (* u2 *)
+      ddummy:=Copy(ddummy,trennz+1,endz);
+      trennz:=Pos(',',ddummy);
+      endz:=Length(ddummy);
+      xdummy:=Copy(ddummy,1,trennz-1);
+      StringGrid8.Cells[2,0]:=xdummy;              (* u3 *)
+      ddummy:=Copy(ddummy,trennz+1,endz);
+      trennz:=Pos(',',ddummy);
+      endz:=Length(ddummy);
+      xdummy:=Copy(ddummy,1,trennz-1);
+      StringGrid8.Cells[0,1]:=xdummy;              (* v1 *)
+      ddummy:=Copy(ddummy,trennz+1,endz);
+      trennz:=Pos(',',ddummy);
+      endz:=Length(ddummy);
+      xdummy:=Copy(ddummy,1,trennz-1);
+      StringGrid8.Cells[1,1]:=xdummy;              (* v2 *)
+      ddummy:=Copy(ddummy,trennz+1,endz);
+      trennz:=Pos(',',ddummy);
+      endz:=Length(ddummy);
+      xdummy:=Copy(ddummy,1,trennz-1);
+      StringGrid8.Cells[2,1]:=xdummy;              (* v3 *)
+      ddummy:=Copy(ddummy,trennz+1,endz);
+      trennz:=Pos(',',ddummy);
+      endz:=Length(ddummy);
+      xdummy:=Copy(ddummy,1,trennz-1);
+      StringGrid8.Cells[0,2]:=xdummy;              (* n1 *)
+      ddummy:=Copy(ddummy,trennz+1,endz);
+      trennz:=Pos(',',ddummy);
+      endz:=Length(ddummy);
+      xdummy:=Copy(ddummy,1,trennz-1);
+      StringGrid8.Cells[1,2]:=xdummy;              (* n2 *)
+      ddummy:=Copy(ddummy,trennz+1,endz);
+      endz:=Length(ddummy);
+      xdummy:=Copy(ddummy,1,endz);
+      StringGrid8.Cells[2,2]:=xdummy;              (* n3 *)
+
+      for i:=1 to 9 do begin
+        ddummy:=RowLst[i];
+        trennz:=Pos(',',ddummy);
+        endz:=Length(ddummy);
+        xdummy:=Copy(ddummy,1,trennz-1);
+        StringGrid8.Cells[0,i+2]:=xdummy;              (* setno *)
+        ddummy:=Copy(ddummy,trennz+1,endz);
+        trennz:=Pos(',',ddummy);
+        endz:=Length(ddummy);
+        xdummy:=Copy(ddummy,1,trennz-1);
+        StringGrid8.Cells[1,i+2]:=xdummy;              (* 1=hor,2=ver,3=azi *)
+        ddummy:=Copy(ddummy,trennz+1,endz);
+        trennz:=Pos(',',ddummy);
+        endz:=Length(ddummy);
+        xdummy:=Copy(ddummy,1,trennz-1);
+        StringGrid8.Cells[2,i+2]:=xdummy;              (* u,v,angle0 *)
+        ddummy:=Copy(ddummy,trennz+1,endz);
+        trennz:=Pos(',',ddummy);
+        endz:=Length(ddummy);
+        xdummy:=Copy(ddummy,1,trennz-1);
+        StringGrid8.Cells[3,i+2]:=xdummy;              (* qmax or qs for azi *)
+        ddummy:=Copy(ddummy,trennz+1,endz);
+        endz:=Length(ddummy);
+        xdummy:=Copy(ddummy,1,endz);
+        StringGrid8.Cells[4,i+2]:=xdummy;              (* qmax *)
+      end;
+
+      for i:=11 to NbRows do begin  //was: i:=10. In all Val() was i-9
+        trennz:=Pos(',',xydaten[i]);
+        endz:=Length(xydaten[i]);
+        xdummy:=Copy(xydaten[i],1,trennz-1);
+        Val(xdummy,xywerte[1,i-10],errCode);            (* x_axis *)
+        ddummy:=Copy(xydaten[i],trennz+1,endz);
+        trennz:=Pos(',',ddummy);
+        endz:=Length(ddummy);
+        xdummy:=Copy(ddummy,1,trennz-1);
+        Val(xdummy,xywerte[2,i-10],errCode);            (* I *)
+        xywerte[3,i-10]:=xywerte[2,i-10]/100.0;      (* dI *)
+        ddummy:=Copy(ddummy,trennz+1,endz);
+        trennz:=Pos(',',ddummy);
+        endz:=Length(ddummy);
+        xdummy:=Copy(ddummy,1,trennz-1);
+        Val(xdummy,xywerte[4,i-10],errCode);            (* qu *)
+        ddummy:=Copy(ddummy,trennz+1,endz);
+        trennz:=Pos(',',ddummy);
+        endz:=Length(ddummy);
+        xdummy:=Copy(ddummy,1,trennz-1);
+        Val(xdummy,xywerte[5,i-10],errCode);            (* qv *)
+        ddummy:=Copy(ddummy,trennz+1,endz);
+        trennz:=Pos(',',ddummy);
+        endz:=Length(ddummy);
+        xdummy:=Copy(ddummy,1,trennz-1);
+        Val(xdummy,xywerte[6,i-10],errCode);            (* angle *)
+        ddummy:=Copy(ddummy,trennz+1,endz);
+        trennz:=Pos(',',ddummy);
+        endz:=Length(ddummy);
+        xdummy:=Copy(ddummy,1,trennz-1);
+        Val(xdummy,xywerte[7,i-10],errCode);            (* qx *)
+        ddummy:=Copy(ddummy,trennz+1,endz);
+        trennz:=Pos(',',ddummy);
+        endz:=Length(ddummy);
+        xdummy:=Copy(ddummy,1,trennz-1);
+        Val(xdummy,xywerte[8,i-10],errCode);            (* qy *)
+        ddummy:=Copy(ddummy,trennz+1,endz);
+        trennz:=Pos(',',ddummy);
+        endz:=Length(ddummy);
+        xdummy:=Copy(ddummy,1,trennz-1);
+        Val(xdummy,xywerte[9,i-10],errCode);            (* qz *)
+        ddummy:=Copy(ddummy,trennz+1,endz);
+        endz:=Length(ddummy);
+        xdummy:=Copy(ddummy,1,trennz-1);
+        Val(xdummy,xywerte[10,i-10],errCode);           (* hor=1, ver=2, azi=3 *)
+        ddummy:=Copy(ddummy,trennz+1,endz);
+        endz:=Length(ddummy);
+        xdummy:=Copy(ddummy,1,endz);
+        Val(xdummy,xywerte[3,i-10],errCode);           (* dev -> dI *)
+      end;//for i:=11 to ...
+    end;//if (filetype=8)
+  finally
+    RowLst.Free;
+    strLst.Free;
+  end;
+
+  (*** Determine number of datasets ***)
+  datasets := 0;
+  if (filetype=8) then begin
+    for i:=1 to 11 do begin
+      if (StringGrid8.Cells[0,i+2] <> '') then datasets := datasets+1;
+    end;
+  end;
+  if datasets=0 then datasets:=1;   (* =1 for simple data set *)
+
+  (*** Determine number of datapoints ***)
+  datapoints := 0;
+  if (filetype=8) then begin
+    for i:=1 to NbRows do begin
+      if xywerte[1,i] <> 0 then begin //cf. Stephan's e-mail of 14/08/08
+        datapoints := datapoints+1;
+        // if xywerte[2,i] <= 0.0 then xywerte[2,i] := 1e-10;
+      end;
+    end;
+  end
+  else begin
+    for i:=1 to NbRows do begin
+      if (xywerte[1,i] <> 0) then begin       (* skip q=0 data *)
+        datapoints := datapoints+1;
+        xywerte[1,datapoints]:=xywerte[1,i];
+        xywerte[2,datapoints]:=xywerte[2,i];
+        xywerte[3,datapoints]:=xywerte[3,i];
+        // xywerte[3,i] := xywerte[2,i]/100; //cf. Stephan's e-mail of 01/10/08
+      end;
+    end;
+  end;
+
+  if (filetype=7) then datapoints := datapoints-1;
+
+  if datatype=2 then begin
+     olddatapoints:=StrToInt(EditDatapoints.Text);
+     if (datapoints>olddatapoints) then datapoints:=olddatapoints;
+  end;
+
+  (*** min/max ***)
+  //xmin:=1e20;
+  //xmax:=-1e20;
+  //ymin:=1e20;
+  ymax:=-1e20;
+  if (filetype=8) then start:=11
+  else start:=1;
+
+  for i:=start to datapoints do begin
+     //if (xywerte[1,i]<xmin) then xmin:=xywerte[1,i];
+     //if (xywerte[1,i]>xmax) then xmax:=xywerte[1,i];
+     //if ((xywerte[2,i]>1e-10) and (xywerte[2,i]<ymin)) then ymin:=xywerte[2,i];
+     if ((xywerte[2,i]<>0) and (xywerte[2,i]>ymax)) then ymax:=xywerte[2,i];
+  end;  (* of i-loop *)
+  //EditMaxInt.Text:=FloatToStrF(ymax,ffexponent,3,2);
+
+  (*** binning ***)
+  if dataskip>1 then begin
+     if (filetype=8) then start:=11
+        else start:=1;
+     for kk:=1 to 9 do xysum[kk]:=0.0;
+     j:=0;
+     k:=start;
+     for i:=start to datapoints do begin
+        for kk:=1 to 9 do xysum[kk]:=xysum[kk]+xywerte[kk,i];
+        j:=j+1;
+        if (j mod dataskip)=0 then begin
+           for kk:=1 to 9 do xywerte[kk,k]:=xysum[kk]/dataskip;
+           xywerte[10,k]:=xywerte[10,i];
+           k:=k+1;
+           for kk:=1 to 9 do xysum[kk]:=0.0;
+           j:=0;
+        end;  (* of j mod dataskip=0 *)
+     end;  (* for i:=1 to datapoints *)
+     datapoints:=k-1;
+  end;  (* if dataskip>1 *)
+
+  EditSets.Text := IntToStr(datasets);
+  EditDataPoints.Text := IntToStr(datapoints);
+
+  first:=1;
+  last:=datapoints;
+  EditFirst.Text:=IntToStr(first);
+  EditLast.Text:=IntToStr(last);
+
+  {*** convert Angstroms-1 to nm-1 ***}
+  if (CheckBoxAToNm.Checked=true) then begin
+     for i:=1 to datapoints do xywerte[1,i] := 10*xywerte[1,i];
+  end;
+
+  {*** convert s to q ***}
+  if (CheckBoxSToQ.Checked = true) then begin
+    for i:=1 to datapoints do xywerte[1,i] := 2*pi*xywerte[1,i];
+  end;
+
+  {*** convert theta to q ***}
+  if (CheckBoxThetaToQ.Checked = true) then begin
+    for i:=1 to datapoints do xywerte[1,i] := 4*pi*sin(xywerte[1,i]*pi/(180*2))/0.1541;
+  end;
+
+  if datatype=1 then begin
+     (*** set dimension of origIma ***)
+     //SetLength(origIma, 11);
+     //for i:=0 to 10 do
+     //    SetLength(origIma[i], (datapoints+1)); // index 0 is not used
+
+     (*** Write XYDaten-array to global StringGrid **)
+     for i:=1 to datapoints do begin
+       StringGrid1.Cells[0,i-1] := FloatToStr(xywerte[1,i]);      (* q *)
+       origIma[0,i-1]:=xywerte[1,i];
+       StringGrid1.Cells[1,i-1] := FloatToStr(xywerte[2,i]);      (* I *)
+       origIma[1,i-1]:=xywerte[2,i];
+       StringGrid1.Cells[2,i-1] := FloatToStr(xywerte[3,i]);      (* dI *)
+       origIma[2,i-1]:=xywerte[3,i];
+     end;
+     if (filetype=8) then begin
+       for i:=1 to datapoints do begin
+         StringGrid1.Cells[3,i-1] := FloatToStr(xywerte[4,i]);    (* qu *)
+         origIma[3,i-1]:=xywerte[4,i];
+         StringGrid1.Cells[4,i-1] := FloatToStr(xywerte[5,i]);    (* qv *)
+         origIma[4,i-1]:=xywerte[5,i];
+         StringGrid1.Cells[5,i-1] := FloatToStr(xywerte[6,i]);    (* angle *)
+         origIma[5,i-1]:=xywerte[6,i];
+         StringGrid1.Cells[6,i-1] := FloatToStr(xywerte[7,i]);    (* qx *)
+         origIma[6,i-1]:=xywerte[7,i];
+         StringGrid1.Cells[7,i-1] := FloatToStr(xywerte[8,i]);    (* qy *)
+         origIma[7,i-1]:=xywerte[8,i];
+         StringGrid1.Cells[8,i-1] := FloatToStr(xywerte[9,i]);    (* qz *)
+         origIma[8,i-1]:=xywerte[9,i];
+         StringGrid1.Cells[9,i-1] := FloatToStr(xywerte[10,i]);   (* 1,2,3 *)
+         origIma[9,i-1]:=xywerte[10,i];
+         StringGrid1.Cells[10,i-1] := FloatToStr(xywerte[11,i]);   (* dev *)
+         origIma[10,i-1]:=xywerte[11,i];
+       end;
+     end;
+  end; (* of datatype=1 *)
+
+  if datatype=2 then begin
+     (*** set dimension of backIma, sampleIma ***)
+     //SetLength(backIma, 11);
+     //SetLength(sampleIma, 11);
+     //for i:=0 to 10 do begin
+     //    SetLength(backIma[i], (datapoints+1)); // index 0 is not used
+     //    SetLength(sampleIma[i], (datapoints+1)); // index 0 is not used
+     //end;
+
+     (*** Write XYDaten-array to global StringGrid **)
+     for i:=1 to datapoints do begin
+       StringGrid5.Cells[0,i-1] := FloatToStr(xywerte[1,i]);      (* q *)
+       backIma[0,i-1]:=xywerte[1,i];
+       StringGrid5.Cells[1,i-1] := FloatToStr(xywerte[2,i]);      (* I *)
+       backIma[1,i-1]:=xywerte[2,i];
+       StringGrid5.Cells[2,i-1] := FloatToStr(xywerte[3,i]);      (* dI *)
+       backIma[2,i-1]:=xywerte[3,i];
+     end;
+     if (filetype=8) then begin
+       for i:=1 to datapoints do begin
+         StringGrid5.Cells[3,i-1] := FloatToStr(xywerte[4,i]);    (* qu *)
+         backIma[3,i-1]:=xywerte[4,i];
+         StringGrid5.Cells[4,i-1] := FloatToStr(xywerte[5,i]);    (* qv *)
+         backIma[4,i-1]:=xywerte[5,i];
+         StringGrid5.Cells[5,i-1] := FloatToStr(xywerte[6,i]);    (* angle *)
+         backIma[5,i-1]:=xywerte[6,i];
+         StringGrid5.Cells[6,i-1] := FloatToStr(xywerte[7,i]);    (* qx *)
+         backIma[6,i-1]:=xywerte[7,i];
+         StringGrid5.Cells[7,i-1] := FloatToStr(xywerte[8,i]);    (* qy *)
+         backIma[7,i-1]:=xywerte[8,i];
+         StringGrid5.Cells[8,i-1] := FloatToStr(xywerte[9,i]);    (* qz *)
+         backIma[8,i-1]:=xywerte[9,i];
+         StringGrid5.Cells[9,i-1] := FloatToStr(xywerte[10,i]);   (* 1,2,3 *)
+         backIma[9,i-1]:=xywerte[10,i];
+       end;
+     end;
+  end; (* of datatype=2 *)
+end;
+*/

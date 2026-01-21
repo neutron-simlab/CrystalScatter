@@ -17,7 +17,7 @@ public:
 
     int setValues( QString hdr, QStringList val );
     QStringList getValues( QString hdr );
-    QList<int> getValueIDs( QString hdr );
+    QList<int> getValueIDs( QString hdr, int off=0 );
 
     void setCalcTimeLimit( int secs );
     int  getCalcTimeLimit();
@@ -34,6 +34,7 @@ private slots:
     void on_butOutPath_clicked();    
     void on_butSaveSettings_clicked();
     void on_butLoadSettings_clicked();
+    void berechneAnzahl(bool);
 
 private:
     Ui::dlgGenerateCombinations *ui;

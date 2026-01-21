@@ -476,6 +476,7 @@ void SC_MainGUI::loadChatbotParamFile(QString fn, bool logLoading)
 
     generateKeyHash();
     showColorMarker(SETCOLMARK_CLEARED);
+    showColorMarker(SETCOLMARK_CHATBOT);
 
     // ACHTUNG: auch in sc_mainCons.cpp:waitForChatbot() (TODO für txt)
 
@@ -513,13 +514,13 @@ void SC_MainGUI::loadChatbotParamFile(QString fn, bool logLoading)
             if ( val.at(0).isNumber() || val.at(0) == '-' || val.at(0) == '+' )
             {
                 //qDebug() << it.key() << "==>" << val << pkey << "NUMBER";
-                calcGui->updateParamValue( pkey, val.toDouble(), SETCOLMARK_IGNORED );
+                calcGui->updateParamValue( pkey, val.toDouble(), SETCOLMARK_CHATBOT );
                 if ( logLoading ) calcGui->loadParamLogmessage("JSON",val,pkey,"");
             }
             else if ( val.at(0) == 'F' || val.at(0) == 'T' )
             {
                 //qDebug() << it.key() << "==>" << val << pkey << "BOOL";
-                calcGui->updateParamValue( pkey, val.at(0)=='T', SETCOLMARK_IGNORED );
+                calcGui->updateParamValue( pkey, val.at(0)=='T', SETCOLMARK_CHATBOT );
                 if ( logLoading ) calcGui->loadParamLogmessage("JSON",val,pkey,"");
             }
             else if ( val == "NULL" )
@@ -531,7 +532,7 @@ void SC_MainGUI::loadChatbotParamFile(QString fn, bool logLoading)
                 Debug: "sigma" ==> "NULL" "EditSigma" -NULL-
                 */
                 val = jsval2str( it.key(), jobj.value("default_value_number") );    // Mehr für mich ohne reale Daten vom Chatbot
-                calcGui->updateParamValue( pkey, val.toDouble(), SETCOLMARK_IGNORED );
+                calcGui->updateParamValue( pkey, val.toDouble(), SETCOLMARK_CHATBOT );
                 //qDebug() << it.key() << "==>" << val << pkey << "-NULL-";
                 if ( logLoading ) calcGui->loadParamLogmessage("JSON",val,it.key(),"");
             }
@@ -550,7 +551,7 @@ void SC_MainGUI::loadChatbotParamFile(QString fn, bool logLoading)
                     if ( p >= 0 )
                     {
                         gp->cbs()->setCurrentIndex(p);
-                        //SETCOL( gp->cbs(), SETCOLMARK_IGNORED );
+                        SETCOL( gp->cbs(), SETCOLMARK_CHATBOT );
                         if ( logLoading ) calcGui->loadParamLogmessage("JSON",val,it.key(),gp->cbs()->currentText());
                     }
                     else
@@ -571,7 +572,7 @@ void SC_MainGUI::loadChatbotParamFile(QString fn, bool logLoading)
 
             QStringList sl = line.split("=",Qt::KeepEmptyParts);
             if ( sl.size() != 2 ) continue;
-            //qDebug() << line << sl;
+            qDebug() << line << sl;
             if ( sl[0] == "Experiment_name" ) continue;
 
             QString pkey = paramkey2jsonkey.key(sl[0],"?");
@@ -582,12 +583,12 @@ void SC_MainGUI::loadChatbotParamFile(QString fn, bool logLoading)
             }
             else if ( sl[1].at(0).isNumber() || sl[1].at(0) == '-' || sl[1].at(0) == '+' )
             {
-                calcGui->updateParamValue( pkey, sl[1].toDouble(), SETCOLMARK_IGNORED );
+                calcGui->updateParamValue( pkey, sl[1].toDouble(), SETCOLMARK_CHATBOT );
                 if ( logLoading ) calcGui->loadParamLogmessage("JSONTXT",sl[1],pkey,"");
             }
             else if ( sl[1].at(0) == 'F' || sl[1].at(0) == 'T' )
             {
-                calcGui->updateParamValue( pkey, sl[1].at(0)=='T', SETCOLMARK_IGNORED );
+                calcGui->updateParamValue( pkey, sl[1].at(0)=='T', SETCOLMARK_CHATBOT );
                 if ( logLoading ) calcGui->loadParamLogmessage("JSONTXT",sl[1],pkey,"");
             }
             else
@@ -604,6 +605,7 @@ void SC_MainGUI::loadChatbotParamFile(QString fn, bool logLoading)
                     if ( p >= 0 )
                     {
                         gp->cbs()->setCurrentIndex(p);
+                        SETCOL( gp->cbs(), SETCOLMARK_CHATBOT );
                         if ( logLoading ) calcGui->loadParamLogmessage("JSONTXT",sl[1],pkey,gp->cbs()->currentText());
                     }
                     else
@@ -726,7 +728,7 @@ void SC_MainGUI::on_butChatbotReadClipboard_clicked()
 
         if ( logLoading ) calcGui->loadParamLogmessage("END","","","FINISHED"); // Close Logfile
         foreach ( QWidget *w, ui->tabCalc->findChildren<QWidget*>() ) w->blockSignals(false);
-        ui->tab1D2D->setCurrentIndex( 1 );  // 0=1D, 1=2D TODO wenn Chatbot auch 1d kann ...
+        butSet2D->setChecked(true);  // TODO wenn Chatbot auch 1d kann ...
 
         bIgnoreRecalc = false;
         bNoUpdateFromCBS = false;
@@ -807,6 +809,7 @@ void SC_MainGUI::on_togChatbotCalcMain_toggled(bool checked)
  */
 void SC_MainGUI::on_tabCBCommSel_currentChanged(int index) // TODO: wirklich notwendig?
 {
+    Q_UNUSED(index)
     //qDebug() << "TODO: on_tabCBCommSel_currentChanged" << index;
 }
 

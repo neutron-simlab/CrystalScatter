@@ -8,7 +8,7 @@
 
 # Definition of the CrystalScatter executable
 #crystalscatter = "/opt/sas_scatter2/bin/sas_scatter2Cons"
-crystalscatter = r"C:\SimLab\sas-crystal\build-sas_scatter2Cons-Desktop_Qt_6_7_2_MinGW_64_bit-Debug\debug\sas_scatter2Cons.exe"
+crystalscatter = r"C:\SimLab\sas-crystal\build-sas_scatter2Cons-Desktop_Qt_6_7_2_MinGW_64_bit-Release\release\sas_scatter2Cons.exe"
 
 parfile = r"C:\SimLab\CrystalScatter\Mcp\testmcppar.txt"
 imgfile = r"C:\SimLab\CrystalScatter\Mcp\testmcpout.png"
@@ -23,9 +23,9 @@ keyval = [
     "beamposx=57.0",
     "beamposy=31.0",
     "cbinterior=homogeneous",
-    "cbparticle=disk",
+    "cbparticle=sphere",
     "ceff=0.01",
-    "ceffcyl=0.0",
+    "ceffcyl=0.01",
     "dbeta=0.4",
     "debyescherrer=False",
     "det=10.0",
@@ -66,10 +66,10 @@ kvstr = ';'.join(keyval)
 
 # Setup the argument array
 args = [ crystalscatter,      # executable
-         #"--mcpval", kvstr,  # (inp) list of values from chatbot
-         "--mcpinp", parfile, # (inp) filename for the input
-         #"--mcpimg64",       # (out) output Base64 image string
-         "--mcpimg", imgfile, # (out) filename for the generated output image
+         "--mcpval", kvstr,  # (inp) list of values from chatbot
+         #"--mcpinp", parfile, # (inp) filename for the input
+         "--mcpimg64",       # (out) output Base64 image string
+         #"--mcpimg", imgfile, # (out) filename for the generated output image
          "--threads", "0"     # use the GPU if available (remove to use all cpu cores and no gpu)
          ]
 # call the executable with "--help" to get all parameter informations
@@ -90,7 +90,17 @@ else:
     #     Done in 0 sec =00:00:00
     
     print("--- Image ---")
-    tmp = cp.stdout # Base64 Image string output
-    print(len(tmp))  # in this example:  26285
+    tmp = cp.stdout
+    print(len(tmp))
     print(tmp)
-
+    # Output (Image):
+    # {
+    #   "image": "iVBORw0...K5CYII=",
+    #   "runtime": "12.8739ms",
+    #   "state": "OK"
+    # }
+    # Output (FEHLER):
+    # {
+    #   "error": "Ceffcyl<=0.01",
+    #   "state": "FAIL"
+    # }

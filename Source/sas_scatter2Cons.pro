@@ -6,7 +6,6 @@ include(sas_scatter2.pri)
 FFTW3_PATH = ""  # There is no fft calculation done, so these definitions can be deleted.
 FFTW3_LIBS = ""
 HDF5_BASE  = ""  # There is no hdf file reading, so this definition can be deleted.
-QWT_BASE   = ""  # There is no GUI here, so this definition can be deleted.
 
 
 QT       += core
@@ -49,6 +48,8 @@ SOURCES += \
     sc_readdata.cpp \
     sc_simplexfit2d.cpp \
     widimage.cpp
+    #datadisplaybase.cpp \
+    #datadisplaycons.cpp \
 
 HEADERS += \
     sc_calcCons.h \
@@ -78,6 +79,8 @@ HEADERS += \
     sc_readdata.h \
     sc_simplexfit2d.h \
     widimage.h
+    #datadisplaybase.h \
+    #datadisplaycons.h \
 
 
 # Default rules for deployment.

@@ -87,6 +87,9 @@ widImage::widImage( QString tit, QString dp, QWidget *parent ) :
     plot1d  = nullptr;
     curve1d = nullptr;
     grid1d  = nullptr;
+    plot1dres  = nullptr;
+    curve1dres = nullptr;
+    grid1dres  = nullptr;
 #endif
     if ( lastSavedFilePath.isEmpty() && !dp.isEmpty() ) lastSavedFilePath = dp;
     getConfig();
@@ -108,20 +111,34 @@ widImage::widImage( QString tit, QString dp, QWidget *parent ) :
     ui->cbsColorTbl->addItems( _slColornames );
     ui->cbsColorTbl->setCurrentIndex(lastColorTbl);
     on_cbsColorTbl_textActivated( ui->cbsColorTbl->currentText() );
-    ui->lblFilename->setText( "not saved yet" );
-    ui->lblFilename->setEnabled(false);
+    ui->lblFilename1d->setText( "not saved yet" );
+    ui->lblFilename2d->setText( "not saved yet" );
+    ui->lblFilename1d->setEnabled(false);
+    ui->lblFilename2d->setEnabled(false);
     ui->cbsZoom->setCurrentIndex( zoomFactor );
     ui->cbsRotation->setCurrentIndex( rotIndex );
     ui->togMirrorH->setChecked( swapHor );
     ui->togMirrorV->setChecked( swapVert );
+    ui->radShowLinX1d->setChecked( x1dlin);
+    ui->radShowLogX1d->setChecked(!x1dlin);
+    ui->radShowLinY1d->setChecked( y1dlin);
+    ui->radShowLogY1d->setChecked(!y1dlin);
+    ui->radShowLinV2d->setChecked( y2dlin);
+    ui->radShowLogV2d->setChecked(!y2dlin);
+    ui->radScaleAutoY1d ->setChecked( y1dauto);
+    ui->radScaleFixedY1d->setChecked(!y1dauto);
+    ui->radScaleAutoX1d ->setChecked( x1dauto);
+    ui->radScaleFixedX1d->setChecked(!x1dauto);
+    ui->radScaleAuto2d ->setChecked( y2dauto);
+    ui->radScaleFixed2d->setChecked(!y2dauto);
     ui->lblHistogram->setMaximumHeight( 10 + HISTO_SY );
     ui->lblHistogram->setMinimumHeight( 10 + HISTO_SY );
 #ifndef UseAutoNoBorder
-    ui->radScaleAutoNoBorder->hide();
+    ui->radScaleAutoNoBorder2d->hide();
 #endif
     setMouseTracking(true);
     if ( /*tit.startsWith("(r,phi)") ||*/ tit.startsWith("iFFT") )
-        ui->radShowLin->setChecked( true );
+        ui->radShowLinV2d->setChecked( true );
     bRekursiv = false;
 }
 
@@ -132,6 +149,12 @@ void widImage::getConfig()
     swapVert = set.value("SwapVert",false).toBool();
     rotIndex = set.value("RotIndex",0).toInt();
     zoomFactor = set.value("ZoomFactor",0).toInt();
+    y1dlin = set.value("y1dlin",false).toBool();
+    y2dlin = set.value("y2dlin",false).toBool();
+    x1dlin = set.value("x1dlin",true).toBool();
+    y1dauto = set.value("y1dauto",true).toBool();
+    x1dauto = set.value("x1dauto",true).toBool();
+    y2dauto = set.value("y2dauto",true).toBool();
 }
 
 widImage::~widImage()
@@ -146,7 +169,13 @@ void widImage::closeEvent(QCloseEvent *event)
     set.setValue("SwapHor",swapHor);
     set.setValue("SwapVert",swapVert);
     set.setValue("RotIndex",rotIndex);
-    set.setValue("ZoomFactor",zoomFactor);
+    set.setValue("ZoomFactor",zoomFactor);    
+    set.setValue("y1dlin",y1dlin);
+    set.setValue("y2dlin",y2dlin);
+    set.setValue("x1dlin",x1dlin);
+    set.setValue("y1dauto",y1dauto);
+    set.setValue("x1dauto",x1dauto);
+    set.setValue("y2dauto",y2dauto);
     emit destroyed(this);
     event->accept();
 }
@@ -165,16 +194,12 @@ void widImage::saveNoFitRects()
         fout.close();
     }
 }
-#endif // !CONSOLENPROG
 
 QString widImage::getMetaTitle()
 {
-#ifndef CONSOLENPROG
     return ui->grpImage->title().remove("Image ");
-#else
-    return "?";
-#endif
 }
+#endif // !CONSOLENPROG
 
 void widImage::addMetaInfo( QString key, QString val )
 {
@@ -189,8 +214,10 @@ void widImage::addMetaInfo( QString key, QString val )
     }
     if ( key == "@" )
     {   // Abschluß, Sortieren
-        ui->lblFilename->setText( "not saved yet" );
-        ui->lblFilename->setEnabled(false);
+        ui->lblFilename1d->setText( "not saved yet" );
+        ui->lblFilename2d->setText( "not saved yet" );
+        ui->lblFilename1d->setEnabled(false);
+        ui->lblFilename2d->setEnabled(false);
         ui->tblMetaData->sortItems(0);
         ui->tblMetaData->resizeColumnsToContents();
         return;
@@ -291,7 +318,7 @@ void widImage::addMetaInfo( QString key, QString val )
     else
         ui->tblMetaData->item(items[0]->row(),1)->setText(val);
 #endif
-    // Spezielle Werte noch lokal speichern
+    // Spezielle Werte noch lokal speichern (auch bei Cons)
     QString val2 = val.left(val.indexOf(' ')).trimmed();
     if ( val2.isEmpty() ) val2 = val.trimmed();
     if ( key == "BeamPosX" )
@@ -336,16 +363,16 @@ void widImage::addMetaInfo( QString key, QString val )
             noFitRect[i].setRight(  sl[2].toInt() );
             noFitRect[i].setBottom( sl[3].toInt() );
         }
-    }
+    }    
     else if ( key == "Residuenplot" )
     {
 #ifndef CONSOLENPROG
         ui->cbsColorTbl->setCurrentIndex( ui->cbsColorTbl->findText(_slColornames[12]) ); // tblResGlo
-#endif
         on_cbsColorTbl_textActivated(_slColornames[12]); // tblResGlo
-#ifndef CONSOLENPROG
-        on_butUpdate_clicked();
+        on_butUpdate1d_clicked();
+        on_butUpdate2d_clicked();
 #else
+        on_cbsColorTbl_textActivated(_slColornames[12]); // tblResGlo
         imgNormal = generateImage();
 #endif
     }
@@ -380,9 +407,10 @@ void widImage::addMetaInfo( QString key, QString val )
 #endif
 }
 
+
+#ifndef CONSOLENPROG
 QString widImage::metaInfo( QString key, QString def )
 {
-#ifndef CONSOLENPROG
     if ( noGUI ) return def; // metaInfo
     QList<QTableWidgetItem*> items = ui->tblMetaData->findItems( key, Qt::MatchFixedString );
     if ( items.size() == 0 ) return def;
@@ -392,11 +420,8 @@ QString widImage::metaInfo( QString key, QString def )
     tmp.replace(" m","");
     tmp.replace(" deg","");
     return tmp;
-#else
-    Q_UNUSED(key)
-    return def;
-#endif
 }
+#endif
 
 
 #if !defined(CONSOLENPROG) && !defined(NOQWT)
@@ -459,10 +484,11 @@ int widImage::setData1D(int x1, double q0, double q1, double *d)
     histogramValid = false;
     if ( !noGUI )   // setData, ena cbs
     {
-        ui->butUpdate->setEnabled(true);
+        ui->butUpdate1d->setEnabled(true);
+        ui->butUpdate2d->setEnabled(false);
         ui->cbsZoom->setEnabled(true);
     }
-    on_butUpdate_clicked(); // Redraw Image
+    on_butUpdate1d_clicked(); // Redraw Image
 #ifdef CountNanValues
     if ( noGUI ) return cntNan;    // setData
 #else
@@ -568,10 +594,11 @@ int widImage::setData( int x0, int x1, int y0, int y1, double *d )
     histogramValid = false;
     if ( !noGUI )   // setData, ena cbs
     {
-        ui->butUpdate->setEnabled(true);
+        ui->butUpdate1d->setEnabled(false);
+        ui->butUpdate2d->setEnabled(true);
         ui->cbsZoom->setEnabled(true);
     }
-    on_butUpdate_clicked(); // Redraw Image
+    on_butUpdate2d_clicked(); // Redraw Image
 #ifdef CountNanValues
     if ( noGUI ) return cntNan;    // setData
 #else
@@ -608,7 +635,8 @@ bool widImage::loadImageFile( QString fn )
     if ( fn.isEmpty() )
     {
         useImageFileOnly = false;
-        ui->grpScaling->setEnabled(true);
+        ui->grpScaling1d->setEnabled(true);
+        ui->grpScaling2d->setEnabled(true);
         return true;
     }
     bool rv;
@@ -620,7 +648,8 @@ bool widImage::loadImageFile( QString fn )
     {
         qDebug() << "widImage::loadImageFile - error loading image" << fn;
         useImageFileOnly = false;
-        ui->grpScaling->setEnabled(true);
+        ui->grpScaling1d->setEnabled(true);
+        ui->grpScaling2d->setEnabled(true);
         return false;
     }
 
@@ -628,8 +657,9 @@ bool widImage::loadImageFile( QString fn )
 #ifndef NOQWT
     data1D = false;
 #endif
-    ui->grpScaling->setEnabled(false);
-    on_butUpdate_clicked();
+    ui->grpScaling1d->setEnabled(false);
+    ui->grpScaling2d->setEnabled(false);
+    on_butUpdate2d_clicked();
     return true;
 }
 #endif
@@ -945,14 +975,29 @@ void widImage::updateColortable( int *r, int *g, int *b )
 }
 
 #ifndef CONSOLENPROG
-void widImage::on_butUpdate_clicked()
+void widImage::on_butUpdate1d_clicked()
 {
-    if ( data1D )
+    if ( !data1D ) return;
+    if ( !noGUI )
     {
-        imgNormal = generateImage();
-        return;
+        y1dlin = ui->radShowLinY1d->isChecked();
+        x1dlin = ui->radShowLinX1d->isChecked();
+        y1dauto = ui->radScaleAutoY1d->isChecked();
+        x1dauto = ui->radScaleAutoX1d->isChecked();
     }
-    qApp->setOverrideCursor(Qt::WaitCursor);
+    imgNormal = generateImage();
+    return;
+}
+
+void widImage::on_butUpdate2d_clicked()
+{
+    if ( data1D ) return;
+    if ( !noGUI )
+    {
+        y2dlin = ui->radShowLinV2d->isChecked();
+        y2dauto = ui->radScaleAuto2d->isChecked();
+        qApp->setOverrideCursor(Qt::WaitCursor);
+    }
     if ( !useImageFileOnly )
         imgNormal = generateImage();
     if ( imgNormal.isNull() )
@@ -961,8 +1006,8 @@ void widImage::on_butUpdate_clicked()
         {
             ui->lblImage->setText( "Invalid min/max" );
             setEnabled(false); // Komplettes Fenster gesperrt
+            qApp->restoreOverrideCursor();
         }
-        qApp->restoreOverrideCursor();
         return;
     }
 
@@ -1084,29 +1129,19 @@ void widImage::switchGuiFor1d()
 {
     if ( data1D )
     {   // für 1d nicht verwendete Elemente wegnehmen
-        ui->cbsZoom->hide(); // eventuell doch???
-        ui->cbsRotation->hide();
-        ui->togMirrorH->hide();
-        ui->togMirrorV->hide();
-        ui->lblColorTable->hide();
-        ui->lblCbsColorTbl->hide();
-        ui->cbsColorTbl->hide();
-        ui->scrollArea2d->hide();
+        ui->grpScaling1d->show();
         ui->scrollArea1d->show();
-        ui->grpScaleH->show();
+        ui->grpScaling2d->hide();
+        ui->scrollArea2d->hide();
+        ui->lblColorTable->hide();
     }
     else
     {   // für 2d wieder zeigen
-        ui->cbsZoom->show();
-        ui->cbsRotation->show();
-        ui->togMirrorH->show();
-        ui->togMirrorV->show();
-        ui->lblColorTable->show();
-        ui->lblCbsColorTbl->show();
-        ui->cbsColorTbl->show();
+        ui->grpScaling1d->hide();
         ui->scrollArea1d->hide();
+        ui->grpScaling2d->show();
         ui->scrollArea2d->show();
-        ui->grpScaleH->hide();
+        ui->lblColorTable->show();
     }
     adjustSize();
 }
@@ -1114,10 +1149,19 @@ void widImage::switchGuiFor1d()
 #endif // !CONSOLENPROG
 
 #ifndef NOQWT
-void widImage::plot1dCurve(double vmin, double vmax, bool isLog)
+/**
+ * @brief widImage::plot1dCurve
+ * @param vmin - Min Value
+ * @param vmax - Max Value
+ * @param vlog - True=Value axis in log
+ * @param qmin - Min Q
+ * @param qmax - Max Q
+ * @param qlog - True=Q axis in log
+ */
+void widImage::plot1dCurve(double vmin, double vmax, bool vlog, double qmin, double qmax, bool qlog)
 {
-    //qDebug() << "plot1dCurve()" << vmin << vmax << isLog << "pnts:" << points1d.size();
-    bool doresize = false;
+    //qDebug() << "plot1dCurve()" << vmin << vmax << vlog << qmin << qmax << qlog << "pnts:" << points1d.size();
+    bool doresize = false;  // Resize des Fensters nur, wenn der Plot neu erstellt wurde
     if ( plot1d == nullptr )
     {
         doresize = true;
@@ -1156,7 +1200,7 @@ void widImage::plot1dCurve(double vmin, double vmax, bool isLog)
 
     // Jetzt noch die Y-Achse logarithmisch sofern gewünscht
     plot1d->setAxisAutoScale(QwtPlot::yLeft, false);
-    if ( isLog )
+    if ( vlog )
     {
         QwtLogScaleEngine *ylogScale = new QwtLogScaleEngine();
         double x1=vmin, x2=vmax;
@@ -1176,11 +1220,32 @@ void widImage::plot1dCurve(double vmin, double vmax, bool isLog)
         plot1d->setAxisScaleDiv(QwtPlot::yLeft, yDiv);
     }
 
+    // Jetzt noch die X-Achse logarithmisch sofern gewünscht
+    plot1d->setAxisAutoScale(QwtPlot::xBottom, false);
+    if ( qlog )
+    {
+        QwtLogScaleEngine *xlogScale = new QwtLogScaleEngine();
+        double x1=qmin, x2=qmax;
+        double stp=0;
+        if ( qmin == 0 && qmax > 10 ) x1 = 0.0002;
+        QwtScaleDiv xDiv = xlogScale->divideScale(x1, x2, 2/*maxMajorSteps*/, 10/*maxMinorSteps*/, stp/*stepSize*/);
+        plot1d->setAxisScaleEngine(QwtPlot::xBottom, xlogScale);
+        plot1d->setAxisScaleDiv(QwtPlot::xBottom, xDiv);
+        //qDebug() << "yLog:" << vmin << vmax << "->" << x1 << x2 << ":" << stp;
+    }
+    else
+    {
+        QwtLinearScaleEngine *xlinScale = new QwtLinearScaleEngine();
+        QwtScaleDiv xDiv = xlinScale->divideScale(qmin, qmax, 10, 10, 0.0); // to calculate
+        plot1d->setAxisScaleEngine(QwtPlot::xBottom, xlinScale);
+        plot1d->setAxisScaleDiv(QwtPlot::xBottom, xDiv);
+    }
+
     if ( doresize )
     {
         plot1d->adjustSize();
         QSize siz = plot1d->sizeHint();
-        siz += QSize(10,10);
+        siz += QSize(10,20);
         //qDebug() << "plt size" << plot1d->sizeHint() << siz;
         ui->widPlot->setMinimumSize( plot1d->sizeHint() );
         ui->scrollArea1d->setMinimumSize( siz );
@@ -1192,16 +1257,135 @@ void widImage::plot1dCurve(double vmin, double vmax, bool isLog)
 #endif
 
 
-QImage widImage::generateImage()
+QImage widImage::generateImage1d()
 {
+#if defined(CONSOLENPROG) || defined(NOQWT)
+    return QImage();
+#else
+    if ( !data1D ) return QImage();
+    double vmin, vmin2, vmax, vlogmin, vlogmax; // Values
+    double xmin,        xmax, xlogmin, xlogmax; // q-Werte
+    // Y-Achse (Werteachse)
+    if ( !noGUI && y1dlin )
+    {   // Lin
+        vlogmin = vlogmax = 0;
+        vmin = vmin2 = vmax = data.first();
+        QVector<double>::const_iterator i;
+        for ( i = data.constBegin(); i != data.constEnd(); ++i )
+        {
+            if ( *i > 0 && *i < vmin2 )
+                vmin2 = *i;
+            if ( *i < vmin )
+                vmin = *i;
+            if ( *i > vmax )
+                vmax = *i;
+        }
+    }
+    else
+    {   // Log (Default, wenn keine GUI)
+        vlogmin=1e26; vlogmax=0;
+        vmin = vmin2 = vmax = data.first();
+        QVector<double>::const_iterator i;
+        for ( i = data.constBegin(); i != data.constEnd(); ++i )
+            if ( *i > -1.0e10 )
+            {
+                if ( *i > 0 && *i < vmin2 )
+                    vmin2 = *i;
+                if ( *i < vmin )
+                    vmin = *i;
+                if ( *i > vmax )
+                    vmax = *i;
+                if ( *i > 0 )
+                {
+                    if ( log10(*i) < vlogmin )
+                        vlogmin = log10(*i);
+                    if ( log10(*i) > vlogmax )
+                        vlogmax = log10(*i);
+                }
+            }
+    }
+    if ( fabs(vmin-vmax) < 1e-6 )
+    {   // Bei lin und log ...
+        vmin *= 0.998;
+        vmax *= 1.002;
+        if ( vmax == 0 ) vmax = 0.2;
+        //qDebug() << "change vmin/vmax" << vmin << vmax;
+    }
+    // X-Achse (q-Achse), immer die gleichen Daten
+    xmin = qmin_1d;
+    xmax = qmax;
+    xlogmin = xmin <= 0 ? 0 : log10(xmin);
+    xlogmax = xmax <= 0 ? 0 : log10(xmax);
+    if ( fabs(xmin-xmax) < 1e-2 )
+    {   // Bei lin und log ...
+        xmin *= 0.998;
+        xmax *= 1.002;
+        if ( xmax == 0 ) xmax = 0.2;
+        //qDebug() << "change vmin/vmax" << vmin << vmax;
+    }
+    if ( !noGUI )
+    {
+        if ( vmin == 0 )
+            ui->lblDispMinLinY1d->setText( QString("(0)  %1").arg(vmin2) );
+        else
+            ui->lblDispMinLinY1d->setText( QString::number(vmin) );
+        ui->lblDispMaxLinY1d->setText( QString::number(vmax) );
+        ui->lblDispMinLogY1d->setText( QString::number(vlogmin) );
+        ui->lblDispMaxLogY1d->setText( QString::number(vlogmax) );
+        if ( isinf(vmax) || isinf(vlogmax) )         // Wenn die Maximalwerte 'inf' sind, dann wird auf die
+            ui->radScaleFixedY1d->setChecked(true);  // feste Skalierung gewechselt, dmait man ein Bild bekommt.
+        // Das Flag y1dauto wird nicht geändert, weil dieses nur temporär geändert wird.
+
+        ui->lblDispMinLinX1d->setText( QString::number(xmin) );
+        ui->lblDispMaxLinX1d->setText( QString::number(xmax) );
+        ui->lblDispMinLogX1d->setText( QString::number(xlogmin) );
+        ui->lblDispMaxLogX1d->setText( QString::number(xlogmax) );
+        if ( isinf(xmax) || isinf(xlogmax) )         // Wenn die Maximalwerte 'inf' sind, dann wird auf die
+            ui->radScaleFixedX1d->setChecked(true);  // feste Skalierung gewechselt, dmait man ein Bild bekommt.
+        // Das Flag x1dauto wird nicht geändert, weil dieses nur temporär geändert wird.
+    }
+    if ( !noGUI && ui->radScaleFixedY1d->isChecked() )
+    {
+        bool ok;
+        double tmp;
+        tmp = input2val( ui->inpFixedMaxY1d, &ok ); if ( ok ) vmax = tmp;
+        tmp = input2val( ui->inpFixedMinY1d, &ok ); if ( ok ) vmin = tmp;
+    }
+    if ( !noGUI && ui->radScaleFixedX1d->isChecked() )
+    {
+        bool ok;
+        double tmp;
+        tmp = input2val( ui->inpFixedMaxX1d, &ok ); if ( ok ) xmax = tmp;
+        tmp = input2val( ui->inpFixedMinX1d, &ok ); if ( ok ) xmin = tmp;
+    }
+    plot1dCurve( vmin, vmax, !y1dlin, xmin, xmax, !x1dlin );
+    plot1d->replot();
+    QRect rc = plot1d->geometry();
+    QImage img( rc.width(), rc.height(), QImage::Format_RGB32 );
+    QPainter pnt(&img);
+    pnt.fillRect( rc, Qt::white );
+    //qDebug() << rc;
+    QwtPlotRenderer rend;
+    rend.render(plot1d,&pnt,rc);
+    pnt.end();
+
+    return img;
+#endif // #if defined(CONSOLENPROG) || defined(NOQWT) #else
+    }
+
+
+QImage widImage::generateImage2d()
+{
+    if ( data1D ) return QImage();
+
     double vmin, vmin2, vmax, vlogmin, vlogmax;
 #ifndef CONSOLENPROG
 #ifdef UseAutoNoBorder
     bool useBorders = !noGUI && !ui->radScaleAutoNoBorder->isChecked();
 #endif
-    if ( !noGUI && ui->radShowLin->isChecked() )
+    if ( !noGUI && ui->radShowLinV2d->isChecked() )
 #else
-    if ( useLinOut )
+    if ( y2dlin )
 #endif
     {   // Lin
         vlogmin = vlogmax = 0;
@@ -1266,57 +1450,32 @@ QImage widImage::generateImage()
     if ( !noGUI )
     {
         if ( vmin == 0 )
-            ui->lblDispMinLin->setText( QString("(0)  %1").arg(vmin2) );
+            ui->lblDispMinLin2d->setText( QString("(0)  %1").arg(vmin2) );
         else
-            ui->lblDispMinLin->setText( QString::number(vmin) );
-        ui->lblDispMaxLin->setText( QString::number(vmax) );
-        ui->lblDispMinLog->setText( QString::number(vlogmin) );
-        ui->lblDispMaxLog->setText( QString::number(vlogmax) );
+            ui->lblDispMinLin2d->setText( QString::number(vmin) );
+        ui->lblDispMaxLin2d->setText( QString::number(vmax) );
+        ui->lblDispMinLog2d->setText( QString::number(vlogmin) );
+        ui->lblDispMaxLog2d->setText( QString::number(vlogmax) );
         if ( isinf(vmax) || isinf(vlogmax) )        // Wenn die Maximalwerte 'inf' sind, dann wird auf die
-            ui->radScaleFixed->setChecked(true);    // feste Skalierung gewechselt, dmait man ein Bild bekommt.
+            ui->radScaleFixed2d->setChecked(true);    // feste Skalierung gewechselt, dmait man ein Bild bekommt.
     }
-    if ( !noGUI && ui->radScaleFixed->isChecked() )
+    if ( !noGUI && ui->radScaleFixed2d->isChecked() )
     {
         bool ok;
         double tmp;
-        //if ( ui->radShowLin->isChecked() )
+        //if ( ui->radShowLinV->isChecked() )
         //{
-            tmp = input2val( ui->inpFixedMax, &ok ); if ( ok ) vmax = tmp;
-            tmp = input2val( ui->inpFixedMin, &ok ); if ( ok ) vmin = tmp;
+        tmp = input2val( ui->inpFixedMax2d, &ok ); if ( ok ) vmax = tmp;
+        tmp = input2val( ui->inpFixedMin2d, &ok ); if ( ok ) vmin = tmp;
         //}
         //else
-        if ( !ui->radShowLin->isChecked() )
+        if ( !ui->radShowLinV2d->isChecked() )
         {
-            tmp = input2val( ui->inpFixedMax, &ok ); if ( ok && tmp > 0 ) vlogmax = log10(tmp);
-            tmp = input2val( ui->inpFixedMin, &ok ); if ( ok && tmp > 0 ) vlogmin = log10(tmp);
+            tmp = input2val( ui->inpFixedMax2d, &ok ); if ( ok && tmp > 0 ) vlogmax = log10(tmp);
+            tmp = input2val( ui->inpFixedMin2d, &ok ); if ( ok && tmp > 0 ) vlogmin = log10(tmp);
         }
     }
 #endif
-#ifndef NOQWT
-    if ( data1D )
-    {
-        if ( !noGUI && ui->radShowLin->isChecked() )
-        {   // Lin
-            plot1dCurve( vmin, vmax, false );
-        }
-        else
-        {   // Log
-            plot1dCurve( vmin, vmax, true );    // nicht vlogmin/vlogmax!
-        }
-        plot1d->replot();
-        QRect rc = plot1d->geometry();
-        QImage img( rc.width(), rc.height(), QImage::Format_RGB32 );
-        QPainter pnt(&img);
-        pnt.fillRect( rc, Qt::white );
-        //qDebug() << rc;
-        QwtPlotRenderer rend;
-        rend.render(plot1d,&pnt,rc);
-        pnt.end();
-
-        return img;
-    }
-#endif // !NOQWT
-
     if ( vmin >= vmax ) return QImage();
 
     if ( farbtabelle.size() < 256 )
@@ -1330,9 +1489,9 @@ QImage widImage::generateImage()
     //qDebug() << "GenImg" << img.size();
 
 #ifndef CONSOLENPROG
-    if ( !noGUI && ui->radShowLin->isChecked() )
+    if ( !noGUI && ui->radShowLinV2d->isChecked() )
 #else
-    if ( useLinOut )
+    if ( y2dlin )
 #endif
     {   // Lin
         for ( int y=minY, yp=0; y<maxY; y++, yp++ )
@@ -1435,115 +1594,116 @@ QColor widImage::data2pixelcol( double val, double min, double max, double datam
 
 
 #ifndef CONSOLENPROG
-void widImage::saveParams( QSettings &sets )
+void widImage::on_butSave1d_clicked()
 {
-    sets.setValue( "ScaleFix",   ui->radScaleFixed->isChecked() ); // radScaleAuto = !radScaleFixed
-    sets.setValue( "DispLin",    ui->radShowLin->isChecked() ); // radShowLog = !radShowLin
-    sets.setValue( "FixedMin",   ui->inpFixedMin->text() );
-    sets.setValue( "FixedMax",   ui->inpFixedMax->text() );
-    sets.setValue( "ColorTable", ui->cbsColorTbl->currentText() );
-}
-
-void widImage::loadParams( QSettings &sets )
-{
-    ui->radScaleFixed->setChecked( sets.value("ScaleFix").toBool() ); // radScaleAuto = !radScaleFixed
-    ui->radShowLin->setChecked( sets.value("DispLin").toBool() ); // radShowLog = !radShowLin
-    ui->inpFixedMin->setText( sets.value("FixedMin").toString() );
-    ui->inpFixedMax->setText( sets.value("FixedMax").toString() );
-    ui->cbsColorTbl->setCurrentIndex( ui->cbsColorTbl->findText( sets.value("ColorTable").toString() ) );
-}
-
-void widImage::on_butSave_clicked()
-{
+    if ( !data1D ) return;
     QString fn;
-    if ( data1D )
-    {
-        fn = QFileDialog::getSaveFileName( this, "Save", lastSavedFilePath, "1d images (*.png)" );
-        if ( fn.isEmpty() ) return;
-        if ( !fn.endsWith(".png",Qt::CaseInsensitive) ) fn += ".png";
-    }
-    else
-    {
-        fn = QFileDialog::getSaveFileName( this, "Save", lastSavedFilePath, "Datafiles (*.dat)" );
-        if ( fn.isEmpty() ) return;
-        if ( !fn.endsWith(".dat",Qt::CaseInsensitive) ) fn += ".dat";
-    }
+    fn = QFileDialog::getSaveFileName( this, "Save", lastSavedFilePath, "1d images (*.png)" );
+    if ( fn.isEmpty() ) return;
+    if ( !fn.endsWith(".png",Qt::CaseInsensitive) ) fn += ".png";
     lastSavedFilePath = fn;
     QString fnbase = fn.left(fn.length()-4);
     QFile f(fn);
-    ui->lblFilename->setText( fn );
-    ui->lblFilename->setEnabled(true);
+    ui->lblFilename1d->setText( fn );
+    ui->lblFilename1d->setEnabled(true);
 
-    if ( ! data1D )
+    // ----- Save the 1D data in textual format (CSV)
+    fn = fnbase + ".csv";
+    f.setFileName(fn);
+    if ( f.open(QIODevice::WriteOnly) )
     {
-        // ----- Save the image in binary format
-        union
+        double qstp = (qmax - qmin_1d) / (double)(maxX-minX);
+        QTextStream ts(&f);
+        ts << "q;I(q)" << EOL;
+        for ( int x=minX; x<maxX; x++ )
         {
-            double e;
-            char c[1];
-        } val;
-        if ( f.open(QIODevice::WriteOnly) )
-        {
-            // (1) 19 Bytes as text with the current dimensions of the image.
-            QString tmp = QString("%1 %2 %3 %4").arg(minX,4).arg(maxX,4).arg(minY,4).arg(maxY,4);
-            f.write( qPrintable(tmp) );
-            // (2) then all values in binary format.
-            for ( int y=minY; y<maxY; y++ )
-            {
-                for ( int x=minX; x<maxX; x++ )
-                {
-                    val.e = getData(x,y);
-                    f.write( val.c, sizeof(double) );
-                }
-            }
-            f.close();
+            ts << qmin_1d+x*qstp << ";" << getData(x,0) << EOL;
         }
-        else
-            qDebug() << f.fileName() << f.errorString();
-
-        // ----- Save the image in textual format (CSV)
-        fn = fnbase + ".csv";
-        f.setFileName(fn);
-        if ( f.open(QIODevice::WriteOnly) )
-        {
-            QTextStream ts(&f);
-            // (1) the first two lines contains the dimensions.
-            ts << "X:;" << minX << ";" << maxX << EOL;
-            ts << "Y:;" << minY << ";" << maxY << EOL;
-            // (2) then all values line by line separated with a ; so this can be read by Excel.
-            for ( int y=minY; y<maxY; y++ )
-            {
-                ts << "Y=" << y << ":";
-                for ( int x=minX; x<maxX; x++ )
-                {
-                    ts << ";" << getData(x,y);
-                }
-                ts << EOL;
-            }
-            f.close();
-        }
-        else
-            qDebug() << f.fileName() << f.errorString();
-    } // !data1D
+        f.close();
+    }
     else
+        qDebug() << f.fileName() << f.errorString();
+
+    // ----- Save the image in PNG format
+    saveImage(fnbase+".png");
+
+    // ----- Save the MetaData in textual format
+    fn = fnbase + ".txt";
+    f.setFileName(fn);
+    if ( f.open(QIODevice::WriteOnly) )
     {
-        // ----- Save the 1D data in textual format (CSV)
-        fn = fnbase + ".csv";
-        f.setFileName(fn);
-        if ( f.open(QIODevice::WriteOnly) )
+        QTextStream ts(&f);
+        for ( int r=0; r<ui->tblMetaData->rowCount(); r++ )
         {
-            double qstp = (qmax - qmin_1d) / (double)(maxX-minX);
-            QTextStream ts(&f);
-            ts << "q;I(q)" << EOL;
+            ts << ui->tblMetaData->item(r,0)->text() << "\t" << ui->tblMetaData->item(r,1)->text() << EOL;
+        }
+        f.close();
+    }
+    else
+        qDebug() << f.fileName() << f.errorString();
+} /* on_butSave1d_clicked() */
+
+void widImage::on_butSave2d_clicked()
+{
+    if ( data1D ) return;
+    QString fn;
+    fn = QFileDialog::getSaveFileName( this, "Save", lastSavedFilePath, "Datafiles (*.dat)" );
+    if ( fn.isEmpty() ) return;
+    if ( !fn.endsWith(".dat",Qt::CaseInsensitive) ) fn += ".dat";
+    lastSavedFilePath = fn;
+    QString fnbase = fn.left(fn.length()-4);
+    QFile f(fn);
+    ui->lblFilename2d->setText( fn );
+    ui->lblFilename2d->setEnabled(true);
+
+    // ----- Save the image in binary format
+    union
+    {
+        double e;
+        char c[1];
+    } val;
+    if ( f.open(QIODevice::WriteOnly) )
+    {
+        // (1) 19 Bytes as text with the current dimensions of the image.
+        QString tmp = QString("%1 %2 %3 %4").arg(minX,4).arg(maxX,4).arg(minY,4).arg(maxY,4);
+        f.write( qPrintable(tmp) );
+        // (2) then all values in binary format.
+        for ( int y=minY; y<maxY; y++ )
+        {
             for ( int x=minX; x<maxX; x++ )
             {
-                ts << qmin_1d+x*qstp << ";" << getData(x,0) << EOL;
+                val.e = getData(x,y);
+                f.write( val.c, sizeof(double) );
             }
-            f.close();
         }
-        else
-            qDebug() << f.fileName() << f.errorString();
+        f.close();
     }
+    else
+        qDebug() << f.fileName() << f.errorString();
+
+    // ----- Save the image in textual format (CSV)
+    fn = fnbase + ".csv";
+    f.setFileName(fn);
+    if ( f.open(QIODevice::WriteOnly) )
+    {
+        QTextStream ts(&f);
+        // (1) the first two lines contains the dimensions.
+        ts << "X:;" << minX << ";" << maxX << EOL;
+        ts << "Y:;" << minY << ";" << maxY << EOL;
+        // (2) then all values line by line separated with a ; so this can be read by Excel.
+        for ( int y=minY; y<maxY; y++ )
+        {
+            ts << "Y=" << y << ":";
+            for ( int x=minX; x<maxX; x++ )
+            {
+                ts << ";" << getData(x,y);
+            }
+            ts << EOL;
+        }
+        f.close();
+    }
+    else
+        qDebug() << f.fileName() << f.errorString();
 
     // ----- Save the image in PNG format
     saveImage(fnbase+".png");
@@ -1563,13 +1723,11 @@ void widImage::on_butSave_clicked()
     else
         qDebug() << f.fileName() << f.errorString();
 
-    if ( !data1D )
-    {
-        // ----- Save NoFitRect
-        fileInfos.filePath = lastSavedFilePath;
-        saveNoFitRects();
-    }
-}
+    // ----- Save NoFitRect
+    fileInfos.filePath = lastSavedFilePath;
+    saveNoFitRects();
+} /* on_butSave2d_clicked() */
+
 
 void widImage::on_butMetaData_toggled(bool checked)
 {
@@ -2040,28 +2198,36 @@ void widImage::on_lblImage_customContextMenuRequested(const QPoint &pos)
     }
 }
 
+
+/**
+ * @brief widImage::getVarScaling
+ * @param min - (return) current minimum image scaling
+ * @param max - (return) current maximum image scaling
+ * Used only to get the current image scaling (2d Fit, DataCopy, CombinationOfCBs).
+ * Not used with 1d data.
+ */
 void widImage::getVarScaling( double &min, double &max )
 {
-    if ( ui->lblDispMinLin->text().startsWith("(0)") )
-        min = ui->lblDispMinLin->text().mid(4).toDouble();
+    if ( ui->lblDispMinLin2d->text().startsWith("(0)") )
+        min = ui->lblDispMinLin2d->text().mid(4).toDouble();
     else
-        min = ui->lblDispMinLin->text().toDouble();
-    max = ui->lblDispMaxLin->text().toDouble();
+        min = ui->lblDispMinLin2d->text().toDouble();
+    max = ui->lblDispMaxLin2d->text().toDouble();
 }
 
 void widImage::setFixScaling( double min, double max )
 {
-    ui->inpFixedMin->setText( QString::number(min) );
-    ui->inpFixedMax->setText( QString::number(max) );
-    ui->radScaleFixed->setChecked(true);
-    on_butUpdate_clicked();
+    ui->inpFixedMin2d->setText( QString::number(min) );
+    ui->inpFixedMax2d->setText( QString::number(max) );
+    ui->radScaleFixed2d->setChecked(true);
+    on_butUpdate2d_clicked();
 }
 
 void widImage::setLogScaling( bool on )
 {
-    ui->radShowLog->setChecked( on);
-    ui->radShowLin->setChecked(!on);
-    on_butUpdate_clicked();
+    ui->radShowLogV2d->setChecked( on);
+    ui->radShowLinV2d->setChecked(!on);
+    on_butUpdate2d_clicked();
 }
 
 
@@ -2073,8 +2239,13 @@ void widImage::setConfig( QString col, bool sh, bool sv, int r, int z, bool lin 
     swapHor  = sh;
     swapVert = sv;
     rotIndex = r;
-    zoomFactor = z;
-    useLinOut = lin;
+    zoomFactor = z;    
+    y1dlin = false;
+    y2dlin = lin;
+    x1dlin = true;
+    y1dauto = true;
+    x1dauto = true;
+    y2dauto = true;
 }
 #endif
 

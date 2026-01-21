@@ -25,16 +25,6 @@
 #include <QNetworkReply>
 #endif
 
-// Zeilendefinitionen für ui->tblLattice3D
-#define tblLattWaveLen  0
-#define tblLattSaDist   1
-#define tblLattPixelX   2
-#define tblLattPixelY   3
-#define tblLattNbRows   4
-#define tblLattNbCols   5
-#define tblLattBeamX    6
-#define tblLattBeamY    7
-
 
 
 /**
@@ -73,9 +63,11 @@ public:
     void beenden() { calcGuiThread->endThread(); /*_exit=true;*/ }
     void setThreads( int n ) { numThreads=n; }
     void setIgnoreNewSwitch( bool f ) { bIgnoreNewSwitch=f; }
+    void setIgnoreParamCheck( bool f ) { bIgnoreParamCheck=f; }
 private:
     int numThreads;
     bool bIgnoreNewSwitch;
+    bool bIgnoreParamCheck;
     SC_CalcGUI *calcGuiThread;  // myCalcThread
     //bool _exit;
 };
@@ -136,7 +128,15 @@ private slots:
     void on_radQ1_toggled(bool checked);
     void on_radQ2_toggled(bool checked);
     void on_radQ4_toggled(bool checked);
-    void on_tblHeaderData_cellChanged(int /*row*/, int /*column*/);
+    void on_actionGenerate_all_combinations_of_CBs_triggered();
+    void on_inpDFileWavelen_valueChanged(double) { recalcQmax(); }
+    void on_inpDFileDetDist_valueChanged(double) { recalcQmax(); }
+    void on_inpDFilePixWidth_valueChanged(double) { recalcQmax(); }
+    void on_inpDFilePixHeight_valueChanged(double) { recalcQmax(); }
+    void on_inpDFilePixRows_valueChanged(int) { recalcQmax(); }
+    void on_inpDFilePixCols_valueChanged(int) { recalcQmax(); }
+    void on_inpDFileBSX_valueChanged(double) { recalcQmax(); }
+    void on_inpDFileBSY_valueChanged(double) { recalcQmax(); }
     void on_butOpenMeasFile_clicked();
     void on_butDataSetMask_clicked();
     void on_butDataFindCenter_clicked();
@@ -146,10 +146,11 @@ private slots:
     void on_togLimitRuntime_toggled(bool checked);
     void on_tblFitValues_itemChanged(QTableWidgetItem *item);
     void on_butSaveLog_clicked();
-    void on_butFitStart_clicked();
+    void on_butFitStart1d_clicked();
+    void on_butFitStart2d_clicked();
     void tblFitUsed_toggled(bool checked);
+    void on_cbsFitImageWindows_currentIndexChanged(int);
 
-    // Tab "AI"
     void on_butUseForAI_clicked();
     void on_butSaveTable_clicked();
     void on_butLoadTable_clicked();
@@ -229,6 +230,7 @@ private slots:
     void on_actionLoad_last_calculaition_parameters_triggered();
 
     void on_cbsLType_currentIndexChanged(int index);
+    void on_cbsLType1d_currentIndexChanged(int index);
     void on_cbsComboBoxParticle_currentIndexChanged(int index);
     void on_cbsOrdis_currentIndexChanged(int index);
     void on_cbsComboBoxInterior_currentIndexChanged(int index);
@@ -240,7 +242,9 @@ private slots:
     void on_actionAbout_triggered();
     void on_actionAbout_Qt_triggered();
 
-    void on_actionStart_autoprocessing_file_triggered();
+    void on_actionAutoProcStart_triggered();
+    void on_actionAutoProcTrain_triggered();
+    void on_actionAutoProcTraining_finished_triggered();
 
 #ifndef ChatbotDisabled
     void on_butChatbotSearch_clicked();
@@ -265,19 +269,24 @@ private slots:
     void on_butChatbotSrvClear_clicked();
     void on_butChatbotSrvSend_clicked();
 
-    // Rest-Api
     void chatbotDoSend(QString cmd);
     void chatbotSlotError(QNetworkReply::NetworkError);
     void chatbotReplyFinished(QNetworkReply*);
 #endif
 
     void on_togUseAdaptiveStep_toggled(bool checked);
-    void on_tab1D2D_currentChanged(int index);
 
     void on_actionSave_current_values_as_text_triggered();
     void on_actionShow_Parameter_w_o_Tooltip_triggered();
+    void on_actionShow_longer_Tooltips_from_Chatbot_toggled(bool arg1);
 
-    void on_actionGenerate_all_combinations_of_CBs_triggered();
+    void my_butSet1D_clicked();     // on_... werden automatisch verbunden, es gibt hier aber keine
+    void my_butSet2D_clicked();     // passenden GUI-Elemente dazu. Diese werden von Hand erstellt.
+
+    void on_actionCustomize_colored_background_triggered();
+    void on_actionNo_colors_toggled(bool arg1);
+    void on_action1d_2d_marker_toggled(bool arg1);
+    void on_actionparameter_classification_colors_toggled(bool arg1);
 
 private:
     Ui::SC_MainGUI *ui;
@@ -287,11 +296,14 @@ private:
     bool bNoUpdateFromCBS;  // in den CBS-Callbacks werden keine anderen Daten modifiziert (wegen LoadParameter)
     bool bIgnoreRecalc;     // Load Parameters etc.
 
+    QPushButton *butSet1D, *butSet2D;
+
     QString fnTempParamFile;
 
     QFile *autoProcessingFile;
     void openAutoProcessingFile( QString fn );
     void closeAutoProcessingFile( QString reason );
+    QFile *autoProcTrainFile;
 
     void fillDataFromInputs();
     void prepareGuiAndData();
@@ -337,6 +349,7 @@ private:
 
     void performTimingTests(QString out);
     bool timingTestsRunning;
+    bool generateCbsCombinations;
 
     // Daten für die History (Verlauf der Werteänderungen beim Fit)
 #define UnusedValue 1e10    // Dieser Wert in der Liste bedeutet, dass er nicht berechnet wurde
@@ -385,11 +398,15 @@ private:
     void setCurrentExtractRect();
     void setCurrentNoFitRect();
 
+    void recalcQmax();
+
     QString local_Load_all_Parameters(QString fn);
     double loadParameter_checkOldFormat(QSettings &sets, QString oldkey, QString newkey, QString &rv, bool logLoad);
-    bool local_OpenMeasFile( QString fn, widImage **imgout );
+    bool local_OpenMeasFile(QString fn, widImage **imgout, _dataFileTypes dt=dftFromExt);
     void copyMetaToLatticeTable( widImage *img );
     bool copyParamsToFitTable();
+    void local_switchFitStartButtons( bool flg );
+    void local_butFitStart1d2d_clicked();
 
     void loadScatterParameter( QString fn );
     void checkData( QString data, QString soll );
@@ -418,7 +435,10 @@ private:
 
     bool localCheckToolTip(QWidget *w, bool &used);
 
-    bool genIniFile_CombinationOfCBs(QFile *flog, QString outpath, bool genimg, bool checkNan, bool genJson);
+    bool genIniFile_CombinationOfCBs(QFile *flog, QString outpath, bool genimg, bool checkNan, bool genJson, bool ignCbs);
+
+    void configureCustomColorForBkg( bool mitkey );
+    void getCustomColorForBkg(QString key, QGroupBox *grp);
 
 #ifndef ChatbotDisabled
     // Tab "ChatBot"

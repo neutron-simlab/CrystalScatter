@@ -352,11 +352,11 @@ public:
         this->base  = base;
     }
 
-    std::string checkAllParameters(bool ignCbs);  // for Chatbot checking !
-    std::string isCbsValid(int lt, int pa, int od, int in, int pk); // for Chatbot checking !
+    std::string checkAllParameters(bool ignCbs);
+    std::string isCbsValid(int lt, int pa, int od, int in, int pk);
 
     // Run the calculation once
-    void doCalculation(int numThreads, bool bIgnoreNewSwitch, bool bIgnoreCbs);
+    void doCalculation(int numThreads, bool bIgnoreNewSwitch, bool bIgnoreCbs, bool bIgnoreParamCheck);
     double doFitCalculation(int numThreads, int bstop, int border, long &cnt, long &nancnt);
 
     //QString tpvPerformRandom(QStringList ids);
@@ -374,6 +374,7 @@ public:
     // Order of variables from [clang-analyzer-optin.performance.Padding]
 
     double higResTimerElapsedCalc, higResTimerElapsedPrep;
+    double zeitInit, zeitCoef, zeitHKL, zeitCorot, zeitIsoPeak, zeitAnisoPeak, zeitQromb;
 
     size_t arrCRSize;
 
@@ -422,7 +423,6 @@ public:
     size_t _arrCount;           //!< number of double values in the allocated memory
     size_t arrXYsize;
 
-#ifdef FITDATA_IN_GPU
     double *arrFitData;
     double *arrFitFqs;
     int    _fitWidth,
@@ -430,7 +430,6 @@ public:
     size_t _arrFitSize;
     bool   _fitEnabled;
     size_t arrFitDSize, arrFitFSize;
-#endif
 
     double ax1n_sigx, ax2n_sigy, ax3n_sigz, cubevol, phiwidth, reldis, dist;
 
@@ -593,9 +592,7 @@ public:
 
     void scaleIntensity( bool linlog );
 
-#ifdef FITDATA_IN_GPU  // real func decl
     bool setFitData( int sx, int sy, const double *data );
-#endif
 
 private:
     static SasCalc_GENERIC_calculation *inst;
@@ -696,6 +693,14 @@ private:
     void extinction(int lat, int h, int k, int l, int aniso,
                     int &mhkl, double &fhkl ) const;
     double gammln( double xx ) const;
+    double hypergeometric_1F2(double a, double b, double c, double x, double tol = 0.0);
+    inline bool isNegIntegerCloseTo(double value, long long& n)
+    {   // True if value is very close to a non-positive integer (0, -1, -2, ...)
+        double rounded = std::round(value);
+        n = static_cast<long long>(rounded);
+        double r = value - static_cast<double>(n);
+        return (std::fabs(r) <= 1e-12) && (n <= 0);
+    }
 
 
     // Thread parts without GPU

@@ -2,6 +2,7 @@
 include(sas_scatter2.pri)
 # ----- User configuration ends here.
 
+FFTW3_PATH=""
 
 QT       += core gui xml network
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
@@ -37,9 +38,11 @@ greaterThan(QT_MAJOR_VERSION, 5) {
 
 SOURCES += \
     dlgconfigautofit.cpp \
+    dlgcustomcolors.cpp \
     dlggeneratecombinations.cpp \
     dlgtimetests.cpp \
     myguiparam.cpp \
+    myguiparam_ToolTipsLong.cpp \
     sc_calc_generic.cpp \
     sc_calc_generic_cpu.cpp \
     sc_calcgui.cpp \
@@ -50,10 +53,14 @@ SOURCES += \
     sc_readdata.cpp \
     sc_simplexfit2d.cpp \
     widimage.cpp
+    #datadisplay1d.cpp \
+    #datadisplay2d.cpp \
+    #datadisplaybase.cpp \
 
 HEADERS += \
     debughandler.h \
     dlgconfigautofit.h \
+    dlgcustomcolors.h \
     dlggeneratecombinations.h \
     dlgtimetests.h \
     myguiparam.h \
@@ -86,13 +93,20 @@ HEADERS += \
     sc_simplexfit2d.h \
     widimage.h
     #sc_lib_formfq_partCube.h \
+    #datadisplay1d.h \
+    #datadisplay2d.h \
+    #datadisplaybase.h \
+    #datadisplaycons.h \
 
 FORMS += \
     dlgconfigautofit.ui \
+    dlgcustomcolors.ui \
     dlggeneratecombinations.ui \
     dlgtimetests.ui \
     sc_maingui.ui \
     widimage.ui
+    #datadisplay1d.ui \
+    #datadisplay2d.ui \
 
 
 # Default rules for deployment.
@@ -295,7 +309,8 @@ win32:{
     DISTFILES += \
         "../Pascal-Sourcecodes/20230420 - crystal3d1.pas" \
         "../Pascal-Sourcecodes/20220730 - Upq1.pas" \
-        "../Pascal-Sourcecodes/20240301 - crystal3d1.pas"
+        "../Pascal-Sourcecodes/20240301 - crystal3d1.pas" \
+        "../Pascal-Sourcecodes/20250627 - crystal1.pas"
 
         #"../Pascal-Sourcecodes/20221004 - crystal3d1.pas" \
         #"../20210616 - Neue Routinen/FHKL_routine_full.txt" \

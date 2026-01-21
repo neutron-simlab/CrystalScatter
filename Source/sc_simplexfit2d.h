@@ -39,9 +39,7 @@ public:
 #endif
     {
         calc=c;
-#ifdef FITDATA_IN_GPU   // SimplexFit2D Konstruktor
         useGpuFit = false;
-#endif
     } /* Konstruktor */
 
     inline void setImageInfo( int x0, int x1, int y0, int y1, const double *d )
@@ -94,9 +92,7 @@ private:
         if ( intensityForFit == nullptr ) return 0.0;
         return intensityForFit[(-_xmin + (x)) + (_xmax-_xmin/*+1*/)*(-_ymin + (y))];
     }
-#ifdef FITDATA_IN_GPU  // glob var def
     bool useGpuFit;
-#endif
 
 #ifdef CONSOLENPROG
     SC_CalcCons *calc;

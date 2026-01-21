@@ -55,7 +55,7 @@ public:
     bool updateParamValue( QString p, QString v ); // ComboBox
 
     void setCalculationTimeout( int ms );
-    void doCalculation( int numThreads, bool ignNewSwitch );
+    void doCalculation( int numThreads, bool bIgnoreNewSwitch, bool bIgnoreParamCheck );
     double doFitCalculation(int numThreads, int bstop, int border, long &cnt, long &nancnt);
     typedef enum { htimPrep, htimCalc, htimBoth } whichHigResTimer;
     double higResTimerElapsed( whichHigResTimer f );
@@ -83,10 +83,8 @@ public:
     double getFQS() { return (memory!=nullptr) ? memory->getFQS() : 0.0; }
 #endif
 #endif
-#ifdef FITDATA_IN_GPU  // real func außen
     bool setFitData( int sx, int sy, const double *data )
     { return (calcGeneric!=nullptr) ? calcGeneric->setFitData(sx,sy,data) : false; }
-#endif
 
 private:
     SC_Calc_GENERIC *calcGenericWrapper = nullptr;

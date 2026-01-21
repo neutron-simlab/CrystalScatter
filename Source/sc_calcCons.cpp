@@ -26,16 +26,16 @@ SC_CalcCons::SC_CalcCons()
     calcGeneric = new SasCalc_GENERIC_calculation();
     calcGenericWrapper = new SC_Calc_GENERIC(calcGeneric);
     _calcTimeout = 0; // Ohne Timeout
-    QStringList meta = calcGenericWrapper->guiLayoutNeu();
+    QStringList meta = calcGenericWrapper->guiLayoutNeu(); // wie in myGuiParam::setAllGuiParams
     for ( int m=0; m<meta.size(); m++ )
     {
         QStringList sl = meta[m].split(";");
         while ( sl.size() < 5 ) sl << " ";  // tooltip;default sind optional
 
-        // TODO: Neue Struktur des guiLayout()
-        // Each element must be in the form "type;kenn;typespec;tooltip;default" with:
+        // Each element must be in the form "type;kenn;typespec;tooltip;default;colbkg" with:
         //  type     = C:Selection, N:Double, I:Integer, T:Toggle, O:DoubleOut
         //             Zweites Zeichen ist 'F' für Fittable oder '-' für nicht fittable
+        //             Drittes Zeichen ist '1' für 1D-Daten, '2' für 2D-Daten oder '-' für beides
         //  kenn     = internal parameter name to connect to correct gui element
         //  typespec = C:Selection : "...|...|..."  (required)
         //             N:Double    : "frac|min|max|unit"  (optional, default: "2|-10000|+10000|")
@@ -44,6 +44,7 @@ SC_CalcCons::SC_CalcCons()
         //             O:DoubleOut : (empty)
         //  tooltip  = this is the tooltip set to both prompt label and inputfield (optional)
         //  default  = the default value (optional)
+        //  colbkg   = custom color background (optional), keys in sc_globalConfig.h, see BGKey...
 
         paramConsHelper *e = new paramConsHelper;
         e->fitparam = sl[0][1] == 'F';      // Dieses Flag wird in der GUI anders gespeichert, aber hier lassen wir es in dieser Struktur
@@ -714,9 +715,9 @@ void SC_CalcCons::dataGetter( QString p, _valueTypes &v )
  * @param pa         - function to show the progress and get the abort flag
  * Starts the calculation of the current method.
  */
-void SC_CalcCons::doCalculation(int numThreads, bool ignNewSwitch)
+void SC_CalcCons::doCalculation( int numThreads, bool bIgnoreNewSwitch, bool bIgnoreParamCheck )
 {
-    calcGeneric->doCalculation( numThreads, ignNewSwitch, false/*ignCbs*/ );
+    calcGeneric->doCalculation( numThreads, bIgnoreNewSwitch, false/*bIgnoreCbs*/, bIgnoreParamCheck );
 }
 
 double SC_CalcCons::doFitCalculation( int numThreads, int bstop, int border, long &cnt, long &nancnt )

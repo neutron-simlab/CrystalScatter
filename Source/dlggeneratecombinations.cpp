@@ -43,6 +43,33 @@ void dlgGenerateCombinations::on_butDone_clicked()
     reject();
 }
 
+void dlgGenerateCombinations::berechneAnzahl(bool)
+{
+    if ( ui->tblValues->columnCount() < 2 ) return;
+    int cnt[ui->tblValues->columnCount()];
+    for ( int c=0; c<ui->tblValues->columnCount(); c++ )
+    {
+        cnt[c] = 0;
+        for ( int r=0; r<ui->tblValues->rowCount(); r++ )
+        {
+            QCheckBox *cb = static_cast<QCheckBox*>(ui->tblValues->cellWidget(r,c));
+            if ( cb == nullptr ) break;
+            if ( cb->isChecked() ) cnt[c]++;
+        }
+    }
+    int fac = cnt[0];
+    if ( fac == 0 ) fac = 1;
+    //QString dbg = QString("[0]=%1").arg(cnt[0]);
+    for ( int c=1; c<ui->tblValues->columnCount(); c++ )
+    {
+        if ( cnt[c] > 0 ) fac *= cnt[c];
+        //dbg += QString(", [%1]=%2").arg(c).arg(cnt[c]);
+    }
+    //dbg += QString(" = %1").arg(fac);
+    //ui->lblAnzahl->setText(dbg);
+    ui->lblAnzahl->setText(QString("Number of calculations=%1").arg(fac));
+}
+
 int dlgGenerateCombinations::setValues( QString hdr, QStringList val )
 {
     QSettings sets(SETT_APP,SETT_GUI);
@@ -57,8 +84,10 @@ int dlgGenerateCombinations::setValues( QString hdr, QStringList val )
         QCheckBox *cb = new QCheckBox(val.at(r));
         cb->setChecked(sets.value(val.at(r),true).toBool());
         ui->tblValues->setCellWidget( r, col, cb );
+        connect( cb, SIGNAL(toggled(bool)), this, SLOT(berechneAnzahl(bool)) );
     }
     ui->tblValues->resizeColumnToContents(col);
+    berechneAnzahl(false);
     return ui->tblValues->columnWidth(col);
 }
 
@@ -95,7 +124,7 @@ QStringList dlgGenerateCombinations::getValues( QString hdr )
     return rv;
 }
 
-QList<int> dlgGenerateCombinations::getValueIDs( QString hdr )
+QList<int> dlgGenerateCombinations::getValueIDs(QString hdr, int off)
 {
     QSettings sets(SETT_APP,SETT_GUI);
     sets.beginGroup(SETT_GENCOMB+hdr);
@@ -108,7 +137,7 @@ QList<int> dlgGenerateCombinations::getValueIDs( QString hdr )
                 QCheckBox *cb = static_cast<QCheckBox*>(ui->tblValues->cellWidget(r,c));
                 if ( cb == nullptr ) break;
                 sets.setValue(cb->text(),cb->isChecked());
-                if ( cb->isChecked() ) rv << r;
+                if ( cb->isChecked() ) rv << r+off;
             }
         }
     return rv;

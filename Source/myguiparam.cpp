@@ -11,8 +11,19 @@
 
 /*static*/ QVector<myGuiParam*> myGuiParam::allParams;
 /*static*/ bool myGuiParam::hideValues  = true;
-/*static*/ bool myGuiParam::oldHideFlag = true;
+/*static*/ bool myGuiParam::longerTooltips = false;
+/*static*/ myGuiParam::_showColorLabels myGuiParam::showColBkg = myGuiParam::showColNone;
 /*static*/ int  myGuiParam::spinBoxMinH = -1;
+/*static*/ QHash<QString,QList<myGuiParam*>> myGuiParam::grpLabels;
+/*static*/ QHash<QString,QGroupBox*> myGuiParam::grpBoxes;
+/*static*/ paramHelper::_use1d2d myGuiParam::use12Flag = paramHelper::both;
+
+/*static*/ QColor myGuiParam::ColBkg1D   = QColor(255,240,230);  // hell grün
+/*static*/ QColor myGuiParam::ColBkg2D   = QColor(220,255,255);  // hell cyan
+/*static*/ QColor myGuiParam::ColBkgBoth = QColor(255,255,230);  // gelblich
+/*static*/ QColor myGuiParam::ColFgDis   = Qt::red;
+/*static*/ QColor myGuiParam::ColFgNorm  = Qt::black;            // wird nicht geändert...
+/*static*/ QHash<QString,QColor> myGuiParam::colorForBkg;
 
 
 
@@ -35,7 +46,85 @@ myGuiParam::myGuiParam(QObject *parent) : QObject(parent)
 }
 
 
-/*static*/ myGuiParam *myGuiParam::searchParam(QWidget *w, QString &on)
+/**
+ * @brief myGuiParam::updateTooltip
+ * @param gp   - anzupassendes Element
+ * @param spec - Spezieller Text oder leer
+ * Aufbau des Tooltips beim LABEL:
+ *      <longerTooltips>==true
+ *          Langer Tooltip Text aus ...
+ *      <longerTooltips>==false
+ *          Kurzer Tooltip aus gp->_par->tooltip
+ * Aufbau des Tooltips beim EINGABE-Element (Input/Spinbox/Combobox):
+ *      <longerTooltips> ist hier egal
+ *          Kurzer Tooltip aus gp->_par->tooltip
+ *          Fitrange: ___ .. ___ {bei Spinbox}
+ *          <spec>  {sofern im Aufruf nicht leer}
+ * Es gibt GUI-Elemente, die nicht über diese Routine mit einem Tooltip versorgt werden!
+ */
+/*static*/ void myGuiParam::updateTooltip(myGuiParam *gp, QString spec/*=""*/)
+{
+    if ( spec != "@@" )
+    {
+        if ( gp->inp() != nullptr )
+            localUpdateTooltipHelper(gp->inp(), gp->_par->tooltip, QString("Fitrange: %1 .. %2").arg(gp->inp()->minimum()).arg(gp->inp()->maximum()), spec);
+        else if ( gp->inp2() != nullptr )
+            localUpdateTooltipHelper(gp->inp2(), gp->_par->tooltip, QString("Fitrange: %1 .. %2").arg(gp->inp2()->minimum()).arg(gp->inp2()->maximum()), spec);
+        else if ( gp->inp3() != nullptr )
+            localUpdateTooltipHelper(gp->inp3(), gp->_par->tooltip, QString("Fitrange: %1 .. %2").arg(gp->inp3()->minimum()).arg(gp->inp3()->maximum()), spec);
+        else if ( gp->intinp() != nullptr )
+            localUpdateTooltipHelper(gp->intinp(), gp->_par->tooltip, QString("Fitrange: %1 .. %2").arg(gp->intinp()->minimum()).arg(gp->intinp()->maximum()), spec);
+        else if ( gp->cbs() != nullptr )
+            localUpdateTooltipHelper(gp->cbs(), gp->_par->tooltip, "", spec);
+        else if ( gp->tog() != nullptr )
+            localUpdateTooltipHelper(gp->tog(), gp->_par->tooltip, "", spec);
+        // gp->fit() wird nicht umgesetzt, da dort Verwendungshinweise stehen
+    }
+    if ( gp->lbl() != nullptr )
+    {
+        if ( longerTooltips )
+        {
+            if ( !localSetLongerTooltip( gp->lbl() ) )
+                gp->lbl()->setToolTip( gp->_par->tooltip );
+        }
+        else
+            gp->lbl()->setToolTip( gp->_par->tooltip );
+    }
+}
+
+/*static*/ void myGuiParam::localUpdateTooltipHelper(QWidget *w, QString ttdef, QString fitrg, QString spec)
+{
+    if ( spec == "*" ) spec = "";  // Zurückstellen auf Default aus setEnabled()
+    if ( spec == "@" )
+    {   // Jetzt soll der Spec-Inhalt erhalten bleiben
+        QStringList sl  = w->toolTip().split("\n");
+        sl[0] = ttdef;
+        if ( ! fitrg.isEmpty() )
+        {
+            if ( sl.size() > 1 )
+                sl[1] = fitrg;
+            else
+                sl << fitrg;
+        }
+        w->setToolTip( sl.join("\n") );
+    }
+    else
+    {   // Jetzt wird alles neu gesetzt
+        QString tt = ttdef;
+        if ( !fitrg.isEmpty() ) tt += "\n" + fitrg;
+        if ( !spec.isEmpty()  ) tt += "\n" + spec;
+        w->setToolTip( tt );
+    }
+}
+
+/*static*/ void myGuiParam::updateLabelTooltips()
+{
+    foreach ( myGuiParam *p, allParams )
+        updateTooltip(p, "@@");
+}
+
+
+/*static*/ myGuiParam *myGuiParam::searchParam(QWidget *w, QString &on, bool search)
 {
     QStringList sl = w->objectName().mid(3).split("_");
     if ( sl.size() == 1 )
@@ -44,11 +133,14 @@ myGuiParam::myGuiParam(QObject *parent) : QObject(parent)
         sl[1] = sl[0];
     //TT( if ( w->objectName().contains("Pixel") ) qDebug() << "  search" << w->objectName() << sl );
     on = sl[0];
-    foreach ( myGuiParam*p, allParams )
+    if ( search )
     {
-        if ( sl[1].compare(p->keyName()) == 0 )
+        foreach ( myGuiParam*p, allParams )
         {
-            return p;
+            if ( sl[1].compare(p->keyName()) == 0 )
+            {
+                return p;
+            }
         }
     }
     return nullptr;
@@ -123,6 +215,7 @@ void myGuiParam::setLocInputInt(QWidget *w, QString on, int min, int max, int de
     if ( !suff.isEmpty() ) _intinp->setSuffix(suff);
     if ( !pref.isEmpty() ) _intinp->setPrefix(pref);
     _intinp->setValue(def);
+    _intinp->setButtonSymbols( QAbstractSpinBox::NoButtons );
 #ifdef CALC_INPUT_MAXWIDTH
     //_intinp->setMaximumWidth(CALC_INPUT_MAXWIDTH);
 #endif
@@ -204,6 +297,7 @@ void myGuiParam::setLocInputDbl(QWidget *w, QString on, double min, double max, 
              _inp->setWrapping(true); // Bei Winkeln aktiviert
         _inp->connect( _inp, SIGNAL(valueChanged(double)),
                        SC_MainGUI::getInst(), SLOT(automaticRecalc()) );
+        setInputFieldSize( _inp, max, prec, pref, suff );
         DT( qDebug() << "myGuiParam::Dbl  connect" << on );
     }
     else if ( _inp2 == nullptr )
@@ -229,6 +323,7 @@ void myGuiParam::setLocInputDbl(QWidget *w, QString on, double min, double max, 
         //w->setEnabled(false);
         _inp2->connect( _inp2, SIGNAL(valueChanged(double)),
                         SC_MainGUI::getInst(), SLOT(automaticRecalc()) );
+        setInputFieldSize( _inp2, max, prec, pref, suff );
         DT( qDebug() << "myGuiParam::Dbl2 connect" << on );
     }
     else if ( _inp3 == nullptr )
@@ -254,6 +349,7 @@ void myGuiParam::setLocInputDbl(QWidget *w, QString on, double min, double max, 
         //w->setEnabled(false);
         _inp3->connect( _inp3, SIGNAL(valueChanged(double)),
                         SC_MainGUI::getInst(), SLOT(automaticRecalc()) );
+        setInputFieldSize( _inp3, max, prec, pref, suff );
         DT( qDebug() << "myGuiParam::Dbl3 connect" << on );
     }
     else
@@ -265,6 +361,17 @@ void myGuiParam::setLocInputDbl(QWidget *w, QString on, double min, double max, 
     //else
     //    w->setToolTip( w->toolTip()+"\n"+tt );
 }
+
+
+/*static*/ void myGuiParam::setInputFieldSize( QDoubleSpinBox *box, double max, int prec, QString pref, QString suff )
+{
+    box->setButtonSymbols( QAbstractSpinBox::NoButtons );
+    QString s = QString("%1 %2 %3").arg(pref).arg(max,0,'f',prec).arg(suff);
+    qreal h = box->fontMetrics().horizontalAdvance(s);
+//    qDebug() << "setInputFieldSize" << s << h;
+    box->setMinimumWidth(h * 1.05);
+}
+
 
 
 /*static*/myGuiParam *myGuiParam::setInputTog( QWidget *w )
@@ -316,28 +423,6 @@ void myGuiParam::setLocInputTog( QWidget *w, QString on )
     p->setLocFitToggle(w,on);
     return p;
 }
-/*static*/ void myGuiParam::setFitToggleHelper(QSpinBox *w)
-{
-    if ( w == nullptr ) return;
-    if ( w->toolTip().contains("Fitrange") ) return;
-    QString tt = QString("Fitrange: %1 .. %2").arg(w->minimum()).arg(w->maximum());
-    if ( w->toolTip().isEmpty() )
-        w->setToolTip(tt);
-    else
-        w->setToolTip( w->toolTip()+"\n"+tt );
-    TT( if ( w->objectName().contains("Pixel") ) qDebug() << "   tt" << w->objectName() << tt );
-}
-/*static*/ void myGuiParam::setFitToggleHelper(QDoubleSpinBox *w)
-{
-    if ( w == nullptr ) return;
-    if ( w->toolTip().contains("Fitrange") ) return;
-    QString tt = QString("Fitrange: %1 .. %2").arg(w->minimum()).arg(w->maximum());
-    if ( w->toolTip().isEmpty() )
-        w->setToolTip(tt);
-    else
-        w->setToolTip( w->toolTip()+"\n"+tt );
-    TT( if ( w->objectName().contains("Pixel") ) qDebug() << "   tt" << w->objectName() << tt );
-}
 void myGuiParam::setLocFitToggle( QWidget *w, QString on )
 {
     _fit = static_cast<QCheckBox*>(w);
@@ -360,90 +445,14 @@ bool myGuiParam::isFitUsed()
     return _fit->isEnabled() && _fit->isChecked(); // && _fitUsed;
 }
 
-void myGuiParam::setFitCheck(bool f)
+void myGuiParam::setFitCheck(bool f, QString dbg)
 {
     if ( _fit == nullptr ) return;
     FF( if ( _fit->objectName().startsWith("fitSig") ) qDebug() << "setFitCheck" << f << _fit->objectName() );
+    //qDebug() << "setFitCheck" << dbg << f << _fit->objectName();
+    Q_UNUSED(dbg)
     _fit->setChecked(f);
     _fitUsed=f;
-}
-
-
-void myGuiParam::setValueSel( int v )
-{
-    Q_UNUSED(v)
-}
-
-void myGuiParam::setValueSel( QString v )
-{
-    Q_UNUSED(v)
-}
-
-void myGuiParam::setValueInt( int v )
-{
-    Q_UNUSED(v)
-}
-
-void myGuiParam::setValueDbl( double v )
-{
-    Q_UNUSED(v)
-}
-
-void myGuiParam::setValue2Dbl( double v1, double v2 )
-{
-    Q_UNUSED(v1)
-    Q_UNUSED(v2)
-}
-
-void myGuiParam::setValue3Dbl( double v1, double v2, double v3 )
-{
-    Q_UNUSED(v1)
-    Q_UNUSED(v2)
-    Q_UNUSED(v3)
-}
-
-void myGuiParam::setValueTog( bool v )
-{
-    Q_UNUSED(v)
-}
-
-
-int myGuiParam::valueSel()
-{
-    return 0;
-}
-
-QString myGuiParam::valueSelStr()
-{
-    return "";
-}
-
-int myGuiParam::valueInt()
-{
-    return 0;
-}
-
-double myGuiParam::valueDbl()
-{
-    return 0;
-}
-
-bool myGuiParam::valueTog()
-{
-    return false;
-}
-
-void myGuiParam::value2Dbl( double &v1, double &v2 )
-{
-    Q_UNUSED(v1)
-    Q_UNUSED(v2)
-}
-
-void myGuiParam::value3Dbl( double &v1, double &v2, double &v3 )
-{
-    Q_UNUSED(v1)
-    Q_UNUSED(v2)
-    Q_UNUSED(v3)
 }
 
 
@@ -561,7 +570,7 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
 
 /*static*/ void myGuiParam::generateTestFile()
 {
-    QStringList meta = SC_MainGUI::getInst()->getCalcGui()->getCalcPtrWrapper()->guiLayoutNeu();
+    QStringList meta = SC_MainGUI::getInst()->getCalcGui()->getCalcPtrWrapper()->guiLayoutNeu(); // get CBS lists
     QStringList testLType, testCBParticle, testOrdis, testCBInterior, testCBPeak;
     foreach ( QString mm, meta )
     {
@@ -572,11 +581,11 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
         if ( sl[1] == "ComboBoxInterior" ) testCBInterior = sl[2].split("|");
         if ( sl[1] == "ComboBoxPeak" ) testCBPeak = sl[2].split("|");
     }
-    qDebug() << "TEST LType" << testLType.size();
-    qDebug() << "TEST Part " << testCBParticle.size();
-    qDebug() << "TEST Ordis" << testOrdis.size();
-    qDebug() << "TEST Inter" << testCBInterior.size();
-    qDebug() << "TEST Peak " << testCBPeak.size();
+    //qDebug() << "TEST LType" << testLType.size();
+    //qDebug() << "TEST Part " << testCBParticle.size();
+    //qDebug() << "TEST Ordis" << testOrdis.size();
+    //qDebug() << "TEST Inter" << testCBInterior.size();
+    //qDebug() << "TEST Peak " << testCBPeak.size();
     QFile ftest("allcb.csv");
     if ( ftest.open(QIODevice::WriteOnly) )
     {
@@ -677,6 +686,39 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
 } /* generateTestFile() */
 
 
+/*static*/ void myGuiParam::setParamsDimUsage( paramHelper::_use1d2d f )
+{
+    //qDebug() << "------------------  myGuiParam::setParamsDimUsage" << f;
+    if ( use12Flag == f ) return;
+    use12Flag = f;
+
+    // Für alle GUI-Elemente gilt: ->setVisible(true);  ->setEnabled(true);
+    // ... damit das spätere setEnabled() richtig arbeitet
+    hideValues = !hideValues;
+    setHideFlag( !hideValues ); // ohne Änderung macht die Routine nichts
+
+    // Für alle Elemente den Enabled-Status neu setzten (ohne Änderung)
+    foreach ( myGuiParam *gp, allParams )
+    {
+        setEnabled( gp, gp->isParEnabled() );  // ohne 1d/2d Abfrage
+    }
+
+    foreach ( QString k, grpLabels.keys() )
+    {
+        if ( k == "grpAniso" ) continue;
+        bool vis = false;
+        foreach ( myGuiParam *gp, grpLabels[k] )
+        {
+            //qDebug() << gp->keyName() << (isEnabled(gp) ? "true" : "**FALSE**");
+            if ( isEnabled(gp) ) { vis=true; break; }   // mit 1d/2d Abfrage
+        }
+        //qDebug() << "---" << k << grpLabels[k].size() << (vis ? "true" : "--FALSE--");
+        // QHash<QString,QGroupBox*> myGuiParam::grpBoxes;
+        grpBoxes[k]->setVisible(vis);
+    }
+}
+
+
 /*static*/ void myGuiParam::setAllGuiParams(QWidget *wtab)
 {
     DT( qDebug() << "setAllGuiParams()" );
@@ -698,6 +740,7 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
         QStringList sl = mm.split(";");
         names << sl[1].trimmed();
     }
+    //qDebug() << names;
 
     //  /*name=QString()*/, Qt::FindChildOptions options = Qt::FindChildrenRecursively) const
     QList<QWidget*> wid = wtab->findChildren<QWidget*>();
@@ -715,10 +758,13 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
             // müssen, damit immer die richtigen Gruppen angelegt werden.
 
             QString on; // von "ObjectName", ist der Name des Parameters
-            /*myGuiParam *gp =*/ searchParam(w, on);
+            /*myGuiParam *gp =*/ searchParam(w, on, false); // Ohne Suche
             if ( ! names.contains(on) )
             {
-                //qDebug() << "no name" << on;
+                if ( on.startsWith("ColBkgDi") ) setLabelColor( static_cast<QLabel*>(w), ColFgDis,  QColor() );
+                else if ( on.startsWith("ColBkg1d") ) setLabelColor( static_cast<QLabel*>(w), ColFgNorm, ColBkg1D );
+                else if ( on.startsWith("ColBkg2d") ) setLabelColor( static_cast<QLabel*>(w), ColFgNorm, ColBkg2D );
+                else if ( on.startsWith("ColBkgBo") ) setLabelColor( static_cast<QLabel*>(w), ColFgNorm, ColBkgBoth );
                 continue;
             }
 
@@ -731,11 +777,12 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
                     break;
                 }
             }
-            while ( sl.size() < 5 ) sl << " ";  // tooltip;default sind optional
+            while ( sl.size() < 6 ) sl << "";  // tooltip;default;colbkg sind optional
 
-            // Each element must be in the form "type;kenn;typespec;tooltip;default" with:
+            // Each element must be in the form "type;kenn;typespec;tooltip;default;colbkg" with:
             //  [0]type     = C:Selection, N:Double, I:Integer, T:Toggle, O:DoubleOut
             //                Zweites Zeichen ist 'F' für Fittable oder '-' für nicht fittable
+            //                Drittes Zeichen ist '1' für 1D-Daten, '2' für 2D-Daten oder '-' für beides
             //  [1]kenn     = internal parameter name to connect to correct gui element
             //  [2]typespec = C:Selection : "...|...|..."  (required)
             //                N:Double    : "frac|min|max|unit"  (optional, default: "2|-10000|+10000|")
@@ -744,6 +791,7 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
             //                O:DoubleOut : (empty)
             //  [3]tooltip  = this is the tooltip set to both prompt label and inputfield (optional)
             //  [4]default  = the default value (optional)
+            //  [5]colbkg   = custom color background (optional), keys in sc_globalConfig.h, see BGKey...
 
             if ( ! sl[3].trimmed().isEmpty() )
                 w->setToolTip(sl[3]);
@@ -755,6 +803,10 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
 #endif
             QStringList typval = sl[2].split("|",SPLIT_SKIP_EMPTY_PARTS);
 
+            // CalcGUI::params enthält alle Daten der Parameter ohne Bezug zur GUI und Zeiger auf die Eingabefelder. Das wird
+            //  verwendet, um die Daten in die Berechnungsklasse zu kopieren.
+            // myGuiParam ist eine Wrapperklasse mit globalen Routinen für den Zugriff, verwaltet die Sichtbarkeiten der Eingabe-
+            //  felder und deren Labels sowie Informationen zum Fit.
             paramHelper *par = SC_MainGUI::getInst()->getCalcGui()->params.value(on,nullptr);
             if ( par == nullptr )
             {
@@ -766,11 +818,21 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
             par->gpFit = nullptr;
             par->tooltip = sl[3].trimmed();
             par->deflabel = "";
+            if ( sl[0].length() != 3 )
+                qDebug() << "myGuiParam:" << sl;
+            else if ( sl[0][2] == '1' )
+                par->use1d2d = paramHelper::only1d;
+            else if ( sl[0][2] == '2' )
+                par->use1d2d = paramHelper::only2d;
+            else
+                par->use1d2d = paramHelper::both;
 
+            myGuiParam *gpgen = nullptr;
             if ( w->objectName().startsWith("lbl") )
             {
                 myGuiParam::setLabel(w);
                 par->deflabel = static_cast<QLabel*>(w)->text();
+                //par->bgkey = sl[5];  schon in SC_CalcGUI::SC_CalcGUI() gemacht
             }
             else if ( w->objectName().startsWith("cbs") )
             {   //  [2]typespec = C:Selection : "...|...|..."  (required)
@@ -778,7 +840,7 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
                 // sollten die Signale beim Füllen geblockt werden.
                 w->blockSignals(true);
                 for ( int i=0; i<typval.size(); i++ ) typval[i] = typval[i]+QString(" {%1}").arg(i);
-                myGuiParam::setSelect(w, typval, sl[4]);
+                gpgen = myGuiParam::setSelect(w, typval, sl[4]);
                 //if ( par->gui.w != nullptr ) { par->gui.w->deleteLater(); }
                 par->gui.w = w;
                 w->blockSignals(false);
@@ -789,7 +851,7 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
                 int max = ( typval.size() > 1 ) ? typval[1].toInt() : 1000;
                 QString suff = ( typval.size() > 2 ) ? typval[2] : "";
                 int def = ( sl[4].isEmpty() ) ? 0 : sl[4].toInt();
-                myGuiParam::setInputInt(w, min, max, def, "", suff);
+                gpgen = myGuiParam::setInputInt(w, min, max, def, "", suff);
                 //if ( par->gui.w != nullptr ) { par->gui.w->deleteLater(); }
                 par->gui.w = w;
             }
@@ -800,18 +862,18 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
                 double max = ( typval.size() > 2 ) ? typval[2].toDouble() : +10000.0;
                 QString suff = ( typval.size() > 3 ) ? typval[3] : "";
                 double def = ( sl[4].isEmpty() ) ? 0 : sl[4].toDouble();
-                myGuiParam::setInputDbl(w, min, max, frac, def, "", suff);
+                gpgen = myGuiParam::setInputDbl(w, min, max, frac, def, "", suff);
                 //if ( par->gui.w != nullptr ) { par->gui.w->deleteLater(); }
                 par->gui.w = w;
             }
             else if ( w->objectName().startsWith("fit") )
             {
                 if ( sl[0][1] != 'F' ) qDebug() << "myGuiParams::setAllGuiParams" << on << "Kin F gesetzt";
-                myGuiParam::setFitToggle(w);
+                gpgen = myGuiParam::setFitToggle(w);
             }
             else if ( w->objectName().startsWith("tog") ||  w->objectName().startsWith("rad") )
             {   // [2]typespec = T:Toggle    : (empty)
-                myGuiParam::setInputTog(w);
+                gpgen = myGuiParam::setInputTog(w);
                 //if ( par->gui.w != nullptr ) { par->gui.w->deleteLater(); }
                 par->gui.w = w;
             }
@@ -821,13 +883,37 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
             //    qDebug() << "Radio " << w->objectName();
             else if ( w->objectName().startsWith("out") )
             {   // [2]typespec = O:DoubleOut : (empty)
-                myGuiParam::setOutputDbl(w);
+                gpgen = myGuiParam::setOutputDbl(w);
                 par->gui.w = w;
             }
             else
                 qDebug() << "???" << w->objectName() << on;
-        }
-    }
+
+            if ( us == 0 && gpgen != nullptr )
+            {
+                QWidget *pw = w->parentWidget();
+                if ( pw != nullptr )
+                {
+                    QString pwon = pw->objectName();
+                    if ( pwon.startsWith("grp") )
+                    {
+                        if ( grpLabels.contains(pwon) )
+                        {
+                            grpLabels[pwon].append(gpgen);
+                        }
+                        else
+                        {
+                            QList<myGuiParam*> tmp;
+                            tmp.append(gpgen);
+                            grpLabels.insert(pwon,tmp);
+                            grpBoxes.insert(pwon,static_cast<QGroupBox*>(pw));
+                        }
+                    }
+                }
+            }
+
+        } // foreach ( QWidget *w, wid )
+    } // for ( int us=0; us<2; us++ )
 
 #ifdef SHOW_NO_TOOLTIPS
     slNoToolTips.sort();
@@ -841,6 +927,7 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
         QString on;
         myGuiParam *hlpPar = searchParam(w, on);
         if ( ! names.contains(on) ) continue;
+        if ( hlpPar == nullptr ) { qDebug() << "GUI-Element" << on << "unbekannt"; continue; }
         paramHelper *par = SC_MainGUI::getInst()->getCalcGui()->params[on];
         if ( par == nullptr ) continue;
         par->gpFit = hlpPar; // ->fit();
@@ -850,14 +937,14 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
         {
             TT( if ( w->objectName().contains("Pixel") ) qDebug() << "ToolTip:" << w->objectName()
                                                                << hlpPar->debug() );
-            setFitToggleHelper(hlpPar->intinp());
-            setFitToggleHelper(hlpPar->inp());
-            setFitToggleHelper(hlpPar->inp2());
-            setFitToggleHelper(hlpPar->inp3());
+            updateTooltip(hlpPar); // Hier kein <spec> erhalten, da es der GUI-Aufbau ist
         }
     }
 
     //generateTestFile();
+
+    //foreach ( QString k, grpLabels.keys() )
+    //    qDebug() << k << grpLabels[k].size();
 
 }
 
@@ -922,32 +1009,35 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
     if ( hideValues == f ) return;
     hideValues = f;
     foreach ( myGuiParam *p, allParams )
-    {
-        // Hier werden alle Werte aus setEnabled() zurückgesetzt, damit sie dann in setEnabled() richtig genutzt werden
-        //if ( hideValues )
-        {   // Jetzt sollen alle Werte versteckt werden (visible)
-            if ( p->cbs()    != nullptr ) { p->cbs()->setVisible(true);    p->cbs()->setEnabled(true); }
-            if ( p->intinp() != nullptr ) { p->intinp()->setVisible(true); p->intinp()->setEnabled(true); }
-            if ( p->inp()    != nullptr ) { p->inp()->setVisible(true);    p->inp()->setEnabled(true); }
-            if ( p->inp2()   != nullptr ) { p->inp2()->setVisible(true);   p->inp2()->setEnabled(true); }
-            if ( p->inp3()   != nullptr ) { p->inp3()->setVisible(true);   p->inp3()->setEnabled(true); }
-            if ( p->tog()    != nullptr ) { p->tog()->setVisible(true);    p->tog()->setEnabled(true); }
-            if ( p->fit()    != nullptr ) { p->fit()->setVisible(true);    p->fit()->setEnabled(true);   /*p->setFitCheck(true);*/ }
-            if ( p->lbl()    != nullptr ) { p->lbl()->setVisible(true);    p->lbl()->setEnabled(true); }
-        }
-        /*else
-        {   // Jetzt werden die Werte nur gesperrt, aber die Eingaben bleiben verwendbar
-            //if ( p->cbs()    != nullptr ) p->cbs()->setEnabled(true);
-            //if ( p->intinp() != nullptr ) p->intinp()->setEnabled(true);
-            //if ( p->inp()    != nullptr ) p->inp()->setEnabled(true);
-            //if ( p->inp2()   != nullptr ) p->inp2()->setEnabled(true);
-            //if ( p->inp3()   != nullptr ) p->inp3()->setEnabled(true);
-            //if ( p->tog()    != nullptr ) p->tog()->setEnabled(true);
-            if ( p->fit()    != nullptr ) p->fit()->setEnabled(true);
-            if ( p->lbl()    != nullptr ) p->lbl()->setEnabled(true);
-        }*/
+    {   // Hier werden alle Werte aus setEnabled() zurückgesetzt, damit sie dann in setEnabled() richtig genutzt werden
+        if ( p->cbs()    != nullptr ) { p->cbs()->setVisible(true);    p->cbs()->setEnabled(true); }
+        if ( p->intinp() != nullptr ) { p->intinp()->setVisible(true); p->intinp()->setEnabled(true); }
+        if ( p->inp()    != nullptr ) { p->inp()->setVisible(true);    p->inp()->setEnabled(true); }
+        if ( p->inp2()   != nullptr ) { p->inp2()->setVisible(true);   p->inp2()->setEnabled(true); }
+        if ( p->inp3()   != nullptr ) { p->inp3()->setVisible(true);   p->inp3()->setEnabled(true); }
+        if ( p->tog()    != nullptr ) { p->tog()->setVisible(true);    p->tog()->setEnabled(true); }
+        if ( p->fit()    != nullptr ) { p->fit()->setVisible(true);    p->fit()->setEnabled(true);   /*p->setFitCheck(true);*/ }
+        if ( p->lbl()    != nullptr ) { p->lbl()->setVisible(true);    p->lbl()->setEnabled(true); }
+        // Jetzt alles richtig setzen (1d/2d und enabled)
+        setEnabled( p, p->isParEnabled() );  // ohne 1d/2d Abfrage
     }
 }
+
+/*static*/ void myGuiParam::setColBkgFlag(_showColorLabels f, bool force)
+{
+    //qDebug() << "myGuiParam::setColBkgFlag" << f << force;
+    if ( !force )
+    {
+        if ( showColBkg == f ) return;
+        showColBkg = f;
+    }
+    foreach ( myGuiParam *p, allParams )
+    {
+        setLabelColor( p, p->isParEnabled() );
+        //setEnabled( p, p->isParEnabled() );  // ohne 1d/2d Abfrage
+    }
+}
+
 
 /*static*/ QString myGuiParam::searchSubKey(QString key)
 {
@@ -960,7 +1050,74 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
     return "?";
 }
 
-/*static*/ myGuiParam *myGuiParam::setEnabled(QString key, bool ena, QString lbl, QString tt)
+/*static*/ void myGuiParam::setLabelColor( QLabel *lbl, QColor fg, QColor bg )
+{
+    if ( lbl == nullptr ) return;
+    QPalette pal = lbl->palette();
+    //if ( showColBkg )
+    if ( bg.isValid() )
+    {
+        pal.setColor( QPalette::WindowText, fg );
+        if ( bg.isValid() )
+        {
+            pal.setBrush( QPalette::Window, bg );
+            lbl->setAutoFillBackground(true);
+        }
+        else
+            lbl->setAutoFillBackground(false);
+    }
+    else
+    {
+        pal.setColor( QPalette::WindowText, Qt::black );
+        lbl->setAutoFillBackground(false);
+    }
+    lbl->setPalette(pal);
+}
+
+void myGuiParam::setLabelColor( myGuiParam *gp, bool ena )
+{
+    if ( showColBkg == showColNone )
+    {
+        setLabelColor( gp->lbl(), ColFgNorm, QColor() );
+        return;
+    }
+    QColor fg, bg;
+    if ( showColBkg == showCol1d2d )
+    {
+        fg = (ena ? ColFgNorm : ColFgDis);
+        switch ( gp->_par->use1d2d )
+        {
+        case paramHelper::only1d:  bg = ColBkg1D; break;
+        case paramHelper::only2d:  bg = ColBkg2D; break;
+        case paramHelper::both:    bg = ColBkgBoth; break;
+        }
+    }
+    else // if ( showColBkg == showColParams )
+    {
+        fg = (ena ? ColFgNorm : ColFgDis);
+        if ( ! gp->_par->bgkey.isEmpty() && colorForBkg.contains(gp->_par->bgkey) )
+            bg = colorForBkg[gp->_par->bgkey];
+        else
+            bg = QColor();
+    }
+    if ( hideValues )
+    {   // Jetzt sollen alle Werte versteckt werden (visible)
+        setLabelColor( gp->lbl(), (ena ? ColFgNorm : ColFgDis), bg );
+    }
+    else
+    {   // Jetzt werden die Werte nur gesperrt, aber die Eingaben bleiben verwendbar
+        if ( gp->_par->use1d2d != use12Flag && gp->_par->use1d2d != paramHelper::both )
+        {   // Jetzt sollen alle Werte versteckt werden (visible), die Daten selber werden nicht verändert
+            setLabelColor( gp->lbl(), ColFgDis, bg );
+        }
+        else
+        {
+            setLabelColor( gp->lbl(), (ena ? ColFgNorm : ColFgDis), bg );
+        }
+    }
+}
+
+/*static*/ myGuiParam *myGuiParam::setEnabled(QString key, bool ena, QString lbl/*=""*/, QString tt/*=""*/)
 {
     myGuiParam *gp = getGuiParam(key);
     if ( gp == nullptr )
@@ -968,6 +1125,11 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
         qDebug() << "myGuiParam::setEnabled()  unknown key" << key << searchSubKey(key);
         return nullptr;
     }
+    return setEnabled(gp, ena, lbl, tt);
+}
+
+/*static*/ myGuiParam *myGuiParam::setEnabled(myGuiParam *gp, bool ena, QString lbl/*=""*/, QString tt/*=""*/)
+{
     if ( gp->_par == nullptr )
     {
         paramHelper *par;
@@ -988,36 +1150,64 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
     }
     if ( gp->_par != nullptr )
     {
-        //qDebug() << "setEnabled(" << key << ") =" << ena;
         gp->_par->enabled = ena;
     }
     else
     {
-        qDebug() << "setEnabled(" << key << ") _par unbekannt";
+        qDebug() << "setEnabled(" << gp->keyName() << ") _par unbekannt";
         return nullptr;
     }
     if ( hideValues )
     {   // Jetzt sollen alle Werte versteckt werden (visible)
-        if ( gp->cbs()    != nullptr ) { gp->cbs()->setVisible(ena);    gp->cbs()->setEnabled(ena); }
-        if ( gp->intinp() != nullptr ) { gp->intinp()->setVisible(ena); gp->intinp()->setEnabled(ena); }
-        if ( gp->inp()    != nullptr ) { gp->inp()->setVisible(ena);    gp->inp()->setEnabled(ena); }
-        if ( gp->inp2()   != nullptr ) { gp->inp2()->setVisible(ena);   gp->inp2()->setEnabled(ena); }
-        if ( gp->inp3()   != nullptr ) { gp->inp3()->setVisible(ena);   gp->inp3()->setEnabled(ena); }
-        if ( gp->tog()    != nullptr ) { gp->tog()->setVisible(ena);    gp->tog()->setEnabled(ena); }
-        if ( gp->fit()    != nullptr ) { gp->fit()->setVisible(ena);    gp->fit()->setEnabled(ena);  gp->setFitCheck(ena); }
-        if ( gp->lbl()    != nullptr ) { gp->lbl()->setVisible(ena);    gp->lbl()->setEnabled(ena); }
+        if ( gp->_par->use1d2d != use12Flag && gp->_par->use1d2d != paramHelper::both )
+        {   // Jetzt sollen alle Werte versteckt werden (visible), die Daten selber werden nicht verändert
+            if ( gp->cbs()    != nullptr ) gp->cbs()->setVisible(false);
+            if ( gp->intinp() != nullptr ) gp->intinp()->setVisible(false);
+            if ( gp->inp()    != nullptr ) gp->inp()->setVisible(false);
+            if ( gp->inp2()   != nullptr ) gp->inp2()->setVisible(false);
+            if ( gp->inp3()   != nullptr ) gp->inp3()->setVisible(false);
+            if ( gp->tog()    != nullptr ) gp->tog()->setVisible(false);
+            if ( gp->fit()    != nullptr ) { gp->fit()->setVisible(false);    gp->fit()->setEnabled(ena);  /*gp->setFitCheck(ena);*/ }
+            if ( gp->lbl()    != nullptr ) { gp->lbl()->setVisible(false);    gp->lbl()->setEnabled(ena); }
+        }
+        else
+        {
+            if ( gp->cbs()    != nullptr ) { gp->cbs()->setVisible(ena);    gp->cbs()->setEnabled(ena); }
+            if ( gp->intinp() != nullptr ) { gp->intinp()->setVisible(ena); gp->intinp()->setEnabled(ena); }
+            if ( gp->inp()    != nullptr ) { gp->inp()->setVisible(ena);    gp->inp()->setEnabled(ena); }
+            if ( gp->inp2()   != nullptr ) { gp->inp2()->setVisible(ena);   gp->inp2()->setEnabled(ena); }
+            if ( gp->inp3()   != nullptr ) { gp->inp3()->setVisible(ena);   gp->inp3()->setEnabled(ena); }
+            if ( gp->tog()    != nullptr ) { gp->tog()->setVisible(ena);    gp->tog()->setEnabled(ena); }
+            if ( gp->fit()    != nullptr ) { gp->fit()->setVisible(ena);    gp->fit()->setEnabled(ena);  /*gp->setFitCheck(ena);*/ }
+            if ( gp->lbl()    != nullptr ) { gp->lbl()->setVisible(ena);    gp->lbl()->setEnabled(ena); }
+        }
     }
     else
     {   // Jetzt werden die Werte nur gesperrt, aber die Eingaben bleiben verwendbar
-        //if ( gp->cbs()    != nullptr ) gp->cbs()->setEnabled(ena);
-        //if ( gp->intinp() != nullptr ) gp->intinp()->setEnabled(ena);
-        //if ( gp->inp()    != nullptr ) gp->inp()->setEnabled(ena);
-        //if ( gp->inp2()   != nullptr ) gp->inp2()->setEnabled(ena);
-        //if ( gp->inp3()   != nullptr ) gp->inp3()->setEnabled(ena);
-        //if ( gp->tog()    != nullptr ) gp->tog()->setEnabled(ena);
-        if ( gp->fit()    != nullptr ) gp->fit()->setEnabled(ena);
-        if ( gp->lbl()    != nullptr ) gp->lbl()->setEnabled(ena);
+        if ( gp->_par->use1d2d != use12Flag && gp->_par->use1d2d != paramHelper::both )
+        {   // Jetzt sollen alle Werte versteckt werden (visible), die Daten selber werden nicht verändert
+            //if ( gp->cbs()    != nullptr ) gp->cbs()->setVisible(false);
+            //if ( gp->intinp() != nullptr ) gp->intinp()->setVisible(false);
+            //if ( gp->inp()    != nullptr ) gp->inp()->setVisible(false);
+            //if ( gp->inp2()   != nullptr ) gp->inp2()->setVisible(false);
+            //if ( gp->inp3()   != nullptr ) gp->inp3()->setVisible(false);
+            //if ( gp->tog()    != nullptr ) gp->tog()->setVisible(false);
+            if ( gp->fit()    != nullptr ) gp->fit()->setEnabled(false);
+            if ( gp->lbl()    != nullptr ) gp->lbl()->setEnabled(false);
+        }
+        else
+        {
+            //if ( gp->cbs()    != nullptr ) gp->cbs()->setEnabled(ena);
+            //if ( gp->intinp() != nullptr ) gp->intinp()->setEnabled(ena);
+            //if ( gp->inp()    != nullptr ) gp->inp()->setEnabled(ena);
+            //if ( gp->inp2()   != nullptr ) gp->inp2()->setEnabled(ena);
+            //if ( gp->inp3()   != nullptr ) gp->inp3()->setEnabled(ena);
+            //if ( gp->tog()    != nullptr ) gp->tog()->setEnabled(ena);
+            if ( gp->fit()    != nullptr ) gp->fit()->setEnabled(ena);
+            if ( gp->lbl()    != nullptr ) gp->lbl()->setEnabled(ena);
+        }
     }
+    setLabelColor( gp, ena );
     if ( !lbl.isEmpty() )
     {
         if ( lbl[0] == '@' && gp->cbs() != nullptr )
@@ -1034,6 +1224,8 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
     }
     if ( !tt.isEmpty() )
     {   // Anpassen des Tooltips
+        updateTooltip(gp, tt);
+/*
         if ( tt == "*" )
         {   // Zurückstellen auf den Default
             tt = gp->_par->tooltip;
@@ -1053,6 +1245,7 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
         if ( gp->tog()    != nullptr ) gp->tog()->setToolTip(tt);
         if ( gp->fit()    != nullptr ) gp->fit()->setToolTip(tt);
         if ( gp->lbl()    != nullptr ) gp->lbl()->setToolTip(tt);
+*/
     }
     return gp;
 }
@@ -1074,10 +1267,18 @@ void genTestFileWrite( QFile &ftest, QStringList &testLType, QStringList &testCB
         qDebug() << "myGuiParam::isEnabled()  unknown key" << key << searchSubKey(key);
         return false;
     }
-    if ( gp->_par != nullptr )
-        return gp->_par->enabled;
-    qDebug() << "myGuiParam::isEnabled("<<key<<")  no _par set.";
+    return isEnabled(gp);
+}
 
+/*static*/ bool myGuiParam::isEnabled(myGuiParam *gp)
+{
+    if ( gp->_par != nullptr )
+    {
+        if ( gp->_par->use1d2d != use12Flag && gp->_par->use1d2d != paramHelper::both )
+            return false;
+        return gp->_par->enabled;
+    }
+    qDebug() << "myGuiParam::isEnabled("<<gp->keyName()<<")  no _par set.";
     if ( hideValues )
     {   // Jetzt sollen alle Werte versteckt werden (visible)
         if ( gp->cbs()    != nullptr ) return gp->cbs()->isVisible();

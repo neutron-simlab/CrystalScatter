@@ -13,13 +13,13 @@ QStringList SC_Calc_GENERIC::guiLayoutNeu()
 
     // UPDATE März 2023:
     //   Die GUI wird komplett überarbeitet. Alle Informationen werden aus dem ObjName des GUI-Elements
-    //   bezogen. Diese Liste hier wird nur noch für die Grenzwerte/Einheiten/Listen genutzt. Im ersten
-    //   Feld (x) steht jetzt auch eine Datentypskennung, das zweite Feld (y) wird nicht mehr genutzt.
+    //   bezogen. Diese Liste hier wird nur noch für die Grenzwerte/Einheiten/Listen genutzt.
     //   Diese Liste wird in der Consolenversion auch genutzt.
 
-    // Each element must be in the form "type;kenn;typespec;tooltip;default" with:
+    // Each element must be in the form "type;kenn;typespec;tooltip;default;colbkg" with:
     //  type     = C:Selection, N:Double, I:Integer, T:Toggle, O:DoubleOut
     //             Zweites Zeichen ist 'F' für Fittable oder '-' für nicht fittable
+    //             Drittes Zeichen ist '1' für 1D-Daten, '2' für 2D-Daten oder '-' für beides
     //  kenn     = internal parameter name to connect to correct gui element
     //  typespec = C:Selection : "...|...|..."  (required)
     //             N:Double    : "frac|min|max|unit"  (optional, default: "2|-10000|+10000|")
@@ -28,113 +28,131 @@ QStringList SC_Calc_GENERIC::guiLayoutNeu()
     //             O:DoubleOut : (empty)
     //  tooltip  = this is the tooltip set to both prompt label and inputfield (optional)
     //  default  = the default value (optional)
+    //  colbkg   = custom color background (optional), keys in sc_globalConfig.h, see BGKey...
 
     // Default-Werte vom C:\SimLab\sas-crystal\Scatter Jun 2023\crystal3d1.pas
     // Mit Ausnahme von LType, der bleibt auf None.
     // Nicht direkt gefundene Werte werden mit "//??" markiert.
 
+    /* Welche Parameter bei 1D verwendet werden:
+   EditTwRatio.Text:=StringGrid9.Cells[0,7];
+   EditMisc.Text:=StringGrid9.Cells[0,11];
+     */
+
     static QStringList slGUI =
         {
             // Lattice group, 07.07.23: Bezeichnungen angepasst und zwei neue Werte dazu!
-            "C-;LType;Lamellae|Hexagonally packed cylinders (P6/mm)|Square packed cylinders (P4/mm)|Rectangular centered cylinders (cmm)"
+            "C-2;LType;Lamellae|Hexagonally packed cylinders (P6/mm)|Square packed cylinders (P4/mm)|Rectangular centered cylinders (cmm)"
                 "|BCC (lm3m)|FCC (Fm3m)|HCP (P6/mmc)|SC (Pm3m)|BCT (l4/mm)|Gyroid (Ia3d)|OBDD (Pn3m)|Plumbers Nightmare (Im3m)|None|CP-Layers"
-                "|2DHex (GISAXS)|2DSquare (GISAXS)|1DLam (GISAXS)|Fd3m|Orthorombic|LDQ12;Lattice type selection;None",
-                //20240301 - weg: "|Percus-Yevick|Teubner-Strey|Pm3n (A15)|P42/mnm (sigma)|Fddd-network"
-            "NF;uca;2|0.01|1000| nm;Unit cell dimension a;30",
-            "NF;ucb;2|0.01|1000| nm;Unit cell dimension b;30",
-            "NF;ucc;2|0.01|1000| nm;Unit cell dimension c;30",
-            "NF;ucalpha;3|0|360|°;Unit cell rotation alpha;90",  // Default auf 90°
-            "NF;ucbeta;3|0|360|°;Unit cell rotation beta;90",    //
-            "NF;ucgamma;3|0|360|°;Unit cell rotation gamma;90",  //
-            "NF;EditCeff;4|0|1;Effective volume fraction;1",
-            "T-;CheckBoxTwinned;;;0",  //??
-            "NF;EditCeffcyl;4|0|999;;0",  //??
-            "NF;reff;;Effective radius;0",
-            "NF;acpl;5|0|1;Stacking probability A(s);0",
-            "NF;bcpl;5|0|1;Stacking probability B(s);0",
-            "NF;ifluc;4|0|1000;;0",  //??
-            "NF;rfluc;4|0|1000;;0",  //??
-            "O-;EditRelDis;;;",
-            "O-;EditDist;;;",
+                "|2DHex (GISAXS)|2DSquare (GISAXS)|1DLam (GISAXS)|Fd3m|Orthorombic|LDQ12;Lattice type selection;None;" BGKeyLattice,
+
+            //(* Lattice types *) - 1D
+            "C-1;LType1d;lamellae|hex cylinders|square cylinders|bcc|fcc|sc|hcp|none|2DHex|1DLam|PY|Fractal|CPL|centered rectangular cylinders"
+            "|BCT|2DSquare|gyroid|OBDD|plumbers nightmare|mechanical data|DLS with SZ-distribution|Williams-Watts|Fd3m|RMSA|Teubner-Strey"
+            "|Leibler|Plasmon|Biomodal Size Distribution|???|P6/mmm|A15;1d Lattice type selection;fcc;" BGKeyLattice,
+
+            "NF-;uca;2|0.01|1000| nm;Unit cell dimension a;30;" BGKeyLattice,
+            "NF-;ucb;2|0.01|1000| nm;Unit cell dimension b;30",
+            "NF-;ucc;2|0.01|1000| nm;Unit cell dimension c;30",
+            "NF2;ucalpha;3|0|360|°;Unit cell rotation alpha;90",  // Default auf 90°
+            "NF2;ucbeta;3|0|360|°;Unit cell rotation beta;90",    //
+            "NF2;ucgamma;3|0|360|°;Unit cell rotation gamma;90",  //
+            "NF-;EditCeff;4|0|1;Effective volume fraction;1",
+            "T-2;CheckBoxTwinned;;;0",  //??
+            "NF2;EditCeffcyl;4|0|999;;0",  //??
+            "NF-;reff;;Effective radius;0",
+            "NF-;acpl;5|0|1;Stacking probability A(s);0",
+            "NF-;bcpl;5|0|1;Stacking probability B(s);0",
+            "NF2;ifluc;4|0|1000;;0",  //??
+            "NF2;rfluc;4|0|1000;;0",  //??
+            //"O-2;EditRelDis;;;",          // TODO: Wenn dauerhaft raus, dann die Routine updateOutputData() ebenfalls rausnehmen
+            //"O-2;EditDist;;;",
 
             // Particle group
-            "C-;ComboBoxParticle;sphere|cylinder|disk|vesicle|cube|ellipsoid|triaxial ellipsoid|super ellipsoid, barrel"
+            "C-2;ComboBoxParticle;sphere|cylinder|disk|vesicle|cube|ellipsoid|triaxial ellipsoid|super ellipsoid, barrel"
                 "|superball|excluded volume chain|Kratky Porod chain;Particle shape selection;Sphere",
-            "C-;Ordis;Gaussian|Exponential|Onsager|Maier-Saupe|Cut-off|Laguerre|z-dir|isotropic|mirrored Gaussian"
+            "C-2;Ordis;Gaussian|Exponential|Onsager|Maier-Saupe|Cut-off|Laguerre|z-dir|isotropic|mirrored Gaussian"
                 "|mirrored Exponential|mirrored Onsager|mirrored Maier-Saupe|mirrored Cut-off|fiber pattern;Orientational distribution functions;isotropic",
-            "C-;ComboBoxInterior;homogeneous|core + homogeneous sh|core + inhomogeneous sh|multi-shell|myelin;Particle nature;homogeneous",
-            "NF;EditRadius;4|0|1000|nm;Inner radius;1.0",
-            "NF;EditRadiusi;4|0|1000|nm;Outer radius;0.5",  //??
-            "NF;EditSigma;4;Relative standard deviation;0.07",
-            "NF;EditDbeta;4|0|360|°;Average angle;0.4",
-            "NF;Length;4|0|1000;Structure length;1",
-            "NF;SigmaL;4;Relative standard deviation of the length;0.06",
-            "NF;Alpha;;Internal 'alphash';0",  //??
-            "NF;EditRho;;;0",  //??
-            "NF;RotAlpha;;Internal 'alpha';0",  //??
+            "C-2;ComboBoxInterior;homogeneous|core + homogeneous sh|core + inhomogeneous sh|multi-shell|myelin;Particle nature;homogeneous",
+
+            //(* Particle Interior *) - 1D
+            "C-1;ComboBoxInterior1d;homogeneous core|hom.core + hom.shell|hom. core + inhom. shell|no interior structure (KP-chain)|hom. core + OZ"
+                "|hom. core + hom.shell + OZ|hom. core + inhom.shell + OZ|vesicle with multilayer|cylinder with multilayer|disk with multilayer;"
+                "1d Particle nature;homogeneous core",
+
+            "NF-;EditRadius;4|0|1000|nm;Inner radius;1.0",
+            "NF-;EditRadiusi;4|0|1000|nm;Outer radius;0.5",  //??
+            "NF-;EditSigma;4;Relative standard deviation;0.07",  // 1d: EditStdDev
+            "NF-;EditDbeta;4|0|360|°;Average angle;0.4",
+            "NF-;Length;4|0|1000;Structure length;1",
+            "NF-;SigmaL;4;Relative standard deviation of the length;0.06",
+            "NF2;Alpha;;Internal 'alphash';0",  //??
+            "NF-;EditRho;;;0",  //??
+            "NF-;RotAlpha;;Internal 'alpha';0",  //??
 
             // Peak Shape group
-            "C-;ComboBoxPeak;Lorentzian|Gaussian|mod. 1 Lorentzian|mod. 2 Lorentzian|Pseudo-Voigt|Pearson VII|Gamma|Anisotropic Gaussian;Select the peak shape;Gaussian",
-            "NF;EditPeakPar;4|0|1e6;Peak shape parameter;0",
-            "NF;EditDebyeWaller;3|0|100| nm;Average displacement from ideal lattice point;2",
-            "NF;EditAzi;;;180",
-            "NF;EditDomainSize;2|0|5000| nm;Radial domain size;400",
-            "T-;RadButDebyeScherrer;;;0",  //??
-            "T-;RadioButtonPara;;;0",  //??
-            "N-;VAx1;3|-1000|1000;Ax1;1",  //??
-            "N-;VAx2;3|-1000|1000;Ax2;0",
-            "N-;VAx3;3|-1000|1000;Ax3;0",
-            "N-;Ay1;3|-1000|1000;Ay1;0",
-            "N-;Ay2;3|-1000|1000;Ay2;1",
-            "N-;Ay3;3|-1000|1000;Ay3;0",
-            "N-;Az1;3|-1000|1000;Az1;0",
-            "N-;Az2;3|-1000|1000;Az2;0",
-            "N-;Az3;3|-1000|1000;Az3;1",
-            "NF;SigX;3|0.01|9999;Average domain size X;40",  //?? editdom1,2,3
-            "NF;SigY;3|0.01|9999;Average domain size Y;40",
-            "NF;SigZ;3|0.01|9999;Average domain size Z;40",
+            "C-2;ComboBoxPeak;Lorentzian|Gaussian|mod. 1 Lorentzian|mod. 2 Lorentzian|Pseudo-Voigt|Pearson VII|Gamma|Anisotropic Gaussian;Select the peak shape;Gaussian",
+            "NF-;EditPeakPar;4|0|1e6;Peak shape parameter;0",
+            "NF-;EditDebyeWaller;3|0|100| nm;Average displacement from ideal lattice point;2",
+            "NF-;EditAzi;;;180",  // (* azimuthal domain *)
+            "NF-;EditDomainSize;2|0|5000| nm;Radial domain size;400",
+            "T-2;RadButDebyeScherrer;;;0",  //??
+            "T-2;RadioButtonPara;;;0",  //??
+            "N-2;VAx1;3|-1000|1000;Ax1;1",  //??
+            "N-2;VAx2;3|-1000|1000;Ax2;0",
+            "N-2;VAx3;3|-1000|1000;Ax3;0",
+            "N-2;Ay1;3|-1000|1000;Ay1;0",
+            "N-2;Ay2;3|-1000|1000;Ay2;1",
+            "N-2;Ay3;3|-1000|1000;Ay3;0",
+            "N-2;Az1;3|-1000|1000;Az1;0",
+            "N-2;Az2;3|-1000|1000;Az2;0",
+            "N-2;Az3;3|-1000|1000;Az3;1",
+            "NF-;SigX;3|0.01|9999;Average domain size X;40",  //?? editdom1,2,3
+            "NF-;SigY;3|0.01|9999;Average domain size Y;40",
+            "NF-;SigZ;3|0.01|9999;Average domain size Z;40",
 
             // Orientation group
-            "NF;ucpsi;3|0|360|°;;0",
-            "NF;ucn1;;;1",
-            "NF;ucn2;;;1",
-            "NF;ucn3;;;1",
-            "NF;theta;3|0|360|°;;90",  // -> PolTheta   Begriffe werden nicht geändert, damit
-            "NF;phi;3|0|360|°;;0",     // -> PolPhi     die Daten von vorher lesbar bleiben.
-            "NF;rotTheta;3|0|360|°;;90",
-            "NF;rotPhi;3|0|360|°;;90",
+            "NF2;ucpsi;3|0|360|°;;0",
+            "NF2;ucn1;;;1",
+            "NF2;ucn2;;;1",
+            "NF2;ucn3;;;1",
+            "NF2;theta;3|0|360|°;;90",  // -> PolTheta   Begriffe werden nicht geändert, damit
+            "NF2;phi;3|0|360|°;;0",     // -> PolPhi     die Daten von vorher lesbar bleiben.
+            "NF2;rotTheta;3|0|360|°;;90",
+            "NF2;rotPhi;3|0|360|°;;90",
 
             // Calculation group
-            "I-;GridPoints;16|2049;Half of the size of each image dimension;64",  //?? - werden nicht auf 20 runtergesetzt
-            "I-;HKLmax;1|20;Number of iterations in the h,k,l-loops (Miller indices);5",
-            "N-;EditQmax;4|0.001|100| nm-1;Qmax preset from user;1",                   // Das genutzte QMax wird über die
-            "N-;CalcQmax;4|0.001|100| nm-1;Qmax calculated from data header above;",   // Radiobuttons darunter ausgewählt
-            "T-;EditQmaxData;;Use the Qmax from the data;",   // auch wenn das Radiobuttons sind
-            "T-;EditQmaxPreset;;Use the Qmax provided here;", // -"-
-            "N-;EditQmin;4|0.0|100| nm-1;Qmin default for 1d graphs;0",
-            "I-;EditQsteps;10|10000;Number of steps from Qmin to Qmax for 1d graphs;200",
+            "I-2;GridPoints;16|2049;Half of the size of each image dimension;64;" BGKeyExperiment,  //?? - werden nicht auf 20 runtergesetzt
+            "I--;HKLmax;1|20;Number of iterations in the h,k,l-loops (Miller indices);5",
+            "N-2;EditQmax;4|0.001|100| nm-1;Qmax preset from user;1",                   // Das genutzte QMax wird über die
+            "N-2;CalcQmax;4|0.001|100| nm-1;Qmax calculated from data header above;",   // Radiobuttons darunter ausgewählt
+            "T-2;EditQmaxData;;Use the Qmax from the data;",   // auch wenn das Radiobuttons sind
+            "T-2;EditQmaxPreset;;Use the Qmax provided here;", // -"-
+            "N-1;EditQmin;4|0.0|100| nm-1;Qmin default for 1d graphs;0",
+            "I-1;EditQsteps;10|10000;Number of steps from Qmin to Qmax for 1d graphs;200",
+            "N-1;Editqz;4|0.001|100| nm-1;Qz;1", // neu für 1D
 
             // Experiment group
-            "NF;EditPixelNoX;1|16|10000;Number of horizontal detector pixel;2048",
-            "NF;EditPixelNoY;1|16|10000;Number of vertical detector pixel;2048",
-            "NF;EditPixelX;5|0.1|50| mm;Width of one detector pixel;1",
-            "NF;EditPixelY;5|0.1|50| mm;Height of one detector pixel;1",
-            "NF;EditDet;4|0.001|100| m;Distance Sample - Detector;1",
-            "NF;EditWavelength;5|0.001|200| nm;Wavelength;0.09499",
-            "NF;BeamPosX;3|-1000|1000;Horizontal center of the beam in pixel coordinates;0",
-            "NF;BeamPosY;3|-1000|1000;Vertical center of the beam in pixel coordinates;0",
-            "T-;CenterBeam;;Use beam position;",          // Radiobutton für die Beamposition
-            "T-;CenterMidpoint;;Use center point;",       // Radiobutton für den Mittelpunkt (andere qx,qy,qz Berechnungen)
+            "NF2;EditPixelNoX;1|16|10000;Number of horizontal detector pixel;2048",
+            "NF2;EditPixelNoY;1|16|10000;Number of vertical detector pixel;2048",
+            "NF2;EditPixelX;5|0.1|50| mm;Width of one detector pixel;1",
+            "NF2;EditPixelY;5|0.1|50| mm;Height of one detector pixel;1",
+            "NF2;EditDet;4|0.001|100| m;Distance Sample - Detector;1" BGKeyLattice,
+            "NF2;EditWavelength;5|0.001|200| nm;Wavelength;0.09499",
+            "NF2;BeamPosX;3|-1000|1000;Horizontal center of the beam in pixel coordinates;0",
+            "NF2;BeamPosY;3|-1000|1000;Vertical center of the beam in pixel coordinates;0",
+            "T-2;CenterBeam;;Use beam position;",          // Radiobutton für die Beamposition
+            "T-2;CenterMidpoint;;Use center point;",       // Radiobutton für den Mittelpunkt (andere qx,qy,qz Berechnungen)
 
             // Controls group
-            "N-;EditBFactor;3|0.01|999;;1",  //??
-            "T-;CheckBoxWAXS;;;0",  //??
-            "N-;P1;;;0",       //?? wird in formpq verwendet
+            "N-2;EditBFactor;3|0.01|999;;1",  //??
+            "T-2;CheckBoxWAXS;;;0",  //??
+            "N-2;P1;;;0",       //?? wird in formpq verwendet
 
             // Pixel Manipulation group
-            "NF;iso;5|0|1000;Offset for the radial intensity;0",
-            "NF;I0;5|0|100000;Multiplier for the radial intensity;10000",
-            "NF;Base;5|-10000|10000;Constant background added to the calculated pixel value;0",  // Eigentlich 1e-10
+            "NF-;iso;5|0|1000;Offset for the radial intensity;0",   // 1d: EditBkgrd
+            "NF-;I0;5|0|100000;Multiplier for the radial intensity;10000",
+            "NF-;Base;5|-10000|10000;Constant background added to the calculated pixel value;0",  // Eigentlich 1e-10
         };
     return slGUI;
 }
@@ -240,9 +258,12 @@ void SC_Calc_GENERIC::prepareData(_dataGetter dg, bool use1d)
 
 void SC_Calc_GENERIC::updateOutputData( _dataSetter ds )
 {
+    Q_UNUSED(ds)
+    /*      Da oben raus, kann auch hier raus
     DT( qDebug() << "+++ updateOutputData() +++" );
     _valueTypes val;
 
     val.value = calc->getRelDis(); (*ds)( "EditRelDis", val );
     val.value = calc->getDist();   (*ds)( "EditDist", val );
+    */
 }

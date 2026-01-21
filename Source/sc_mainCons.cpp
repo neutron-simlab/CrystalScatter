@@ -855,6 +855,21 @@ double zuf()
 
 
 #ifndef ChatbotDisabled
+/**
+ * @brief calculateFromChatbotKeyValList
+ * Berechnen eines Bildes aus den übergebenen Daten und Rückgabe für den Chatbot
+ * @param calc       - Zeiger auf Berechnungsklasse
+ * @param cbmcpValue - MCP-Value Liste
+ * @param cbmcpImgfn - Imagefilename als Output (Leer=Image in Base64 Codierung ausgeben)
+ * @param nthreads   - Anzahl zu verwendener Threads
+ * Output:
+ *      std::cerr - Allgemeine Meldungen
+ *      std::cout - JSON Stringobjekt mit:
+ *              state   = OK oder FAIL
+ *              error   = Fehlermeldung wenn state=fail
+ *              image   = Base64 Image wenn state=ok
+ *              runtime = Laufzeit in ms
+ */
 void calculateFromChatbotKeyValList( SC_CalcCons *calc, QString cbmcpValue, QString cbmcpImgfn, int nthreads )
 {
     if ( !cbmcpValue.isEmpty() )
@@ -868,7 +883,6 @@ void calculateFromChatbotKeyValList( SC_CalcCons *calc, QString cbmcpValue, QStr
             if ( p < 0 ) continue;
             QString val  = kv.mid(p+1).trimmed();
             QString pkey = paramkey2jsonkey.key(kv.left(p),"?");
-            //qDebug() << "KeyValList" << kv << pkey << val;
             if ( val.at(0).isNumber() || val.at(0) == '-' || val.at(0) == '+' )
             {   // Zahlen
                 calc->updateParamValue( pkey, val.toDouble() );
@@ -878,7 +892,7 @@ void calculateFromChatbotKeyValList( SC_CalcCons *calc, QString cbmcpValue, QStr
                 calc->updateParamValue( pkey, val.at(0)=='T' );
             }
             else if ( val == "NULL" )
-            {   // Beim Default undefiniert und somit bei mienem Test auch...
+            {   // Beim Default undefiniert und somit bei meinem Test auch...
                 //val = jsval2str( it.key(), jobj.value("default_value_number") );    // Mehr für mich ohne reale Daten vom Chatbot
                 //calc->updateParamValue( pkey, val.toDouble() );
             }
@@ -892,23 +906,40 @@ void calculateFromChatbotKeyValList( SC_CalcCons *calc, QString cbmcpValue, QStr
     // Berechnen
     calc->prepareData( false/*fromfit*/, false/*use1d*/ );
 
-    calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
-    std::cerr << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
+    calc->doCalculation( nthreads, false/*ignNewSwitch*/, false/*ignParamCheck*/ );
+    //std::cerr << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
     if ( flog )
         flog->write(qPrintable(QString(" -> %1ms").arg(calc->higResTimerElapsed(SC_CalcCons::htimBoth))+EOL));
 
-    widImage *img = new widImage();
-    img->setConfig(imgColorTbl, imgSwapH, imgSwapV, imgRot, imgZoom, false);
-    img->setData( calc->minX(), calc->maxX(), calc->minY(), calc->maxY(), calc->data() );
-    if ( !cbmcpImgfn.isEmpty() )
+    QJsonObject jsObj;
+    QString calcError = QString::fromStdString(calc->getCalcPtr()->getLastErrorMessage());
+    if ( calcError.isEmpty() )
     {
-        img->saveImage( cbmcpImgfn );
+        jsObj.insert( "simulation_state", "OK" );
+        jsObj.insert( "runtime", QString("%1ms").arg(calc->higResTimerElapsed(SC_CalcCons::htimBoth)) );
+        widImage *img = new widImage();
+        img->setConfig(imgColorTbl, imgSwapH, imgSwapV, imgRot, imgZoom, false);
+        img->setData( calc->minX(), calc->maxX(), calc->minY(), calc->maxY(), calc->data() );
+        if ( !cbmcpImgfn.isEmpty() )
+        {
+            img->saveImage( cbmcpImgfn );
+            jsObj.insert( "imagefile", cbmcpImgfn );
+        }
+        else // if ( cbmcpImg64 )
+        {
+            QString retval = img->saveImageBase64();
+            jsObj.insert( "image", retval );
+            //std::cout << qPrintable(retval) << std::endl;
+        }
     }
-    else // if ( cbmcpImg64 )
+    else
     {
-        QString retval = img->saveImageBase64();
-        std::cout << qPrintable(retval) << std::endl;
+        jsObj.insert( "simulation_state", "FAIL" );
+        jsObj.insert( "error", calcError );
     }
+    QJsonDocument jsOut;
+    jsOut.setObject(jsObj);
+    std::cout << qPrintable(jsOut.toJson()) << std::endl;
 }
 #endif
 
@@ -1250,7 +1281,7 @@ void generateAIfiles( SC_CalcCons *calc, QString aifile, bool nofft, int nthread
                 //std::cerr << "TPVinfo: no random values for this image." << std::endl;
             }
         }
-        calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
+        calc->doCalculation( nthreads, false/*ignNewSwitch*/, false/*ignParamCheck*/ );
 
         std::cerr << qPrintable(fn) << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
         if ( flog )
@@ -1546,7 +1577,7 @@ void generateSingleImage( SC_CalcCons *calc, QString fnpng, int nthreads )
 
     // Berechnen
     calc->prepareData( false/*fromfit*/, false/*use1d*/ );
-    calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
+    calc->doCalculation( nthreads, false/*ignNewSwitch*/, false/*ignParamCheck*/ );
     std::cerr << qPrintable(fnpng) << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
     if ( flog )
         flog->write(qPrintable(QString("%1 -> %2ms").arg(fnpng).arg(calc->higResTimerElapsed(SC_CalcCons::htimBoth))+EOL));
@@ -1600,16 +1631,16 @@ void printAllParameter( SC_CalcCons *calc, QFile *f )
     std::cerr << "printAllParameter - " << qPrintable(f->fileName()) << std::endl;
     f->write("------------------------------ Parameters Start" EOL);
 
-    QStringList meta = calc->getCalcPtrWrapper()->guiLayoutNeu();
+    QStringList meta = calc->getCalcPtrWrapper()->guiLayoutNeu(); // Parameternamen und den Typen
     for ( int m=0; m<meta.size(); m++ )
     {
         QStringList sl = meta[m].split(";");
-        while ( sl.size() < 5 ) sl << " ";  // tooltip;default sind optional
+        while ( sl.size() < 6 ) sl << " ";  // tooltip;default;colbkg sind optional
 
-        // TODO: Neue Struktur des guiLayout()
-        // Each element must be in the form "type;kenn;typespec;tooltip;default" with:
+        // Each element must be in the form "type;kenn;typespec;tooltip;default;colbkg" with:
         //  type     = C:Selection, N:Double, I:Integer, T:Toggle, O:DoubleOut
         //             Zweites Zeichen ist 'F' für Fittable oder '-' für nicht fittable
+        //             Drittes Zeichen ist '1' für 1D-Daten, '2' für 2D-Daten oder '-' für beides
         //  kenn     = internal parameter name to connect to correct gui element
         //  typespec = C:Selection : "...|...|..."  (required)
         //             N:Double    : "frac|min|max|unit"  (optional, default: "2|-10000|+10000|")
@@ -1618,6 +1649,7 @@ void printAllParameter( SC_CalcCons *calc, QFile *f )
         //             O:DoubleOut : (empty)
         //  tooltip  = this is the tooltip set to both prompt label and inputfield (optional)
         //  default  = the default value (optional)
+        //  colbkg   = custom color background (optional), keys in sc_globalConfig.h, see BGKey...
 
         QString isfit  = sl[0][1] == 'F' ? "Fittable" : "";
         QString key = sl[1].trimmed();
@@ -2403,7 +2435,7 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
         {
             QString tmpfn = basePath + QFileInfo(usedImages.first()).baseName() + "_out";
             calc->prepareData( true/*fromfit*/, false/*use1d*/ );
-            calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
+            calc->doCalculation( nthreads, false/*ignNewSwitch*/, false/*ignParamCheck*/ );
             widImage *img = new widImage();
             img->setConfig(imgColorTbl, imgSwapH, imgSwapV, imgRot, imgZoom, false);
             img->setData( calc->minX(), calc->maxX(), calc->minY(), calc->maxY(), calc->data() );
@@ -2486,7 +2518,7 @@ void automaticFit(SC_CalcCons *calc, QString imgfile, QString autofit, int nthre
     if ( ! imgfile.isEmpty() )
     {   // Einzelfile, also jetzt erst das generierte Bild speichern
         calc->prepareData( true/*fromfit*/, false/*use1d*/ );
-        calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
+        calc->doCalculation( nthreads, false/*ignNewSwitch*/, false/*ignParamCheck*/ );
         std::cerr << qPrintable(fnpng) << " -> " << calc->higResTimerElapsed(SC_CalcCons::htimBoth) << std::endl;
         if ( flog )
         {
@@ -2621,7 +2653,7 @@ void performTimeTest( QString par, QString cfg, QString out )
                     {
                         // Berechnen
                         calc->prepareData( false/*fromfit*/, false/*use1d*/ );
-                        calc->doCalculation( threads[t], nswcurr == swOld );
+                        calc->doCalculation( threads[t], nswcurr == swOld, false/*ignParamCheck*/ );
 
                         double c = calc->higResTimerElapsed(SC_CalcCons::htimCalc);
                         double p = calc->higResTimerElapsed(SC_CalcCons::htimPrep);
@@ -2783,7 +2815,7 @@ void waitForChatbot(SC_CalcCons *calc, QString cbfile, /*QString param,*/ int nt
 
         // Berechnen
         calc->prepareData( false/*fromfit*/, false/*use1d*/ );
-        calc->doCalculation( nthreads, false /*ignNewSwitch*/ );
+        calc->doCalculation( nthreads, false/*ignNewSwitch*/, false/*ignParamCheck*/ );
         if ( flog )
         {
             flog->open(QIODevice::Append);

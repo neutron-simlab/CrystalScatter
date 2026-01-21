@@ -110,18 +110,17 @@ public:
 
     static void setDefColTbl( int idx ) { lastColorTbl=idx; }
 
-    void saveParams( QSettings &sets );
-    void loadParams( QSettings &sets );
-
     void addMetaInfo( QString key, QString val );
+#ifndef CONSOLENPROG
     QString getMetaTitle();
+#endif
     QString metaInfo( QString key, QString def="" );
 
     void getVarScaling( double &min, double &max );
     void setFixScaling( double min, double max );
     void setLogScaling( bool on );
 
-    int setData(int x0, int x1, int y0, int y1, /*_metaData &md,*/ double *d);
+    int setData(int x0, int x1, int y0, int y1, double *d);
     int setData1D(int x1, double q0, double q1, double *d);
     const double *dataPtr() { return data.constData(); }
     double xmin() { return minX; }
@@ -183,8 +182,10 @@ protected:
 
 private slots:
     void on_cbsColorTbl_textActivated(const QString &arg1);
-    void on_butUpdate_clicked();
-    void on_butSave_clicked();
+    void on_butUpdate1d_clicked();
+    void on_butUpdate2d_clicked();
+    void on_butSave1d_clicked();
+    void on_butSave2d_clicked();
     void on_butMetaData_toggled(bool checked);
     void on_cbsZoom_activated(int index);
     void on_cbsRotation_activated(int index);
@@ -210,10 +211,12 @@ private:
     QImage imgNoGUI;
     QImage imgNormal;
 
-    QImage generateImage();
+    QImage generateImage1d();
+    QImage generateImage2d();
+    inline QImage generateImage() { return data1D ? generateImage1d() : generateImage2d(); }
 #ifndef CONSOLENPROG
 #ifndef NOQWT
-    void plot1dCurve(double vmin, double vmax, bool isLog);
+    void plot1dCurve(double vmin, double vmax, bool vlog, double qmin, double qmax, bool qlog);
 #endif
     void switchGuiFor1d();
 #endif
@@ -224,7 +227,8 @@ private:
     bool swapHor, swapVert;
     int  rotIndex;
     int  zoomFactor;
-    bool useLinOut;
+    bool y1dlin,  x1dlin,  y2dlin;
+    bool y1dauto, x1dauto, y2dauto;
 
     _fileInfos fileInfos;
     bool bRekursiv;
@@ -240,7 +244,7 @@ private:
     QVector<QColor> farbtabelle;
     void updateColortable( int *r, int *g, int *b );
     bool useResiduenColors; // value<0 --> greyscale / value>=0 --> Glow or Temp
-    QColor data2pixelcol( double val, double min, double max, double datamax, bool islog );
+    QColor data2pixelcol( double val, double min/*lin,log*/, double max/*lin,log*/, double datamax/*nur lin*/, bool islog );
 
     QRect  noFitRect[4];
 
@@ -254,10 +258,10 @@ private:
     bool data1D;    // true wenn nur eine Kurve gezeichnet wird
     // Dann sind die img* sinnlos, die save*() Funktionen speichern dann einen Screenshot, (TODO)
     // das Histogramm wird ausgeblendet.
-    QwtPlot *plot1d;
-    QwtPlotCurve *curve1d;
-    QVector<QPointF> points1d;
-    QwtPlotGrid *grid1d;
+    QwtPlot         *plot1d,  *plot1dres;
+    QwtPlotCurve    *curve1d, *curve1dres;
+    QVector<QPointF> points1d, points1dres;
+    QwtPlotGrid     *grid1d,  *grid1dres;
 #endif
 
     bool firstView; // zum Sperren weiterer adjustSize() bei setData(...)
